@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { IconCheck, IconChat, IconTarget, IconStretch, IconDroplet, IconMuscle, IconYoutube, IconParty } from "@/components/icons";
 
 interface RecoveryTip {
   summary: string;
@@ -47,7 +48,6 @@ export default function SuccessPage() {
         if (user) {
           const today = new Date();
           const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
-
           await supabase.from("completions").upsert(
             {
               user_id: user.id,
@@ -64,7 +64,7 @@ export default function SuccessPage() {
 
         setTimeout(() => setShowStamp(true), 500);
       } catch {
-        setError("회복 팁을 생성하는 중 문제가 발생했어요.");
+        setError("회복 팁을 가져오는 데 문제가 생겼어요. 다시 시도해주세요!");
       } finally {
         setLoading(false);
       }
@@ -76,10 +76,11 @@ export default function SuccessPage() {
     return (
       <main className="min-h-screen flex flex-col items-center justify-center px-6">
         <div className="text-center">
-          <div className="text-6xl mb-6 animate-float">🧬</div>
-          <h2 className="text-xl font-bold mb-2">AI가 분석 중이에요...</h2>
-          <p className="text-oriwan-text-muted text-sm">오늘의 러닝에 딱 맞는 회복 팁을 만들고 있어요!</p>
-          <div className="mt-6 w-8 h-8 border-2 border-oriwan-primary border-t-transparent rounded-full animate-spin mx-auto" />
+          <div className="w-12 h-12 mx-auto mb-5 rounded-full bg-oriwan-primary/10 flex items-center justify-center">
+            <IconTarget size={24} className="text-oriwan-primary animate-spin" />
+          </div>
+          <h2 className="text-xl font-bold mb-2">AI가 분석하고 있어요</h2>
+          <p className="text-oriwan-text-muted text-sm">오늘의 러닝에 딱 맞는 회복 팁을 준비 중이에요!</p>
         </div>
       </main>
     );
@@ -89,7 +90,9 @@ export default function SuccessPage() {
     return (
       <main className="min-h-screen flex flex-col items-center justify-center px-6">
         <div className="text-center card p-8 max-w-md">
-          <div className="text-5xl mb-4">😅</div>
+          <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-orange-100 flex items-center justify-center">
+            <IconChat size={22} className="text-orange-500" />
+          </div>
           <h2 className="text-xl font-bold mb-2">앗, 문제가 생겼어요</h2>
           <p className="text-oriwan-text-muted text-sm mb-6">{error}</p>
           <Link href="/dashboard" className="btn-primary">대시보드로 돌아가기</Link>
@@ -113,10 +116,10 @@ export default function SuccessPage() {
         {showStamp && (
           <div className="text-center animate-fade-up">
             <div className="inline-flex items-center justify-center w-28 h-28 rounded-full bg-gradient-to-br from-oriwan-primary to-oriwan-accent shadow-xl shadow-oriwan-primary/20 stamp-complete">
-              <span className="text-5xl">🎉</span>
+              <IconParty size={48} className="text-white" />
             </div>
             <h2 className="text-2xl font-black mt-5 gradient-text">오리완 완료!</h2>
-            <p className="text-oriwan-text-muted mt-1.5 text-sm">오늘도 리커버리를 완료했어요. 대단해요! 🙌</p>
+            <p className="text-oriwan-text-muted mt-1.5 text-sm">오늘도 멋지게 해냈어요. 정말 대단해요!</p>
           </div>
         )}
 
@@ -124,16 +127,23 @@ export default function SuccessPage() {
           <>
             {/* AI 분석 */}
             <div className="card-warm p-6 animate-fade-up" style={{ animationDelay: "0.1s" }}>
-              <h3 className="font-bold mb-2 flex items-center gap-2">💬 AI 분석</h3>
+              <h3 className="font-bold mb-2 flex items-center gap-2">
+                <IconChat size={18} className="text-oriwan-primary" />
+                AI 분석
+              </h3>
               <p className="text-sm leading-relaxed">{tip.summary}</p>
-              <p className="text-xs text-oriwan-text-muted mt-3">
-                🎯 주요 사용 근육: <strong className="text-oriwan-primary">{tip.muscle_focus}</strong>
+              <p className="text-xs text-oriwan-text-muted mt-3 flex items-center gap-1">
+                <IconTarget size={14} className="text-oriwan-primary" />
+                주요 사용 근육: <strong className="text-oriwan-primary">{tip.muscle_focus}</strong>
               </p>
             </div>
 
             {/* 스트레칭 */}
             <div className="card p-6 animate-fade-up" style={{ animationDelay: "0.2s" }}>
-              <h3 className="font-bold mb-4 flex items-center gap-2">🧘 추천 스트레칭</h3>
+              <h3 className="font-bold mb-4 flex items-center gap-2">
+                <IconStretch size={18} className="text-oriwan-primary" />
+                추천 스트레칭
+              </h3>
               <div className="space-y-3">
                 {tip.stretches.map((s, i) => (
                   <div key={i} className="flex items-start gap-3 p-3.5 rounded-xl bg-oriwan-surface-light">
@@ -151,10 +161,13 @@ export default function SuccessPage() {
               </div>
             </div>
 
-            {/* 유튜브 영상 추천 */}
+            {/* 유튜브 영상 */}
             {tip.youtube_videos && tip.youtube_videos.length > 0 && (
               <div className="card p-6 animate-fade-up" style={{ animationDelay: "0.3s" }}>
-                <h3 className="font-bold mb-4 flex items-center gap-2">🎬 추천 영상</h3>
+                <h3 className="font-bold mb-4 flex items-center gap-2">
+                  <IconYoutube size={18} />
+                  추천 영상
+                </h3>
                 <div className="space-y-2.5">
                   {tip.youtube_videos.map((v, i) => (
                     <a
@@ -165,9 +178,7 @@ export default function SuccessPage() {
                       className="flex items-center gap-3 p-3 rounded-xl bg-oriwan-surface-light hover:bg-oriwan-surface-light/80 transition-colors group"
                     >
                       <div className="w-9 h-9 rounded-xl bg-red-500/10 flex items-center justify-center shrink-0">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="#EF4444">
-                          <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
-                        </svg>
+                        <IconYoutube size={16} />
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium truncate group-hover:text-oriwan-primary transition-colors">{v.title}</p>
@@ -181,13 +192,19 @@ export default function SuccessPage() {
             )}
 
             {/* 수분 & 격려 */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 animate-fade-up" style={{ animationDelay: "0.3s" }}>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 animate-fade-up" style={{ animationDelay: "0.35s" }}>
               <div className="card p-4">
-                <p className="text-sm font-semibold mb-1">💧 수분 보충</p>
+                <p className="text-sm font-semibold mb-1 flex items-center gap-1.5">
+                  <IconDroplet size={15} className="text-blue-400" />
+                  수분 보충
+                </p>
                 <p className="text-xs text-oriwan-text-muted">{tip.hydration_tip}</p>
               </div>
               <div className="card p-4">
-                <p className="text-sm font-semibold mb-1">💪 응원 한마디</p>
+                <p className="text-sm font-semibold mb-1 flex items-center gap-1.5">
+                  <IconMuscle size={15} className="text-oriwan-primary" />
+                  응원 한마디
+                </p>
                 <p className="text-xs text-oriwan-text-muted">{tip.encouragement}</p>
               </div>
             </div>
