@@ -1,27 +1,24 @@
 @import "tailwindcss";
 
-/* ===== 오리완 (O-Ri-Wan) 디자인 시스템 — Bright & Positive ===== */
+/* ===== 오리완 디자인 시스템 — 귀엽고 아기자기한 ===== */
 
 @theme {
-  /* 라이트 코어 팔레트 */
-  --color-oriwan-primary: #FF6B2B;
-  --color-oriwan-primary-light: #FF8A55;
-  --color-oriwan-primary-dark: #E65A1F;
-  --color-oriwan-accent: #FFB800;
-  --color-oriwan-bg: #FAFAF7;
+  --color-oriwan-primary: #FF8C42;
+  --color-oriwan-primary-light: #FFB380;
+  --color-oriwan-primary-dark: #E67A30;
+  --color-oriwan-accent: #FFCE54;
+  --color-oriwan-bg: #FFF9F0;
   --color-oriwan-surface: #FFFFFF;
-  --color-oriwan-surface-light: #F5F3EF;
-  --color-oriwan-text: #1A1A1A;
-  --color-oriwan-text-muted: #7A7A7A;
-  --color-oriwan-border: #E8E5DF;
-  --color-oriwan-success: #22C55E;
-  --color-oriwan-danger: #EF4444;
+  --color-oriwan-surface-light: #FFF5E8;
+  --color-oriwan-text: #3D3229;
+  --color-oriwan-text-muted: #9B8E82;
+  --color-oriwan-border: #F0E6D8;
+  --color-oriwan-success: #6DD47E;
+  --color-oriwan-danger: #FF6B6B;
 
-  /* 그라데이션 */
-  --color-gradient-start: #FF6B2B;
-  --color-gradient-end: #FFB800;
+  --color-gradient-start: #FF8C42;
+  --color-gradient-end: #FFCE54;
 
-  /* 폰트 */
   --font-sans: "Noto Sans KR", -apple-system, BlinkMacSystemFont, system-ui, Roboto, "Helvetica Neue", "Segoe UI", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
 }
 
@@ -39,19 +36,16 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* 모바일 safe-area 대응 */
 main {
   padding-left: env(safe-area-inset-left);
   padding-right: env(safe-area-inset-right);
 }
 
-/* 모바일 터치 최적화 */
 button, a, [role="button"] {
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
 }
 
-/* 이미지 드래그 방지 */
 img {
   -webkit-user-drag: none;
   user-select: none;
@@ -60,15 +54,15 @@ img {
 /* ===== 카드 ===== */
 .card {
   background: var(--color-oriwan-surface);
-  border: 1px solid var(--color-oriwan-border);
-  border-radius: 20px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+  border: 1.5px solid var(--color-oriwan-border);
+  border-radius: 24px;
+  box-shadow: 0 4px 20px rgba(255, 140, 66, 0.06);
 }
 
 .card-warm {
-  background: linear-gradient(135deg, #FFF7ED, #FFFBEB);
-  border: 1px solid #FDDCB5;
-  border-radius: 20px;
+  background: linear-gradient(135deg, #FFF5E8, #FFFBEB);
+  border: 1.5px solid #FDDCB5;
+  border-radius: 24px;
 }
 
 /* ===== 그라데이션 텍스트 ===== */
@@ -84,11 +78,11 @@ img {
   background: linear-gradient(135deg, var(--color-gradient-start), var(--color-gradient-end));
   color: white;
   font-weight: 700;
-  border-radius: 14px;
+  border-radius: 18px;
   padding: 14px 32px;
-  font-size: 1rem;
-  transition: all 0.3s ease;
-  box-shadow: 0 4px 16px rgba(255, 107, 43, 0.25);
+  font-size: 0.95rem;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  box-shadow: 0 6px 24px rgba(255, 140, 66, 0.3);
   border: none;
   cursor: pointer;
   display: inline-flex;
@@ -98,58 +92,53 @@ img {
 }
 
 .btn-primary:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(255, 107, 43, 0.35);
+  transform: translateY(-3px) scale(1.02);
+  box-shadow: 0 10px 32px rgba(255, 140, 66, 0.4);
 }
 
 .btn-primary:active {
-  transform: translateY(0);
+  transform: translateY(0) scale(0.98);
 }
 
 .btn-google {
   background: var(--color-oriwan-surface);
   color: var(--color-oriwan-text);
   font-weight: 600;
-  border-radius: 14px;
+  border-radius: 18px;
   padding: 14px 32px;
   font-size: 15px;
-  transition: all 0.2s ease;
-  border: 1px solid var(--color-oriwan-border);
+  transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  border: 1.5px solid var(--color-oriwan-border);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 10px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
 }
 
 .btn-google:hover {
   background: var(--color-oriwan-surface-light);
-  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 6px 20px rgba(255, 140, 66, 0.12);
+  transform: translateY(-2px);
 }
 
 .btn-google:active {
-  transform: scale(0.98);
+  transform: scale(0.97);
 }
 
-/* ===== 잔디(달력) 도장 ===== */
+/* ===== 달력 아이콘 ===== */
 .stamp-complete {
   background: linear-gradient(135deg, var(--color-gradient-start), var(--color-gradient-end));
-  border-radius: 10px;
+  border-radius: 12px;
   animation: stamp-pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
   color: white;
 }
 
-.stamp-empty {
-  background: var(--color-oriwan-surface-light);
-  border: 1px dashed var(--color-oriwan-border);
-  border-radius: 10px;
-}
-
 .stamp-today {
-  background: #FFF7ED;
-  border: 2px solid var(--color-oriwan-primary);
-  border-radius: 10px;
+  background: var(--color-oriwan-surface-light);
+  border: 2.5px solid var(--color-oriwan-primary);
+  border-radius: 12px;
   animation: pulse-border 2s infinite;
 }
 
@@ -161,13 +150,13 @@ img {
 }
 
 @keyframes pulse-border {
-  0%, 100% { border-color: var(--color-oriwan-primary); box-shadow: 0 0 0 0 rgba(255, 107, 43, 0.15); }
-  50% { border-color: var(--color-oriwan-accent); box-shadow: 0 0 10px 2px rgba(255, 107, 43, 0.1); }
+  0%, 100% { border-color: var(--color-oriwan-primary); box-shadow: 0 0 0 0 rgba(255, 140, 66, 0.15); }
+  50% { border-color: var(--color-oriwan-accent); box-shadow: 0 0 12px 3px rgba(255, 206, 84, 0.15); }
 }
 
 @keyframes float {
   0%, 100% { transform: translateY(0px); }
-  50% { transform: translateY(-8px); }
+  50% { transform: translateY(-6px); }
 }
 
 @keyframes fade-up {
@@ -175,9 +164,10 @@ img {
   to { opacity: 1; transform: translateY(0); }
 }
 
-@keyframes confetti {
-  0% { transform: translateY(0) rotate(0deg); opacity: 1; }
-  100% { transform: translateY(-60px) rotate(360deg); opacity: 0; }
+@keyframes wiggle {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-3deg); }
+  75% { transform: rotate(3deg); }
 }
 
 .animate-fade-up {
@@ -188,9 +178,13 @@ img {
   animation: float 3s ease-in-out infinite;
 }
 
+.animate-wiggle {
+  animation: wiggle 1s ease-in-out infinite;
+}
+
 /* ===== 스크롤바 ===== */
 ::-webkit-scrollbar {
-  width: 6px;
+  width: 4px;
 }
 
 ::-webkit-scrollbar-track {
@@ -199,5 +193,5 @@ img {
 
 ::-webkit-scrollbar-thumb {
   background: var(--color-oriwan-border);
-  border-radius: 3px;
+  border-radius: 2px;
 }

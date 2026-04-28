@@ -42,10 +42,8 @@ export default function DashboardPage() {
         avatar: u.user_metadata?.avatar_url || "",
       });
 
-      // Strava 연동 확인
-      try { const c = document.cookie; setStravaConnected(c.includes("oriwan_session")); } catch {}
+      try { setStravaConnected(document.cookie.includes("oriwan_session")); } catch {}
 
-      // 이번 달 완료 기록
       const startDate = `${year}-${String(month + 1).padStart(2, "0")}-01`;
       const endDate = `${year}-${String(month + 1).padStart(2, "0")}-${daysInMonth}`;
       const { data } = await supabase
@@ -67,18 +65,20 @@ export default function DashboardPage() {
   const handleOriwan = async () => {
     if (todayDone || loading) return;
     if (!stravaConnected) {
+      setLoading(true);
       try {
         const res = await fetch("/api/auth/strava");
         const data = await res.json();
         if (data.url) {
           window.location.href = data.url;
         } else {
-          alert(data.error || "Strava 연동 URL을 받아오지 못했어요. Vercel 환경변수를 확인해주세요.");
+          alert(data.error || "Strava 연동 준비 중 문제가 생겼어요.");
         }
       } catch (err) {
         console.error("Strava auth error:", err);
         alert("Strava 연동 요청 중 오류가 발생했어요.");
       }
+      setLoading(false);
       return;
     }
     setLoading(true);
@@ -88,7 +88,7 @@ export default function DashboardPage() {
       if (data.activities?.length > 0) {
         router.push("/success");
       } else {
-        alert("오늘 Strava에 기록된 러닝이 없어요. 달리고 다시 시도해주세요!");
+        alert("오늘 Strava에 기록된 러닝이 없어요!\n달리고 다시 눌러주세요 :)");
       }
     } catch { alert("데이터를 불러오는 중 오류가 발생했어요."); }
     setLoading(false);
@@ -100,48 +100,55 @@ export default function DashboardPage() {
     router.refresh();
   };
 
-  const completedCount = completions.length;
-
   return (
     <div className="min-h-screen bg-oriwan-bg flex flex-col">
       {/* 헤더 */}
-      <header className="sticky top-0 z-50 px-4 py-2.5 bg-oriwan-bg/90 backdrop-blur-md border-b border-oriwan-border">
+      <header className="sticky top-0 z-50 px-4 py-3 bg-oriwan-bg/90 backdrop-blur-md border-b border-oriwan-border">
         <div className="max-w-lg mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Image src="/oriwan-logo-v2.png" alt="오리완" width={24} height={24} className="object-contain" />
+            <Image src="/oriwan-logo-v2.png" alt="오리완" width={26} height={26} className="object-contain animate-wiggle" />
             <h1 className="text-base font-extrabold gradient-text">오리완</h1>
           </div>
-          <button onClick={handleLogout} className="text-xs text-oriwan-text-muted hover:text-oriwan-text">
-            로그아웃
-          </button>
+          <div className="flex items-center gap-2">
+            {user?.avatar && (
+              <Image src={user.avatar} alt="" width={24} height={24} className="rounded-full" />
+            )}
+            <button onClick={handleLogout} className="text-xs text-oriwan-text-muted hover:text-oriwan-text transition-colors">
+              로그아웃
+            </button>
+          </div>
         </div>
       </header>
 
-      <main className="flex-1 px-4 py-4 max-w-lg mx-auto w-full space-y-3">
-        {/* 오늘의 명언 */}
-        <div className="text-center py-3">
-          <p className="text-sm text-oriwan-text-muted italic leading-relaxed">&ldquo;{quote}&rdquo;</p>
+      <main className="flex-1 px-4 py-4 max-w-lg mx-auto w-full space-y-4">
+        {/* 명언 카드 */}
+        <div className="card-warm p-4 text-center">
+          <p className="text-sm text-oriwan-text leading-relaxed font-medium">
+            &ldquo;{quote}&rdquo;
+          </p>
         </div>
 
         {/* 달력 */}
         <div className="card p-4">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-bold">{year}년 {monthNames[month]}</h3>
-            <span className="text-xs text-oriwan-primary font-semibold">{completedCount}일 완료</span>
+            <h3 className="text-sm font-bold text-oriwan-text">
+              {year}년 {monthNames[month]}
+            </h3>
+            <span className="text-xs text-oriwan-primary font-bold bg-oriwan-surface-light px-2.5 py-1 rounded-full">
+              {completions.length}일 완료
+            </span>
           </div>
 
-          {/* 요일 헤더 */}
-          <div className="grid grid-cols-7 gap-1 mb-1">
-            {["일","월","화","수","목","금","토"].map((d) => (
-              <div key={d} className="text-center text-[10px] text-oriwan-text-muted font-medium py-0.5">{d}</div>
+          <div className="grid grid-cols-7 gap-1 mb-1.5">
+            {["일","월","화","수","목","금","토"].map((d, i) => (
+              <div key={d} className={`text-center text-[10px] font-semibold py-0.5 ${i === 0 ? "text-oriwan-danger" : i === 6 ? "text-blue-400" : "text-oriwan-text-muted"}`}>
+                {d}
+              </div>
             ))}
           </div>
 
-          {/* 날짜 그리드 */}
           <div className="grid grid-cols-7 gap-1">
-            {Array.from({ length: firstDay }).map((_, i) => (
-              <div key={`e-${i}`} />
-            ))}
+            {Array.from({ length: firstDay }).map((_, i) => <div key={`e-${i}`} />)}
             {Array.from({ length: daysInMonth }).map((_, i) => {
               const day = i + 1;
               const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
@@ -152,14 +159,14 @@ export default function DashboardPage() {
               return (
                 <div
                   key={day}
-                  className={`aspect-square flex items-center justify-center rounded-lg text-xs font-medium transition-all ${
+                  className={`aspect-square flex items-center justify-center rounded-xl text-xs font-semibold transition-all ${
                     done
-                      ? "bg-gradient-to-br from-oriwan-primary to-oriwan-accent text-white font-bold shadow-sm"
+                      ? "stamp-complete shadow-sm"
                       : isToday
-                      ? "border-2 border-oriwan-primary text-oriwan-primary font-bold"
+                      ? "stamp-today font-bold text-oriwan-primary"
                       : isFuture
-                      ? "text-oriwan-text-muted/30"
-                      : "text-oriwan-text-muted/60"
+                      ? "text-oriwan-text-muted/25"
+                      : "text-oriwan-text-muted/50"
                   }`}
                 >
                   {done ? <IconCheck size={14} /> : day}
@@ -170,34 +177,39 @@ export default function DashboardPage() {
         </div>
 
         {/* 오리완 버튼 */}
-        <div className="card p-4 text-center">
+        <div className="card p-5 text-center">
           {todayDone ? (
-            <div>
-              <div className="w-10 h-10 mx-auto mb-2 rounded-full bg-oriwan-success/10 flex items-center justify-center">
-                <IconCheck size={20} className="text-oriwan-success" />
+            <div className="space-y-2">
+              <div className="w-14 h-14 mx-auto rounded-2xl bg-oriwan-success/15 flex items-center justify-center animate-float">
+                <IconCheck size={28} className="text-oriwan-success" />
               </div>
-              <h3 className="font-bold text-sm gradient-text">오늘의 오리완 완료!</h3>
-              <p className="text-xs text-oriwan-text-muted mt-0.5">내일도 함께 달려요</p>
+              <h3 className="font-extrabold text-base gradient-text">오늘의 오리완 완료!</h3>
+              <p className="text-xs text-oriwan-text-muted">잘했어요! 내일도 함께 달려요</p>
             </div>
           ) : (
-            <button onClick={handleOriwan} disabled={loading} className="btn-primary w-full text-sm py-3">
-              {loading ? (
-                <span className="flex items-center justify-center gap-2">
-                  <IconSync size={18} className="animate-spin" />
-                  동기화 중...
-                </span>
-              ) : !stravaConnected ? (
-                <span className="flex items-center justify-center gap-2">
-                  <IconStrava size={18} />
-                  Strava 연동하고 시작하기
-                </span>
-              ) : (
-                <span className="flex items-center justify-center gap-2">
-                  <IconRun size={18} />
-                  오늘의 오리완 시작!
-                </span>
-              )}
-            </button>
+            <div className="space-y-3">
+              <p className="text-xs text-oriwan-text-muted">
+                {stravaConnected ? "오늘 달렸다면 인증해보세요!" : "Strava를 연동하면 자동으로 기록돼요"}
+              </p>
+              <button onClick={handleOriwan} disabled={loading} className="btn-primary w-full py-3.5 text-sm">
+                {loading ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <IconSync size={18} className="animate-spin" />
+                    준비 중...
+                  </span>
+                ) : !stravaConnected ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <IconStrava size={18} />
+                    Strava 연동하기
+                  </span>
+                ) : (
+                  <span className="flex items-center justify-center gap-2">
+                    <IconRun size={18} />
+                    오늘의 오리완 시작!
+                  </span>
+                )}
+              </button>
+            </div>
           )}
         </div>
       </main>
