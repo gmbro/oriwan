@@ -65,20 +65,7 @@ export default function DashboardPage() {
   const handleOriwan = async () => {
     if (todayDone || loading) return;
     if (!stravaConnected) {
-      setLoading(true);
-      try {
-        const res = await fetch("/api/auth/strava");
-        const data = await res.json();
-        if (data.url) {
-          window.location.href = data.url;
-        } else {
-          alert(data.error || "Strava 연동 준비 중 문제가 생겼어요.");
-        }
-      } catch (err) {
-        console.error("Strava auth error:", err);
-        alert("Strava 연동 요청 중 오류가 발생했어요.");
-      }
-      setLoading(false);
+      window.location.href = "/api/auth/strava";
       return;
     }
     setLoading(true);

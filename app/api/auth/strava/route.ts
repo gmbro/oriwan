@@ -6,7 +6,7 @@ import { getStravaAuthUrl } from "@/lib/strava";
  * GET /api/auth/strava
  *
  * Strava OAuth 인증 플로우를 시작합니다.
- * CSRF 방지용 state 토큰 생성 후, 인증 URL을 JSON으로 반환합니다.
+ * 브라우저에서 직접 이 URL로 이동하면 Strava 로그인 화면으로 리다이렉트됩니다.
  */
 export async function GET(request: NextRequest) {
   try {
@@ -24,10 +24,10 @@ export async function GET(request: NextRequest) {
     const origin = new URL(request.url).origin;
     const authUrl = getStravaAuthUrl(state, origin);
 
-    // 클라이언트에서 fetch로 호출하므로 JSON으로 URL 반환
-    return NextResponse.json({ url: authUrl });
+    return NextResponse.redirect(authUrl);
   } catch (err) {
     console.error("Strava auth error:", err);
-    return NextResponse.json({ error: "Strava 연동 준비 중 오류가 발생했어요." }, { status: 500 });
+    const origin = new URL(request.url).origin;
+    return NextResponse.redirect(`${origin}/dashboard?error=strava_init_failed`);
   }
 }
