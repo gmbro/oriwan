@@ -7,17 +7,16 @@ import { createClient } from "@/lib/supabase/client";
 import { IconCheck, IconRun, IconDna, IconSprout } from "@/components/icons";
 import { getDailyQuote } from "@/lib/quotes";
 
-interface RunData {
-  id: number;
+interface CompletionData {
+  id: string;
   completed_date: string;
 }
 
 export default function DashboardPage() {
   const router = useRouter();
   const [user, setUser] = useState<{ name: string; avatar: string } | null>(null);
-  const [completions, setCompletions] = useState<RunData[]>([]);
+  const [completions, setCompletions] = useState<CompletionData[]>([]);
   const [loading, setLoading] = useState(false);
-  const [stravaConnected, setStravaConnected] = useState(false);
   const [todayDone, setTodayDone] = useState(false);
   const [recoveryTip, setRecoveryTip] = useState("");
   const [recoveryLoading, setRecoveryLoading] = useState(false);
@@ -33,7 +32,9 @@ export default function DashboardPage() {
   const firstDay = new Date(year, month, 1).getDay();
   const monthNames = ["1월", "2월", "3월", "4월", "5월", "6월", "7월", "8월", "9월", "10월", "11월", "12월"];
 
-  // 리커버리 영상 (러닝 회복 관련 유튜브)
+  const stravaConnected = typeof document !== "undefined" && document.cookie.includes("oriwan_session");
+
+  // 리커버리 영상 (러닝 회복 관련)
   const recoveryVideos = [
     { id: "dQw4w9WgXcQ", title: "러닝 후 스트레칭 루틴", duration: "8분" },
     { id: "nIoOHVq-m_w", title: "허벅지 폼롤러 마사지", duration: "10분" },
@@ -42,6 +43,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     const init = async () => {
+      // 인증 확인 (세션만 확인, DB 접근 안 함)
       const supabase = createClient();
       const { data: { user: u } } = await supabase.auth.getUser();
       if (!u) { router.push("/"); return; }
@@ -51,23 +53,20 @@ export default function DashboardPage() {
         avatar: u.user_metadata?.avatar_url || "",
       });
 
-      try { setStravaConnected(document.cookie.includes("oriwan_session")); } catch {}
-
-      const startDate = `${year}-${String(month + 1).padStart(2, "0")}-01`;
-      const endDate = `${year}-${String(month + 1).padStart(2, "0")}-${daysInMonth}`;
-      const { data } = await supabase
-        .from("completions")
-        .select("id, completed_date")
-        .gte("completed_date", startDate)
-        .lte("completed_date", endDate);
-
-      if (data) {
-        setCompletions(data);
-        setTodayDone(data.some((d) => d.completed_date === todayStr));
+      // 서버 API로 완료 기록 조회 (DB 직접 접근 제거)
+      try {
+        const res = await fetch(`/api/completions?year=${year}&month=${month + 1}`);
+        const data = await res.json();
+        if (data.completions) {
+          setCompletions(data.completions);
+          setTodayDone(data.completions.some((d: CompletionData) => d.completed_date === todayStr));
+        }
+      } catch (err) {
+        console.error("Failed to fetch completions:", err);
       }
     };
     init();
-  }, [router, year, month, daysInMonth, todayStr]);
+  }, [router, year, month, todayStr]);
 
   const completedDates = new Set(completions.map((c) => c.completed_date));
 
@@ -120,6 +119,7 @@ export default function DashboardPage() {
           </div>
           <div className="flex items-center gap-2">
             {user?.avatar && (
+              /* eslint-disable-next-line @next/next/no-img-element */
               <img src={user.avatar} alt="" width={24} height={24} className="rounded-full" />
             )}
             <button onClick={handleLogout} className="text-xs text-oriwan-text-muted hover:text-oriwan-text transition-colors">
@@ -130,7 +130,7 @@ export default function DashboardPage() {
       </header>
 
       <main className="flex-1 px-4 py-4 max-w-lg mx-auto w-full space-y-4 pb-8">
-        {/* 명언 카드 */}
+        {/* 명언 */}
         <div className="card-warm p-4 text-center animate-fade-up">
           <p className="text-sm text-oriwan-text leading-relaxed font-medium">
             &ldquo;{quote}&rdquo;
@@ -140,9 +140,7 @@ export default function DashboardPage() {
         {/* 달력 */}
         <div className="card p-4 animate-fade-up" style={{ animationDelay: "0.05s" }}>
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-bold text-oriwan-text">
-              {year}년 {monthNames[month]}
-            </h3>
+            <h3 className="text-sm font-bold text-oriwan-text">{year}년 {monthNames[month]}</h3>
             <span className="text-xs text-oriwan-primary font-bold bg-oriwan-surface-light px-2.5 py-1 rounded-full">
               {completions.length}일 완료
             </span>
@@ -169,12 +167,9 @@ export default function DashboardPage() {
                 <div
                   key={day}
                   className={`aspect-square flex items-center justify-center rounded-xl text-xs font-semibold transition-all ${
-                    done
-                      ? "stamp-complete shadow-sm"
-                      : isToday
-                      ? "stamp-today font-bold text-oriwan-primary"
-                      : isFuture
-                      ? "text-oriwan-text-muted/25"
+                    done ? "stamp-complete shadow-sm"
+                      : isToday ? "stamp-today font-bold text-oriwan-primary"
+                      : isFuture ? "text-oriwan-text-muted/25"
                       : "text-oriwan-text-muted/50"
                   }`}
                 >
@@ -235,7 +230,7 @@ export default function DashboardPage() {
             </button>
           )}
 
-          {/* 리커버리 영상 */}
+          {/* 추천 영상 */}
           <div className="flex items-center gap-2 mb-2">
             <IconSprout size={14} className="text-oriwan-primary" />
             <h4 className="text-xs font-bold text-oriwan-text-muted">추천 영상</h4>
@@ -249,7 +244,8 @@ export default function DashboardPage() {
                 rel="noopener noreferrer"
                 className="flex items-center gap-3 bg-oriwan-surface-light hover:bg-oriwan-border/40 rounded-xl p-2.5 transition-colors"
               >
-                <div className="w-16 h-10 rounded-lg bg-oriwan-border/60 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                <div className="w-16 h-10 rounded-lg bg-oriwan-border/60 flex-shrink-0 overflow-hidden">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={`https://img.youtube.com/vi/${v.id}/mqdefault.jpg`}
                     alt={v.title}

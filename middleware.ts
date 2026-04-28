@@ -63,7 +63,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // ===== API 라우트 보안 (Strava/AI) =====
-  if ((pathname.startsWith("/api/strava") || pathname.startsWith("/api/ai")) && !user) {
+  if ((pathname.startsWith("/api/strava") || pathname.startsWith("/api/ai") || pathname.startsWith("/api/completions")) && !user) {
     return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
   }
 
