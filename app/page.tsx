@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import GoogleLoginButton from "./GoogleLoginButton";
@@ -19,10 +20,17 @@ export default async function Home() {
       {/* 로그인 카드 */}
       <div className="relative w-full max-w-[400px] mx-auto">
         <div className="card p-8 sm:p-10 text-center">
-          {/* 로고 */}
+          {/* 오리 로고 이미지 */}
           <div className="animate-fade-up mb-5">
-            <div className="w-20 h-20 mx-auto rounded-[22px] bg-gradient-to-br from-oriwan-primary to-oriwan-accent flex items-center justify-center shadow-lg shadow-oriwan-primary/15">
-              <span className="text-4xl">🏃</span>
+            <div className="w-24 h-24 mx-auto relative">
+              <Image
+                src="/oriwan-logo.png"
+                alt="오리완 로고"
+                width={96}
+                height={96}
+                className="object-contain drop-shadow-lg"
+                priority
+              />
             </div>
           </div>
 
@@ -30,31 +38,24 @@ export default async function Home() {
           <h1 className="animate-fade-up text-3xl font-black tracking-tight mb-1.5" style={{ animationDelay: "0.05s" }}>
             오리완
           </h1>
-          <p className="animate-fade-up text-[13px] text-oriwan-primary font-semibold tracking-wide mb-5" style={{ animationDelay: "0.08s" }}>
+          <p className="animate-fade-up text-[13px] text-oriwan-primary font-semibold tracking-wide mb-8" style={{ animationDelay: "0.08s" }}>
             오늘의 리커버리 완료
           </p>
 
-          {/* 설명 */}
-          <p className="animate-fade-up text-sm text-oriwan-text-muted leading-relaxed mb-8" style={{ animationDelay: "0.1s" }}>
-            달리고, 회복하고, 도장 찍고!
-            <br />
-            AI가 맞춤 회복 팁을 알려드려요 🧬
-          </p>
-
           {/* 구글 로그인 버튼 */}
-          <div className="animate-fade-up" style={{ animationDelay: "0.15s" }}>
+          <div className="animate-fade-up" style={{ animationDelay: "0.12s" }}>
             <GoogleLoginButton />
           </div>
 
           {/* 구분선 */}
-          <div className="animate-fade-up my-6 flex items-center gap-3" style={{ animationDelay: "0.2s" }}>
+          <div className="animate-fade-up my-6 flex items-center gap-3" style={{ animationDelay: "0.18s" }}>
             <div className="flex-1 h-px bg-oriwan-border" />
             <span className="text-[11px] text-oriwan-text-muted tracking-wider">이런 걸 할 수 있어요</span>
             <div className="flex-1 h-px bg-oriwan-border" />
           </div>
 
           {/* 기능 태그 */}
-          <div className="animate-fade-up flex items-center justify-center gap-2 flex-wrap" style={{ animationDelay: "0.25s" }}>
+          <div className="animate-fade-up flex items-center justify-center gap-2 flex-wrap" style={{ animationDelay: "0.22s" }}>
             <span className="inline-flex items-center gap-1 text-[12px] text-oriwan-text-muted px-3 py-1.5 rounded-full bg-oriwan-surface-light">
               🏃 러닝 인증
             </span>
@@ -68,7 +69,7 @@ export default async function Home() {
         </div>
 
         {/* 하단 안내 */}
-        <p className="animate-fade-up text-center text-[11px] text-oriwan-text-muted/60 mt-4" style={{ animationDelay: "0.3s" }}>
+        <p className="animate-fade-up text-center text-[11px] text-oriwan-text-muted/60 mt-4" style={{ animationDelay: "0.26s" }}>
           Google 계정으로 간편하게 시작할 수 있어요
         </p>
       </div>

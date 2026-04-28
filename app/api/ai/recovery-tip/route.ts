@@ -5,11 +5,9 @@ import { GoogleGenAI } from "@google/genai";
 /**
  * POST /api/ai/recovery-tip
  *
- * Gemini API를 사용해 실제 러닝 데이터 기반 맞춤형 회복 팁을 생성합니다.
- * Supabase 세션으로 인증된 유저만 사용 가능합니다.
+ * Gemini 2.0 Flash (가장 빠른 모델)로 맞춤형 회복 팁 + 유튜브 영상 추천을 생성합니다.
  */
 export async function POST(request: NextRequest) {
-  // Supabase 인증 확인
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
@@ -45,9 +43,14 @@ ${runData.total_elevation_gain ? `- 총 고도 상승: ${runData.total_elevation
   "stretches": [
     {"name": "스트레칭 이름", "duration": "30초", "description": "간단한 방법 설명"}
   ],
+  "youtube_videos": [
+    {"title": "영상 제목 (한국어)", "search_query": "유튜브 검색어 (한국어, 이 데이터에 맞는 스트레칭 영상을 찾을 수 있는 구체적인 검색어)", "reason": "추천 이유 한 줄"}
+  ],
   "hydration_tip": "수분 보충 팁 한 줄 (긍정적 톤)",
   "encouragement": "격려/응원 한 줄 (따뜻하고 힘이 되는 말)"
-}`;
+}
+
+youtube_videos는 2~3개를 추천해주세요. 검색어는 "러닝 후 종아리 스트레칭" 처럼 구체적이어야 합니다.`;
 
     const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
     const response = await ai.models.generateContent({

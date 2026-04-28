@@ -8,6 +8,7 @@ interface RecoveryTip {
   summary: string;
   muscle_focus: string;
   stretches: { name: string; duration: string; description: string }[];
+  youtube_videos?: { title: string; search_query: string; reason: string }[];
   hydration_tip: string;
   encouragement: string;
 }
@@ -149,6 +150,35 @@ export default function SuccessPage() {
                 ))}
               </div>
             </div>
+
+            {/* 유튜브 영상 추천 */}
+            {tip.youtube_videos && tip.youtube_videos.length > 0 && (
+              <div className="card p-6 animate-fade-up" style={{ animationDelay: "0.3s" }}>
+                <h3 className="font-bold mb-4 flex items-center gap-2">🎬 추천 영상</h3>
+                <div className="space-y-2.5">
+                  {tip.youtube_videos.map((v, i) => (
+                    <a
+                      key={i}
+                      href={`https://www.youtube.com/results?search_query=${encodeURIComponent(v.search_query)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-3 p-3 rounded-xl bg-oriwan-surface-light hover:bg-oriwan-surface-light/80 transition-colors group"
+                    >
+                      <div className="w-9 h-9 rounded-xl bg-red-500/10 flex items-center justify-center shrink-0">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="#EF4444">
+                          <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
+                        </svg>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate group-hover:text-oriwan-primary transition-colors">{v.title}</p>
+                        <p className="text-xs text-oriwan-text-muted mt-0.5">{v.reason}</p>
+                      </div>
+                      <span className="text-oriwan-text-muted text-xs shrink-0">→</span>
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* 수분 & 격려 */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 animate-fade-up" style={{ animationDelay: "0.3s" }}>
