@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import Link from "next/link";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 
 interface RunData {
@@ -60,8 +61,8 @@ function StreakCalendar({ completedDates }: { completedDates: string[] }) {
   const monthNames = ["1월", "2월", "3월", "4월", "5월", "6월", "7월", "8월", "9월", "10월", "11월", "12월"];
 
   return (
-    <div className="card p-6">
-      <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+    <div className="card p-5">
+      <h3 className="text-base font-bold mb-3 flex items-center gap-2">
         🌱 {monthNames[month]} 오리완 잔디
       </h3>
       <div className="grid grid-cols-7 gap-1.5 mb-2">
@@ -70,8 +71,8 @@ function StreakCalendar({ completedDates }: { completedDates: string[] }) {
         ))}
       </div>
       <div className="grid grid-cols-7 gap-1.5">{days}</div>
-      <div className="mt-4 flex items-center justify-between text-xs text-oriwan-text-muted">
-        <span>🔥 이번 달 <strong className="text-oriwan-primary">{completedCount}일</strong> 완료</span>
+      <div className="mt-3 flex items-center justify-between text-xs text-oriwan-text-muted">
+        <span>🔥 <strong className="text-oriwan-primary">{completedCount}일</strong> 완료</span>
         <div className="flex items-center gap-2">
           <span className="w-3 h-3 rounded stamp-complete inline-block" />
           <span>완료</span>
@@ -83,61 +84,17 @@ function StreakCalendar({ completedDates }: { completedDates: string[] }) {
   );
 }
 
-// ===== 러닝 카드 =====
-function RunCard({ run }: { run: RunData }) {
-  const distanceKm = (run.distance / 1000).toFixed(2);
-  const paceMinPerKm = run.moving_time / 60 / (run.distance / 1000);
-  const paceMin = Math.floor(paceMinPerKm);
-  const paceSec = Math.round((paceMinPerKm - paceMin) * 60);
-  const movingMin = Math.floor(run.moving_time / 60);
-  const movingSec = run.moving_time % 60;
-
-  return (
-    <div className="card-warm p-6">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-bold flex items-center gap-2">🏃 오늘의 러닝</h3>
-        <span className="text-xs text-oriwan-text-muted bg-white/60 px-2 py-1 rounded-lg">{run.name}</span>
-      </div>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <div className="text-center">
-          <p className="text-2xl font-black gradient-text">{distanceKm}</p>
-          <p className="text-xs text-oriwan-text-muted mt-1">km</p>
-        </div>
-        <div className="text-center">
-          <p className="text-2xl font-black">{paceMin}&apos;{String(paceSec).padStart(2, "0")}&quot;</p>
-          <p className="text-xs text-oriwan-text-muted mt-1">페이스</p>
-        </div>
-        <div className="text-center">
-          <p className="text-2xl font-black">{movingMin}:{String(movingSec).padStart(2, "0")}</p>
-          <p className="text-xs text-oriwan-text-muted mt-1">시간</p>
-        </div>
-        <div className="text-center">
-          <p className="text-2xl font-black">{run.average_cadence ? Math.round(run.average_cadence * 2) : "—"}</p>
-          <p className="text-xs text-oriwan-text-muted mt-1">케이던스</p>
-        </div>
-      </div>
-      {(run.average_heartrate || run.total_elevation_gain) && (
-        <div className="mt-4 pt-4 border-t border-orange-200/50 flex items-center gap-5 text-sm text-oriwan-text-muted">
-          {run.average_heartrate && <span>❤️ {Math.round(run.average_heartrate)} bpm</span>}
-          {run.total_elevation_gain && <span>⛰️ {Math.round(run.total_elevation_gain)}m</span>}
-          {run.calories && <span>🔥 {run.calories} kcal</span>}
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ===== 메인 대시보드 =====
 export default function DashboardPage() {
+  const router = useRouter();
   const [user, setUser] = useState<UserInfo | null>(null);
-  const [runData, setRunData] = useState<RunData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [syncing, setSyncing] = useState(false);
+  const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [completedDates, setCompletedDates] = useState<string[]>([]);
   const [hasStrava, setHasStrava] = useState(false);
+  const [todayDone, setTodayDone] = useState(false);
 
-  // 유저 정보 + 완료 기록 로드
   useEffect(() => {
     const loadData = async () => {
       const supabase = createClient();
@@ -148,17 +105,21 @@ export default function DashboardPage() {
           avatar: authUser.user_metadata?.avatar_url || "",
         });
 
-        // 완료 기록 로드
         const { data: records } = await supabase
           .from("completions")
           .select("completed_date")
           .eq("user_id", authUser.id);
         if (records) {
-          setCompletedDates(records.map((r: { completed_date: string }) => r.completed_date));
+          const dates = records.map((r: { completed_date: string }) => r.completed_date);
+          setCompletedDates(dates);
+
+          // 오늘 이미 완료했는지 확인
+          const today = new Date();
+          const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+          setTodayDone(dates.includes(todayStr));
         }
       }
 
-      // Strava 연동 여부
       const sessionCookie = document.cookie.split("; ").find((r) => r.startsWith("oriwan_session="));
       setHasStrava(!!sessionCookie);
       setLoading(false);
@@ -166,26 +127,33 @@ export default function DashboardPage() {
     loadData();
   }, []);
 
-  // Strava 동기화
-  const syncActivities = useCallback(async () => {
-    setSyncing(true);
+  // ===== 원클릭 오리완: Strava 동기화 → AI 팁 → 완료 (한 번에!) =====
+  const handleOneClickOriwan = async () => {
+    setProcessing(true);
     setError(null);
     try {
+      // 1. Strava에서 오늘 러닝 가져오기
       const res = await fetch("/api/strava/activities");
-      if (res.status === 401) { setHasStrava(false); return; }
+      if (res.status === 401) { setHasStrava(false); setProcessing(false); return; }
       const data = await res.json();
-      if (data.error) { setError(data.error); return; }
-      if (data.hasRun && data.activities.length > 0) {
-        setRunData(data.activities[0]);
-      } else {
+
+      if (!data.hasRun || data.activities.length === 0) {
         setError("오늘 Strava에 기록된 러닝이 없어요. 먼저 달려보세요! 🏃‍♂️");
+        setProcessing(false);
+        return;
       }
+
+      // 2. 러닝 데이터를 sessionStorage에 저장하고 성공 페이지로 이동
+      const runData: RunData = data.activities[0];
+      sessionStorage.setItem("oriwan_run_data", JSON.stringify(runData));
+
+      // 3. 성공 페이지에서 AI 팁 생성 + DB 저장이 자동으로 진행됨
+      router.push(`/success?runId=${runData.id}`);
     } catch {
-      setError("데이터를 가져오는 중 문제가 발생했어요.");
-    } finally {
-      setSyncing(false);
+      setError("문제가 발생했어요. 다시 시도해주세요.");
+      setProcessing(false);
     }
-  }, []);
+  };
 
   const handleLogout = async () => {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -206,9 +174,12 @@ export default function DashboardPage() {
   return (
     <main className="min-h-screen pb-28">
       {/* 헤더 */}
-      <header className="sticky top-0 z-50 px-5 py-3.5 bg-oriwan-bg/90 backdrop-blur-md border-b border-oriwan-border">
+      <header className="sticky top-0 z-50 px-5 py-3 bg-oriwan-bg/90 backdrop-blur-md border-b border-oriwan-border">
         <div className="max-w-lg mx-auto flex items-center justify-between">
-          <h1 className="text-lg font-black gradient-text">오리완</h1>
+          <div className="flex items-center gap-2">
+            <Image src="/oriwan-logo.png" alt="오리완" width={28} height={28} className="object-contain" />
+            <h1 className="text-lg font-black gradient-text">오리완</h1>
+          </div>
           <div className="flex items-center gap-2">
             {user?.avatar && (
               <img src={user.avatar} alt="" className="w-7 h-7 rounded-full border border-oriwan-border" />
@@ -222,70 +193,65 @@ export default function DashboardPage() {
 
       <div className="max-w-lg mx-auto px-5 py-6 space-y-5">
         {/* 인사말 */}
-        <div className="animate-fade-up">
-          <h2 className="text-xl font-bold">{user ? `${user.name}님, 안녕하세요! 👋` : "안녕하세요! 👋"}</h2>
-          <p className="text-oriwan-text-muted text-sm mt-1">오늘도 오리완을 완성해볼까요?</p>
+        <div className="animate-fade-up text-center">
+          <h2 className="text-lg font-bold">{user ? `${user.name}님, 안녕하세요! 👋` : "안녕하세요! 👋"}</h2>
         </div>
 
         {error && (
-          <div className="card-warm p-4 text-sm text-orange-700 animate-fade-up">{error}</div>
+          <div className="card-warm p-4 text-sm text-orange-700 animate-fade-up text-center">{error}</div>
         )}
 
-        {/* ===== Strava 미연동 시: 필수 연동 안내 (1순위) ===== */}
+        {/* ===== 잔디 달력 (메인) ===== */}
+        <div className="animate-fade-up">
+          <StreakCalendar completedDates={completedDates} />
+        </div>
+
+        {/* ===== 원클릭 액션 버튼 ===== */}
         {!hasStrava ? (
-          <div className="card p-8 text-center animate-fade-up border-2 border-dashed border-oriwan-primary/30">
-            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-[#FC4C02]/10 flex items-center justify-center">
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="#FC4C02">
+          /* Strava 미연동 */
+          <div className="card p-6 text-center animate-fade-up border-2 border-dashed border-oriwan-primary/30">
+            <div className="w-14 h-14 mx-auto mb-3 rounded-2xl bg-[#FC4C02]/10 flex items-center justify-center">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="#FC4C02">
                 <path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.463 0l-7 13.828h4.169" />
               </svg>
             </div>
-            <h3 className="text-lg font-bold mb-2">Strava를 연동해주세요! 🔗</h3>
-            <p className="text-sm text-oriwan-text-muted mb-2 leading-relaxed">
-              오리완은 Strava 러닝 데이터를 분석해서
-              <br />맞춤형 회복 팁을 제공해요.
+            <h3 className="font-bold mb-1">Strava를 연동해주세요!</h3>
+            <p className="text-xs text-oriwan-text-muted mb-4">
+              러닝 데이터를 자동으로 가져와요
             </p>
-            <p className="text-xs text-oriwan-text-muted mb-5">
-              거리, 케이던스, 페이스, 심박수 등이 자동으로 연동됩니다.
-            </p>
-            <a href="/api/auth/strava" className="btn-primary text-base px-8 py-3.5">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.463 0l-7 13.828h4.169" />
-              </svg>
+            <a href="/api/auth/strava" className="btn-primary text-sm px-6 py-3">
               Strava 연동하기
             </a>
           </div>
-        ) : !runData ? (
-          /* ===== Strava 연동 완료 → 오늘의 기록 동기화 ===== */
-          <div className="card p-8 text-center animate-fade-up">
-            <div className="text-5xl mb-4 animate-float">🏃</div>
-            <h3 className="font-bold mb-2">오늘의 러닝 기록을 가져올까요?</h3>
-            <p className="text-oriwan-text-muted text-sm mb-5">Strava에서 오늘 뛴 기록을 자동으로 불러와요!</p>
-            <button onClick={syncActivities} disabled={syncing} className="btn-primary">
-              {syncing ? (
-                <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> 동기화 중...</>
-              ) : "📡 Strava 동기화"}
-            </button>
+        ) : todayDone ? (
+          /* 오늘 이미 완료 */
+          <div className="card-warm p-6 text-center animate-fade-up">
+            <div className="text-4xl mb-2">🎉</div>
+            <h3 className="font-bold text-lg gradient-text">오늘의 오리완 완료!</h3>
+            <p className="text-sm text-oriwan-text-muted mt-1">내일도 화이팅! 💪</p>
           </div>
         ) : (
-          /* ===== 러닝 데이터 표시 + AI 회복 팁 버튼 ===== */
-          <>
-            <div className="animate-fade-up"><RunCard run={runData} /></div>
-            <div className="animate-fade-up" style={{ animationDelay: "0.1s" }}>
-              <Link
-                href={`/success?runId=${runData.id}`}
-                className="btn-primary w-full text-center text-lg py-4 block"
-                onClick={() => sessionStorage.setItem("oriwan_run_data", JSON.stringify(runData))}
-              >
-                🧬 AI 회복 팁 받고 오리완 완료! 🎉
-              </Link>
-            </div>
-          </>
+          /* 원클릭 오리완 버튼 */
+          <div className="animate-fade-up">
+            <button
+              onClick={handleOneClickOriwan}
+              disabled={processing}
+              className="btn-primary w-full text-center text-lg py-5 block rounded-2xl"
+            >
+              {processing ? (
+                <span className="flex items-center justify-center gap-2">
+                  <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  동기화 & 분석 중...
+                </span>
+              ) : (
+                "🏃 오늘의 오리완 시작!"
+              )}
+            </button>
+            <p className="text-center text-[11px] text-oriwan-text-muted mt-2">
+              Strava 동기화 → AI 회복 팁 → 도장까지 한 번에!
+            </p>
+          </div>
         )}
-
-        {/* 잔디 */}
-        <div className="animate-fade-up" style={{ animationDelay: "0.15s" }}>
-          <StreakCalendar completedDates={completedDates} />
-        </div>
       </div>
     </main>
   );

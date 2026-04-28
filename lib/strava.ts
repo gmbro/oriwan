@@ -15,10 +15,10 @@ const STRAVA_API_BASE = "https://www.strava.com/api/v3";
  * Strava OAuth 인증 URL을 생성합니다.
  * 사용자가 이 URL로 이동하면 스트라바 로그인 및 권한 동의 화면이 표시됩니다.
  */
-export function getStravaAuthUrl(state: string): string {
+export function getStravaAuthUrl(state: string, origin: string): string {
   const params = new URLSearchParams({
     client_id: process.env.STRAVA_CLIENT_ID!,
-    redirect_uri: process.env.NEXT_PUBLIC_STRAVA_REDIRECT_URI!,
+    redirect_uri: `${origin}/api/auth/strava/callback`,
     response_type: "code",
     approval_prompt: "auto",
     scope: "read,activity:read_all",
