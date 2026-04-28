@@ -65,7 +65,7 @@ function StreakCalendar({ completedDates }: { completedDates: string[] }) {
     <div className="card p-5">
       <h3 className="text-base font-bold mb-3 flex items-center gap-2">
         <IconSprout size={18} className="text-oriwan-success" />
-        {monthNames[month]} 오리완 잔디
+        {monthNames[month]} ORIWAN 잔디
       </h3>
       <div className="grid grid-cols-7 gap-1.5 mb-2">
         {dayLabels.map((l) => (
@@ -172,8 +172,8 @@ export default function DashboardPage() {
       <header className="sticky top-0 z-50 px-5 py-3 bg-oriwan-bg/90 backdrop-blur-md border-b border-oriwan-border">
         <div className="max-w-lg mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Image src="/oriwan-logo.png" alt="오리완" width={28} height={28} className="object-contain" />
-            <h1 className="text-lg font-black gradient-text">오리완</h1>
+            <Image src="/oriwan-logo.png" alt="ORIWAN" width={28} height={28} className="object-contain" />
+            <h1 className="text-lg font-black gradient-text">ORIWAN</h1>
           </div>
           <div className="flex items-center gap-2">
             {user?.avatar && (
@@ -222,7 +222,7 @@ export default function DashboardPage() {
             <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-oriwan-success/10 flex items-center justify-center">
               <IconCheck size={24} className="text-oriwan-success" />
             </div>
-            <h3 className="font-bold text-lg gradient-text">오늘의 오리완 완료!</h3>
+            <h3 className="font-bold text-lg gradient-text">오늘의 ORIWAN 완료!</h3>
             <p className="text-sm text-oriwan-text-muted mt-1">멋져요, 내일도 함께 달려요!</p>
           </div>
         ) : (
@@ -240,7 +240,7 @@ export default function DashboardPage() {
               ) : (
                 <span className="flex items-center justify-center gap-2">
                   <IconRun size={22} />
-                  오늘의 오리완 시작!
+                  오늘의 ORIWAN 시작!
                 </span>
               )}
             </button>

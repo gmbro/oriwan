@@ -24,7 +24,7 @@ export default async function Home() {
             <div className="w-24 h-24 mx-auto relative">
               <Image
                 src="/oriwan-logo.png"
-                alt="오리완 로고"
+                alt="ORIWAN 로고"
                 width={96}
                 height={96}
                 className="object-contain drop-shadow-lg"
@@ -34,7 +34,7 @@ export default async function Home() {
           </div>
 
           <h1 className="animate-fade-up text-3xl font-black tracking-tight mb-1.5" style={{ animationDelay: "0.05s" }}>
-            오리완
+            ORIWAN
           </h1>
           <p className="animate-fade-up text-[13px] text-oriwan-primary font-semibold tracking-wide mb-8" style={{ animationDelay: "0.08s" }}>
             오늘의 리커버리 완료
@@ -56,15 +56,15 @@ export default async function Home() {
           <div className="animate-fade-up flex items-center justify-center gap-2 flex-wrap" style={{ animationDelay: "0.22s" }}>
             <span className="inline-flex items-center gap-1.5 text-[12px] text-oriwan-text-muted px-3 py-1.5 rounded-full bg-oriwan-surface-light">
               <IconRun size={14} className="text-oriwan-primary" />
-              러닝 인증
+              오늘의 러닝 인증
             </span>
             <span className="inline-flex items-center gap-1.5 text-[12px] text-oriwan-text-muted px-3 py-1.5 rounded-full bg-oriwan-surface-light">
               <IconDna size={14} className="text-oriwan-primary" />
-              AI 회복 팁
+              리커버리 콘텐츠
             </span>
             <span className="inline-flex items-center gap-1.5 text-[12px] text-oriwan-text-muted px-3 py-1.5 rounded-full bg-oriwan-surface-light">
               <IconSprout size={14} className="text-oriwan-primary" />
-              잔디 기록
+              기록 모아보기
             </span>
           </div>
         </div>
