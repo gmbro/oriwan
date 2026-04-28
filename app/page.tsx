@@ -24,7 +24,7 @@ export default async function Home() {
             <div className="w-24 h-24 mx-auto relative">
               <Image
                 src="/oriwan-logo.png"
-                alt="ORIWAN 로고"
+                alt="오리완 로고"
                 width={96}
                 height={96}
                 className="object-contain drop-shadow-lg"
@@ -34,7 +34,7 @@ export default async function Home() {
           </div>
 
           <h1 className="animate-fade-up text-3xl font-black tracking-tight mb-1.5" style={{ animationDelay: "0.05s" }}>
-            ORIWAN
+            오리완
           </h1>
           <p className="animate-fade-up text-[13px] text-oriwan-primary font-semibold tracking-wide mb-8" style={{ animationDelay: "0.08s" }}>
             오늘의 리커버리 완료

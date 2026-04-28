@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 export const metadata = {
-  title: "개인정보처리방침 | ORIWAN",
+  title: "개인정보처리방침 | 오리완",
 };
 
 export default function PrivacyPage() {
@@ -19,11 +19,11 @@ export default function PrivacyPage() {
         <div className="card p-6 space-y-6 text-sm leading-relaxed text-oriwan-text-muted">
           <section>
             <h2 className="text-base font-bold text-oriwan-text mb-2">1. 수집하는 개인정보</h2>
-            <p>ORIWAN은 서비스 이용을 위해 다음과 같은 최소한의 정보를 수집합니다.</p>
+            <p>오리완은 서비스 이용을 위해 다음과 같은 최소한의 정보를 수집합니다.</p>
             <ul className="list-disc pl-5 space-y-1 mt-2">
               <li><strong>Google 계정:</strong> 이름, 이메일, 프로필 이미지</li>
               <li><strong>Strava 연동:</strong> 러닝 기록(거리, 시간, 페이스, 케이던스, 심박수)</li>
-              <li><strong>서비스 이용 기록:</strong> ORIWAN 완료 날짜</li>
+              <li><strong>서비스 이용 기록:</strong> 오리완 완료 날짜</li>
             </ul>
           </section>
 
@@ -43,7 +43,7 @@ export default function PrivacyPage() {
 
           <section>
             <h2 className="text-base font-bold text-oriwan-text mb-2">4. 제3자 제공</h2>
-            <p>ORIWAN은 이용자의 개인정보를 제3자에게 제공하지 않습니다. 다만, 다음의 경우는 예외로 합니다.</p>
+            <p>오리완은 이용자의 개인정보를 제3자에게 제공하지 않습니다. 다만, 다음의 경우는 예외로 합니다.</p>
             <ul className="list-disc pl-5 space-y-1 mt-2">
               <li>이용자가 사전에 동의한 경우</li>
               <li>법령에 따른 요구가 있는 경우</li>

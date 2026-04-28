@@ -106,7 +106,7 @@ export default function SuccessPage() {
       <header className="sticky top-0 z-50 px-5 py-3.5 bg-oriwan-bg/90 backdrop-blur-md border-b border-oriwan-border">
         <div className="max-w-lg mx-auto flex items-center justify-between">
           <Link href="/dashboard" className="text-oriwan-text-muted text-sm hover:text-oriwan-text transition-colors">← 대시보드</Link>
-          <h1 className="text-lg font-black gradient-text">ORIWAN</h1>
+          <h1 className="text-lg font-black gradient-text">오리완</h1>
           <div className="w-16" />
         </div>
       </header>
@@ -118,7 +118,7 @@ export default function SuccessPage() {
             <div className="inline-flex items-center justify-center w-28 h-28 rounded-full bg-gradient-to-br from-oriwan-primary to-oriwan-accent shadow-xl shadow-oriwan-primary/20 stamp-complete">
               <IconParty size={48} className="text-white" />
             </div>
-            <h2 className="text-2xl font-black mt-5 gradient-text">ORIWAN 완료!</h2>
+            <h2 className="text-2xl font-black mt-5 gradient-text">오리완 완료!</h2>
             <p className="text-oriwan-text-muted mt-1.5 text-sm">오늘도 멋지게 해냈어요. 정말 대단해요!</p>
           </div>
         )}

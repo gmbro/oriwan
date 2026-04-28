@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 export const metadata = {
-  title: "이용약관 | ORIWAN",
+  title: "이용약관 | 오리완",
 };
 
 export default function TermsPage() {
@@ -19,7 +19,7 @@ export default function TermsPage() {
         <div className="card p-6 space-y-6 text-sm leading-relaxed text-oriwan-text-muted">
           <section>
             <h2 className="text-base font-bold text-oriwan-text mb-2">제1조 (목적)</h2>
-            <p>본 약관은 ORIWAN(이하 &quot;서비스&quot;)이 제공하는 러닝 기록 인증 및 AI 회복 팁 서비스의 이용 조건과 절차를 규정함을 목적으로 합니다.</p>
+            <p>본 약관은 오리완(이하 &quot;서비스&quot;)이 제공하는 러닝 기록 인증 및 AI 회복 팁 서비스의 이용 조건과 절차를 규정함을 목적으로 합니다.</p>
           </section>
 
           <section>
