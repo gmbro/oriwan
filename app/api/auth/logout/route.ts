@@ -1,15 +1,13 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
+import { createClient } from "@/lib/supabase/server";
 
 /**
  * POST /api/auth/logout
- *
- * 세션 쿠키를 삭제하여 로그아웃합니다.
+ * Supabase 세션을 종료하고 로그아웃합니다.
  */
 export async function POST() {
-  const cookieStore = await cookies();
-  cookieStore.delete("oriwan_session");
-  cookieStore.delete("oriwan_user");
+  const supabase = await createClient();
+  await supabase.auth.signOut();
 
   return NextResponse.json({ success: true });
 }
