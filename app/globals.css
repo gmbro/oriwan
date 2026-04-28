@@ -1,26 +1,148 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* ===== 오리완 (O-Ri-Wan) 디자인 시스템 ===== */
+
+@theme {
+  /* 코어 컬러 팔레트 */
+  --color-oriwan-primary: #FF6B2B;
+  --color-oriwan-primary-light: #FF8A55;
+  --color-oriwan-primary-dark: #E65A1F;
+  --color-oriwan-accent: #FFB800;
+  --color-oriwan-bg: #0A0A0F;
+  --color-oriwan-surface: #141420;
+  --color-oriwan-surface-light: #1E1E30;
+  --color-oriwan-text: #F5F5F7;
+  --color-oriwan-text-muted: #8E8EA0;
+  --color-oriwan-border: #2A2A3E;
+  --color-oriwan-success: #34D399;
+  --color-oriwan-danger: #F87171;
+
+  /* 그라데이션 */
+  --color-gradient-start: #FF6B2B;
+  --color-gradient-end: #FFB800;
+
+  /* 폰트 */
+  --font-sans: "Pretendard Variable", "Pretendard", -apple-system, BlinkMacSystemFont, system-ui, Roboto, "Helvetica Neue", "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", sans-serif;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* ===== 기본 스타일 ===== */
+html {
+  scroll-behavior: smooth;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--color-oriwan-bg);
+  color: var(--color-oriwan-text);
+  font-family: var(--font-sans);
+}
+
+/* ===== 글래스모피즘 카드 ===== */
+.glass-card {
+  background: rgba(20, 20, 32, 0.7);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 107, 43, 0.12);
+  border-radius: 16px;
+}
+
+/* ===== 그라데이션 텍스트 ===== */
+.gradient-text {
+  background: linear-gradient(135deg, var(--color-gradient-start), var(--color-gradient-end));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ===== 그라데이션 버튼 ===== */
+.btn-primary {
+  background: linear-gradient(135deg, var(--color-gradient-start), var(--color-gradient-end));
+  color: white;
+  font-weight: 700;
+  border-radius: 12px;
+  padding: 14px 32px;
+  font-size: 1rem;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 20px rgba(255, 107, 43, 0.3);
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(255, 107, 43, 0.45);
+}
+
+.btn-primary:active {
+  transform: translateY(0);
+}
+
+/* ===== 잔디(달력) 도장 ===== */
+.stamp-complete {
+  background: linear-gradient(135deg, var(--color-gradient-start), var(--color-gradient-end));
+  border-radius: 8px;
+  animation: stamp-pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.stamp-empty {
+  background: var(--color-oriwan-surface-light);
+  border: 1px dashed var(--color-oriwan-border);
+  border-radius: 8px;
+}
+
+.stamp-today {
+  background: var(--color-oriwan-surface-light);
+  border: 2px solid var(--color-oriwan-primary);
+  border-radius: 8px;
+  animation: pulse-border 2s infinite;
+}
+
+/* ===== 애니메이션 ===== */
+@keyframes stamp-pop {
+  0% { transform: scale(0); opacity: 0; }
+  60% { transform: scale(1.2); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes pulse-border {
+  0%, 100% { border-color: var(--color-oriwan-primary); box-shadow: 0 0 0 0 rgba(255, 107, 43, 0.3); }
+  50% { border-color: var(--color-oriwan-accent); box-shadow: 0 0 12px 2px rgba(255, 107, 43, 0.15); }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-up {
+  animation: fade-up 0.6s ease-out forwards;
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+/* ===== 스크롤바 커스텀 ===== */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-oriwan-border);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-oriwan-primary);
 }
