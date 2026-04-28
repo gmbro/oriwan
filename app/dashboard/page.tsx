@@ -172,7 +172,7 @@ export default function DashboardPage() {
       <header className="sticky top-0 z-50 px-5 py-3 bg-oriwan-bg/90 backdrop-blur-md border-b border-oriwan-border">
         <div className="max-w-lg mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Image src="/oriwan-logo.png" alt="오리완" width={28} height={28} className="object-contain" />
+            <Image src="/oriwan-logo-v2.png" alt="오리완" width={28} height={28} className="object-contain" />
             <h1 className="text-lg font-black gradient-text">오리완</h1>
           </div>
           <div className="flex items-center gap-2">

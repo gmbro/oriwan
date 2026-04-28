@@ -13,8 +13,8 @@ export const metadata: Metadata = {
     locale: "ko_KR",
   },
   icons: {
-    icon: "/oriwan-logo.png",
-    apple: "/oriwan-logo.png",
+    icon: "/oriwan-logo-v2.png",
+    apple: "/oriwan-logo-v2.png",
   },
 };
 
@@ -33,10 +33,11 @@ export default function RootLayout({
   return (
     <html lang="ko" className="h-full antialiased">
       <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
           rel="stylesheet"
-          as="style"
-          href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css"
+          href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800;900&display=swap"
         />
       </head>
       <body className="min-h-full flex flex-col bg-oriwan-bg">{children}</body>

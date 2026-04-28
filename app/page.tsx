@@ -20,24 +20,24 @@ export default async function Home() {
       <div className="relative w-full max-w-[400px] mx-auto">
         <div className="card p-8 sm:p-10 text-center">
           {/* 오리 로고 */}
-          <div className="animate-fade-up mb-5">
-            <div className="w-24 h-24 mx-auto relative">
+          <div className="animate-fade-up mb-4">
+            <div className="w-28 h-28 mx-auto relative rounded-3xl overflow-hidden">
               <Image
-                src="/oriwan-logo.png"
+                src="/oriwan-logo-v2.png"
                 alt="오리완 로고"
-                width={96}
-                height={96}
-                className="object-contain drop-shadow-lg"
+                width={112}
+                height={112}
+                className="object-cover"
                 priority
               />
             </div>
           </div>
 
-          <h1 className="animate-fade-up text-3xl font-black tracking-tight mb-1.5" style={{ animationDelay: "0.05s" }}>
+          <h1 className="animate-fade-up text-3xl font-black tracking-tight mb-1" style={{ animationDelay: "0.05s" }}>
             오리완
           </h1>
           <p className="animate-fade-up text-[13px] text-oriwan-primary font-semibold tracking-wide mb-8" style={{ animationDelay: "0.08s" }}>
-            오늘의 리커버리 완료
+            오늘의 리커버리 완료!
           </p>
 
           {/* 구글 로그인 */}
@@ -48,28 +48,28 @@ export default async function Home() {
           {/* 구분선 */}
           <div className="animate-fade-up my-6 flex items-center gap-3" style={{ animationDelay: "0.18s" }}>
             <div className="flex-1 h-px bg-oriwan-border" />
-            <span className="text-[11px] text-oriwan-text-muted tracking-wider">이런 걸 할 수 있어요</span>
+            <span className="text-[11px] text-oriwan-text-muted tracking-wider whitespace-nowrap">이런 걸 할 수 있어요</span>
             <div className="flex-1 h-px bg-oriwan-border" />
           </div>
 
-          {/* 기능 태그 */}
-          <div className="animate-fade-up flex items-center justify-center gap-2 flex-wrap" style={{ animationDelay: "0.22s" }}>
-            <span className="inline-flex items-center gap-1.5 text-[12px] text-oriwan-text-muted px-3 py-1.5 rounded-full bg-oriwan-surface-light">
-              <IconRun size={14} className="text-oriwan-primary" />
-              오늘의 러닝 인증
+          {/* 기능 태그 — 한 줄 */}
+          <div className="animate-fade-up flex items-center justify-center gap-1.5" style={{ animationDelay: "0.22s" }}>
+            <span className="inline-flex items-center gap-1 text-[11px] text-oriwan-text-muted px-2.5 py-1.5 rounded-full bg-oriwan-surface-light whitespace-nowrap">
+              <IconRun size={12} className="text-oriwan-primary" />
+              러닝 인증
             </span>
-            <span className="inline-flex items-center gap-1.5 text-[12px] text-oriwan-text-muted px-3 py-1.5 rounded-full bg-oriwan-surface-light">
-              <IconDna size={14} className="text-oriwan-primary" />
-              리커버리 콘텐츠
+            <span className="inline-flex items-center gap-1 text-[11px] text-oriwan-text-muted px-2.5 py-1.5 rounded-full bg-oriwan-surface-light whitespace-nowrap">
+              <IconDna size={12} className="text-oriwan-primary" />
+              리커버리
             </span>
-            <span className="inline-flex items-center gap-1.5 text-[12px] text-oriwan-text-muted px-3 py-1.5 rounded-full bg-oriwan-surface-light">
-              <IconSprout size={14} className="text-oriwan-primary" />
+            <span className="inline-flex items-center gap-1 text-[11px] text-oriwan-text-muted px-2.5 py-1.5 rounded-full bg-oriwan-surface-light whitespace-nowrap">
+              <IconSprout size={12} className="text-oriwan-primary" />
               기록 모아보기
             </span>
           </div>
         </div>
 
-        {/* 하단 안내 + 약관 */}
+        {/* 하단 약관 */}
         <div className="animate-fade-up text-center mt-5 space-y-2" style={{ animationDelay: "0.26s" }}>
           <p className="text-[11px] text-oriwan-text-muted/60">
             Google 계정으로 간편하게 시작할 수 있어요
