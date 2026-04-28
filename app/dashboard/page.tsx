@@ -1,255 +1,197 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
-import { IconSprout, IconFlame, IconCheck, IconStrava, IconSync, IconParty, IconRun } from "@/components/icons";
+import { IconCheck, IconStrava, IconSync, IconRun } from "@/components/icons";
+import { getDailyQuote } from "@/lib/quotes";
 
 interface RunData {
   id: number;
-  name: string;
-  distance: number;
-  moving_time: number;
-  elapsed_time: number;
-  average_speed: number;
-  max_speed: number;
-  average_cadence?: number;
-  average_heartrate?: number;
-  max_heartrate?: number;
-  total_elevation_gain?: number;
-  start_date_local: string;
-  calories?: number;
+  completed_date: string;
 }
 
-interface UserInfo {
-  name: string;
-  avatar: string;
-}
+export default function DashboardPage() {
+  const router = useRouter();
+  const [user, setUser] = useState<{ name: string; avatar: string } | null>(null);
+  const [completions, setCompletions] = useState<RunData[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [stravaConnected, setStravaConnected] = useState(false);
+  const [todayDone, setTodayDone] = useState(false);
 
-// ===== 잔디(달력) 컴포넌트 =====
-function StreakCalendar({ completedDates }: { completedDates: string[] }) {
   const today = new Date();
   const year = today.getFullYear();
   const month = today.getMonth();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const firstDayOfWeek = new Date(year, month, 1).getDay();
   const todayDate = today.getDate();
-  const completedSet = new Set(completedDates);
-  const completedCount = completedDates.filter((d) =>
-    d.startsWith(`${year}-${String(month + 1).padStart(2, "0")}`)
-  ).length;
+  const todayStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(todayDate).padStart(2, "0")}`;
+  const quote = getDailyQuote();
 
-  const days = [];
-  for (let i = 0; i < firstDayOfWeek; i++) {
-    days.push(<div key={`empty-${i}`} className="aspect-square" />);
-  }
-  for (let d = 1; d <= daysInMonth; d++) {
-    const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-    const isCompleted = completedSet.has(dateStr);
-    const isToday = d === todayDate;
-
-    let cls = "aspect-square flex items-center justify-center text-xs font-medium rounded-lg transition-all ";
-    if (isCompleted) cls += "stamp-complete shadow-sm";
-    else if (isToday) cls += "stamp-today text-oriwan-primary font-bold";
-    else if (d < todayDate) cls += "stamp-empty text-oriwan-text-muted";
-    else cls += "stamp-empty text-oriwan-text-muted/40";
-
-    days.push(<div key={d} className={cls}>{d}</div>);
-  }
-
-  const dayLabels = ["일", "월", "화", "수", "목", "금", "토"];
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const firstDay = new Date(year, month, 1).getDay();
   const monthNames = ["1월", "2월", "3월", "4월", "5월", "6월", "7월", "8월", "9월", "10월", "11월", "12월"];
 
-  return (
-    <div className="card p-5">
-      <h3 className="text-base font-bold mb-3 flex items-center gap-2">
-        <IconSprout size={18} className="text-oriwan-success" />
-        {monthNames[month]} 오리완 잔디
-      </h3>
-      <div className="grid grid-cols-7 gap-1.5 mb-2">
-        {dayLabels.map((l) => (
-          <div key={l} className="aspect-square flex items-center justify-center text-[10px] text-oriwan-text-muted font-medium">{l}</div>
-        ))}
-      </div>
-      <div className="grid grid-cols-7 gap-1.5">{days}</div>
-      <div className="mt-3 flex items-center justify-between text-xs text-oriwan-text-muted">
-        <span className="flex items-center gap-1">
-          <IconFlame size={14} className="text-oriwan-primary" />
-          <strong className="text-oriwan-primary">{completedCount}일</strong> 완료
-        </span>
-        <div className="flex items-center gap-2">
-          <span className="w-3 h-3 rounded stamp-complete inline-block" />
-          <span>완료</span>
-          <span className="w-3 h-3 rounded stamp-today inline-block" />
-          <span>오늘</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ===== 메인 대시보드 =====
-export default function DashboardPage() {
-  const router = useRouter();
-  const [user, setUser] = useState<UserInfo | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [processing, setProcessing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [completedDates, setCompletedDates] = useState<string[]>([]);
-  const [hasStrava, setHasStrava] = useState(false);
-  const [todayDone, setTodayDone] = useState(false);
-
   useEffect(() => {
-    const loadData = async () => {
+    const init = async () => {
       const supabase = createClient();
-      const { data: { user: authUser } } = await supabase.auth.getUser();
-      if (authUser) {
-        setUser({
-          name: authUser.user_metadata?.full_name || authUser.email?.split("@")[0] || "러너",
-          avatar: authUser.user_metadata?.avatar_url || "",
-        });
+      const { data: { user: u } } = await supabase.auth.getUser();
+      if (!u) { router.push("/"); return; }
 
-        const { data: records } = await supabase
-          .from("completions")
-          .select("completed_date")
-          .eq("user_id", authUser.id);
-        if (records) {
-          const dates = records.map((r: { completed_date: string }) => r.completed_date);
-          setCompletedDates(dates);
-          const today = new Date();
-          const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
-          setTodayDone(dates.includes(todayStr));
-        }
+      setUser({
+        name: u.user_metadata?.full_name || u.email?.split("@")[0] || "러너",
+        avatar: u.user_metadata?.avatar_url || "",
+      });
+
+      // Strava 연동 확인
+      try { const c = document.cookie; setStravaConnected(c.includes("oriwan_session")); } catch {}
+
+      // 이번 달 완료 기록
+      const startDate = `${year}-${String(month + 1).padStart(2, "0")}-01`;
+      const endDate = `${year}-${String(month + 1).padStart(2, "0")}-${daysInMonth}`;
+      const { data } = await supabase
+        .from("completions")
+        .select("id, completed_date")
+        .gte("completed_date", startDate)
+        .lte("completed_date", endDate);
+
+      if (data) {
+        setCompletions(data);
+        setTodayDone(data.some((d) => d.completed_date === todayStr));
       }
-      const sessionCookie = document.cookie.split("; ").find((r) => r.startsWith("oriwan_session="));
-      setHasStrava(!!sessionCookie);
-      setLoading(false);
     };
-    loadData();
-  }, []);
+    init();
+  }, [router, year, month, daysInMonth, todayStr]);
 
-  const handleOneClickOriwan = async () => {
-    setProcessing(true);
-    setError(null);
+  const completedDates = new Set(completions.map((c) => c.completed_date));
+
+  const handleOriwan = async () => {
+    if (todayDone || loading) return;
+    if (!stravaConnected) {
+      const res = await fetch("/api/auth/strava");
+      const data = await res.json();
+      if (data.url) window.location.href = data.url;
+      return;
+    }
+    setLoading(true);
     try {
       const res = await fetch("/api/strava/activities");
-      if (res.status === 401) { setHasStrava(false); setProcessing(false); return; }
       const data = await res.json();
-      if (!data.hasRun || data.activities.length === 0) {
-        setError("아직 오늘의 러닝이 없어요. 먼저 한 바퀴 뛰어볼까요?");
-        setProcessing(false);
-        return;
+      if (data.activities?.length > 0) {
+        router.push("/success");
+      } else {
+        alert("오늘 Strava에 기록된 러닝이 없어요. 달리고 다시 시도해주세요!");
       }
-      const runData: RunData = data.activities[0];
-      sessionStorage.setItem("oriwan_run_data", JSON.stringify(runData));
-      router.push(`/success?runId=${runData.id}`);
-    } catch {
-      setError("문제가 발생했어요. 다시 시도해주세요!");
-      setProcessing(false);
-    }
+    } catch { alert("데이터를 불러오는 중 오류가 발생했어요."); }
+    setLoading(false);
   };
 
   const handleLogout = async () => {
     await fetch("/api/auth/logout", { method: "POST" });
-    window.location.href = "/";
+    router.push("/");
+    router.refresh();
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <IconSync size={28} className="text-oriwan-primary animate-spin mx-auto mb-3" />
-          <p className="text-sm text-oriwan-text-muted">잠시만요...</p>
-        </div>
-      </div>
-    );
-  }
+  const completedCount = completions.length;
 
   return (
-    <main className="min-h-screen pb-28">
+    <div className="min-h-screen bg-oriwan-bg flex flex-col">
       {/* 헤더 */}
-      <header className="sticky top-0 z-50 px-5 py-3 bg-oriwan-bg/90 backdrop-blur-md border-b border-oriwan-border">
+      <header className="sticky top-0 z-50 px-4 py-2.5 bg-oriwan-bg/90 backdrop-blur-md border-b border-oriwan-border">
         <div className="max-w-lg mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Image src="/oriwan-logo-v2.png" alt="오리완" width={28} height={28} className="object-contain" />
-            <h1 className="text-lg font-black gradient-text">오리완</h1>
+            <Image src="/oriwan-logo-v2.png" alt="오리완" width={24} height={24} className="object-contain" />
+            <h1 className="text-base font-extrabold gradient-text">오리완</h1>
           </div>
-          <div className="flex items-center gap-2">
-            {user?.avatar && (
-              <img src={user.avatar} alt="" className="w-7 h-7 rounded-full border border-oriwan-border" />
-            )}
-            <button onClick={handleLogout} className="text-xs text-oriwan-text-muted hover:text-oriwan-danger transition-colors px-2.5 py-1.5 rounded-lg hover:bg-red-50">
-              로그아웃
-            </button>
-          </div>
+          <button onClick={handleLogout} className="text-xs text-oriwan-text-muted hover:text-oriwan-text">
+            로그아웃
+          </button>
         </div>
       </header>
 
-      <div className="max-w-lg mx-auto px-5 py-6 space-y-5">
-        {/* 인사말 */}
-        <div className="animate-fade-up text-center">
-          <h2 className="text-lg font-bold">{user ? `${user.name}님, 반가워요!` : "반가워요!"}</h2>
-          <p className="text-sm text-oriwan-text-muted mt-0.5">오늘도 함께 달려볼까요?</p>
+      <main className="flex-1 px-4 py-4 max-w-lg mx-auto w-full space-y-3">
+        {/* 오늘의 명언 */}
+        <div className="text-center py-3">
+          <p className="text-sm text-oriwan-text-muted italic leading-relaxed">&ldquo;{quote}&rdquo;</p>
         </div>
 
-        {error && (
-          <div className="card-warm p-4 text-sm text-orange-700 animate-fade-up text-center">{error}</div>
-        )}
+        {/* 달력 */}
+        <div className="card p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-bold">{year}년 {monthNames[month]}</h3>
+            <span className="text-xs text-oriwan-primary font-semibold">{completedCount}일 완료</span>
+          </div>
 
-        {/* 잔디 달력 */}
-        <div className="animate-fade-up">
-          <StreakCalendar completedDates={completedDates} />
+          {/* 요일 헤더 */}
+          <div className="grid grid-cols-7 gap-1 mb-1">
+            {["일","월","화","수","목","금","토"].map((d) => (
+              <div key={d} className="text-center text-[10px] text-oriwan-text-muted font-medium py-0.5">{d}</div>
+            ))}
+          </div>
+
+          {/* 날짜 그리드 */}
+          <div className="grid grid-cols-7 gap-1">
+            {Array.from({ length: firstDay }).map((_, i) => (
+              <div key={`e-${i}`} />
+            ))}
+            {Array.from({ length: daysInMonth }).map((_, i) => {
+              const day = i + 1;
+              const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+              const done = completedDates.has(dateStr);
+              const isToday = day === todayDate;
+              const isFuture = day > todayDate;
+
+              return (
+                <div
+                  key={day}
+                  className={`aspect-square flex items-center justify-center rounded-lg text-xs font-medium transition-all ${
+                    done
+                      ? "bg-gradient-to-br from-oriwan-primary to-oriwan-accent text-white font-bold shadow-sm"
+                      : isToday
+                      ? "border-2 border-oriwan-primary text-oriwan-primary font-bold"
+                      : isFuture
+                      ? "text-oriwan-text-muted/30"
+                      : "text-oriwan-text-muted/60"
+                  }`}
+                >
+                  {done ? <IconCheck size={14} /> : day}
+                </div>
+              );
+            })}
+          </div>
         </div>
 
-        {/* 액션 버튼 */}
-        {!hasStrava ? (
-          <div className="card p-6 text-center animate-fade-up border-2 border-dashed border-oriwan-primary/30">
-            <div className="w-14 h-14 mx-auto mb-3 rounded-2xl bg-[#FC4C02]/10 flex items-center justify-center">
-              <IconStrava size={24} className="text-[#FC4C02]" />
+        {/* 오리완 버튼 */}
+        <div className="card p-4 text-center">
+          {todayDone ? (
+            <div>
+              <div className="w-10 h-10 mx-auto mb-2 rounded-full bg-oriwan-success/10 flex items-center justify-center">
+                <IconCheck size={20} className="text-oriwan-success" />
+              </div>
+              <h3 className="font-bold text-sm gradient-text">오늘의 오리완 완료!</h3>
+              <p className="text-xs text-oriwan-text-muted mt-0.5">내일도 함께 달려요</p>
             </div>
-            <h3 className="font-bold mb-1">Strava 연동이 필요해요</h3>
-            <p className="text-xs text-oriwan-text-muted mb-4">
-              러닝 데이터를 자동으로 연동해드릴게요
-            </p>
-            <a href="/api/auth/strava" className="btn-primary text-sm px-6 py-3 inline-flex items-center gap-2">
-              <IconStrava size={16} />
-              Strava 연동하기
-            </a>
-          </div>
-        ) : todayDone ? (
-          <div className="card-warm p-6 text-center animate-fade-up">
-            <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-oriwan-success/10 flex items-center justify-center">
-              <IconCheck size={24} className="text-oriwan-success" />
-            </div>
-            <h3 className="font-bold text-lg gradient-text">오늘의 오리완 완료!</h3>
-            <p className="text-sm text-oriwan-text-muted mt-1">멋져요, 내일도 함께 달려요!</p>
-          </div>
-        ) : (
-          <div className="animate-fade-up">
-            <button
-              onClick={handleOneClickOriwan}
-              disabled={processing}
-              className="btn-primary w-full text-center text-lg py-5 block rounded-2xl"
-            >
-              {processing ? (
+          ) : (
+            <button onClick={handleOriwan} disabled={loading} className="btn-primary w-full text-sm py-3">
+              {loading ? (
                 <span className="flex items-center justify-center gap-2">
-                  <IconSync size={20} className="animate-spin" />
-                  동기화 & 분석 중...
+                  <IconSync size={18} className="animate-spin" />
+                  동기화 중...
+                </span>
+              ) : !stravaConnected ? (
+                <span className="flex items-center justify-center gap-2">
+                  <IconStrava size={18} />
+                  Strava 연동하고 시작하기
                 </span>
               ) : (
                 <span className="flex items-center justify-center gap-2">
-                  <IconRun size={22} />
+                  <IconRun size={18} />
                   오늘의 오리완 시작!
                 </span>
               )}
             </button>
-            <p className="text-center text-[11px] text-oriwan-text-muted mt-2">
-              Strava 동기화부터 AI 회복 팁까지, 원클릭으로 끝!
-            </p>
-          </div>
-        )}
-      </div>
-    </main>
+          )}
+        </div>
+      </main>
+    </div>
   );
 }
