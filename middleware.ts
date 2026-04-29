@@ -53,7 +53,7 @@ export async function middleware(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
 
   // ===== 보호된 라우트: 인증 확인 =====
-  const protectedPaths = ["/dashboard", "/success"];
+  const protectedPaths = ["/dashboard", "/success", "/workout", "/recovery", "/certify"];
   const isProtected = protectedPaths.some((p) => pathname.startsWith(p));
 
   if (isProtected && !user) {
@@ -63,7 +63,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // ===== API 라우트 보안 (Strava/AI) =====
-  if ((pathname.startsWith("/api/strava") || pathname.startsWith("/api/ai") || pathname.startsWith("/api/completions")) && !user) {
+  if ((pathname.startsWith("/api/strava") || pathname.startsWith("/api/ai") || pathname.startsWith("/api/completions") || pathname.startsWith("/api/upload")) && !user) {
     return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
   }
 
