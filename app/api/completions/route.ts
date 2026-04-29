@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
 /**
- * GET /api/completions — 월간 완료 기록 조회
+ * GET /api/completions — 월간 완료 기록 + 통계 조회
  * POST /api/completions — 운동 완료 기록 저장
  */
 export async function GET(request: Request) {
@@ -27,17 +27,38 @@ export async function GET(request: Request) {
 
   const { data, error } = await supabase
     .from("completions")
-    .select("id, completed_date")
+    .select("id, completed_date, distance, moving_time, average_cadence, average_heartrate, certified")
     .eq("user_id", user.id)
     .gte("completed_date", startDate)
-    .lte("completed_date", endDate);
+    .lte("completed_date", endDate)
+    .order("completed_date", { ascending: true });
 
   if (error) {
     console.error("Completions query error:", error);
     return NextResponse.json({ error: "기록 조회 중 오류" }, { status: 500 });
   }
 
-  return NextResponse.json({ completions: data || [] });
+  // 통계 계산
+  const records = data || [];
+  const totalDistance = records.reduce((s, r) => s + (r.distance || 0), 0);
+  const totalTime = records.reduce((s, r) => s + (r.moving_time || 0), 0);
+  const avgCadence = records.filter(r => r.average_cadence).length > 0
+    ? records.reduce((s, r) => s + (r.average_cadence || 0), 0) / records.filter(r => r.average_cadence).length
+    : null;
+  const avgHeartrate = records.filter(r => r.average_heartrate).length > 0
+    ? records.reduce((s, r) => s + (r.average_heartrate || 0), 0) / records.filter(r => r.average_heartrate).length
+    : null;
+
+  return NextResponse.json({
+    completions: records,
+    stats: {
+      totalRuns: records.length,
+      totalDistanceKm: +(totalDistance / 1000).toFixed(1),
+      totalTimeMin: Math.round(totalTime / 60),
+      avgCadence: avgCadence ? +avgCadence.toFixed(0) : null,
+      avgHeartrate: avgHeartrate ? +avgHeartrate.toFixed(0) : null,
+    },
+  });
 }
 
 export async function POST(request: NextRequest) {
@@ -49,7 +70,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const { duration, photo_url } = await request.json();
+    const body = await request.json();
 
     const now = new Date();
     const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
@@ -60,9 +81,13 @@ export async function POST(request: NextRequest) {
         {
           user_id: user.id,
           completed_date: todayStr,
-          moving_time: duration || 0,
-          photo_url: photo_url || null,
-          certified: true,
+          distance: body.distance || null,
+          moving_time: body.moving_time || body.duration || null,
+          average_cadence: body.average_cadence || null,
+          average_heartrate: body.average_heartrate || null,
+          strava_activity_id: body.strava_activity_id || null,
+          photo_url: body.photo_url || null,
+          certified: body.certified ?? true,
         },
         { onConflict: "user_id,completed_date" }
       );

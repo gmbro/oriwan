@@ -6,7 +6,15 @@ import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 import { IconCheck, IconRun } from "@/components/icons";
 
-interface CompletionData { id: string; completed_date: string; }
+interface CompletionData {
+  id: string; completed_date: string;
+  distance?: number; moving_time?: number;
+  average_cadence?: number; average_heartrate?: number;
+}
+interface Stats {
+  totalRuns: number; totalDistanceKm: number; totalTimeMin: number;
+  avgCadence: number | null; avgHeartrate: number | null;
+}
 
 const recovery = [
   { cat: "러닝 후 스트레칭", items: ["전신 스트레칭","하체 스트레칭","종아리 스트레칭","허벅지 스트레칭","고관절 풀기","엉덩이 스트레칭","햄스트링","발목 스트레칭","쿨다운 루틴","허리 스트레칭"] },
@@ -22,7 +30,11 @@ export default function DashboardPage() {
   const [userName, setUserName] = useState("");
   const [userAvatar, setUserAvatar] = useState("");
   const [completions, setCompletions] = useState<CompletionData[]>([]);
+  const [stats, setStats] = useState<Stats | null>(null);
   const [todayDone, setTodayDone] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [stravaConnected, setStravaConnected] = useState(false);
+  const [stravaChecked, setStravaChecked] = useState(false);
 
   // 회복 팁
   const [tip, setTip] = useState("");
@@ -51,8 +63,8 @@ export default function DashboardPage() {
     setTipLoading(true);
     fetch("/api/ai/recovery", { method: "POST" })
       .then((r) => r.json())
-      .then((d) => setTip(d.tip || "가벼운 스트레칭으로 근육의 긴장을 풀어주세요."))
-      .catch(() => setTip("가벼운 스트레칭으로 근육의 긴장을 풀어주세요."))
+      .then((d) => setTip(d.tip || "러닝 후 스트레칭과 수분 보충을 잊지 마세요."))
+      .catch(() => setTip("러닝 후 스트레칭과 수분 보충을 잊지 마세요."))
       .finally(() => setTipLoading(false));
   }, [tipLoading]);
 
@@ -66,14 +78,22 @@ export default function DashboardPage() {
       setUserName(u.user_metadata?.full_name || u.email?.split("@")[0] || "러너");
       setUserAvatar(u.user_metadata?.avatar_url || "");
 
+      // Strava 연동 상태 확인 (서버 API)
+      try {
+        const sr = await fetch("/api/auth/strava/status");
+        const sd = await sr.json();
+        setStravaConnected(sd.connected);
+      } catch { setStravaConnected(false); }
+      setStravaChecked(true);
+
+      // 완료 기록 + 통계
       try {
         const res = await fetch(`/api/completions?year=${dateInfo.year}&month=${dateInfo.month + 1}`);
         if (res.ok) {
           const data = await res.json();
-          if (data.completions) {
-            setCompletions(data.completions);
-            setTodayDone(data.completions.some((c: CompletionData) => c.completed_date === dateInfo.todayStr));
-          }
+          setCompletions(data.completions || []);
+          setStats(data.stats || null);
+          setTodayDone((data.completions || []).some((c: CompletionData) => c.completed_date === dateInfo.todayStr));
         }
       } catch {}
 
@@ -81,8 +101,8 @@ export default function DashboardPage() {
         tipLoadedRef.current = true;
         fetch("/api/ai/recovery", { method: "POST" })
           .then((r) => r.json())
-          .then((d) => setTip(d.tip || "충분한 수분 보충과 스트레칭으로 회복하세요."))
-          .catch(() => setTip("충분한 수분 보충과 스트레칭으로 회복하세요."));
+          .then((d) => setTip(d.tip || ""))
+          .catch(() => {});
       }
     };
     init();
@@ -91,11 +111,38 @@ export default function DashboardPage() {
   const monthNames = ["1월","2월","3월","4월","5월","6월","7월","8월","9월","10월","11월","12월"];
   const completedDates = new Set(completions.map((c) => c.completed_date));
 
+  // Strava 동기화 → 리커버리 플로우 시작
+  const handleSync = useCallback(async () => {
+    if (todayDone || syncing) return;
+
+    if (!stravaConnected) {
+      if (confirm("Strava 연동이 필요합니다.\nStrava 로그인 페이지로 이동할까요?")) {
+        window.location.href = "/api/auth/strava";
+      }
+      return;
+    }
+
+    setSyncing(true);
+    try {
+      const res = await fetch("/api/strava/activities");
+      const data = await res.json();
+
+      if (data.activities && data.activities.length > 0) {
+        const run = data.activities[0];
+        sessionStorage.setItem("oriwan_run_data", JSON.stringify(run));
+        router.push("/recovery");
+      } else {
+        alert("오늘 Strava에 기록된 러닝이 없어요!\n러닝 후 워치를 동기화하고 다시 시도해주세요.");
+      }
+    } catch {
+      alert("데이터를 불러오지 못했어요. 잠시 후 다시 시도해주세요.");
+    } finally {
+      setSyncing(false);
+    }
+  }, [todayDone, syncing, stravaConnected, router]);
+
   const handleLogout = useCallback(() => {
-    fetch("/api/auth/logout", { method: "POST" }).then(() => {
-      router.push("/");
-      router.refresh();
-    });
+    fetch("/api/auth/logout", { method: "POST" }).then(() => { router.push("/"); router.refresh(); });
   }, [router]);
 
   if (!mounted) return <div className="min-h-screen bg-oriwan-bg" />;
@@ -118,8 +165,45 @@ export default function DashboardPage() {
       </header>
 
       <main className="flex-1 px-4 py-5 max-w-lg mx-auto w-full space-y-4 pb-10">
+        {/* Strava 미연동 배너 */}
+        {stravaChecked && !stravaConnected && (
+          <button onClick={() => { window.location.href = "/api/auth/strava"; }} className="btn-strava w-full py-3 text-sm animate-fade-up">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.463 0l-7 13.828h4.169"/></svg>
+            Strava 연동하기
+          </button>
+        )}
+
+        {/* 월간 통계 위젯 */}
+        {stats && stats.totalRuns > 0 && (
+          <div className="animate-fade-up">
+            <h2 className="text-xs font-bold text-oriwan-text-muted mb-2 px-1">{monthNames[dateInfo.month]} 현황</h2>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="card p-3.5 text-center">
+                <p className="text-[11px] text-oriwan-text-muted">총 거리</p>
+                <p className="text-lg font-black text-oriwan-text">{stats.totalDistanceKm}<span className="text-xs font-medium text-oriwan-text-muted ml-0.5">km</span></p>
+              </div>
+              <div className="card p-3.5 text-center">
+                <p className="text-[11px] text-oriwan-text-muted">총 러닝</p>
+                <p className="text-lg font-black text-oriwan-text">{stats.totalRuns}<span className="text-xs font-medium text-oriwan-text-muted ml-0.5">회</span></p>
+              </div>
+              {stats.avgCadence && (
+                <div className="card p-3.5 text-center">
+                  <p className="text-[11px] text-oriwan-text-muted">평균 케이던스</p>
+                  <p className="text-lg font-black text-oriwan-text">{stats.avgCadence}<span className="text-xs font-medium text-oriwan-text-muted ml-0.5">spm</span></p>
+                </div>
+              )}
+              {stats.avgHeartrate && (
+                <div className="card p-3.5 text-center">
+                  <p className="text-[11px] text-oriwan-text-muted">평균 심박수</p>
+                  <p className="text-lg font-black text-oriwan-text">{stats.avgHeartrate}<span className="text-xs font-medium text-oriwan-text-muted ml-0.5">bpm</span></p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* AI 회복 팁 */}
-        <button onClick={fetchTip} disabled={tipLoading} className="w-full card-quote p-5 text-center animate-fade-up block">
+        <button onClick={fetchTip} disabled={tipLoading} className="w-full card-quote p-5 text-center animate-fade-up block" style={{ animationDelay: "0.03s" }}>
           {tipLoading ? (
             <p className="text-sm text-oriwan-text-muted animate-pulse">새로운 회복 팁을 찾는 중...</p>
           ) : (
@@ -132,18 +216,16 @@ export default function DashboardPage() {
           )}
         </button>
 
-        {/* 달력 + 러닝 시작 */}
-        <div className="card p-5 animate-fade-up" style={{ animationDelay: "0.05s" }}>
+        {/* 달력 + 동기화 버튼 */}
+        <div className="card p-5 animate-fade-up" style={{ animationDelay: "0.06s" }}>
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-bold">{dateInfo.year}년 {monthNames[dateInfo.month]}</h3>
-            <span className="text-[11px] text-oriwan-primary font-bold bg-blue-50 px-2.5 py-1 rounded-full">
-              {completions.length}일 완료
-            </span>
+            <span className="text-[11px] text-oriwan-primary font-bold bg-blue-50 px-2.5 py-1 rounded-full">{completions.length}일 완료</span>
           </div>
 
           <div className="grid grid-cols-7 gap-0.5 mb-1">
             {["일","월","화","수","목","금","토"].map((d, i) => (
-              <div key={d} className={`text-center text-[10px] font-bold py-0.5 ${i === 0 ? "text-oriwan-danger" : i === 6 ? "text-oriwan-primary" : "text-oriwan-text-muted"}`}>{d}</div>
+              <div key={d} className={`text-center text-[10px] font-bold py-0.5 ${i===0?"text-oriwan-danger":i===6?"text-oriwan-primary":"text-oriwan-text-muted"}`}>{d}</div>
             ))}
           </div>
 
@@ -151,33 +233,36 @@ export default function DashboardPage() {
             {Array.from({ length: dateInfo.firstDay }).map((_, i) => <div key={`e${i}`} />)}
             {Array.from({ length: dateInfo.daysInMonth }).map((_, i) => {
               const day = i + 1;
-              const ds = `${dateInfo.year}-${String(dateInfo.month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+              const ds = `${dateInfo.year}-${String(dateInfo.month+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
               const done = completedDates.has(ds);
               const isToday = day === dateInfo.todayDate;
               const future = day > dateInfo.todayDate;
               return (
-                <div key={day} className={`aspect-square flex items-center justify-center rounded-xl text-[12px] font-semibold transition-all ${done ? "stamp-complete" : ""} ${isToday && !done ? "stamp-today text-oriwan-primary font-bold" : ""} ${!done && !isToday ? (future ? "text-oriwan-text-muted/25" : "text-oriwan-text-muted/50") : ""}`}>
+                <div key={day} className={`aspect-square flex items-center justify-center rounded-xl text-[12px] font-semibold transition-all ${done?"stamp-complete":""} ${isToday&&!done?"stamp-today text-oriwan-primary font-bold":""} ${!done&&!isToday?(future?"text-oriwan-text-muted/25":"text-oriwan-text-muted/50"):""}`}>
                   {done ? <IconCheck size={13} /> : day}
                 </div>
               );
             })}
           </div>
 
-          {/* 러닝 시작/완료 버튼 */}
           {todayDone ? (
             <div className="text-center py-3 bg-blue-50 rounded-2xl">
               <p className="font-bold text-sm gradient-text">오늘의 오리완 완료!</p>
               <p className="text-[11px] text-oriwan-text-muted mt-0.5">충분한 휴식을 취하세요</p>
             </div>
           ) : (
-            <button
-              onClick={() => router.push("/workout")}
-              className="btn-primary w-full py-3.5 text-[15px]"
-            >
-              <span className="flex items-center justify-center gap-2">
-                <IconRun size={18} />
-                러닝 시작
-              </span>
+            <button onClick={handleSync} disabled={syncing} className="btn-primary w-full py-3.5 text-[15px]">
+              {syncing ? (
+                <span className="flex items-center justify-center gap-2">
+                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                  Strava 동기화 중...
+                </span>
+              ) : (
+                <span className="flex items-center justify-center gap-2">
+                  <IconRun size={18} />
+                  오늘의 러닝 동기화
+                </span>
+              )}
             </button>
           )}
         </div>
