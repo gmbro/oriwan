@@ -2,6 +2,8 @@
 
 작성일: 2026-04-29
 
+> 상태: 참고용 과거안. 현재 제품 결정은 `iOS 네이티브 HealthKit 우선 전환`이며, 실행 기준 문서는 [native-healthkit-transition.md](./native-healthkit-transition.md)다. 이 문서의 Strava MVP 내용은 보조/대안 경로로만 해석한다.
+
 ## 1. 목표
 
 오리완의 `오늘의 러닝 동기화` 경험을 단순 데이터 불러오기에서 `러닝 시작 -> 기록 측정 -> 인증 -> AI 리커버리` 흐름으로 확장한다.
@@ -258,6 +260,8 @@ create table run_samples (
 4. Supabase에 `runs` 테이블을 추가하고 Strava activity id 중복 저장을 막는다.
 5. 리커버리 페이지는 `sessionStorage` 대신 저장된 `run_id` 기반으로 열도록 바꾼다.
 
-## 11. 결론
+## 11. 전환 결정
 
-오리완이 당장 안정적으로 제공해야 하는 경험은 `자체 백그라운드 측정`이 아니라 `Strava를 중심으로 한 믿을 수 있는 인증/동기화`다. NRC 같은 시작 경험은 UX로 흡수하되, 백그라운드 GPS와 심박/케이던스 직접 측정은 네이티브 앱 단계에서 추진하는 것이 안전하다.
+2026-04-29 기준 제품 방향을 MVP/Strava 우선이 아니라 `iOS 네이티브 HealthKit 우선`으로 전환한다. Strava/Garmin 연동은 보조 데이터 소스와 import/export 경로로 남기고, NRC 같은 핵심 경험은 오리완 iOS 앱에서 직접 제공한다.
+
+전환 상세는 [native-healthkit-transition.md](./native-healthkit-transition.md)를 기준 문서로 삼는다.
