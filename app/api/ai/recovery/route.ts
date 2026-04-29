@@ -17,6 +17,22 @@ function pickFallbackTip(seed: string) {
   return fallbackTips[hash % fallbackTips.length];
 }
 
+function normalizeTip(tip: string) {
+  return tip.replace(/\s+/g, " ").trim();
+}
+
+function pickDifferentFallbackTip(seed: string, previousTip: string) {
+  const previous = normalizeTip(previousTip);
+  const startIndex = fallbackTips.indexOf(pickFallbackTip(seed));
+
+  for (let offset = 0; offset < fallbackTips.length; offset += 1) {
+    const candidate = fallbackTips[(startIndex + offset) % fallbackTips.length];
+    if (normalizeTip(candidate) !== previous) return candidate;
+  }
+
+  return fallbackTips[0];
+}
+
 /**
  * POST /api/ai/recovery
  * 간단한 일일 리커버리 팁 (러닝 데이터 없이도 동작)
@@ -33,7 +49,7 @@ export async function POST(request: NextRequest) {
   const date = typeof body.date === "string" ? body.date : new Date().toISOString().slice(0, 10);
   const refreshToken = typeof body.refreshToken === "string" ? body.refreshToken : "daily";
   const previousTip = typeof body.previousTip === "string" ? body.previousTip.trim() : "";
-  const fallbackTip = pickFallbackTip(`${date}:${refreshToken}`);
+  const fallbackTip = pickDifferentFallbackTip(`${date}:${refreshToken}`, previousTip);
 
   try {
     const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
@@ -52,7 +68,10 @@ ${previousTip ? `- 직전 팁과 다른 내용으로 작성. 직전 팁: ${previ
       config: { temperature: 1.2 },
     });
 
-    const tip = response.text?.trim() || fallbackTip;
+    const generatedTip = response.text?.trim() || "";
+    const tip = generatedTip && normalizeTip(generatedTip) !== normalizeTip(previousTip)
+      ? generatedTip
+      : fallbackTip;
     return NextResponse.json({ tip });
   } catch (err) {
     console.error("Recovery tip error:", err);

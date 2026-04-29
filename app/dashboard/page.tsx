@@ -63,6 +63,7 @@ export default function DashboardPage() {
     setTipLoading(true);
     fetch("/api/ai/recovery", {
       method: "POST",
+      cache: "no-store",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         date: dateInfo.todayStr,
@@ -75,6 +76,10 @@ export default function DashboardPage() {
       .catch(() => setTip("러닝 후 스트레칭과 수분 보충을 잊지 마세요."))
       .finally(() => setTipLoading(false));
   }, [dateInfo.todayStr, tip, tipLoading]);
+
+  const handleTipRefresh = useCallback(() => {
+    fetchTip(`click:${Date.now()}:${Math.random().toString(36).slice(2)}`);
+  }, [fetchTip]);
 
   useEffect(() => {
     if (!mounted) return;
@@ -218,7 +223,7 @@ export default function DashboardPage() {
         )}
 
         {/* AI 회복 팁 */}
-        <button onClick={fetchTip} disabled={tipLoading} className="w-full card-quote p-5 text-center animate-fade-up block" style={{ animationDelay: "0.03s" }}>
+        <button onClick={handleTipRefresh} disabled={tipLoading} className="w-full card-quote p-5 text-center animate-fade-up block" style={{ animationDelay: "0.03s" }}>
           {tipLoading ? (
             <p className="text-sm text-oriwan-text-muted animate-pulse">새로운 회복 팁을 찾는 중...</p>
           ) : (
