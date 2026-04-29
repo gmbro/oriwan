@@ -94,13 +94,13 @@ export default function CertifyPage() {
       const workoutStr = sessionStorage.getItem("oriwan_workout");
       const workout = workoutStr ? JSON.parse(workoutStr) : { duration: 0 };
 
-      // 3. 기록 저장
+      // 3. 기록 저장 (DB에는 영구 경로 저장, URL은 필요 시 서버에서 Signed URL 생성)
       await fetch("/api/completions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           duration: workout.duration,
-          photo_url: uploadData.url || null,
+          photo_url: uploadData.path || null,
         }),
       });
 

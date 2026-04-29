@@ -4,11 +4,10 @@ import { createClient as createServerClient } from "@/lib/supabase/server";
 
 /**
  * POST /api/upload
- * 인증 사진을 Supabase Storage에 업로드합니다.
- * body: { image: "base64 데이터" }
+ * 인증 사진을 Supabase Storage(Private)에 업로드합니다.
+ * → Signed URL(1시간 유효)을 반환합니다.
  */
 export async function POST(request: NextRequest) {
-  // 1. 인증 확인
   const supabaseAuth = await createServerClient();
   const { data: { user } } = await supabaseAuth.auth.getUser();
 
@@ -30,7 +29,7 @@ export async function POST(request: NextRequest) {
     // 파일명: user_id/날짜_시간.jpg
     const now = new Date();
     const dateStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}`;
-    const timeStr = `${String(now.getHours()).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}`;
+    const timeStr = `${String(now.getHours()).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}${String(now.getSeconds()).padStart(2, "0")}`;
     const filePath = `certifications/${user.id}/${dateStr}_${timeStr}.jpg`;
 
     // Service Role 클라이언트로 업로드 (RLS 우회)
@@ -51,12 +50,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "업로드 실패" }, { status: 500 });
     }
 
-    // 공개 URL 생성
-    const { data: urlData } = supabaseAdmin.storage
+    // Private 버킷 → Signed URL 생성 (1시간 유효, DB에는 경로만 저장)
+    const { data: signedData, error: signError } = await supabaseAdmin.storage
       .from("photos")
-      .getPublicUrl(filePath);
+      .createSignedUrl(filePath, 3600);
 
-    return NextResponse.json({ url: urlData.publicUrl });
+    if (signError) {
+      console.error("Signed URL error:", signError);
+    }
+
+    return NextResponse.json({
+      url: signedData?.signedUrl || "",
+      path: filePath, // DB에 저장할 경로 (영구)
+    });
   } catch (err) {
     console.error("Upload error:", err);
     return NextResponse.json({ error: "업로드 중 오류" }, { status: 500 });
