@@ -1,193 +1,117 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 import { IconCheck, IconRun, IconDna } from "@/components/icons";
-import { getDailyQuote } from "@/lib/quotes";
 
-interface CompletionData {
-  id: string;
-  completed_date: string;
-}
+interface CompletionData { id: string; completed_date: string; }
 
-// 러닝 리커버리 영상 50개 (유튜브 검색 링크 — 비용 0원)
-const recoveryCategories = [
-  {
-    title: "러닝 후 스트레칭",
-    videos: [
-      { q: "러닝 후 전신 스트레칭", label: "전신 스트레칭" },
-      { q: "러닝 후 하체 스트레칭", label: "하체 스트레칭" },
-      { q: "달리기 후 종아리 스트레칭", label: "종아리 스트레칭" },
-      { q: "러닝 후 허벅지 스트레칭", label: "허벅지 스트레칭" },
-      { q: "러닝 후 고관절 스트레칭", label: "고관절 풀기" },
-      { q: "러닝 후 엉덩이 스트레칭", label: "엉덩이 스트레칭" },
-      { q: "러닝 후 햄스트링 스트레칭", label: "햄스트링" },
-      { q: "러닝 후 발목 스트레칭", label: "발목 스트레칭" },
-      { q: "러닝 후 쿨다운 루틴", label: "쿨다운 루틴" },
-      { q: "달리기 후 허리 스트레칭", label: "허리 스트레칭" },
-    ],
-  },
-  {
-    title: "폼롤러 마사지",
-    videos: [
-      { q: "종아리 폼롤러 마사지", label: "종아리 폼롤러" },
-      { q: "허벅지 폼롤러 마사지", label: "허벅지 폼롤러" },
-      { q: "IT밴드 폼롤러 마사지", label: "IT밴드 풀기" },
-      { q: "등 폼롤러 마사지", label: "등 폼롤러" },
-      { q: "엉덩이 폼롤러 마사지", label: "엉덩이 폼롤러" },
-      { q: "전신 폼롤러 루틴 러너", label: "전신 폼롤러" },
-      { q: "발바닥 테니스공 마사지", label: "발바닥 마사지" },
-      { q: "폼롤러 사용법 초보", label: "폼롤러 입문" },
-      { q: "장경인대 폼롤러", label: "장경인대" },
-      { q: "대퇴사두근 폼롤러", label: "대퇴사두근" },
-    ],
-  },
-  {
-    title: "러너 요가",
-    videos: [
-      { q: "러너를 위한 요가", label: "러너 요가" },
-      { q: "달리기 후 요가 스트레칭", label: "러닝 후 요가" },
-      { q: "하체 유연성 요가", label: "하체 유연성" },
-      { q: "고관절 오프너 요가", label: "고관절 오프너" },
-      { q: "초보 요가 15분", label: "15분 요가" },
-      { q: "아침 요가 루틴 10분", label: "아침 요가" },
-      { q: "밤 요가 수면 전", label: "수면 요가" },
-      { q: "코어 강화 요가 러너", label: "코어 요가" },
-      { q: "전신 릴랙스 요가", label: "릴랙스 요가" },
-      { q: "균형감각 요가 러너", label: "밸런스 요가" },
-    ],
-  },
-  {
-    title: "부상 예방 & 근력",
-    videos: [
-      { q: "러너 무릎 부상 예방 운동", label: "무릎 보호" },
-      { q: "발목 강화 운동 러너", label: "발목 강화" },
-      { q: "러너 코어 운동", label: "코어 운동" },
-      { q: "러너 엉덩이 근력 운동", label: "힙 강화" },
-      { q: "장경인대 증후군 예방", label: "IT밴드 예방" },
-      { q: "족저근막염 예방 운동", label: "족저근막 예방" },
-      { q: "러너 밴드 운동 하체", label: "밴드 운동" },
-      { q: "러닝 자세 교정", label: "자세 교정" },
-      { q: "케이던스 높이는 방법", label: "케이던스 업" },
-      { q: "러너 체간 안정성 운동", label: "체간 안정성" },
-    ],
-  },
-  {
-    title: "영양 & 회복",
-    videos: [
-      { q: "러닝 후 식단 추천", label: "러닝 식단" },
-      { q: "러너 단백질 보충 방법", label: "단백질 섭취" },
-      { q: "달리기 전 후 수분 보충", label: "수분 보충" },
-      { q: "러너 수면 질 높이기", label: "수면 질 향상" },
-      { q: "근육통 빠르게 풀기", label: "근육통 해소" },
-      { q: "러닝 후 아이스배스", label: "아이스배스" },
-      { q: "마라톤 회복 식단", label: "마라톤 회복" },
-      { q: "러너 탄수화물 로딩", label: "탄수화물 로딩" },
-      { q: "러닝 보충제 추천", label: "보충제 가이드" },
-      { q: "러닝 후 마사지건 사용법", label: "마사지건" },
-    ],
-  },
+// 리커버리 콘텐츠 50개
+const recovery = [
+  { cat: "스트레칭", items: ["전신 스트레칭","하체 스트레칭","종아리 스트레칭","허벅지 스트레칭","고관절 풀기","엉덩이 스트레칭","햄스트링","발목 스트레칭","쿨다운 루틴","허리 스트레칭"] },
+  { cat: "폼롤러", items: ["종아리 폼롤러","허벅지 폼롤러","IT밴드 풀기","등 폼롤러","엉덩이 폼롤러","전신 폼롤러","발바닥 마사지","폼롤러 입문","장경인대","대퇴사두근"] },
+  { cat: "요가", items: ["러너 요가","러닝 후 요가","하체 유연성","고관절 오프너","15분 요가","아침 요가","수면 요가","코어 요가","릴랙스 요가","밸런스 요가"] },
+  { cat: "부상 예방", items: ["무릎 보호","발목 강화","코어 운동","힙 강화","IT밴드 예방","족저근막 예방","밴드 운동","자세 교정","케이던스 업","체간 안정성"] },
+  { cat: "영양 & 회복", items: ["러닝 식단","단백질 섭취","수분 보충","수면 질 향상","근육통 해소","아이스배스","마라톤 회복","탄수화물 로딩","보충제 가이드","마사지건"] },
 ];
 
-// 카테고리별 색상
-const catColors = ["#FF8C42", "#6DD47E", "#7C9CFF", "#FF6B8A", "#FFCE54"];
+const catColors = ["#6366F1","#22C55E","#F97316","#EC4899","#8B5CF6"];
 
 export default function DashboardPage() {
   const router = useRouter();
-  const [user, setUser] = useState<{ name: string; avatar: string } | null>(null);
+  const [mounted, setMounted] = useState(false);
+  const [userName, setUserName] = useState("");
+  const [userAvatar, setUserAvatar] = useState("");
   const [completions, setCompletions] = useState<CompletionData[]>([]);
   const [loading, setLoading] = useState(false);
   const [todayDone, setTodayDone] = useState(false);
-  const [stravaConnected, setStravaConnected] = useState(false);
-  const [recoveryTip, setRecoveryTip] = useState("");
-  const [recoveryLoading, setRecoveryLoading] = useState(false);
+  const [strava, setStrava] = useState(false);
+  const [tip, setTip] = useState("");
+  const [tipLoading, setTipLoading] = useState(false);
 
-  const today = new Date();
-  const year = today.getFullYear();
-  const month = today.getMonth();
-  const todayDate = today.getDate();
-  const todayStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(todayDate).padStart(2, "0")}`;
-  const quote = getDailyQuote();
-
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const firstDay = new Date(year, month, 1).getDay();
-  const monthNames = ["1월", "2월", "3월", "4월", "5월", "6월", "7월", "8월", "9월", "10월", "11월", "12월"];
+  // 날짜 관련 — 클라이언트에서만 계산 (hydration 방지)
+  const [dateInfo, setDateInfo] = useState({ year: 2026, month: 3, todayDate: 29, todayStr: "2026-04-29", daysInMonth: 30, firstDay: 3 });
 
   useEffect(() => {
+    setMounted(true);
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = now.getMonth();
+    const d = now.getDate();
+    setDateInfo({
+      year: y, month: m, todayDate: d,
+      todayStr: `${y}-${String(m+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`,
+      daysInMonth: new Date(y, m+1, 0).getDate(),
+      firstDay: new Date(y, m, 1).getDay(),
+    });
+  }, []);
+
+  const monthNames = ["1월","2월","3월","4월","5월","6월","7월","8월","9월","10월","11월","12월"];
+
+  useEffect(() => {
+    if (!mounted) return;
     const init = async () => {
       const supabase = createClient();
       const { data: { user: u } } = await supabase.auth.getUser();
       if (!u) { router.push("/"); return; }
 
-      setUser({
-        name: u.user_metadata?.full_name || u.email?.split("@")[0] || "러너",
-        avatar: u.user_metadata?.avatar_url || "",
-      });
+      setUserName(u.user_metadata?.full_name || u.email?.split("@")[0] || "러너");
+      setUserAvatar(u.user_metadata?.avatar_url || "");
+      setStrava(document.cookie.includes("oriwan_session"));
 
-      // Strava 연동 확인
-      setStravaConnected(document.cookie.includes("oriwan_session"));
-
-      // 서버 API로 완료 기록 조회
       try {
-        const res = await fetch(`/api/completions?year=${year}&month=${month + 1}`);
+        const res = await fetch(`/api/completions?year=${dateInfo.year}&month=${dateInfo.month+1}`);
         if (res.ok) {
           const data = await res.json();
           if (data.completions) {
             setCompletions(data.completions);
-            setTodayDone(data.completions.some((d: CompletionData) => d.completed_date === todayStr));
+            setTodayDone(data.completions.some((c: CompletionData) => c.completed_date === dateInfo.todayStr));
           }
         }
-      } catch (err) {
-        console.error("Failed to fetch completions:", err);
-      }
+      } catch {}
     };
     init();
-  }, [router, year, month, todayStr]);
+  }, [mounted, router, dateInfo.year, dateInfo.month, dateInfo.todayStr]);
 
-  const completedDates = new Set(completions.map((c) => c.completed_date));
+  const completedDates = new Set(completions.map(c => c.completed_date));
 
-  const handleRecord = () => {
+  const handleRecord = useCallback(() => {
     if (todayDone || loading) return;
-    if (!stravaConnected) {
+    if (!strava) {
       window.location.href = "/api/auth/strava";
       return;
     }
     setLoading(true);
     fetch("/api/strava/activities")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.activities?.length > 0) {
-          router.push("/success");
-        } else {
-          alert("오늘 Strava에 기록된 러닝이 없어요!\n달리고 다시 눌러주세요 :)");
-        }
+      .then(r => r.json())
+      .then(d => {
+        if (d.activities?.length > 0) router.push("/success");
+        else alert("오늘 Strava에 기록된 러닝이 없어요!\n달리고 다시 눌러주세요.");
       })
-      .catch(() => alert("데이터를 불러오는 중 오류가 발생했어요."))
+      .catch(() => alert("데이터 불러오기 실패"))
       .finally(() => setLoading(false));
-  };
+  }, [todayDone, loading, strava, router]);
 
-  const fetchRecoveryTip = () => {
-    if (recoveryLoading) return;
-    setRecoveryLoading(true);
+  const getTip = useCallback(() => {
+    if (tipLoading) return;
+    setTipLoading(true);
     fetch("/api/ai/recovery", { method: "POST" })
-      .then((res) => res.json())
-      .then((data) => setRecoveryTip(data.tip || "충분한 수분 섭취와 가벼운 스트레칭으로 회복하세요."))
-      .catch(() => setRecoveryTip("충분한 수분 섭취와 가벼운 스트레칭으로 회복하세요."))
-      .finally(() => setRecoveryLoading(false));
-  };
+      .then(r => r.json())
+      .then(d => setTip(d.tip || "달린 후에는 충분한 수분 보충과 가벼운 스트레칭이 좋아요."))
+      .catch(() => setTip("달린 후에는 충분한 수분 보충과 가벼운 스트레칭이 좋아요."))
+      .finally(() => setTipLoading(false));
+  }, [tipLoading]);
 
-  const handleLogout = () => {
-    fetch("/api/auth/logout", { method: "POST" }).then(() => {
-      router.push("/");
-      router.refresh();
-    });
-  };
+  const handleLogout = useCallback(() => {
+    fetch("/api/auth/logout", { method: "POST" }).then(() => { router.push("/"); router.refresh(); });
+  }, [router]);
+
+  if (!mounted) return <div className="min-h-screen bg-oriwan-bg" />;
 
   return (
     <div className="min-h-screen bg-oriwan-bg flex flex-col">
-      {/* 헤더 */}
       <header className="sticky top-0 z-50 px-4 py-3 bg-oriwan-bg/90 backdrop-blur-md border-b border-oriwan-border">
         <div className="max-w-lg mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -195,70 +119,70 @@ export default function DashboardPage() {
             <h1 className="text-base font-extrabold gradient-text">오리완</h1>
           </div>
           <div className="flex items-center gap-2">
-            {user?.avatar && (
-              /* eslint-disable-next-line @next/next/no-img-element */
-              <img src={user.avatar} alt="" width={24} height={24} className="rounded-full" />
-            )}
-            <button onClick={handleLogout} className="text-xs text-oriwan-text-muted hover:text-oriwan-text transition-colors">
-              로그아웃
-            </button>
+            {userAvatar && <img src={userAvatar} alt="" width={24} height={24} className="rounded-full" />}
+            <button onClick={handleLogout} className="text-xs text-oriwan-text-muted hover:text-oriwan-text transition-colors">로그아웃</button>
           </div>
         </div>
       </header>
 
-      <main className="flex-1 px-4 py-4 max-w-lg mx-auto w-full space-y-4 pb-8">
-        {/* 명언 */}
-        <div className="card-warm p-4 text-center animate-fade-up">
-          <p className="text-sm text-oriwan-text leading-relaxed font-medium">&ldquo;{quote}&rdquo;</p>
+      <main className="flex-1 px-4 py-4 max-w-lg mx-auto w-full space-y-3 pb-8">
+        {/* AI 회복 팁 */}
+        <div className="card p-4 animate-fade-up">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-1.5">
+              <IconDna size={14} className="text-oriwan-primary" />
+              <h3 className="text-xs font-bold text-oriwan-text">AI 회복 팁</h3>
+            </div>
+            <button onClick={getTip} disabled={tipLoading} className="text-[11px] text-oriwan-primary font-semibold hover:underline">
+              {tipLoading ? "생성 중..." : tip ? "다른 팁 보기" : "팁 받기"}
+            </button>
+          </div>
+          <p className="text-sm text-oriwan-text leading-relaxed">
+            {tip || `${userName}님, 오늘도 좋은 하루 보내세요! AI 회복 팁을 받아보세요.`}
+          </p>
         </div>
 
-        {/* 달력 + 기록 버튼 */}
+        {/* 달력 + 기록 */}
         <div className="card p-4 animate-fade-up" style={{ animationDelay: "0.05s" }}>
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-bold text-oriwan-text">{year}년 {monthNames[month]}</h3>
-            <span className="text-xs text-oriwan-primary font-bold bg-oriwan-surface-light px-2.5 py-1 rounded-full">
+            <h3 className="text-sm font-bold">{dateInfo.year}년 {monthNames[dateInfo.month]}</h3>
+            <span className="text-[11px] text-oriwan-primary font-bold bg-oriwan-surface-light px-2 py-0.5 rounded-full">
               {completions.length}일 완료
             </span>
           </div>
 
-          <div className="grid grid-cols-7 gap-1 mb-1.5">
-            {["일","월","화","수","목","금","토"].map((d, i) => (
-              <div key={d} className={`text-center text-[10px] font-semibold py-0.5 ${i === 0 ? "text-oriwan-danger" : i === 6 ? "text-blue-400" : "text-oriwan-text-muted"}`}>{d}</div>
+          <div className="grid grid-cols-7 gap-0.5 mb-1">
+            {["일","월","화","수","목","금","토"].map((d,i) => (
+              <div key={d} className={`text-center text-[10px] font-semibold py-0.5 ${i===0?"text-oriwan-danger":i===6?"text-blue-400":"text-oriwan-text-muted"}`}>{d}</div>
             ))}
           </div>
 
-          <div className="grid grid-cols-7 gap-1 mb-4">
-            {Array.from({ length: firstDay }).map((_, i) => <div key={`e-${i}`} />)}
-            {Array.from({ length: daysInMonth }).map((_, i) => {
-              const day = i + 1;
-              const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-              const done = completedDates.has(dateStr);
-              const isToday = day === todayDate;
-              const isFuture = day > todayDate;
+          <div className="grid grid-cols-7 gap-0.5 mb-4">
+            {Array.from({length: dateInfo.firstDay}).map((_,i) => <div key={`e${i}`} />)}
+            {Array.from({length: dateInfo.daysInMonth}).map((_,i) => {
+              const day = i+1;
+              const ds = `${dateInfo.year}-${String(dateInfo.month+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
+              const done = completedDates.has(ds);
+              const isToday = day === dateInfo.todayDate;
+              const future = day > dateInfo.todayDate;
               return (
-                <div key={day} className={`aspect-square flex items-center justify-center rounded-xl text-xs font-semibold transition-all ${done ? "stamp-complete shadow-sm" : isToday ? "stamp-today font-bold text-oriwan-primary" : isFuture ? "text-oriwan-text-muted/25" : "text-oriwan-text-muted/50"}`}>
-                  {done ? <IconCheck size={14} /> : day}
+                <div key={day} className={`aspect-square flex items-center justify-center rounded-lg text-[11px] font-semibold ${done?"stamp-complete":""}${isToday&&!done?"stamp-today text-oriwan-primary":""}${!done&&!isToday?(future?"text-oriwan-text-muted/20":"text-oriwan-text-muted/50"):""}`}>
+                  {done ? <IconCheck size={12} /> : day}
                 </div>
               );
             })}
           </div>
 
-          {/* 기록 버튼 — 달력 바로 아래 */}
           {todayDone ? (
-            <div className="text-center py-2">
-              <h3 className="font-extrabold text-sm gradient-text">오늘의 오리완 완료!</h3>
-              <p className="text-[11px] text-oriwan-text-muted mt-0.5">잘했어요! 내일도 함께 달려요</p>
+            <div className="text-center py-1">
+              <p className="font-bold text-sm gradient-text">오늘의 오리완 완료!</p>
+              <p className="text-[11px] text-oriwan-text-muted mt-0.5">내일도 함께 달려요</p>
             </div>
           ) : (
             <button onClick={handleRecord} disabled={loading} className="btn-primary w-full py-3 text-sm">
-              {loading ? (
+              {loading ? "동기화 중..." : (
                 <span className="flex items-center justify-center gap-2">
-                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
-                  동기화 중...
-                </span>
-              ) : (
-                <span className="flex items-center justify-center gap-2">
-                  <IconRun size={18} />
+                  <IconRun size={16} />
                   오늘의 러닝 기록하기
                 </span>
               )}
@@ -266,40 +190,18 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {/* AI 리커버리 팁 */}
-        <div className="card p-4 animate-fade-up" style={{ animationDelay: "0.1s" }}>
-          <div className="flex items-center gap-2 mb-2">
-            <IconDna size={16} className="text-oriwan-primary" />
-            <h3 className="text-sm font-bold">AI 회복 팁</h3>
-          </div>
-          {recoveryTip ? (
-            <div className="bg-oriwan-surface-light rounded-2xl p-3">
-              <p className="text-xs text-oriwan-text leading-relaxed">{recoveryTip}</p>
+        {/* 리커버리 콘텐츠 50개 격자형 */}
+        {recovery.map((cat, ci) => (
+          <div key={cat.cat} className="card p-4 animate-fade-up" style={{ animationDelay: `${0.1+ci*0.03}s` }}>
+            <div className="flex items-center gap-1.5 mb-2.5">
+              <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: catColors[ci] }} />
+              <h3 className="text-xs font-bold">{cat.cat}</h3>
             </div>
-          ) : (
-            <button onClick={fetchRecoveryTip} disabled={recoveryLoading} className="w-full bg-oriwan-surface-light hover:bg-oriwan-border/40 rounded-2xl p-3 transition-colors text-left">
-              <p className="text-xs text-oriwan-text-muted">{recoveryLoading ? "AI가 분석 중..." : "오늘의 회복 팁 받기 →"}</p>
-            </button>
-          )}
-        </div>
-
-        {/* 리커버리 콘텐츠 — 카테고리별 격자형 */}
-        {recoveryCategories.map((cat, ci) => (
-          <div key={cat.title} className="card p-4 animate-fade-up" style={{ animationDelay: `${0.15 + ci * 0.03}s` }}>
-            <div className="flex items-center gap-2 mb-3">
-              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: catColors[ci] }} />
-              <h3 className="text-sm font-bold">{cat.title}</h3>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              {cat.videos.map((v) => (
-                <a
-                  key={v.q}
-                  href={`https://www.youtube.com/results?search_query=${encodeURIComponent(v.q)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="bg-oriwan-surface-light hover:bg-oriwan-border/40 rounded-xl p-3 transition-all hover:scale-[1.02] active:scale-[0.98] text-center"
-                >
-                  <p className="text-xs font-semibold text-oriwan-text">{v.label}</p>
+            <div className="grid grid-cols-2 gap-1.5">
+              {cat.items.map(item => (
+                <a key={item} href={`https://www.youtube.com/results?search_query=${encodeURIComponent(`러닝 ${item}`)}`} target="_blank" rel="noopener noreferrer"
+                  className="bg-oriwan-surface-light hover:bg-oriwan-border/50 rounded-xl px-3 py-2.5 transition-all text-center text-xs font-medium text-oriwan-text hover:text-oriwan-primary">
+                  {item}
                 </a>
               ))}
             </div>
