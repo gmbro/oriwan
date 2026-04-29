@@ -58,15 +58,23 @@ export default function DashboardPage() {
     });
   }, []);
 
-  const fetchTip = useCallback(() => {
+  const fetchTip = useCallback((refreshToken = String(Date.now())) => {
     if (tipLoading) return;
     setTipLoading(true);
-    fetch("/api/ai/recovery", { method: "POST" })
+    fetch("/api/ai/recovery", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        date: dateInfo.todayStr,
+        refreshToken,
+        previousTip: tip,
+      }),
+    })
       .then((r) => r.json())
       .then((d) => setTip(d.tip || "러닝 후 스트레칭과 수분 보충을 잊지 마세요."))
       .catch(() => setTip("러닝 후 스트레칭과 수분 보충을 잊지 마세요."))
       .finally(() => setTipLoading(false));
-  }, [tipLoading]);
+  }, [dateInfo.todayStr, tip, tipLoading]);
 
   useEffect(() => {
     if (!mounted) return;
@@ -99,7 +107,14 @@ export default function DashboardPage() {
 
       if (!tipLoadedRef.current) {
         tipLoadedRef.current = true;
-        fetch("/api/ai/recovery", { method: "POST" })
+        fetch("/api/ai/recovery", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            date: dateInfo.todayStr,
+            refreshToken: "daily",
+          }),
+        })
           .then((r) => r.json())
           .then((d) => setTip(d.tip || ""))
           .catch(() => {});
