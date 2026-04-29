@@ -16,13 +16,13 @@ export async function POST() {
 
   try {
     const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
-    const response = await ai.models.generateContent({
-      model: "gemini-2.0-flash",
-      contents: "러너를 위한 오늘의 회복 팁을 한 줄로 짧게 알려주세요. 밝고 긍정적인 톤으로, 50자 이내로 작성해주세요. 스트레칭, 수분 보충, 수면, 영양 등 다양한 주제에서 랜덤하게 하나를 골라주세요. 따옴표나 이모지 없이 깔끔한 문장만 작성해주세요.",
-      config: { temperature: 1.0 },
-    });
-
-    const tip = response.text?.trim() || "충분한 수분 섭취와 가벼운 스트레칭으로 회복을 도와주세요.";
+      const response = await ai.models.generateContent({
+        model: "gemini-2.0-flash",
+        contents: "러너를 위한 오늘의 회복 팁을 작성해주세요. 모바일 가독성을 위해 반드시 2~3줄로 나누어 적어주세요. (예: 첫 줄은 동기부여, 다음 줄은 구체적 액션). 따옴표나 이모지 없이 깔끔하게 작성해주세요.",
+        config: { temperature: 1.0 },
+      });
+  
+      const tip = response.text?.trim() || "가벼운 스트레칭과\n충분한 수분 보충으로\n회복을 도와주세요.";
     return NextResponse.json({ tip });
   } catch (err) {
     console.error("Recovery tip error:", err);

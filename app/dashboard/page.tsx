@@ -199,10 +199,10 @@ export default function DashboardPage() {
             <p className="text-sm text-oriwan-text-muted animate-pulse">새로운 회복 팁을 찾는 중...</p>
           ) : (
             <div>
-              <p className="text-[15px] text-oriwan-text leading-[1.8] font-medium px-2">
-                {tip || "러닝 후 회복 팁을 클릭해서 받아보세요"}
+              <p className="text-[14px] text-oriwan-text leading-[1.7] font-medium px-2 whitespace-pre-line text-balance">
+                &ldquo;{tip || "러닝 후 회복 팁을\n클릭해서 받아보세요"}&rdquo;
               </p>
-              <p className="text-[11px] text-oriwan-primary/50 font-medium mt-2">탭하여 다른 팁 보기</p>
+              <p className="text-[11px] text-oriwan-primary/50 font-medium mt-3">탭하여 다른 팁 보기</p>
             </div>
           )}
         </button>
