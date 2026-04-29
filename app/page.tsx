@@ -37,7 +37,7 @@ export default async function Home() {
             오리완
           </h1>
           <p className="animate-fade-up text-[13px] text-oriwan-primary font-semibold tracking-wide mb-8" style={{ animationDelay: "0.08s" }}>
-            오늘의 리커버리 완료!
+            오늘 리커버리 완료!
           </p>
 
           {/* 구글 로그인 */}
