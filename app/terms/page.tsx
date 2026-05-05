@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 export const metadata = {
-  title: "이용약관 | 오리완",
+  title: "이용약관 | 스내사 3기 대시보드",
 };
 
 export default function TermsPage() {
@@ -19,7 +19,7 @@ export default function TermsPage() {
         <div className="card p-6 space-y-6 text-sm leading-relaxed text-oriwan-text-muted">
           <section>
             <h2 className="text-base font-bold text-oriwan-text mb-2">제1조 (목적)</h2>
-            <p>본 약관은 오리완이 제공하는 이미지 기반 러닝 인증 관리 및 대시보드 서비스의 이용 조건과 절차를 규정합니다.</p>
+            <p>본 약관은 스내사 3기 대시보드가 제공하는 이미지 기반 러닝 인증 관리 및 대시보드 서비스의 이용 조건과 절차를 규정합니다.</p>
           </section>
 
           <section>

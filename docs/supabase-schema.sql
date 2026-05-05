@@ -1,5 +1,5 @@
 -- =============================================
--- 오리완 이미지 인증 운영 대시보드 스키마
+-- 스내사 3기 이미지 인증 운영 대시보드 스키마
 -- Supabase Dashboard > SQL Editor에서 실행하세요
 -- =============================================
 
@@ -108,3 +108,8 @@ CREATE INDEX IF NOT EXISTS idx_daily_run_records_status
 -- 이름: photos
 -- Public: OFF 권장
 -- 파일 크기 제한: 운영 정책에 맞게 설정
+
+-- 5. 실시간 대시보드
+-- Supabase Dashboard > Database > Replication 또는 Realtime 설정에서
+-- participants, daily_run_records 테이블의 Realtime을 켜면 입력/수정 즉시 화면이 갱신됩니다.
+-- Realtime이 꺼져 있어도 웹 대시보드는 10초마다 자동으로 최신 데이터를 다시 가져옵니다.

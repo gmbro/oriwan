@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 export const metadata = {
-  title: "개인정보처리방침 | 오리완",
+  title: "개인정보처리방침 | 스내사 3기 대시보드",
 };
 
 export default function PrivacyPage() {
@@ -19,7 +19,7 @@ export default function PrivacyPage() {
         <div className="card p-6 space-y-6 text-sm leading-relaxed text-oriwan-text-muted">
           <section>
             <h2 className="text-base font-bold text-oriwan-text mb-2">1. 수집하는 개인정보</h2>
-            <p>오리완은 이미지 기반 러닝 인증 운영을 위해 다음 정보를 수집합니다.</p>
+            <p>스내사 3기 대시보드는 이미지 기반 러닝 인증 운영을 위해 다음 정보를 수집합니다.</p>
             <ul className="list-disc pl-5 space-y-1 mt-2">
               <li><strong>Google 계정:</strong> 이름, 이메일, 프로필 이미지</li>
               <li><strong>참가자 정보:</strong> 운영자가 등록한 이름, 닉네임</li>

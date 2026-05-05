@@ -24,7 +24,7 @@ export default async function Home() {
             <div className="w-28 h-28 mx-auto relative rounded-3xl overflow-hidden">
               <Image
                 src="/oriwan-logo-v2.png"
-                alt="오리완 로고"
+                alt="스내사 3기 대시보드 로고"
                 width={112}
                 height={112}
                 className="object-cover"
@@ -34,10 +34,10 @@ export default async function Home() {
           </div>
 
           <h1 className="animate-fade-up text-3xl font-black tracking-tight mb-1" style={{ animationDelay: "0.05s" }}>
-            오리완
+            스내사 3기
           </h1>
           <p className="animate-fade-up text-[13px] text-oriwan-primary font-semibold tracking-wide mb-8" style={{ animationDelay: "0.08s" }}>
-            이미지 인증을 한눈에 운영하세요!
+            러닝 인증을 실시간으로 읽는 운영 보드
           </p>
 
           {/* 구글 로그인 */}
@@ -72,7 +72,7 @@ export default async function Home() {
         {/* 하단 약관 */}
         <div className="animate-fade-up text-center mt-5 space-y-2" style={{ animationDelay: "0.26s" }}>
           <p className="text-[11px] text-oriwan-text-muted/60">
-            Google 계정으로 운영 대시보드를 시작하세요
+            Google 계정으로 스내사 3기 대시보드를 시작하세요
           </p>
           <div className="flex items-center justify-center gap-3 text-[11px] text-oriwan-text-muted/50">
             <Link href="/terms" className="hover:text-oriwan-text-muted transition-colors underline underline-offset-2">

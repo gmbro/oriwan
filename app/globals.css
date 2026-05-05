@@ -1,30 +1,34 @@
 @import "tailwindcss";
 
-/* ===== 오리완 디자인 시스템 — Blue Premium ===== */
+/* ===== 스내사 3기 디자인 시스템 — Studio Dashboard ===== */
 @theme {
-  --color-oriwan-primary: #3B82F6;
-  --color-oriwan-primary-light: #93C5FD;
-  --color-oriwan-primary-dark: #2563EB;
-  --color-oriwan-accent: #6366F1;
-  --color-oriwan-bg: #F0F4F8;
-  --color-oriwan-surface: #FFFFFF;
-  --color-oriwan-surface-light: #F1F5F9;
-  --color-oriwan-text: #1E293B;
-  --color-oriwan-text-muted: #94A3B8;
-  --color-oriwan-border: #E2E8F0;
-  --color-oriwan-success: #22C55E;
-  --color-oriwan-danger: #EF4444;
+  --color-oriwan-primary: #84CC16;
+  --color-oriwan-primary-light: #D9F99D;
+  --color-oriwan-primary-dark: #3F6212;
+  --color-oriwan-accent: #F97316;
+  --color-oriwan-bg: #EEF0E8;
+  --color-oriwan-surface: #FFFCF4;
+  --color-oriwan-surface-light: #F5F1E7;
+  --color-oriwan-text: #101522;
+  --color-oriwan-text-muted: #6B7280;
+  --color-oriwan-border: #DDD6C7;
+  --color-oriwan-success: #65A30D;
+  --color-oriwan-danger: #E11D48;
 
-  --color-gradient-start: #3B82F6;
-  --color-gradient-end: #6366F1;
+  --color-gradient-start: #101522;
+  --color-gradient-end: #3F6212;
 
-  --font-sans: "Noto Sans KR", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-sans: "IBM Plex Sans KR", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-display: "Space Grotesk", "IBM Plex Sans KR", sans-serif;
 }
 
 html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
 
 body {
-  background-color: var(--color-oriwan-bg);
+  background:
+    radial-gradient(circle at top left, rgba(132, 204, 22, 0.20), transparent 34rem),
+    radial-gradient(circle at bottom right, rgba(249, 115, 22, 0.13), transparent 30rem),
+    var(--color-oriwan-bg);
   color: var(--color-oriwan-text);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
@@ -44,10 +48,11 @@ img { -webkit-user-drag: none; user-select: none; }
 
 /* ===== 카드 ===== */
 .card {
-  background: var(--color-oriwan-surface);
-  border: 1px solid var(--color-oriwan-border);
-  border-radius: 20px;
-  box-shadow: 0 2px 12px rgba(59, 130, 246, 0.04), 0 1px 3px rgba(0,0,0,0.03);
+  background: rgba(255, 252, 244, 0.88);
+  border: 1px solid rgba(16, 21, 34, 0.08);
+  border-radius: 24px;
+  box-shadow: 0 18px 50px rgba(16, 21, 34, 0.08), 0 1px 0 rgba(255,255,255,0.7) inset;
+  backdrop-filter: blur(18px);
 }
 
 .card-quote {
@@ -64,7 +69,7 @@ img { -webkit-user-drag: none; user-select: none; }
 
 /* ===== 그라데이션 텍스트 ===== */
 .gradient-text {
-  background: linear-gradient(135deg, var(--color-gradient-start), var(--color-gradient-end));
+  background: linear-gradient(135deg, #101522, #65A30D 62%, #F97316);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -72,14 +77,14 @@ img { -webkit-user-drag: none; user-select: none; }
 
 /* ===== 버튼 ===== */
 .btn-primary {
-  background: linear-gradient(135deg, var(--color-gradient-start), var(--color-gradient-end));
-  color: white;
-  font-weight: 700;
-  border-radius: 16px;
+  background: linear-gradient(135deg, #101522, #1F2937);
+  color: #D9F99D;
+  font-weight: 900;
+  border-radius: 18px;
   padding: 14px 32px;
   font-size: 0.95rem;
   transition: all 0.25s ease;
-  box-shadow: 0 4px 14px rgba(59, 130, 246, 0.3);
+  box-shadow: 0 12px 24px rgba(16, 21, 34, 0.18);
   border: none;
   cursor: pointer;
   display: inline-flex;
@@ -88,7 +93,7 @@ img { -webkit-user-drag: none; user-select: none; }
   gap: 8px;
 }
 
-.btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(59, 130, 246, 0.35); }
+.btn-primary:hover { transform: translateY(-2px); box-shadow: 0 16px 32px rgba(16, 21, 34, 0.24); }
 .btn-primary:active { transform: translateY(0) scale(0.98); }
 
 .btn-google {

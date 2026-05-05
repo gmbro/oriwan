@@ -66,10 +66,10 @@ function statusLabel(status: RecordStatus) {
 }
 
 function statusClass(status: RecordStatus) {
-  if (status === "certified") return "bg-emerald-50 text-emerald-700 border-emerald-100";
-  if (status === "needs_review") return "bg-amber-50 text-amber-700 border-amber-100";
-  if (status === "rejected") return "bg-rose-50 text-rose-700 border-rose-100";
-  return "bg-slate-50 text-slate-400 border-slate-100";
+  if (status === "certified") return "bg-lime-100 text-lime-900 border-lime-200";
+  if (status === "needs_review") return "bg-orange-100 text-orange-900 border-orange-200";
+  if (status === "rejected") return "bg-rose-100 text-rose-900 border-rose-200";
+  return "bg-slate-100 text-slate-400 border-slate-200";
 }
 
 function makeDraft(record: RunRecord): RecordDraft {
@@ -108,9 +108,11 @@ export default function DashboardPage() {
   const [manualDuration, setManualDuration] = useState("");
   const [rankingMode, setRankingMode] = useState<RankingMode>("certified");
   const [selectedParticipantId, setSelectedParticipantId] = useState("");
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [liveStatus, setLiveStatus] = useState<"connecting" | "live" | "polling">("connecting");
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
+  const loadData = useCallback(async (showLoading = true) => {
+    if (showLoading) setLoading(true);
     try {
       const [participantsRes, recordsRes] = await Promise.all([
         fetch("/api/participants", { cache: "no-store" }),
@@ -127,8 +129,9 @@ export default function DashboardPage() {
       setSelectedParticipantId((current) => current || nextParticipants[0]?.id || "");
       setManualParticipantId((current) => current || nextParticipants[0]?.id || "");
       setDrafts(Object.fromEntries(nextRecords.map((record: RunRecord) => [record.id, makeDraft(record)])));
+      setLastUpdated(new Date());
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   }, []);
 
@@ -144,6 +147,38 @@ export default function DashboardPage() {
     };
     init();
   }, [loadData, router]);
+
+  useEffect(() => {
+    if (!mounted) return;
+
+    const supabase = createClient();
+    const channel = supabase
+      .channel("snasa-dashboard-live")
+      .on("postgres_changes", { event: "*", schema: "public", table: "participants" }, () => {
+        setLiveStatus("live");
+        loadData(false);
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "daily_run_records" }, () => {
+        setLiveStatus("live");
+        loadData(false);
+      })
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") setLiveStatus("live");
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") setLiveStatus("polling");
+      });
+
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === "visible") {
+        setLiveStatus((current) => current === "live" ? "live" : "polling");
+        loadData(false);
+      }
+    }, 10000);
+
+    return () => {
+      window.clearInterval(interval);
+      supabase.removeChannel(channel);
+    };
+  }, [loadData, mounted]);
 
   const todayRecords = useMemo(() => records.filter((record) => record.record_date === targetDate), [records, targetDate]);
   const certifiedToday = useMemo(() => todayRecords.filter((record) => record.status === "certified").length, [todayRecords]);
@@ -294,26 +329,56 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-oriwan-bg">
-      <header className="sticky top-0 z-50 px-4 py-3 bg-oriwan-bg/90 backdrop-blur-xl border-b border-oriwan-border/60">
+      <header className="sticky top-0 z-50 px-4 py-3 bg-[#101522]/92 backdrop-blur-2xl border-b border-white/10 text-white">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl overflow-hidden">
-              <Image src="/oriwan-logo-v2.png" alt="오리완" width={32} height={32} className="object-cover" />
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-2xl overflow-hidden ring-1 ring-white/20 bg-lime-300">
+              <Image src="/oriwan-logo-v2.png" alt="스내사 3기 대시보드" width={36} height={36} className="object-cover" />
             </div>
             <div>
-              <h1 className="text-base font-black gradient-text leading-none">오리완 운영 대시보드</h1>
-              <p className="text-[11px] text-oriwan-text-muted mt-1">이미지 기반 러닝 인증 관리</p>
+              <h1 className="text-base sm:text-lg font-black tracking-tight leading-none">스내사 3기 대시보드</h1>
+              <p className="text-[11px] text-white/55 mt-1">러닝 인증 · OCR 검수 · 실시간 랭킹</p>
             </div>
           </div>
           <div className="flex items-center gap-2.5">
-            {userAvatar && <img src={userAvatar} alt="" width={28} height={28} className="rounded-full border border-oriwan-border" />}
-            <span className="hidden sm:inline text-xs font-semibold text-oriwan-text-muted">{userName}</span>
-            <button onClick={handleLogout} className="text-xs text-oriwan-text-muted hover:text-oriwan-text transition-colors font-medium">로그아웃</button>
+            <span className={`hidden sm:inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-black ${liveStatus === "live" ? "bg-lime-300 text-slate-950" : "bg-white/10 text-white/70"}`}>
+              <span className="h-1.5 w-1.5 rounded-full bg-current animate-pulse" />
+              {liveStatus === "live" ? "LIVE" : liveStatus === "polling" ? "SYNC" : "연결 중"}
+            </span>
+            {userAvatar && <img src={userAvatar} alt="" width={28} height={28} className="rounded-full border border-white/20" />}
+            <span className="hidden md:inline text-xs font-semibold text-white/60">{userName}</span>
+            <button onClick={handleLogout} className="text-xs text-white/55 hover:text-white transition-colors font-medium">로그아웃</button>
           </div>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 py-5 space-y-5 pb-12">
+      <main className="max-w-7xl mx-auto px-4 py-4 space-y-4 pb-10">
+        <section className="relative overflow-hidden rounded-[28px] bg-[#101522] px-5 py-5 text-white shadow-2xl shadow-slate-950/10">
+          <div className="absolute -right-16 -top-20 h-56 w-56 rounded-full bg-lime-300/25 blur-3xl" />
+          <div className="absolute bottom-0 left-1/2 h-24 w-72 -translate-x-1/2 rounded-full bg-orange-400/15 blur-3xl" />
+          <div className="relative flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+            <div>
+              <p className="mb-2 inline-flex rounded-full bg-white/10 px-3 py-1 text-[11px] font-black text-lime-200 ring-1 ring-white/10">SNASA RUNNING CLUB · 3RD</p>
+              <h2 className="text-3xl sm:text-4xl font-black tracking-[-0.04em]">스내사 3기 대시보드</h2>
+              <p className="mt-2 max-w-2xl text-sm text-white/60">이미지를 넣으면 인증 상태, 거리, 시간이 즉시 갱신됩니다. 날짜/시간 누락분은 검수 테이블에서 바로 보정하세요.</p>
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-right sm:grid-cols-3">
+              <div className="rounded-2xl bg-white/10 px-4 py-3 ring-1 ring-white/10">
+                <p className="text-[10px] font-bold text-white/45">선택일</p>
+                <p className="text-sm font-black text-white">{targetDate}</p>
+              </div>
+              <div className="rounded-2xl bg-lime-300 px-4 py-3 text-slate-950">
+                <p className="text-[10px] font-bold opacity-60">인증률</p>
+                <p className="text-sm font-black">{participants.length ? Math.round((certifiedToday / participants.length) * 100) : 0}%</p>
+              </div>
+              <div className="col-span-2 rounded-2xl bg-white/10 px-4 py-3 ring-1 ring-white/10 sm:col-span-1">
+                <p className="text-[10px] font-bold text-white/45">업데이트</p>
+                <p className="text-sm font-black text-white">{lastUpdated ? lastUpdated.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "-"}</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
         <section className="grid grid-cols-2 lg:grid-cols-5 gap-3">
           <SummaryCard title="참가자" value={`${participants.length}명`} caption="직접 추가/관리" />
           <SummaryCard title="선택일 인증" value={`${certifiedToday}/${participants.length}`} caption={targetDate} />
@@ -323,7 +388,7 @@ export default function DashboardPage() {
         </section>
 
         <section className="grid lg:grid-cols-[1.1fr_0.9fr] gap-5">
-          <div className="card p-5 space-y-4">
+          <div className="card p-4 space-y-3">
             <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
               <div>
                 <h2 className="text-lg font-black text-oriwan-text">이미지 업로드 분석</h2>
@@ -334,13 +399,13 @@ export default function DashboardPage() {
                 <input type="date" value={targetDate} onChange={(e) => setTargetDate(e.target.value)} className="block mt-1 rounded-xl border border-oriwan-border px-3 py-2 text-sm text-oriwan-text bg-white" />
               </label>
             </div>
-            <div className="rounded-3xl border-2 border-dashed border-blue-200 bg-blue-50/50 p-5 text-center">
+            <div className="rounded-3xl border-2 border-dashed border-lime-300/70 bg-lime-50/70 p-5 text-center">
               <input
                 type="file"
                 accept="image/*"
                 multiple
                 onChange={(e) => setFiles(Array.from(e.target.files || []))}
-                className="mx-auto block text-sm text-oriwan-text-muted file:mr-4 file:rounded-xl file:border-0 file:bg-oriwan-primary file:px-4 file:py-2 file:text-sm file:font-bold file:text-white"
+                className="mx-auto block text-sm text-oriwan-text-muted file:mr-4 file:rounded-xl file:border-0 file:bg-slate-950 file:px-4 file:py-2 file:text-sm file:font-bold file:text-lime-200"
               />
               <p className="text-xs text-oriwan-text-muted mt-3">선택됨: {files.length}장</p>
               <button onClick={analyzeImages} disabled={!files.length || analyzing} className="btn-primary mt-4 px-5 py-3 text-sm disabled:opacity-40">
@@ -349,7 +414,7 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <div className="card p-5 space-y-4">
+          <div className="card p-4 space-y-3">
             <h2 className="text-lg font-black text-oriwan-text">참가자 추가</h2>
             <div className="grid sm:grid-cols-2 gap-2">
               <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="이름" className="rounded-xl border border-oriwan-border px-3 py-2.5 text-sm" />
@@ -368,7 +433,7 @@ export default function DashboardPage() {
         </section>
 
         <section className="grid lg:grid-cols-[0.9fr_1.1fr] gap-5">
-          <div className="card p-5 space-y-4">
+          <div className="card p-4 space-y-3">
             <h2 className="text-lg font-black text-oriwan-text">수동 기록 입력</h2>
             <div className="grid sm:grid-cols-2 gap-2">
               <select value={manualParticipantId} onChange={(e) => setManualParticipantId(e.target.value)} className="rounded-xl border border-oriwan-border px-3 py-2.5 text-sm bg-white">
@@ -382,7 +447,7 @@ export default function DashboardPage() {
             <button onClick={saveManualRecord} className="btn-primary w-full py-3 text-sm">수동 기록 저장</button>
           </div>
 
-          <div className="card p-5 overflow-hidden">
+          <div className="card p-4 overflow-hidden">
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h2 className="text-lg font-black text-oriwan-text">인증 시계열</h2>
@@ -412,7 +477,7 @@ export default function DashboardPage() {
         </section>
 
         <section className="grid lg:grid-cols-[0.9fr_1.1fr] gap-5">
-          <div className="card p-5">
+          <div className="card p-4">
             <div className="flex items-center justify-between gap-3 mb-4">
               <h2 className="text-lg font-black text-oriwan-text">랭킹</h2>
               <div className="flex rounded-xl bg-oriwan-surface-light p-1 text-xs font-bold">
@@ -437,7 +502,7 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <div className="card p-5">
+          <div className="card p-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
               <div>
                 <h2 className="text-lg font-black text-oriwan-text">개인별 거리/시간 그래프</h2>
@@ -447,7 +512,7 @@ export default function DashboardPage() {
                 {participants.map((participant) => <option key={participant.id} value={participant.id}>{participant.name}</option>)}
               </select>
             </div>
-            <div className="rounded-3xl bg-slate-950 p-4 overflow-hidden">
+            <div className="rounded-3xl bg-slate-950 p-4 overflow-hidden ring-1 ring-white/10">
               {selectedSeries.length ? (
                 <svg viewBox={`0 0 ${graph.width} ${graph.height}`} className="w-full h-48">
                   <line x1="18" y1="110" x2="302" y2="110" stroke="rgba(255,255,255,.16)" />
@@ -462,13 +527,13 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        <section className="card p-5 overflow-hidden">
+        <section className="card p-4 overflow-hidden">
           <div className="flex items-center justify-between mb-4">
             <div>
               <h2 className="text-lg font-black text-oriwan-text">기록 검수</h2>
               <p className="text-xs text-oriwan-text-muted mt-1">이미지에서 시간이 없거나 날짜가 없으면 여기서 직접 수정해 인증 처리합니다.</p>
             </div>
-            <button onClick={loadData} className="rounded-xl bg-oriwan-surface-light px-3 py-2 text-xs font-bold text-oriwan-text-muted">새로고침</button>
+            <button onClick={() => loadData()} className="rounded-xl bg-oriwan-surface-light px-3 py-2 text-xs font-bold text-oriwan-text-muted">새로고침</button>
           </div>
           <div className="overflow-x-auto">
             <table className="min-w-[980px] w-full text-left text-xs">
@@ -525,9 +590,9 @@ export default function DashboardPage() {
 
 function SummaryCard({ title, value, caption, tone = "blue" }: { title: string; value: string; caption: string; tone?: "blue" | "amber" }) {
   return (
-    <div className={`card p-4 ${tone === "amber" ? "bg-amber-50/60" : ""}`}>
-      <p className="text-[11px] font-bold text-oriwan-text-muted mb-1">{title}</p>
-      <p className="text-2xl font-black text-oriwan-text tracking-tight">{value}</p>
+    <div className={`card p-4 ${tone === "amber" ? "bg-orange-50/80" : ""}`}>
+      <p className="text-[11px] font-black uppercase tracking-[0.12em] text-oriwan-text-muted mb-1">{title}</p>
+      <p className="text-2xl font-black text-oriwan-text tracking-[-0.04em]">{value}</p>
       <p className="text-[11px] text-oriwan-text-muted mt-1">{caption}</p>
     </div>
   );
