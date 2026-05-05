@@ -2,13 +2,13 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "오리완 | 오늘의 리커버리 완료",
+  title: "오리완 | 러닝 인증 운영 대시보드",
   description:
-    "달리고, 회복하고, 도장 찍고! AI가 당신의 러닝을 분석해 맞춤형 회복 팁을 알려드려요.",
-  keywords: ["러닝", "기록인증", "오리완", "리커버리", "달리기", "스트레칭"],
+    "러닝 인증 이미지를 업로드하면 AI가 거리, 시간, 날짜를 추출하고 참가자별 인증 현황과 향상도를 보여줘요.",
+  keywords: ["러닝", "기록인증", "오리완", "대시보드", "OCR", "챌린지"],
   openGraph: {
-    title: "오리완 | 오늘의 리커버리 완료",
-    description: "달리고, 회복하고, 도장 찍고! 매일 오리완을 완성하세요",
+    title: "오리완 | 러닝 인증 운영 대시보드",
+    description: "이미지 기반 러닝 인증을 빠르게 검수하고 참가자별 변화를 확인하세요",
     type: "website",
     locale: "ko_KR",
   },

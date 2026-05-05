@@ -19,39 +19,35 @@ export default function TermsPage() {
         <div className="card p-6 space-y-6 text-sm leading-relaxed text-oriwan-text-muted">
           <section>
             <h2 className="text-base font-bold text-oriwan-text mb-2">제1조 (목적)</h2>
-            <p>본 약관은 오리완(이하 &quot;서비스&quot;)이 제공하는 러닝 기록 인증 및 AI 회복 팁 서비스의 이용 조건과 절차를 규정함을 목적으로 합니다.</p>
+            <p>본 약관은 오리완이 제공하는 이미지 기반 러닝 인증 관리 및 대시보드 서비스의 이용 조건과 절차를 규정합니다.</p>
           </section>
 
           <section>
             <h2 className="text-base font-bold text-oriwan-text mb-2">제2조 (서비스 내용)</h2>
             <ul className="list-disc pl-5 space-y-1">
-              <li>Strava 계정 연동을 통한 러닝 데이터 조회</li>
-              <li>AI 기반 맞춤형 회복 팁 제공</li>
-              <li>일일 러닝 인증 기록 관리 (잔디 달력)</li>
+              <li>참가자 등록 및 관리</li>
+              <li>러닝 인증 이미지 업로드 및 AI 텍스트 추출</li>
+              <li>날짜, 거리, 시간, 페이스 수동 검수</li>
+              <li>인증 시계열, 랭킹, 그래프 대시보드 제공</li>
             </ul>
           </section>
 
           <section>
-            <h2 className="text-base font-bold text-oriwan-text mb-2">제3조 (이용자의 의무)</h2>
+            <h2 className="text-base font-bold text-oriwan-text mb-2">제3조 (운영자의 책임)</h2>
             <ul className="list-disc pl-5 space-y-1">
-              <li>타인의 계정을 도용하지 않아야 합니다.</li>
-              <li>서비스를 부정한 목적으로 이용하지 않아야 합니다.</li>
-              <li>서비스 이용 시 관련 법령을 준수해야 합니다.</li>
+              <li>참가자 이미지 업로드에 필요한 동의를 확보해야 합니다.</li>
+              <li>AI 추출 결과가 부정확할 수 있으므로 최종 인증 여부를 직접 확인해야 합니다.</li>
+              <li>타인의 개인정보 또는 민감정보가 불필요하게 포함된 이미지를 업로드하지 않아야 합니다.</li>
             </ul>
           </section>
 
           <section>
-            <h2 className="text-base font-bold text-oriwan-text mb-2">제4조 (서비스 제공의 변경 및 중단)</h2>
-            <p>운영상 또는 기술상의 사유로 서비스의 전부 또는 일부를 변경하거나 중단할 수 있습니다. 이 경우 사전에 공지합니다.</p>
-          </section>
-
-          <section>
-            <h2 className="text-base font-bold text-oriwan-text mb-2">제5조 (면책 조항)</h2>
-            <p>본 서비스에서 제공하는 AI 회복 팁은 참고용이며, 전문 의료 조언을 대체하지 않습니다. 건강 관련 결정은 반드시 전문가와 상담하시기 바랍니다.</p>
+            <h2 className="text-base font-bold text-oriwan-text mb-2">제4조 (면책)</h2>
+            <p>AI 이미지 분석 결과는 보조 도구이며, 인증 여부와 기록의 정확성에 대한 최종 판단은 운영자에게 있습니다.</p>
           </section>
 
           <p className="text-xs text-oriwan-text-muted/60 pt-4 border-t border-oriwan-border">
-            시행일: 2025년 4월 28일
+            시행일: 2026년 5월 5일
           </p>
         </div>
       </div>

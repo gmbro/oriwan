@@ -1,36 +1,32 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 오리완
 
-## Getting Started
+이미지 기반 러닝 인증 운영 대시보드입니다. 운영자가 참가자를 등록하고 러닝 인증 이미지를 업로드하면 AI가 날짜, 이름, 거리, 시간, 페이스를 추출합니다. 누락되거나 애매한 값은 검수 테이블에서 수동으로 보정하고, 인증 시계열과 랭킹/그래프로 참가자들의 변화를 확인합니다.
 
-First, run the development server:
+## 주요 기능
+
+- 참가자 직접 등록
+- 인증 이미지 일괄 업로드
+- Gemini Vision 기반 텍스트/숫자 추출
+- 날짜 누락 시 기본 날짜 임시 적용
+- 시간 누락 시 수동 입력
+- 최근 14일 인증 시계열
+- 인증 횟수, 누적 거리, 누적 시간 랭킹
+- 개인별 거리/시간 그래프
+
+## 개발
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 데이터베이스
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Supabase SQL Editor에서 `docs/supabase-schema.sql`을 실행하세요.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+필요한 환경 변수:
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `GEMINI_API_KEY`

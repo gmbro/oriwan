@@ -1,165 +1,290 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
-import { IconCheck, IconRun } from "@/components/icons";
+import { IconCheck, IconRun, IconSprout } from "@/components/icons";
+import { addDays, parseDurationToSeconds, secondsToPace, secondsToTime, toIsoDate } from "@/lib/run-records";
 
-interface CompletionData {
-  id: string; completed_date: string;
-  distance?: number; moving_time?: number;
-  average_cadence?: number; average_heartrate?: number;
-}
-interface Stats {
-  totalRuns: number; totalDistanceKm: number; totalTimeMin: number;
-  avgCadence: number | null; avgHeartrate: number | null;
+type Participant = {
+  id: string;
+  name: string;
+  nickname: string | null;
+  active: boolean;
+  display_order: number;
+};
+
+type RecordStatus = "certified" | "needs_review" | "missing" | "rejected";
+
+type RunRecord = {
+  id: string;
+  participant_id: string | null;
+  record_date: string | null;
+  distance_km: number | null;
+  duration_seconds: number | null;
+  pace_seconds_per_km: number | null;
+  source_app: string | null;
+  status: RecordStatus;
+  confidence_score: number | null;
+  image_url: string | null;
+  raw_extracted_text: string | null;
+  notes: string | null;
+  participants?: { id: string; name: string; nickname: string | null } | null;
+};
+
+type RecordDraft = {
+  participant_id: string;
+  record_date: string;
+  distance_km: string;
+  duration: string;
+  status: RecordStatus;
+  source_app: string;
+  notes: string;
+};
+
+type RankingMode = "certified" | "distance" | "time";
+
+const today = toIsoDate(new Date());
+const rangeStart = toIsoDate(addDays(new Date(), -20));
+const timelineDays = Array.from({ length: 14 }, (_, index) => toIsoDate(addDays(new Date(), index - 13)));
+
+function readFileAsDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
 }
 
-const recovery = [
-  { cat: "러닝 후 스트레칭", items: ["전신 스트레칭","하체 스트레칭","종아리 스트레칭","허벅지 스트레칭","고관절 풀기","엉덩이 스트레칭","햄스트링","발목 스트레칭","쿨다운 루틴","허리 스트레칭"] },
-  { cat: "폼롤러 마사지", items: ["종아리 폼롤러","허벅지 폼롤러","IT밴드 풀기","등 폼롤러","엉덩이 폼롤러","전신 폼롤러","발바닥 마사지","폼롤러 입문","장경인대","대퇴사두근"] },
-  { cat: "러너 요가", items: ["러너 요가","러닝 후 요가","하체 유연성","고관절 오프너","15분 요가","아침 요가","수면 요가","코어 요가","릴랙스 요가","밸런스 요가"] },
-  { cat: "부상 예방 & 근력", items: ["무릎 보호","발목 강화","코어 운동","힙 강화","IT밴드 예방","족저근막 예방","밴드 운동","자세 교정","케이던스 업","체간 안정성"] },
-  { cat: "영양 & 회복", items: ["러닝 식단","단백질 섭취","수분 보충","수면 질 향상","근육통 해소","아이스배스","마라톤 회복","탄수화물 로딩","보충제 가이드","마사지건"] },
-];
+function statusLabel(status: RecordStatus) {
+  if (status === "certified") return "인증";
+  if (status === "needs_review") return "확인 필요";
+  if (status === "rejected") return "반려";
+  return "미제출";
+}
+
+function statusClass(status: RecordStatus) {
+  if (status === "certified") return "bg-emerald-50 text-emerald-700 border-emerald-100";
+  if (status === "needs_review") return "bg-amber-50 text-amber-700 border-amber-100";
+  if (status === "rejected") return "bg-rose-50 text-rose-700 border-rose-100";
+  return "bg-slate-50 text-slate-400 border-slate-100";
+}
+
+function makeDraft(record: RunRecord): RecordDraft {
+  return {
+    participant_id: record.participant_id || "",
+    record_date: record.record_date || today,
+    distance_km: record.distance_km ? String(record.distance_km) : "",
+    duration: record.duration_seconds ? secondsToTime(record.duration_seconds) : "",
+    status: record.status || "needs_review",
+    source_app: record.source_app || "",
+    notes: record.notes || "",
+  };
+}
+
+function polyline(points: { x: number; y: number }[]) {
+  return points.map((point) => `${point.x},${point.y}`).join(" ");
+}
 
 export default function DashboardPage() {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const [userName, setUserName] = useState("");
   const [userAvatar, setUserAvatar] = useState("");
-  const [completions, setCompletions] = useState<CompletionData[]>([]);
-  const [stats, setStats] = useState<Stats | null>(null);
-  const [todayDone, setTodayDone] = useState(false);
-  const [syncing, setSyncing] = useState(false);
-  const [stravaConnected, setStravaConnected] = useState(false);
-  const [stravaChecked, setStravaChecked] = useState(false);
+  const [participants, setParticipants] = useState<Participant[]>([]);
+  const [records, setRecords] = useState<RunRecord[]>([]);
+  const [drafts, setDrafts] = useState<Record<string, RecordDraft>>({});
+  const [loading, setLoading] = useState(true);
+  const [newName, setNewName] = useState("");
+  const [newNickname, setNewNickname] = useState("");
+  const [targetDate, setTargetDate] = useState(today);
+  const [files, setFiles] = useState<File[]>([]);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [manualParticipantId, setManualParticipantId] = useState("");
+  const [manualDate, setManualDate] = useState(today);
+  const [manualDistance, setManualDistance] = useState("");
+  const [manualDuration, setManualDuration] = useState("");
+  const [rankingMode, setRankingMode] = useState<RankingMode>("certified");
+  const [selectedParticipantId, setSelectedParticipantId] = useState("");
 
-  // 회복 팁
-  const [tip, setTip] = useState("");
-  const [tipLoading, setTipLoading] = useState(false);
-  const tipLoadedRef = useRef(false);
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [participantsRes, recordsRes] = await Promise.all([
+        fetch("/api/participants", { cache: "no-store" }),
+        fetch(`/api/records?from=${rangeStart}&to=${today}`, { cache: "no-store" }),
+      ]);
 
-  const [dateInfo, setDateInfo] = useState({
-    year: 2026, month: 3, todayDate: 29,
-    todayStr: "2026-04-29", daysInMonth: 30, firstDay: 3,
-  });
+      const participantsJson = await participantsRes.json();
+      const recordsJson = await recordsRes.json();
+      const nextParticipants = participantsJson.participants || [];
+      const nextRecords = recordsJson.records || [];
+
+      setParticipants(nextParticipants);
+      setRecords(nextRecords);
+      setSelectedParticipantId((current) => current || nextParticipants[0]?.id || "");
+      setManualParticipantId((current) => current || nextParticipants[0]?.id || "");
+      setDrafts(Object.fromEntries(nextRecords.map((record: RunRecord) => [record.id, makeDraft(record)])));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     setMounted(true);
-    const now = new Date();
-    const y = now.getFullYear(), m = now.getMonth(), d = now.getDate();
-    setDateInfo({
-      year: y, month: m, todayDate: d,
-      todayStr: `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`,
-      daysInMonth: new Date(y, m + 1, 0).getDate(),
-      firstDay: new Date(y, m, 1).getDay(),
-    });
-  }, []);
-
-  const fetchTip = useCallback((refreshToken = String(Date.now())) => {
-    if (tipLoading) return;
-    setTipLoading(true);
-    fetch("/api/ai/recovery", {
-      method: "POST",
-      cache: "no-store",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        date: dateInfo.todayStr,
-        refreshToken,
-        previousTip: tip,
-      }),
-    })
-      .then((r) => r.json())
-      .then((d) => setTip(d.tip || "러닝 후 스트레칭과 수분 보충을 잊지 마세요."))
-      .catch(() => setTip("러닝 후 스트레칭과 수분 보충을 잊지 마세요."))
-      .finally(() => setTipLoading(false));
-  }, [dateInfo.todayStr, tip, tipLoading]);
-
-  const handleTipRefresh = useCallback(() => {
-    fetchTip(`click:${Date.now()}:${Math.random().toString(36).slice(2)}`);
-  }, [fetchTip]);
-
-  useEffect(() => {
-    if (!mounted) return;
     const init = async () => {
       const supabase = createClient();
-      const { data: { user: u } } = await supabase.auth.getUser();
-      if (!u) { router.push("/"); return; }
-
-      setUserName(u.user_metadata?.full_name || u.email?.split("@")[0] || "러너");
-      setUserAvatar(u.user_metadata?.avatar_url || "");
-
-      // Strava 연동 상태 확인 (서버 API)
-      try {
-        const sr = await fetch("/api/auth/strava/status");
-        const sd = await sr.json();
-        setStravaConnected(sd.connected);
-      } catch { setStravaConnected(false); }
-      setStravaChecked(true);
-
-      // 완료 기록 + 통계
-      try {
-        const res = await fetch(`/api/completions?year=${dateInfo.year}&month=${dateInfo.month + 1}`);
-        if (res.ok) {
-          const data = await res.json();
-          setCompletions(data.completions || []);
-          setStats(data.stats || null);
-          setTodayDone((data.completions || []).some((c: CompletionData) => c.completed_date === dateInfo.todayStr));
-        }
-      } catch {}
-
-      if (!tipLoadedRef.current) {
-        tipLoadedRef.current = true;
-        fetch("/api/ai/recovery", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            date: dateInfo.todayStr,
-            refreshToken: "daily",
-          }),
-        })
-          .then((r) => r.json())
-          .then((d) => setTip(d.tip || ""))
-          .catch(() => {});
-      }
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { router.push("/"); return; }
+      setUserName(user.user_metadata?.full_name || user.email?.split("@")[0] || "운영자");
+      setUserAvatar(user.user_metadata?.avatar_url || "");
+      await loadData();
     };
     init();
-  }, [mounted, router, dateInfo.year, dateInfo.month, dateInfo.todayStr]);
+  }, [loadData, router]);
 
-  const monthNames = ["1월","2월","3월","4월","5월","6월","7월","8월","9월","10월","11월","12월"];
-  const completedDates = new Set(completions.map((c) => c.completed_date));
+  const todayRecords = useMemo(() => records.filter((record) => record.record_date === targetDate), [records, targetDate]);
+  const certifiedToday = useMemo(() => todayRecords.filter((record) => record.status === "certified").length, [todayRecords]);
+  const needsReview = useMemo(() => records.filter((record) => record.status === "needs_review").length, [records]);
+  const totalDistance = useMemo(() => todayRecords.reduce((sum, record) => sum + (record.distance_km || 0), 0), [todayRecords]);
+  const totalTime = useMemo(() => todayRecords.reduce((sum, record) => sum + (record.duration_seconds || 0), 0), [todayRecords]);
 
-  // Strava 동기화 → 리커버리 플로우 시작
-  const handleSync = useCallback(async () => {
-    if (todayDone || syncing) return;
-
-    if (!stravaConnected) {
-      if (confirm("Strava 연동이 필요합니다.\nStrava 로그인 페이지로 이동할까요?")) {
-        window.location.href = "/api/auth/strava";
+  const recordsByParticipantDate = useMemo(() => {
+    const map = new Map<string, RunRecord>();
+    records.forEach((record) => {
+      if (record.participant_id && record.record_date) {
+        map.set(`${record.participant_id}:${record.record_date}`, record);
       }
-      return;
-    }
+    });
+    return map;
+  }, [records]);
 
-    setSyncing(true);
+  const rankings = useMemo(() => {
+    const rows = participants.map((participant) => {
+      const participantRecords = records.filter((record) => record.participant_id === participant.id && record.status === "certified");
+      return {
+        participant,
+        certifiedCount: participantRecords.length,
+        distance: participantRecords.reduce((sum, record) => sum + (record.distance_km || 0), 0),
+        time: participantRecords.reduce((sum, record) => sum + (record.duration_seconds || 0), 0),
+      };
+    });
+
+    return rows.sort((a, b) => {
+      if (rankingMode === "distance") return b.distance - a.distance;
+      if (rankingMode === "time") return b.time - a.time;
+      return b.certifiedCount - a.certifiedCount || b.distance - a.distance;
+    });
+  }, [participants, rankingMode, records]);
+
+  const selectedSeries = useMemo(() => {
+    const participantRecords = records
+      .filter((record) => record.participant_id === selectedParticipantId && record.record_date)
+      .sort((a, b) => String(a.record_date).localeCompare(String(b.record_date)));
+    return participantRecords;
+  }, [records, selectedParticipantId]);
+
+  const graph = useMemo(() => {
+    const width = 320;
+    const height = 128;
+    const padding = 18;
+    const distanceMax = Math.max(1, ...selectedSeries.map((record) => record.distance_km || 0));
+    const timeMax = Math.max(1, ...selectedSeries.map((record) => (record.duration_seconds || 0) / 60));
+    const makePoints = (kind: "distance" | "time") => selectedSeries.map((record, index) => {
+      const x = selectedSeries.length <= 1 ? width / 2 : padding + (index / (selectedSeries.length - 1)) * (width - padding * 2);
+      const value = kind === "distance" ? (record.distance_km || 0) : (record.duration_seconds || 0) / 60;
+      const max = kind === "distance" ? distanceMax : timeMax;
+      const y = height - padding - (value / max) * (height - padding * 2);
+      return { x, y };
+    });
+    return { width, height, distancePoints: makePoints("distance"), timePoints: makePoints("time") };
+  }, [selectedSeries]);
+
+  const addParticipant = useCallback(async () => {
+    if (!newName.trim()) return;
+    const res = await fetch("/api/participants", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: newName, nickname: newNickname }),
+    });
+    if (res.ok) {
+      setNewName("");
+      setNewNickname("");
+      await loadData();
+    } else {
+      alert("참가자를 저장하지 못했어요.");
+    }
+  }, [loadData, newName, newNickname]);
+
+  const analyzeImages = useCallback(async () => {
+    if (!files.length) return;
+    setAnalyzing(true);
     try {
-      const res = await fetch("/api/strava/activities");
-      const data = await res.json();
-
-      if (data.activities && data.activities.length > 0) {
-        const run = data.activities[0];
-        sessionStorage.setItem("oriwan_run_data", JSON.stringify(run));
-        router.push("/recovery");
-      } else {
-        alert("오늘 Strava에 기록된 러닝이 없어요!\n러닝 후 워치를 동기화하고 다시 시도해주세요.");
-      }
+      const images = await Promise.all(files.map(async (file) => ({ name: file.name, dataUrl: await readFileAsDataUrl(file) })));
+      const res = await fetch("/api/records/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ targetDate, images }),
+      });
+      if (!res.ok) throw new Error("analysis failed");
+      setFiles([]);
+      await loadData();
     } catch {
-      alert("데이터를 불러오지 못했어요. 잠시 후 다시 시도해주세요.");
+      alert("이미지 분석에 실패했어요. 흐린 이미지는 직접 입력으로 등록해주세요.");
     } finally {
-      setSyncing(false);
+      setAnalyzing(false);
     }
-  }, [todayDone, syncing, stravaConnected, router]);
+  }, [files, loadData, targetDate]);
+
+  const saveManualRecord = useCallback(async () => {
+    const duration = parseDurationToSeconds(manualDuration);
+    const res = await fetch("/api/records", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        participant_id: manualParticipantId,
+        record_date: manualDate,
+        distance_km: manualDistance,
+        duration_seconds: duration,
+        status: manualDistance && duration ? "certified" : "needs_review",
+        notes: duration ? null : "시간 수동 입력 필요",
+      }),
+    });
+    if (res.ok) {
+      setManualDistance("");
+      setManualDuration("");
+      await loadData();
+    } else {
+      alert("기록 저장에 실패했어요.");
+    }
+  }, [loadData, manualDate, manualDistance, manualDuration, manualParticipantId]);
+
+  const updateDraft = useCallback((recordId: string, patch: Partial<RecordDraft>) => {
+    setDrafts((current) => ({ ...current, [recordId]: { ...current[recordId], ...patch } }));
+  }, []);
+
+  const saveDraft = useCallback(async (recordId: string) => {
+    const draft = drafts[recordId];
+    if (!draft) return;
+    const duration = parseDurationToSeconds(draft.duration);
+    const res = await fetch(`/api/records/${recordId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        participant_id: draft.participant_id || null,
+        record_date: draft.record_date,
+        distance_km: draft.distance_km,
+        duration_seconds: duration,
+        source_app: draft.source_app,
+        status: draft.status,
+        notes: draft.notes,
+      }),
+    });
+    if (res.ok) await loadData();
+    else alert("수정 저장에 실패했어요.");
+  }, [drafts, loadData]);
 
   const handleLogout = useCallback(() => {
     fetch("/api/auth/logout", { method: "POST" }).then(() => { router.push("/"); router.refresh(); });
@@ -168,152 +293,242 @@ export default function DashboardPage() {
   if (!mounted) return <div className="min-h-screen bg-oriwan-bg" />;
 
   return (
-    <div className="min-h-screen bg-oriwan-bg flex flex-col">
-      <header className="sticky top-0 z-50 px-4 py-3 bg-oriwan-bg/90 backdrop-blur-xl border-b border-oriwan-border/50">
-        <div className="max-w-lg mx-auto flex items-center justify-between">
+    <div className="min-h-screen bg-oriwan-bg">
+      <header className="sticky top-0 z-50 px-4 py-3 bg-oriwan-bg/90 backdrop-blur-xl border-b border-oriwan-border/60">
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg overflow-hidden">
-              <Image src="/oriwan-logo-v2.png" alt="오리완" width={28} height={28} className="object-cover" />
+            <div className="w-8 h-8 rounded-xl overflow-hidden">
+              <Image src="/oriwan-logo-v2.png" alt="오리완" width={32} height={32} className="object-cover" />
             </div>
-            <h1 className="text-base font-extrabold gradient-text">오리완</h1>
+            <div>
+              <h1 className="text-base font-black gradient-text leading-none">오리완 운영 대시보드</h1>
+              <p className="text-[11px] text-oriwan-text-muted mt-1">이미지 기반 러닝 인증 관리</p>
+            </div>
           </div>
           <div className="flex items-center gap-2.5">
-            {userAvatar && <img src={userAvatar} alt="" width={26} height={26} className="rounded-full border border-oriwan-border" />}
+            {userAvatar && <img src={userAvatar} alt="" width={28} height={28} className="rounded-full border border-oriwan-border" />}
+            <span className="hidden sm:inline text-xs font-semibold text-oriwan-text-muted">{userName}</span>
             <button onClick={handleLogout} className="text-xs text-oriwan-text-muted hover:text-oriwan-text transition-colors font-medium">로그아웃</button>
           </div>
         </div>
       </header>
 
-      <main className="flex-1 px-4 py-5 max-w-lg mx-auto w-full space-y-4 pb-10">
-        {/* Strava 미연동 배너 */}
-        {stravaChecked && !stravaConnected && (
-          <button onClick={() => { window.location.href = "/api/auth/strava"; }} className="btn-strava w-full py-3 text-sm animate-fade-up">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.463 0l-7 13.828h4.169"/></svg>
-            Strava 연동하기
-          </button>
-        )}
+      <main className="max-w-7xl mx-auto px-4 py-5 space-y-5 pb-12">
+        <section className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+          <SummaryCard title="참가자" value={`${participants.length}명`} caption="직접 추가/관리" />
+          <SummaryCard title="선택일 인증" value={`${certifiedToday}/${participants.length}`} caption={targetDate} />
+          <SummaryCard title="확인 필요" value={`${needsReview}건`} caption="날짜/시간/이름 검수" tone="amber" />
+          <SummaryCard title="선택일 거리" value={`${totalDistance.toFixed(1)}km`} caption="인증 완료 기준" />
+          <SummaryCard title="선택일 시간" value={secondsToTime(totalTime)} caption="누적 러닝 시간" />
+        </section>
 
-        {/* 월간 통계 위젯 */}
-        {stats && stats.totalRuns > 0 && (
-          <div className="animate-fade-up">
-            <h2 className="text-xs font-bold text-oriwan-text-muted mb-2 px-1">{monthNames[dateInfo.month]} 현황</h2>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="card p-3.5 text-center">
-                <p className="text-[11px] text-oriwan-text-muted">총 거리</p>
-                <p className="text-lg font-black text-oriwan-text">{stats.totalDistanceKm}<span className="text-xs font-medium text-oriwan-text-muted ml-0.5">km</span></p>
+        <section className="grid lg:grid-cols-[1.1fr_0.9fr] gap-5">
+          <div className="card p-5 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-black text-oriwan-text">이미지 업로드 분석</h2>
+                <p className="text-xs text-oriwan-text-muted mt-1">배경은 무시하고 텍스트/숫자만 추출합니다. 날짜가 없으면 아래 날짜를 임시 적용하고 확인 필요로 남겨요.</p>
               </div>
-              <div className="card p-3.5 text-center">
-                <p className="text-[11px] text-oriwan-text-muted">총 러닝</p>
-                <p className="text-lg font-black text-oriwan-text">{stats.totalRuns}<span className="text-xs font-medium text-oriwan-text-muted ml-0.5">회</span></p>
+              <label className="text-xs font-bold text-oriwan-text-muted">
+                기본 날짜
+                <input type="date" value={targetDate} onChange={(e) => setTargetDate(e.target.value)} className="block mt-1 rounded-xl border border-oriwan-border px-3 py-2 text-sm text-oriwan-text bg-white" />
+              </label>
+            </div>
+            <div className="rounded-3xl border-2 border-dashed border-blue-200 bg-blue-50/50 p-5 text-center">
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={(e) => setFiles(Array.from(e.target.files || []))}
+                className="mx-auto block text-sm text-oriwan-text-muted file:mr-4 file:rounded-xl file:border-0 file:bg-oriwan-primary file:px-4 file:py-2 file:text-sm file:font-bold file:text-white"
+              />
+              <p className="text-xs text-oriwan-text-muted mt-3">선택됨: {files.length}장</p>
+              <button onClick={analyzeImages} disabled={!files.length || analyzing} className="btn-primary mt-4 px-5 py-3 text-sm disabled:opacity-40">
+                {analyzing ? "이미지 분석 중..." : "업로드하고 자동 추출"}
+              </button>
+            </div>
+          </div>
+
+          <div className="card p-5 space-y-4">
+            <h2 className="text-lg font-black text-oriwan-text">참가자 추가</h2>
+            <div className="grid sm:grid-cols-2 gap-2">
+              <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="이름" className="rounded-xl border border-oriwan-border px-3 py-2.5 text-sm" />
+              <input value={newNickname} onChange={(e) => setNewNickname(e.target.value)} placeholder="닉네임 또는 앱 이름" className="rounded-xl border border-oriwan-border px-3 py-2.5 text-sm" />
+            </div>
+            <button onClick={addParticipant} className="btn-primary w-full py-3 text-sm">참가자 등록</button>
+            <div className="flex flex-wrap gap-1.5 pt-1">
+              {participants.map((participant) => (
+                <span key={participant.id} className="rounded-full bg-oriwan-surface-light px-3 py-1.5 text-xs font-bold text-oriwan-text">
+                  {participant.name}{participant.nickname ? ` · ${participant.nickname}` : ""}
+                </span>
+              ))}
+              {!participants.length && <p className="text-xs text-oriwan-text-muted">먼저 참가자 이름을 등록해주세요.</p>}
+            </div>
+          </div>
+        </section>
+
+        <section className="grid lg:grid-cols-[0.9fr_1.1fr] gap-5">
+          <div className="card p-5 space-y-4">
+            <h2 className="text-lg font-black text-oriwan-text">수동 기록 입력</h2>
+            <div className="grid sm:grid-cols-2 gap-2">
+              <select value={manualParticipantId} onChange={(e) => setManualParticipantId(e.target.value)} className="rounded-xl border border-oriwan-border px-3 py-2.5 text-sm bg-white">
+                <option value="">참가자 선택</option>
+                {participants.map((participant) => <option key={participant.id} value={participant.id}>{participant.name}</option>)}
+              </select>
+              <input type="date" value={manualDate} onChange={(e) => setManualDate(e.target.value)} className="rounded-xl border border-oriwan-border px-3 py-2.5 text-sm" />
+              <input value={manualDistance} onChange={(e) => setManualDistance(e.target.value)} placeholder="거리 km" inputMode="decimal" className="rounded-xl border border-oriwan-border px-3 py-2.5 text-sm" />
+              <input value={manualDuration} onChange={(e) => setManualDuration(e.target.value)} placeholder="시간 예: 32:10" className="rounded-xl border border-oriwan-border px-3 py-2.5 text-sm" />
+            </div>
+            <button onClick={saveManualRecord} className="btn-primary w-full py-3 text-sm">수동 기록 저장</button>
+          </div>
+
+          <div className="card p-5 overflow-hidden">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-lg font-black text-oriwan-text">인증 시계열</h2>
+                <p className="text-xs text-oriwan-text-muted mt-1">최근 14일 인증 여부를 한눈에 봅니다.</p>
               </div>
-              {stats.avgCadence && (
-                <div className="card p-3.5 text-center">
-                  <p className="text-[11px] text-oriwan-text-muted">평균 케이던스</p>
-                  <p className="text-lg font-black text-oriwan-text">{stats.avgCadence}<span className="text-xs font-medium text-oriwan-text-muted ml-0.5">spm</span></p>
-                </div>
-              )}
-              {stats.avgHeartrate && (
-                <div className="card p-3.5 text-center">
-                  <p className="text-[11px] text-oriwan-text-muted">평균 심박수</p>
-                  <p className="text-lg font-black text-oriwan-text">{stats.avgHeartrate}<span className="text-xs font-medium text-oriwan-text-muted ml-0.5">bpm</span></p>
-                </div>
-              )}
+              <IconSprout size={22} className="text-oriwan-primary" />
             </div>
-          </div>
-        )}
-
-        {/* AI 회복 팁 */}
-        <button onClick={handleTipRefresh} disabled={tipLoading} className="w-full card-quote p-5 text-center animate-fade-up block" style={{ animationDelay: "0.03s" }}>
-          {tipLoading ? (
-            <p className="text-sm text-oriwan-text-muted animate-pulse">새로운 회복 팁을 찾는 중...</p>
-          ) : (
-            <div>
-              <p className="text-[14px] text-oriwan-text leading-[1.7] font-medium px-2 whitespace-pre-line text-balance">
-                &ldquo;{tip || "러닝 후 회복 팁을\n클릭해서 받아보세요"}&rdquo;
-              </p>
-              <p className="text-[11px] text-oriwan-primary/50 font-medium mt-3">탭하여 다른 팁 보기</p>
-            </div>
-          )}
-        </button>
-
-        {/* 달력 + 동기화 버튼 */}
-        <div className="card p-5 animate-fade-up" style={{ animationDelay: "0.06s" }}>
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-bold">{dateInfo.year}년 {monthNames[dateInfo.month]}</h3>
-            <span className="text-[11px] text-oriwan-primary font-bold bg-blue-50 px-2.5 py-1 rounded-full">{completions.length}일 완료</span>
-          </div>
-
-          <div className="grid grid-cols-7 gap-0.5 mb-1">
-            {["일","월","화","수","목","금","토"].map((d, i) => (
-              <div key={d} className={`text-center text-[10px] font-bold py-0.5 ${i===0?"text-oriwan-danger":i===6?"text-oriwan-primary":"text-oriwan-text-muted"}`}>{d}</div>
-            ))}
-          </div>
-
-          <div className="grid grid-cols-7 gap-1 mb-4">
-            {Array.from({ length: dateInfo.firstDay }).map((_, i) => <div key={`e${i}`} />)}
-            {Array.from({ length: dateInfo.daysInMonth }).map((_, i) => {
-              const day = i + 1;
-              const ds = `${dateInfo.year}-${String(dateInfo.month+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
-              const done = completedDates.has(ds);
-              const isToday = day === dateInfo.todayDate;
-              const future = day > dateInfo.todayDate;
-              return (
-                <div key={day} className={`aspect-square flex items-center justify-center rounded-xl text-[12px] font-semibold transition-all ${done?"stamp-complete":""} ${isToday&&!done?"stamp-today text-oriwan-primary font-bold":""} ${!done&&!isToday?(future?"text-oriwan-text-muted/25":"text-oriwan-text-muted/50"):""}`}>
-                  {done ? <IconCheck size={13} /> : day}
+            <div className="overflow-x-auto">
+              <div className="min-w-[720px] space-y-2">
+                <div className="grid grid-cols-[120px_repeat(14,1fr)] gap-1 text-[10px] font-bold text-oriwan-text-muted">
+                  <div>참가자</div>
+                  {timelineDays.map((day) => <div key={day} className="text-center">{day.slice(5).replace("-", "/")}</div>)}
                 </div>
-              );
-            })}
-          </div>
-
-          {todayDone ? (
-            <div className="text-center py-3 bg-blue-50 rounded-2xl">
-              <p className="font-bold text-sm gradient-text">오늘의 오리완 완료!</p>
-              <p className="text-[11px] text-oriwan-text-muted mt-0.5">충분한 휴식을 취하세요</p>
-            </div>
-          ) : (
-            <button onClick={handleSync} disabled={syncing} className="btn-primary w-full py-3.5 text-[15px]">
-              {syncing ? (
-                <span className="flex items-center justify-center gap-2">
-                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-                  Strava 동기화 중...
-                </span>
-              ) : (
-                <span className="flex items-center justify-center gap-2">
-                  <IconRun size={18} />
-                  오늘의 러닝 동기화
-                </span>
-              )}
-            </button>
-          )}
-        </div>
-
-        {/* 리커버리 콘텐츠 토글 */}
-        <div className="animate-fade-up" style={{ animationDelay: "0.09s" }}>
-          <h2 className="text-sm font-bold text-oriwan-text mb-2 px-1">리커버리 콘텐츠</h2>
-          <div className="space-y-2">
-            {recovery.map((cat) => (
-              <details key={cat.cat} className="card toggle-section overflow-hidden">
-                <summary className="flex items-center justify-between p-4 hover:bg-oriwan-surface-light transition-colors">
-                  <span className="text-[13px] font-bold text-oriwan-text">{cat.cat}</span>
-                  <svg className="toggle-chevron w-4 h-4 text-oriwan-text-muted" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-                  </svg>
-                </summary>
-                <div className="px-4 pb-4">
-                  <div className="grid grid-cols-2 gap-1.5">
-                    {cat.items.map((item) => (
-                      <a key={item} href={`https://www.youtube.com/results?search_query=${encodeURIComponent(`러닝 ${item}`)}`} target="_blank" rel="noopener noreferrer"
-                        className="bg-oriwan-surface-light hover:bg-blue-50 active:bg-blue-100 rounded-xl px-3 py-2.5 transition-colors text-center text-[12px] font-medium text-oriwan-text hover:text-oriwan-primary">
-                        {item}
-                      </a>
-                    ))}
+                {participants.map((participant) => (
+                  <div key={participant.id} className="grid grid-cols-[120px_repeat(14,1fr)] gap-1 items-center">
+                    <div className="truncate text-xs font-bold text-oriwan-text">{participant.name}</div>
+                    {timelineDays.map((day) => {
+                      const record = recordsByParticipantDate.get(`${participant.id}:${day}`);
+                      const status = record?.status || "missing";
+                      return <div key={day} title={statusLabel(status)} className={`h-8 rounded-lg border flex items-center justify-center text-[11px] font-black ${statusClass(status)}`}>{status === "certified" ? <IconCheck size={13} /> : status === "needs_review" ? "!" : "·"}</div>;
+                    })}
                   </div>
-                </div>
-              </details>
-            ))}
+                ))}
+              </div>
+            </div>
           </div>
-        </div>
+        </section>
+
+        <section className="grid lg:grid-cols-[0.9fr_1.1fr] gap-5">
+          <div className="card p-5">
+            <div className="flex items-center justify-between gap-3 mb-4">
+              <h2 className="text-lg font-black text-oriwan-text">랭킹</h2>
+              <div className="flex rounded-xl bg-oriwan-surface-light p-1 text-xs font-bold">
+                {(["certified", "distance", "time"] as RankingMode[]).map((mode) => (
+                  <button key={mode} onClick={() => setRankingMode(mode)} className={`rounded-lg px-3 py-1.5 ${rankingMode === mode ? "bg-white text-oriwan-primary shadow-sm" : "text-oriwan-text-muted"}`}>
+                    {mode === "certified" ? "인증" : mode === "distance" ? "거리" : "시간"}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-2">
+              {rankings.map((row, index) => (
+                <div key={row.participant.id} className="grid grid-cols-[32px_1fr_auto] items-center gap-3 rounded-2xl bg-oriwan-surface-light px-3 py-3">
+                  <div className="text-sm font-black text-oriwan-primary">{index + 1}</div>
+                  <div>
+                    <p className="text-sm font-bold text-oriwan-text">{row.participant.name}</p>
+                    <p className="text-[11px] text-oriwan-text-muted">인증 {row.certifiedCount}회 · {row.distance.toFixed(1)}km · {secondsToTime(row.time)}</p>
+                  </div>
+                  <IconRun size={18} className="text-oriwan-primary" />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="card p-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+              <div>
+                <h2 className="text-lg font-black text-oriwan-text">개인별 거리/시간 그래프</h2>
+                <p className="text-xs text-oriwan-text-muted mt-1">파란 선은 거리, 초록 선은 시간입니다.</p>
+              </div>
+              <select value={selectedParticipantId} onChange={(e) => setSelectedParticipantId(e.target.value)} className="rounded-xl border border-oriwan-border px-3 py-2 text-sm bg-white">
+                {participants.map((participant) => <option key={participant.id} value={participant.id}>{participant.name}</option>)}
+              </select>
+            </div>
+            <div className="rounded-3xl bg-slate-950 p-4 overflow-hidden">
+              {selectedSeries.length ? (
+                <svg viewBox={`0 0 ${graph.width} ${graph.height}`} className="w-full h-48">
+                  <line x1="18" y1="110" x2="302" y2="110" stroke="rgba(255,255,255,.16)" />
+                  <polyline fill="none" stroke="#60A5FA" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" points={polyline(graph.distancePoints)} />
+                  <polyline fill="none" stroke="#34D399" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" points={polyline(graph.timePoints)} />
+                  {graph.distancePoints.map((point, index) => <circle key={`d${index}`} cx={point.x} cy={point.y} r="4" fill="#BFDBFE" />)}
+                </svg>
+              ) : (
+                <div className="h-48 flex items-center justify-center text-sm text-white/50">기록이 생기면 그래프가 표시됩니다.</div>
+              )}
+            </div>
+          </div>
+        </section>
+
+        <section className="card p-5 overflow-hidden">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-lg font-black text-oriwan-text">기록 검수</h2>
+              <p className="text-xs text-oriwan-text-muted mt-1">이미지에서 시간이 없거나 날짜가 없으면 여기서 직접 수정해 인증 처리합니다.</p>
+            </div>
+            <button onClick={loadData} className="rounded-xl bg-oriwan-surface-light px-3 py-2 text-xs font-bold text-oriwan-text-muted">새로고침</button>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="min-w-[980px] w-full text-left text-xs">
+              <thead className="text-oriwan-text-muted">
+                <tr className="border-b border-oriwan-border">
+                  <th className="py-2 pr-2">상태</th>
+                  <th className="py-2 pr-2">참가자</th>
+                  <th className="py-2 pr-2">날짜</th>
+                  <th className="py-2 pr-2">거리</th>
+                  <th className="py-2 pr-2">시간</th>
+                  <th className="py-2 pr-2">페이스</th>
+                  <th className="py-2 pr-2">출처</th>
+                  <th className="py-2 pr-2">메모</th>
+                  <th className="py-2 pr-2">저장</th>
+                </tr>
+              </thead>
+              <tbody>
+                {records.map((record) => {
+                  const draft = drafts[record.id] || makeDraft(record);
+                  return (
+                    <tr key={record.id} className="border-b border-oriwan-border/60 align-top">
+                      <td className="py-2 pr-2">
+                        <select value={draft.status} onChange={(e) => updateDraft(record.id, { status: e.target.value as RecordStatus })} className={`rounded-lg border px-2 py-1.5 font-bold ${statusClass(draft.status)}`}>
+                          <option value="certified">인증</option>
+                          <option value="needs_review">확인 필요</option>
+                          <option value="rejected">반려</option>
+                        </select>
+                      </td>
+                      <td className="py-2 pr-2">
+                        <select value={draft.participant_id} onChange={(e) => updateDraft(record.id, { participant_id: e.target.value })} className="w-28 rounded-lg border border-oriwan-border px-2 py-1.5 bg-white">
+                          <option value="">미매칭</option>
+                          {participants.map((participant) => <option key={participant.id} value={participant.id}>{participant.name}</option>)}
+                        </select>
+                      </td>
+                      <td className="py-2 pr-2"><input type="date" value={draft.record_date} onChange={(e) => updateDraft(record.id, { record_date: e.target.value })} className="rounded-lg border border-oriwan-border px-2 py-1.5" /></td>
+                      <td className="py-2 pr-2"><input value={draft.distance_km} onChange={(e) => updateDraft(record.id, { distance_km: e.target.value })} className="w-20 rounded-lg border border-oriwan-border px-2 py-1.5" /></td>
+                      <td className="py-2 pr-2"><input value={draft.duration} onChange={(e) => updateDraft(record.id, { duration: e.target.value })} placeholder="32:10" className="w-20 rounded-lg border border-oriwan-border px-2 py-1.5" /></td>
+                      <td className="py-2 pr-2 font-bold text-oriwan-primary">{secondsToPace(record.pace_seconds_per_km)}</td>
+                      <td className="py-2 pr-2"><input value={draft.source_app} onChange={(e) => updateDraft(record.id, { source_app: e.target.value })} className="w-24 rounded-lg border border-oriwan-border px-2 py-1.5" /></td>
+                      <td className="py-2 pr-2"><input value={draft.notes} onChange={(e) => updateDraft(record.id, { notes: e.target.value })} className="w-56 rounded-lg border border-oriwan-border px-2 py-1.5" /></td>
+                      <td className="py-2 pr-2"><button onClick={() => saveDraft(record.id)} className="rounded-lg bg-oriwan-primary px-3 py-1.5 font-bold text-white">저장</button></td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            {!records.length && !loading && <p className="py-10 text-center text-sm text-oriwan-text-muted">아직 기록이 없습니다. 이미지를 업로드하거나 수동으로 입력해주세요.</p>}
+          </div>
+        </section>
       </main>
+    </div>
+  );
+}
+
+function SummaryCard({ title, value, caption, tone = "blue" }: { title: string; value: string; caption: string; tone?: "blue" | "amber" }) {
+  return (
+    <div className={`card p-4 ${tone === "amber" ? "bg-amber-50/60" : ""}`}>
+      <p className="text-[11px] font-bold text-oriwan-text-muted mb-1">{title}</p>
+      <p className="text-2xl font-black text-oriwan-text tracking-tight">{value}</p>
+      <p className="text-[11px] text-oriwan-text-muted mt-1">{caption}</p>
     </div>
   );
 }

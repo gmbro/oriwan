@@ -37,7 +37,7 @@ export default async function Home() {
             오리완
           </h1>
           <p className="animate-fade-up text-[13px] text-oriwan-primary font-semibold tracking-wide mb-8" style={{ animationDelay: "0.08s" }}>
-            오리완은 오늘 리커버리 완료!
+            이미지 인증을 한눈에 운영하세요!
           </p>
 
           {/* 구글 로그인 */}
@@ -56,15 +56,15 @@ export default async function Home() {
           <div className="animate-fade-up flex items-center justify-center gap-1.5" style={{ animationDelay: "0.22s" }}>
             <span className="inline-flex items-center gap-1 text-[11px] text-oriwan-text-muted px-2.5 py-1.5 rounded-full bg-oriwan-surface-light whitespace-nowrap">
               <IconRun size={12} className="text-oriwan-primary" />
-              러닝 인증
+              이미지 인증
             </span>
             <span className="inline-flex items-center gap-1 text-[11px] text-oriwan-text-muted px-2.5 py-1.5 rounded-full bg-oriwan-surface-light whitespace-nowrap">
               <IconDna size={12} className="text-oriwan-primary" />
-              리커버리
+              AI 추출
             </span>
             <span className="inline-flex items-center gap-1 text-[11px] text-oriwan-text-muted px-2.5 py-1.5 rounded-full bg-oriwan-surface-light whitespace-nowrap">
               <IconSprout size={12} className="text-oriwan-primary" />
-              기록 모아보기
+              그래프 대시보드
             </span>
           </div>
         </div>
@@ -72,7 +72,7 @@ export default async function Home() {
         {/* 하단 약관 */}
         <div className="animate-fade-up text-center mt-5 space-y-2" style={{ animationDelay: "0.26s" }}>
           <p className="text-[11px] text-oriwan-text-muted/60">
-            Google 계정으로 간편하게 시작할 수 있어요
+            Google 계정으로 운영 대시보드를 시작하세요
           </p>
           <div className="flex items-center justify-center gap-3 text-[11px] text-oriwan-text-muted/50">
             <Link href="/terms" className="hover:text-oriwan-text-muted transition-colors underline underline-offset-2">

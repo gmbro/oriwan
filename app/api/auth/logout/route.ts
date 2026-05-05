@@ -11,9 +11,5 @@ export async function POST() {
 
   const response = NextResponse.json({ ok: true });
 
-  // Strava 관련 쿠키도 정리
-  response.cookies.delete("oriwan_session");
-  response.cookies.delete("oriwan_user");
-
   return response;
 }

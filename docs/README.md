@@ -1,105 +1,70 @@
-# 오리완 (O-Ri-Wan) 개발 가이드
+# 오리완 개발 가이드
 
 ## 프로젝트 소개
 
-**오리완**은 "오늘의 리커버리 완료"의 줄임말로, Strava API를 통해 러닝 데이터를 자동으로 가져오고, Gemini AI가 맞춤형 회복 팁을 제공하는 웹 기반 기록 인증 서비스입니다.
+오리완은 운영자가 참가자들의 러닝 인증 이미지를 업로드하면 AI가 이미지 속 텍스트를 읽어 날짜, 이름, 거리, 시간, 페이스를 추출하고, 인증 여부와 향상도를 대시보드로 보여주는 이미지 기반 러닝 인증 운영 도구입니다.
 
 ## 기술 스택
 
 | 항목 | 기술 |
-|------|------|
-| Frontend/Backend | Next.js 16 (App Router) |
-| 스타일링 | Tailwind CSS + Vanilla CSS |
-| 러닝 데이터 | Strava OAuth2 API |
-| AI | Google Gemini 2.0 Flash |
-| 배포 | Vercel |
+| --- | --- |
+| Frontend/Backend | Next.js 16 App Router |
+| Auth & DB | Supabase |
+| Image Storage | Supabase Storage |
+| OCR/AI | Google Gemini 2.0 Flash |
+| Deploy | Vercel |
 
-## 폴더 구조
+## 핵심 기능
 
-```
-oriwan/
-├── app/
-│   ├── api/
-│   │   ├── auth/
-│   │   │   ├── strava/           # Strava OAuth 시작
-│   │   │   │   ├── route.ts
-│   │   │   │   └── callback/     # OAuth 콜백 (토큰 교환)
-│   │   │   │       └── route.ts
-│   │   │   └── logout/           # 로그아웃
-│   │   │       └── route.ts
-│   │   ├── strava/
-│   │   │   └── activities/       # Strava 활동 동기화
-│   │   │       └── route.ts
-│   │   └── ai/
-│   │       └── recovery-tip/     # Gemini AI 회복 팁
-│   │           └── route.ts
-│   ├── dashboard/                # 대시보드 (잔디 달력, 러닝 카드)
-│   │   └── page.tsx
-│   ├── success/                  # 오리완 완료 & AI 회복 팁 표시
-│   │   └── page.tsx
-│   ├── globals.css               # 디자인 시스템
-│   ├── layout.tsx                # 루트 레이아웃
-│   └── page.tsx                  # 랜딩 페이지
-├── lib/
-│   ├── strava.ts                 # Strava API 유틸리티 (서버 전용)
-│   └── supabase/
-│       ├── server.ts             # 서버 전용 Supabase 클라이언트
-│       └── client.ts             # 브라우저 전용 Supabase 클라이언트
-├── middleware.ts                 # 보안 미들웨어
-└── .env.local.example            # 환경 변수 템플릿
+- 참가자 직접 등록 및 관리
+- 여러 인증 이미지 일괄 업로드
+- 이미지 배경/앱 UI를 무시하고 텍스트/숫자 중심 추출
+- 날짜 자동 추출, 없으면 운영자가 선택한 날짜를 임시 적용
+- 시간이 없거나 참가자 매칭이 애매하면 `확인 필요` 처리
+- 거리/시간/페이스 수동 보정
+- 최근 14일 인증 시계열
+- 인증 횟수, 누적 거리, 누적 시간 랭킹
+- 개인별 거리/시간 그래프
+
+## 주요 라우트
+
+```text
+app/dashboard/page.tsx              운영 대시보드
+app/api/participants/route.ts       참가자 조회/추가
+app/api/participants/[id]/route.ts  참가자 수정/비활성화
+app/api/records/route.ts            기록 조회/수동 저장
+app/api/records/[id]/route.ts       기록 수정/삭제
+app/api/records/analyze/route.ts    이미지 OCR 분석 및 기록 생성
 ```
 
-## 시작하기
+## 환경 변수
 
-### 1. 환경 변수 설정
+| 변수명 | 설명 |
+| --- | --- |
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase 프로젝트 URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon key |
+| `SUPABASE_SERVICE_ROLE_KEY` | Storage 업로드용 service role key |
+| `GEMINI_API_KEY` | Gemini 이미지 분석 API 키 |
 
-```bash
-cp .env.local.example .env.local
-```
+## 데이터베이스
 
-`.env.local` 파일을 열고 아래 값들을 채워주세요:
+`docs/supabase-schema.sql`을 Supabase SQL Editor에서 실행합니다.
 
-| 변수명 | 설명 | 발급 방법 |
-|--------|------|-----------|
-| `STRAVA_CLIENT_ID` | Strava API 클라이언트 ID | [Strava API Settings](https://www.strava.com/settings/api) |
-| `STRAVA_CLIENT_SECRET` | Strava API 클라이언트 Secret | 위와 동일 |
-| `GEMINI_API_KEY` | Google Gemini API 키 | [Google AI Studio](https://aistudio.google.com/) |
+주요 테이블:
 
-### 2. Strava 앱 등록
+- `participants`
+- `upload_batches`
+- `daily_run_records`
 
-1. [Strava API Settings](https://www.strava.com/settings/api) 접속
-2. **Authorization Callback Domain**: `localhost` (개발) / `your-domain.vercel.app` (배포)
-3. 발급받은 Client ID와 Secret을 `.env.local`에 입력
+## 운영 플로우
 
-### 3. 로컬 실행
+1. 참가자 이름과 닉네임을 등록합니다.
+2. 기본 날짜를 선택합니다.
+3. 인증 이미지 여러 장을 업로드합니다.
+4. AI가 이미지 속 텍스트와 숫자를 추출합니다.
+5. 날짜/시간/이름이 없거나 애매한 항목은 검수 테이블에서 수정합니다.
+6. 인증 시계열과 랭킹으로 진행 상황을 확인합니다.
 
-```bash
-npm run dev
-```
+## 제품 기획
 
-[http://localhost:3000](http://localhost:3000)으로 접속하세요.
-
-## 보안 설계
-
-### 토큰 보호
-
-| 항목 | 방식 |
-|------|------|
-| Strava Access/Refresh Token | `httpOnly` 쿠키로만 저장 (JS 접근 불가) |
-| Gemini API Key | 서버 사이드 환경 변수 (`GEMINI_API_KEY`, NEXT_PUBLIC 접두사 없음) |
-| Strava Client Secret | 서버 사이드 환경 변수 (`STRAVA_CLIENT_SECRET`) |
-
-### CSRF 방지
-- OAuth 시작 시 랜덤 `state` 토큰 생성 → `httpOnly` 쿠키 저장
-- 콜백에서 state 값 일치 여부 검증 후 즉시 삭제 (일회성)
-
-### 보안 HTTP 헤더 (미들웨어)
-- `X-Content-Type-Options: nosniff`
-- `X-Frame-Options: DENY` (클릭재킹 방지)
-- `X-XSS-Protection: 1; mode=block`
-- `Referrer-Policy: strict-origin-when-cross-origin`
-- `Permissions-Policy: camera=(), microphone=(), geolocation=()`
-
-### 라우트 보호
-- `/dashboard`, `/success`: 세션 쿠키 없으면 자동 리다이렉트
-- `/api/strava/*`, `/api/ai/*`: 세션 쿠키 없으면 401 반환
+- [이미지 기반 러닝 인증 대시보드 제품 기획](./image-dashboard-product-plan.md)
