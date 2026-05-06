@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
@@ -92,6 +92,7 @@ function polyline(points: { x: number; y: number }[]) {
 
 export default function AdminPage() {
   const router = useRouter();
+  const autoSentRef = useRef(false);
   const [mounted, setMounted] = useState(false);
   const [authReady, setAuthReady] = useState(false);
   const [authorized, setAuthorized] = useState(false);
@@ -371,10 +372,17 @@ export default function AdminPage() {
       setAuthMessage("인증번호 발송에 실패했어요. Supabase 이메일 OTP 설정을 확인해주세요.");
     } else {
       setCodeSent(true);
-      setAuthMessage(`${ADMIN_EMAIL}로 인증번호를 보냈어요.`);
+      setAuthMessage("관리자 이메일로 인증번호를 보냈어요.");
     }
     setSendingCode(false);
   }, []);
+
+  useEffect(() => {
+    if (!mounted || !authReady || authorized || autoSentRef.current) return;
+
+    autoSentRef.current = true;
+    sendAdminCode();
+  }, [authReady, authorized, mounted, sendAdminCode]);
 
   const verifyAdminCode = useCallback(async () => {
     if (!otp.trim()) return;
@@ -427,18 +435,13 @@ export default function AdminPage() {
             </div>
 
             <p className="text-sm leading-6 text-oriwan-text-muted">
-              참가자 등록, 이미지 분석, 수동 기록 입력은 관리자 이메일 인증번호로만 접근할 수 있어요.
+              관리자 페이지에 들어오면 인증번호가 자동으로 발송됩니다. 메일함에서 받은 인증번호를 입력해주세요.
             </p>
 
-            <div className="mt-5 rounded-2xl bg-oriwan-surface-light p-4">
-              <p className="text-[11px] font-black uppercase tracking-[0.12em] text-oriwan-text-muted">인증 이메일</p>
-              <p className="mt-1 text-sm font-black text-oriwan-text">{ADMIN_EMAIL}</p>
-            </div>
-
             <div className="mt-5 space-y-3">
-              <button onClick={sendAdminCode} disabled={sendingCode} className="btn-primary w-full py-3 text-sm disabled:opacity-50">
-                {sendingCode ? "인증번호 발송 중..." : codeSent ? "인증번호 다시 받기" : "인증번호 받기"}
-              </button>
+              <div className="rounded-2xl bg-oriwan-surface-light px-4 py-3 text-center text-xs font-black text-oriwan-text-muted">
+                {sendingCode ? "인증번호를 보내는 중..." : codeSent ? "인증번호가 발송되었습니다." : "관리자 인증을 준비하고 있어요."}
+              </div>
               <input
                 value={otp}
                 onChange={(event) => setOtp(event.target.value)}
@@ -451,6 +454,13 @@ export default function AdminPage() {
               />
               <button onClick={verifyAdminCode} disabled={!otp.trim() || verifyingCode} className="w-full rounded-2xl bg-lime-300 px-4 py-3 text-sm font-black text-slate-950 disabled:opacity-40">
                 {verifyingCode ? "확인 중..." : "관리자 페이지 입장"}
+              </button>
+              <button
+                onClick={sendAdminCode}
+                disabled={sendingCode}
+                className="w-full rounded-2xl px-4 py-2 text-xs font-black text-oriwan-text-muted transition hover:bg-oriwan-surface-light hover:text-oriwan-text disabled:opacity-50"
+              >
+                {sendingCode ? "재발송 중..." : "인증번호 다시 보내기"}
               </button>
             </div>
 
