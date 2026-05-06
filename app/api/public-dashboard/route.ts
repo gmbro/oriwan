@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { addDays, toIsoDate } from "@/lib/run-records";
 import { isMissingTableError, missingSchemaResponse } from "@/lib/supabase-errors";
-import { CHALLENGE_START_DATE, clampToChallengeStart } from "@/lib/challenge";
+import { CERTIFICATION_DISPLAY_START_DATE, CHALLENGE_END_DATE, CHALLENGE_START_DATE, clampToChallengeStart } from "@/lib/challenge";
 import { findAdminUserId, getServiceClient } from "@/lib/admin-data";
 
 export async function GET(request: NextRequest) {
@@ -13,8 +13,10 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const daysParam = Number(searchParams.get("days") || 30);
   const days = Number.isFinite(daysParam) ? Math.min(Math.max(daysParam, 7), 100) : 30;
-  const to = toIsoDate(new Date());
-  const from = clampToChallengeStart(toIsoDate(addDays(new Date(), -(days - 1))));
+  const today = toIsoDate(new Date());
+  const to = today > CHALLENGE_END_DATE ? CHALLENGE_END_DATE : today;
+  const rangeEnd = new Date(`${to}T00:00:00`);
+  const from = clampToChallengeStart(toIsoDate(addDays(rangeEnd, -(days - 1))));
 
   try {
     const adminUserId = await findAdminUserId(supabase);
@@ -52,6 +54,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({
         from,
         to,
+        certification_display_start_date: CERTIFICATION_DISPLAY_START_DATE,
+        challenge_start_date: CHALLENGE_START_DATE,
+        challenge_end_date: CHALLENGE_END_DATE,
         generated_at: new Date().toISOString(),
         participants: [],
         records: [],
@@ -65,7 +70,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       from,
       to,
+      certification_display_start_date: CERTIFICATION_DISPLAY_START_DATE,
       challenge_start_date: CHALLENGE_START_DATE,
+      challenge_end_date: CHALLENGE_END_DATE,
       generated_at: new Date().toISOString(),
       participants: participantsResult.data || [],
       records: recordsResult.data || [],

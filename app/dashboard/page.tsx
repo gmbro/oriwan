@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { IconCheck, IconRun } from "@/components/icons";
-import { CHALLENGE_START_DATE } from "@/lib/challenge";
+import { CERTIFICATION_DISPLAY_START_DATE, CHALLENGE_END_DATE, CHALLENGE_START_DATE } from "@/lib/challenge";
 import { addDays, secondsToPace, secondsToTime, toIsoDate } from "@/lib/run-records";
 
 type Participant = {
@@ -26,6 +26,9 @@ type RunRecord = {
 type PublicDashboardData = {
   from: string;
   to: string;
+  certification_display_start_date?: string;
+  challenge_start_date?: string;
+  challenge_end_date?: string;
   generated_at: string;
   participants: Participant[];
   records: RunRecord[];
@@ -38,12 +41,15 @@ type CalendarRange = 14 | 30 | 100;
 const today = toIsoDate(new Date());
 const calendarRangeOptions: CalendarRange[] = [14, 30, 100];
 
-function makeDays(count: number) {
-  return Array.from({ length: count }, (_, index) => toIsoDate(addDays(new Date(), index - (count - 1))))
-    .filter((day) => day >= CHALLENGE_START_DATE);
+function makeDays(count: number, startDate = CERTIFICATION_DISPLAY_START_DATE) {
+  const endDate = today > CHALLENGE_END_DATE ? CHALLENGE_END_DATE : today;
+  const rangeEnd = new Date(`${endDate}T00:00:00`);
+  return Array.from({ length: count }, (_, index) => toIsoDate(addDays(rangeEnd, index - (count - 1))))
+    .filter((day) => day >= startDate && day <= CHALLENGE_END_DATE);
 }
 
-function statusStyle(status: RunRecord["status"] | "missing") {
+function statusStyle(status: RunRecord["status"] | "missing" | "before_start") {
+  if (status === "before_start") return "bg-slate-100/70 text-slate-300 ring-1 ring-slate-200/70";
   if (status === "certified") return "bg-lime-300 text-slate-950 shadow-sm shadow-lime-300/50";
   if (status === "needs_review") return "bg-orange-200 text-orange-950";
   if (status === "rejected") return "bg-rose-200 text-rose-950";
@@ -100,7 +106,7 @@ export default function DashboardPage() {
     };
   }, []);
 
-  const trendDays = useMemo(() => makeDays(14), []);
+  const trendDays = useMemo(() => makeDays(14, CHALLENGE_START_DATE), []);
   const calendarDays = useMemo(() => makeDays(calendarRange), [calendarRange]);
 
   const dashboard = useMemo(() => {
@@ -186,13 +192,13 @@ export default function DashboardPage() {
           <div className="relative grid gap-5 lg:grid-cols-[1fr_320px] lg:items-center">
             <div>
               <p className="mb-3 inline-flex rounded-full bg-white/10 px-3 py-1 text-[11px] font-black text-lime-200 ring-1 ring-white/10">
-                START · {CHALLENGE_START_DATE}
+                인증 기간 · {CERTIFICATION_DISPLAY_START_DATE} ~ {CHALLENGE_END_DATE}
               </p>
               <h2 className="max-w-2xl text-4xl font-black tracking-[-0.06em] sm:text-6xl">
                 오늘, 얼마나 인증했을까?
               </h2>
               <p className="mt-3 max-w-xl text-sm leading-6 text-white/55">
-                인증 기록은 2026년 5월 5일부터 집계됩니다.
+                실제 인증 기록은 {CHALLENGE_START_DATE}부터 100일간 집계됩니다.
               </p>
             </div>
 
@@ -246,7 +252,7 @@ export default function DashboardPage() {
           <div className="card p-4 sm:p-5">
             <div className="mb-4">
               <h3 className="text-lg font-black tracking-[-0.03em] text-oriwan-text">최근 인증 거리</h3>
-              <p className="mt-1 text-xs text-oriwan-text-muted">2026년 5월 5일부터 전체 참가자 거리 합계</p>
+              <p className="mt-1 text-xs text-oriwan-text-muted">{CHALLENGE_START_DATE}부터 전체 참가자 거리 합계</p>
             </div>
             <div className="rounded-[26px] bg-slate-950 p-4">
               <svg viewBox="0 0 320 120" className="h-44 w-full">
@@ -331,14 +337,14 @@ export default function DashboardPage() {
                   <div className="truncate text-xs font-black text-oriwan-text">{participant.name}</div>
                   {calendarDays.map((day) => {
                     const record = dashboard.byParticipantDate.get(`${participant.id}:${day}`);
-                    const status = record?.status || "missing";
+                    const status = day < CHALLENGE_START_DATE ? "before_start" : record?.status || "missing";
                     return (
                       <div
                         key={day}
-                        title={`${participant.name} · ${day} · ${status === "certified" ? "인증 완료" : status === "needs_review" ? "확인 필요" : "미제출"}`}
+                        title={`${participant.name} · ${day} · ${status === "before_start" ? "집계 전" : status === "certified" ? "인증 완료" : status === "needs_review" ? "확인 필요" : "미제출"}`}
                         className={`flex h-8 items-center justify-center rounded-xl text-[11px] font-black ${statusStyle(status)}`}
                       >
-                        {status === "certified" ? <IconCheck size={13} /> : status === "needs_review" ? "!" : "·"}
+                        {status === "certified" ? <IconCheck size={13} /> : status === "needs_review" ? "!" : status === "before_start" ? "-" : "·"}
                       </div>
                     );
                   })}

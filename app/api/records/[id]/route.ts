@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdminUser } from "@/lib/admin-server";
 import { calculatePaceSeconds } from "@/lib/run-records";
-import { CHALLENGE_START_DATE } from "@/lib/challenge";
+import { CHALLENGE_DATE_ERROR, isWithinChallengeWindow } from "@/lib/challenge";
 
 function sanitizeNumber(value: unknown) {
   if (value === null || value === undefined || value === "") return null;
@@ -24,8 +24,8 @@ export async function PATCH(
 
   if (typeof body.participant_id === "string") patch.participant_id = body.participant_id;
   if (typeof body.record_date === "string") patch.record_date = body.record_date;
-  if (typeof body.record_date === "string" && body.record_date < CHALLENGE_START_DATE) {
-    return NextResponse.json({ error: "인증일은 2026-05-05부터 입력할 수 있습니다." }, { status: 400 });
+  if (typeof body.record_date === "string" && !isWithinChallengeWindow(body.record_date)) {
+    return NextResponse.json({ error: CHALLENGE_DATE_ERROR }, { status: 400 });
   }
   if ("distance_km" in body) patch.distance_km = sanitizeNumber(body.distance_km);
   if ("duration_seconds" in body) patch.duration_seconds = sanitizeNumber(body.duration_seconds);

@@ -25,7 +25,7 @@ export default function TermsPage() {
           <section>
             <h2 className="text-base font-bold text-oriwan-text mb-2">제2조 (서비스 내용)</h2>
             <ul className="list-disc pl-5 space-y-1">
-              <li>2026년 5월 5일부터의 러닝 인증 현황 조회</li>
+              <li>인증 기간은 2026년 5월 1일부터 표시하며, 실제 인증 기록은 2026년 5월 5일부터 100일간 집계</li>
               <li>전체 참가자의 오늘 거리, 시간, 인증 여부 제공</li>
               <li>참가자의 Google 로그인 기반 개인 기록 입력, 이미지 등록 및 조회</li>
               <li>운영자의 참가자 추가, 변경, 삭제 및 기록 수동 입력</li>

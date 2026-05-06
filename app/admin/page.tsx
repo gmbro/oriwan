@@ -7,7 +7,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { ADMIN_EMAIL, isAdminEmail } from "@/lib/admin";
 import { IconCheck, IconRun, IconSprout } from "@/components/icons";
-import { CHALLENGE_START_DATE } from "@/lib/challenge";
+import { CHALLENGE_END_DATE, CHALLENGE_START_DATE, clampToChallengeWindow } from "@/lib/challenge";
 import { addDays, parseDurationToSeconds, secondsToPace, secondsToTime, toIsoDate } from "@/lib/run-records";
 
 type Participant = {
@@ -51,8 +51,12 @@ type AdminOtpType = "email" | "magiclink" | "signup";
 type AdminModal = "participant" | "record" | null;
 
 const today = toIsoDate(new Date());
-const rangeStart = toIsoDate(addDays(new Date(), -20));
-const timelineDays = Array.from({ length: 14 }, (_, index) => toIsoDate(addDays(new Date(), index - 13)));
+const effectiveToday = today > CHALLENGE_END_DATE ? CHALLENGE_END_DATE : today;
+const initialRecordDate = clampToChallengeWindow(today);
+const rangeStart = CHALLENGE_START_DATE;
+const timelineBaseDate = new Date(`${effectiveToday}T00:00:00`);
+const timelineDays = Array.from({ length: 14 }, (_, index) => toIsoDate(addDays(timelineBaseDate, index - 13)))
+  .filter((day) => day >= CHALLENGE_START_DATE && day <= CHALLENGE_END_DATE);
 
 function readFileAsDataUrl(file: File) {
   return new Promise<string>((resolve, reject) => {
@@ -112,11 +116,11 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [newName, setNewName] = useState("");
   const [newNickname, setNewNickname] = useState("");
-  const [targetDate, setTargetDate] = useState(today);
+  const [targetDate, setTargetDate] = useState(initialRecordDate);
   const [files, setFiles] = useState<File[]>([]);
   const [analyzing, setAnalyzing] = useState(false);
   const [manualParticipantId, setManualParticipantId] = useState("");
-  const [manualDate, setManualDate] = useState(today);
+  const [manualDate, setManualDate] = useState(initialRecordDate);
   const [manualDistance, setManualDistance] = useState("");
   const [manualDuration, setManualDuration] = useState("");
   const [rankingMode, setRankingMode] = useState<RankingMode>("certified");
@@ -132,7 +136,7 @@ export default function AdminPage() {
     try {
       const [participantsRes, recordsRes] = await Promise.all([
         fetch("/api/participants", { cache: "no-store" }),
-        fetch(`/api/records?from=${rangeStart}&to=${today}`, { cache: "no-store" }),
+        fetch(`/api/records?from=${rangeStart}&to=${effectiveToday}`, { cache: "no-store" }),
       ]);
 
       const participantsJson = await participantsRes.json();
@@ -682,7 +686,7 @@ export default function AdminPage() {
               </div>
               <label className="text-xs font-bold text-oriwan-text-muted">
                 기본 날짜
-                <input type="date" min={CHALLENGE_START_DATE} value={targetDate} onChange={(e) => setTargetDate(e.target.value)} className="block mt-1 rounded-xl border border-oriwan-border px-3 py-2 text-sm text-oriwan-text bg-white" />
+                <input type="date" min={CHALLENGE_START_DATE} max={CHALLENGE_END_DATE} value={targetDate} onChange={(e) => setTargetDate(e.target.value)} className="block mt-1 rounded-xl border border-oriwan-border px-3 py-2 text-sm text-oriwan-text bg-white" />
               </label>
             </div>
             <div className="rounded-3xl border-2 border-dashed border-lime-300/70 bg-lime-50/70 p-5 text-center">
@@ -711,12 +715,12 @@ export default function AdminPage() {
             </div>
             <div className="overflow-x-auto">
               <div className="min-w-[720px] space-y-2">
-                <div className="grid grid-cols-[120px_repeat(14,1fr)] gap-1 text-[10px] font-bold text-oriwan-text-muted">
+                <div className="grid gap-1 text-[10px] font-bold text-oriwan-text-muted" style={{ gridTemplateColumns: `120px repeat(${timelineDays.length || 1}, minmax(0, 1fr))` }}>
                   <div>참가자</div>
                   {timelineDays.map((day) => <div key={day} className="text-center">{day.slice(5).replace("-", "/")}</div>)}
                 </div>
                 {participants.map((participant) => (
-                  <div key={participant.id} className="grid grid-cols-[120px_repeat(14,1fr)] gap-1 items-center">
+                  <div key={participant.id} className="grid items-center gap-1" style={{ gridTemplateColumns: `120px repeat(${timelineDays.length || 1}, minmax(0, 1fr))` }}>
                     <div className="truncate text-xs font-bold text-oriwan-text">{participant.name}</div>
                     {timelineDays.map((day) => {
                       const record = recordsByParticipantDate.get(`${participant.id}:${day}`);
@@ -822,7 +826,7 @@ export default function AdminPage() {
                           {participants.map((participant) => <option key={participant.id} value={participant.id}>{participant.name}</option>)}
                         </select>
                       </td>
-                      <td className="py-2 pr-2"><input type="date" min={CHALLENGE_START_DATE} value={draft.record_date} onChange={(e) => updateDraft(record.id, { record_date: e.target.value })} className="rounded-lg border border-oriwan-border px-2 py-1.5" /></td>
+                      <td className="py-2 pr-2"><input type="date" min={CHALLENGE_START_DATE} max={CHALLENGE_END_DATE} value={draft.record_date} onChange={(e) => updateDraft(record.id, { record_date: e.target.value })} className="rounded-lg border border-oriwan-border px-2 py-1.5" /></td>
                       <td className="py-2 pr-2"><input value={draft.distance_km} onChange={(e) => updateDraft(record.id, { distance_km: e.target.value })} className="w-20 rounded-lg border border-oriwan-border px-2 py-1.5" /></td>
                       <td className="py-2 pr-2"><input value={draft.duration} onChange={(e) => updateDraft(record.id, { duration: e.target.value })} placeholder="32:10" className="w-20 rounded-lg border border-oriwan-border px-2 py-1.5" /></td>
                       <td className="py-2 pr-2 font-bold text-oriwan-primary">{secondsToPace(record.pace_seconds_per_km)}</td>
@@ -917,7 +921,7 @@ export default function AdminPage() {
                   <option value="">참가자 선택</option>
                   {participants.map((participant) => <option key={participant.id} value={participant.id}>{participant.name}</option>)}
                 </select>
-                <input type="date" min={CHALLENGE_START_DATE} value={manualDate} onChange={(e) => setManualDate(e.target.value)} className="rounded-xl border border-oriwan-border px-3 py-2.5 text-sm" />
+                <input type="date" min={CHALLENGE_START_DATE} max={CHALLENGE_END_DATE} value={manualDate} onChange={(e) => setManualDate(e.target.value)} className="rounded-xl border border-oriwan-border px-3 py-2.5 text-sm" />
                 <input value={manualDistance} onChange={(e) => setManualDistance(e.target.value)} placeholder="거리 km" inputMode="decimal" className="rounded-xl border border-oriwan-border px-3 py-2.5 text-sm" />
                 <input value={manualDuration} onChange={(e) => setManualDuration(e.target.value)} placeholder="시간 예: 32:10" className="rounded-xl border border-oriwan-border px-3 py-2.5 text-sm" />
               </div>

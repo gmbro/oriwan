@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { CHALLENGE_START_DATE } from "@/lib/challenge";
+import { CERTIFICATION_DISPLAY_START_DATE, CHALLENGE_END_DATE, CHALLENGE_START_DATE } from "@/lib/challenge";
 import { findAdminUserId, findParticipantByRunnerName, getServiceClient } from "@/lib/admin-data";
 
 function getRunnerName(userMetadata: Record<string, unknown> | null | undefined) {
@@ -24,6 +24,7 @@ async function buildMePayload(userId: string, email: string | undefined, userMet
       .eq("user_id", adminUserId)
       .eq("participant_id", participant.id)
       .gte("record_date", CHALLENGE_START_DATE)
+      .lte("record_date", CHALLENGE_END_DATE)
       .order("record_date", { ascending: false });
     if (error) throw error;
     records = data || [];
@@ -34,7 +35,9 @@ async function buildMePayload(userId: string, email: string | undefined, userMet
     runner_name: runnerName,
     matched_participant: participant,
     records,
+    certification_display_start_date: CERTIFICATION_DISPLAY_START_DATE,
     challenge_start_date: CHALLENGE_START_DATE,
+    challenge_end_date: CHALLENGE_END_DATE,
   };
 }
 

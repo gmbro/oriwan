@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { calculatePaceSeconds } from "@/lib/run-records";
-import { CHALLENGE_START_DATE } from "@/lib/challenge";
+import { CHALLENGE_DATE_ERROR, isWithinChallengeWindow } from "@/lib/challenge";
 import { findAdminUserId, findParticipantByRunnerName, getServiceClient } from "@/lib/admin-data";
 
 function sanitizeNumber(value: unknown) {
@@ -24,8 +24,8 @@ export async function POST(request: NextRequest) {
   const durationSeconds = sanitizeNumber(body.duration_seconds);
   const paceSeconds = calculatePaceSeconds(distanceKm, durationSeconds);
 
-  if (!recordDate || recordDate < CHALLENGE_START_DATE) {
-    return NextResponse.json({ error: "인증일은 2026-05-05부터 입력할 수 있습니다." }, { status: 400 });
+  if (!isWithinChallengeWindow(recordDate)) {
+    return NextResponse.json({ error: CHALLENGE_DATE_ERROR }, { status: 400 });
   }
   if (!distanceKm || distanceKm <= 0 || !durationSeconds || durationSeconds <= 0) {
     return NextResponse.json({ error: "거리와 시간을 입력해주세요." }, { status: 400 });

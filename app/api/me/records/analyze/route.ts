@@ -1,7 +1,7 @@
 import { GoogleGenAI } from "@google/genai";
 import { NextRequest, NextResponse } from "next/server";
 import { findAdminUserId, findParticipantByRunnerName, getServiceClient } from "@/lib/admin-data";
-import { CHALLENGE_START_DATE } from "@/lib/challenge";
+import { CHALLENGE_DATE_ERROR, isWithinChallengeWindow } from "@/lib/challenge";
 import { calculatePaceSeconds } from "@/lib/run-records";
 import { createClient } from "@/lib/supabase/server";
 
@@ -126,8 +126,8 @@ export async function POST(request: NextRequest) {
     if (!images.length) {
       return NextResponse.json({ error: "NRC나 Garmin 같은 러닝 기록 이미지를 업로드해주세요." }, { status: 400 });
     }
-    if (targetDate && targetDate < CHALLENGE_START_DATE) {
-      return NextResponse.json({ error: "인증일은 2026-05-05부터 입력할 수 있습니다." }, { status: 400 });
+    if (targetDate && !isWithinChallengeWindow(targetDate)) {
+      return NextResponse.json({ error: CHALLENGE_DATE_ERROR }, { status: 400 });
     }
 
     const service = getServiceClient();
@@ -156,8 +156,8 @@ export async function POST(request: NextRequest) {
       if (!recordDate) {
         return NextResponse.json({ error: "이미지에서 날짜를 찾지 못했어요. 선택한 인증일을 확인해주세요.", extracted }, { status: 422 });
       }
-      if (recordDate < CHALLENGE_START_DATE) {
-        return NextResponse.json({ error: "인증일은 2026-05-05부터 입력할 수 있습니다.", extracted }, { status: 400 });
+      if (!isWithinChallengeWindow(recordDate)) {
+        return NextResponse.json({ error: CHALLENGE_DATE_ERROR, extracted }, { status: 400 });
       }
       if (!distanceKm || distanceKm <= 0 || !durationSeconds || durationSeconds <= 0) {
         return NextResponse.json({ error: "이미지에서 거리 또는 시간을 찾지 못했어요. 수동 입력으로 보완해주세요.", extracted }, { status: 422 });

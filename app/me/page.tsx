@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { CHALLENGE_START_DATE } from "@/lib/challenge";
+import { CERTIFICATION_DISPLAY_START_DATE, CHALLENGE_END_DATE, CHALLENGE_START_DATE, clampToChallengeWindow } from "@/lib/challenge";
 import { parseDurationToSeconds, secondsToPace, secondsToTime, toIsoDate } from "@/lib/run-records";
 
 type Participant = {
@@ -33,6 +33,7 @@ type MeData = {
 };
 
 const today = toIsoDate(new Date());
+const initialRecordDate = clampToChallengeWindow(today);
 
 function readFileAsDataUrl(file: File) {
   return new Promise<string>((resolve, reject) => {
@@ -48,10 +49,10 @@ export default function MyPage() {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [name, setName] = useState("");
-  const [recordDate, setRecordDate] = useState(today < CHALLENGE_START_DATE ? CHALLENGE_START_DATE : today);
+  const [recordDate, setRecordDate] = useState(initialRecordDate);
   const [distance, setDistance] = useState("");
   const [duration, setDuration] = useState("");
-  const [imageDate, setImageDate] = useState(today < CHALLENGE_START_DATE ? CHALLENGE_START_DATE : today);
+  const [imageDate, setImageDate] = useState(initialRecordDate);
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [savingName, setSavingName] = useState(false);
   const [savingRecord, setSavingRecord] = useState(false);
@@ -231,7 +232,7 @@ export default function MyPage() {
         <div className="relative overflow-hidden rounded-[30px] bg-[#101522] p-5 text-white shadow-2xl shadow-slate-950/10 sm:p-7">
           <div className="absolute -right-16 -top-20 h-64 w-64 rounded-full bg-lime-300/25 blur-3xl" />
           <p className="mb-3 inline-flex rounded-full bg-white/10 px-3 py-1 text-[11px] font-black text-lime-200 ring-1 ring-white/10">
-            인증 시작일 · {CHALLENGE_START_DATE}
+            인증 기간 · {CERTIFICATION_DISPLAY_START_DATE} ~ {CHALLENGE_END_DATE}
           </p>
           <h2 className="text-4xl font-black tracking-[-0.06em] sm:text-6xl">달린 만큼 쌓이고, 인증한 만큼 선명해져요.</h2>
           <p className="mt-3 text-sm text-white/55">
@@ -255,9 +256,9 @@ export default function MyPage() {
 
           <div className="card p-4 sm:p-5">
             <h3 className="text-lg font-black text-oriwan-text">기록 입력</h3>
-            <p className="mt-1 text-xs text-oriwan-text-muted">2026-05-05 이후 기록만 입력할 수 있습니다.</p>
+            <p className="mt-1 text-xs text-oriwan-text-muted">{CHALLENGE_START_DATE}부터 {CHALLENGE_END_DATE}까지 실제 인증 기록만 입력할 수 있습니다.</p>
             <div className="mt-4 grid gap-2 sm:grid-cols-3">
-              <input type="date" min={CHALLENGE_START_DATE} value={recordDate} onChange={(event) => setRecordDate(event.target.value)} className="rounded-2xl border border-oriwan-border bg-white px-3 py-3 text-sm" />
+              <input type="date" min={CHALLENGE_START_DATE} max={CHALLENGE_END_DATE} value={recordDate} onChange={(event) => setRecordDate(event.target.value)} className="rounded-2xl border border-oriwan-border bg-white px-3 py-3 text-sm" />
               <input value={distance} onChange={(event) => setDistance(event.target.value)} inputMode="decimal" placeholder="거리 km" className="rounded-2xl border border-oriwan-border bg-white px-3 py-3 text-sm" />
               <input value={duration} onChange={(event) => setDuration(event.target.value)} placeholder="시간 32:10" className="rounded-2xl border border-oriwan-border bg-white px-3 py-3 text-sm" />
             </div>
@@ -279,6 +280,7 @@ export default function MyPage() {
                 <input
                   type="date"
                   min={CHALLENGE_START_DATE}
+                  max={CHALLENGE_END_DATE}
                   value={imageDate}
                   onChange={(event) => setImageDate(event.target.value)}
                   className="rounded-2xl border border-oriwan-border bg-white px-3 py-3 text-sm"
