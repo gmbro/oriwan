@@ -3,9 +3,11 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { IconCheck, IconRun } from "@/components/icons";
+import { IconCheck } from "@/components/icons";
+import { ScoreBadge } from "@/components/score-badge";
 import { CERTIFICATION_DISPLAY_START_DATE, CHALLENGE_END_DATE, CHALLENGE_START_DATE } from "@/lib/challenge";
-import { addDays, secondsToPace, secondsToTime, toIsoDate } from "@/lib/run-records";
+import { addDays, secondsToTime, toIsoDate } from "@/lib/run-records";
+import { SCORE_WEIGHTS, buildScoreRows } from "@/lib/scoring";
 
 type Participant = {
   id: string;
@@ -140,20 +142,14 @@ export default function DashboardPage() {
       }
     });
 
-    const rankings = participants
-      .map((participant) => {
-        const participantRecords = certifiedRecords.filter((record) => record.participant_id === participant.id);
-        return {
-          participant,
-          count: participantRecords.length,
-          distance: participantRecords.reduce((sum, record) => sum + (record.distance_km || 0), 0),
-          time: participantRecords.reduce((sum, record) => sum + (record.duration_seconds || 0), 0),
-          latestPace: participantRecords[0]?.pace_seconds_per_km || null,
-        };
-      })
-      .sort((a, b) => b.count - a.count || b.distance - a.distance);
+    const scoreRows = buildScoreRows({
+      participants,
+      records,
+      challengeStartDate: CHALLENGE_START_DATE,
+      referenceDate: today > CHALLENGE_END_DATE ? CHALLENGE_END_DATE : today,
+    });
 
-    const maxDistance = Math.max(1, ...rankings.map((row) => row.distance));
+    const maxScore = Math.max(1, ...scoreRows.map((row) => row.score));
     const dailyDistance = trendDays.map((day) =>
       certifiedRecords
         .filter((record) => record.record_date === day)
@@ -163,13 +159,13 @@ export default function DashboardPage() {
     return {
       participants,
       records,
-      rankings,
+      scoreRows,
       byParticipantDate,
       todayCertifiedIds,
       todayDistance,
       todayTime,
       completionRate,
-      maxDistance,
+      maxScore,
       dailyDistance,
     };
   }, [data, trendDays]);
@@ -277,11 +273,13 @@ export default function DashboardPage() {
 
           <div className="card p-4 sm:p-5">
             <div className="mb-4">
-              <h3 className="text-lg font-black tracking-[-0.03em] text-oriwan-text">랭킹</h3>
-              <p className="mt-1 text-xs text-oriwan-text-muted">인증 횟수 우선, 동률은 거리순</p>
+              <h3 className="text-lg font-black tracking-[-0.03em] text-oriwan-text">성장 점수 보드</h3>
+              <p className="mt-1 text-xs text-oriwan-text-muted">
+                인증 +{SCORE_WEIGHTS.certification} · 꾸준함 +{SCORE_WEIGHTS.consistency} · 성장 +{SCORE_WEIGHTS.growth} 중심
+              </p>
             </div>
             <div className="space-y-3">
-              {dashboard.rankings.slice(0, 8).map((row, index) => (
+              {dashboard.scoreRows.slice(0, 8).map((row, index) => (
                 <div key={row.participant.id} className="rounded-3xl bg-oriwan-surface-light p-3">
                   <div className="mb-2 flex items-center justify-between gap-3">
                     <div className="flex min-w-0 items-center gap-3">
@@ -291,18 +289,24 @@ export default function DashboardPage() {
                       <div className="min-w-0">
                         <p className="truncate text-sm font-black text-oriwan-text">{row.participant.name}</p>
                         <p className="text-[11px] text-oriwan-text-muted">
-                          인증 {row.count}회 · {row.distance.toFixed(1)}km · 평균 {secondsToPace(row.latestPace)}
+                          인증 {row.certifiedCount}회 · 연속 {row.longestStreak}일 · 성장 {row.growthDays}일
                         </p>
                       </div>
                     </div>
-                    <IconRun size={18} className="shrink-0 text-oriwan-primary" />
+                    <div className="flex shrink-0 items-center gap-2">
+                      <ScoreBadge kind={row.badgeKind} />
+                      <span className="text-xl font-black tracking-[-0.05em] text-oriwan-text">{row.score}점</span>
+                    </div>
                   </div>
                   <div className="h-2 overflow-hidden rounded-full bg-white">
-                    <div className="h-full rounded-full bg-lime-300" style={{ width: `${Math.max(6, (row.distance / dashboard.maxDistance) * 100)}%` }} />
+                    <div className="h-full rounded-full bg-lime-300" style={{ width: `${Math.max(6, (row.score / dashboard.maxScore) * 100)}%` }} />
                   </div>
+                  <p className="mt-2 text-[10px] font-bold text-oriwan-text-muted">
+                    평균 {row.averageScore}점 · 거리 {row.distance.toFixed(1)}km · 시간 {secondsToTime(row.time)}
+                  </p>
                 </div>
               ))}
-              {!dashboard.rankings.length && !loading && <p className="py-8 text-center text-sm text-oriwan-text-muted">아직 표시할 기록이 없습니다.</p>}
+              {!dashboard.scoreRows.length && !loading && <p className="py-8 text-center text-sm text-oriwan-text-muted">아직 표시할 기록이 없습니다.</p>}
             </div>
           </div>
         </section>

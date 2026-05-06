@@ -1,0 +1,20 @@
+import type { ScoreBadgeKind } from "@/lib/scoring";
+
+export function ScoreBadge({ kind }: { kind: ScoreBadgeKind }) {
+  const isPraise = kind === "praise";
+  const fill = isPraise ? "#A3E635" : "#FDBA74";
+
+  return (
+    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-black shadow-sm ${
+      isPraise ? "bg-lime-300 text-slate-950 shadow-lime-300/30" : "bg-orange-100 text-orange-950 shadow-orange-100/40"
+    }`}>
+      <svg viewBox="0 0 28 28" className="h-5 w-5" aria-hidden="true">
+        <path d="M14 2.5 17.1 8.8 24 9.8 19 14.7l1.2 6.9L14 18.3 7.8 21.6 9 14.7 4 9.8l6.9-1L14 2.5Z" fill={fill} />
+        <circle cx="10.7" cy="12.4" r="1.2" fill="#101522" />
+        <circle cx="17.3" cy="12.4" r="1.2" fill="#101522" />
+        <path d={isPraise ? "M10 16.3c1.8 1.9 6.2 1.9 8 0" : "M10.5 17c1.5-1.1 5.5-1.1 7 0"} stroke="#101522" strokeWidth="1.8" strokeLinecap="round" fill="none" />
+      </svg>
+      {isPraise ? "참잘했어요" : "독려"}
+    </span>
+  );
+}

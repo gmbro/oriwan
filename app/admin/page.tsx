@@ -6,10 +6,12 @@ import Image from "next/image";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { ADMIN_EMAIL, isAdminEmail } from "@/lib/admin";
-import { IconCheck, IconRun } from "@/components/icons";
+import { IconCheck } from "@/components/icons";
+import { ScoreBadge } from "@/components/score-badge";
 import { CHALLENGE_END_DATE, CHALLENGE_START_DATE, clampToChallengeWindow } from "@/lib/challenge";
 import { imageFileToOptimizedDataUrl } from "@/lib/image-client";
 import { addDays, parseDurationToSeconds, secondsToPace, secondsToTime, toIsoDate } from "@/lib/run-records";
+import { SCORE_WEIGHTS, buildScoreRows } from "@/lib/scoring";
 
 type Participant = {
   id: string;
@@ -46,7 +48,6 @@ type RecordDraft = {
   notes: string;
 };
 
-type RankingMode = "certified" | "distance" | "time";
 type AdminOtpType = "email" | "magiclink" | "signup";
 type AdminModal = "participant" | "record" | "upload" | null;
 
@@ -116,7 +117,6 @@ export default function AdminPage() {
   const [manualDate, setManualDate] = useState(initialRecordDate);
   const [manualDistance, setManualDistance] = useState("");
   const [manualDuration, setManualDuration] = useState("");
-  const [rankingMode, setRankingMode] = useState<RankingMode>("certified");
   const [selectedParticipantId, setSelectedParticipantId] = useState("");
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [liveStatus, setLiveStatus] = useState<"connecting" | "live" | "polling">("connecting");
@@ -244,23 +244,12 @@ export default function AdminPage() {
     return map;
   }, [records]);
 
-  const rankings = useMemo(() => {
-    const rows = participants.map((participant) => {
-      const participantRecords = records.filter((record) => record.participant_id === participant.id && record.status === "certified");
-      return {
-        participant,
-        certifiedCount: participantRecords.length,
-        distance: participantRecords.reduce((sum, record) => sum + (record.distance_km || 0), 0),
-        time: participantRecords.reduce((sum, record) => sum + (record.duration_seconds || 0), 0),
-      };
-    });
-
-    return rows.sort((a, b) => {
-      if (rankingMode === "distance") return b.distance - a.distance;
-      if (rankingMode === "time") return b.time - a.time;
-      return b.certifiedCount - a.certifiedCount || b.distance - a.distance;
-    });
-  }, [participants, rankingMode, records]);
+  const scoreRows = useMemo(() => buildScoreRows({
+    participants,
+    records,
+    challengeStartDate: CHALLENGE_START_DATE,
+    referenceDate: effectiveToday,
+  }), [participants, records]);
 
   const selectedSeries = useMemo(() => {
     const participantRecords = records
@@ -714,27 +703,38 @@ export default function AdminPage() {
 
         <section className="grid lg:grid-cols-[0.9fr_1.1fr] gap-5">
           <div className="card p-4">
-            <div className="flex items-center justify-between gap-3 mb-4">
-              <h2 className="text-lg font-black text-oriwan-text">랭킹</h2>
-              <div className="flex rounded-xl bg-oriwan-surface-light p-1 text-xs font-bold">
-                {(["certified", "distance", "time"] as RankingMode[]).map((mode) => (
-                  <button key={mode} onClick={() => setRankingMode(mode)} className={`rounded-lg px-3 py-1.5 ${rankingMode === mode ? "bg-white text-oriwan-primary shadow-sm" : "text-oriwan-text-muted"}`}>
-                    {mode === "certified" ? "인증" : mode === "distance" ? "거리" : "시간"}
-                  </button>
-                ))}
-              </div>
+            <div className="mb-4">
+              <h2 className="text-lg font-black text-oriwan-text">성장 점수</h2>
+              <p className="mt-1 text-xs text-oriwan-text-muted">
+                인증 +{SCORE_WEIGHTS.certification}, 꾸준함 +{SCORE_WEIGHTS.consistency}, 성장 +{SCORE_WEIGHTS.growth}을 크게 반영합니다.
+              </p>
             </div>
             <div className="space-y-2">
-              {rankings.map((row, index) => (
-                <div key={row.participant.id} className="grid grid-cols-[32px_1fr_auto] items-center gap-3 rounded-2xl bg-oriwan-surface-light px-3 py-3">
-                  <div className="text-sm font-black text-oriwan-primary">{index + 1}</div>
-                  <div>
-                    <p className="text-sm font-bold text-oriwan-text">{row.participant.name}</p>
-                    <p className="text-[11px] text-oriwan-text-muted">인증 {row.certifiedCount}회 · {row.distance.toFixed(1)}km · {secondsToTime(row.time)}</p>
+              {scoreRows.map((row, index) => (
+                <div key={row.participant.id} className="rounded-2xl bg-oriwan-surface-light px-3 py-3">
+                  <div className="grid grid-cols-[32px_1fr_auto] items-center gap-3">
+                    <div className="text-sm font-black text-oriwan-primary">{index + 1}</div>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-bold text-oriwan-text">{row.participant.name}</p>
+                      <p className="text-[11px] text-oriwan-text-muted">
+                        인증 {row.certifiedCount}회 · 연속 {row.longestStreak}일 · 성장 {row.growthDays}일
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 flex-col items-end gap-1">
+                      <ScoreBadge kind={row.badgeKind} />
+                      <span className="text-lg font-black tracking-[-0.05em] text-oriwan-text">{row.score}점</span>
+                    </div>
                   </div>
-                  <IconRun size={18} className="text-oriwan-primary" />
+                  <div className="mt-2 grid grid-cols-5 gap-1 text-center text-[10px] font-black text-oriwan-text-muted">
+                    <span className="rounded-lg bg-white px-1 py-1">인증 {row.breakdown.certification}</span>
+                    <span className="rounded-lg bg-white px-1 py-1">꾸준 {row.breakdown.consistency}</span>
+                    <span className="rounded-lg bg-white px-1 py-1">성장 {row.breakdown.growth}</span>
+                    <span className="rounded-lg bg-white px-1 py-1">시간 {row.breakdown.time}</span>
+                    <span className="rounded-lg bg-white px-1 py-1">거리 {row.breakdown.distance}</span>
+                  </div>
                 </div>
               ))}
+              {!scoreRows.length && !loading && <p className="py-8 text-center text-sm text-oriwan-text-muted">아직 표시할 점수가 없습니다.</p>}
             </div>
           </div>
 
