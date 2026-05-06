@@ -1,17 +1,9 @@
 import Image from "next/image";
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
 import GoogleLoginButton from "./GoogleLoginButton";
 import { IconRun, IconDna, IconSprout } from "@/components/icons";
 
 export default async function Home() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (user) {
-    redirect("/dashboard");
-  }
-
   return (
     <main className="min-h-screen flex items-center justify-center px-5 py-10">
       <div className="fixed top-[-20%] right-[-15%] w-[400px] h-[400px] rounded-full bg-oriwan-accent/8 blur-[120px] pointer-events-none" />
