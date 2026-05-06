@@ -362,6 +362,9 @@ export default function AdminPage() {
     const supabase = createClient();
     const { error } = await supabase.auth.signInWithOtp({
       email: ADMIN_EMAIL,
+      options: {
+        shouldCreateUser: true,
+      },
     });
 
     if (error) {

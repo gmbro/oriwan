@@ -32,8 +32,11 @@ type PublicDashboardData = {
   error?: string;
 };
 
+type CalendarRange = 14 | 30 | 100;
+
 const today = toIsoDate(new Date());
-const timelineDays = Array.from({ length: 14 }, (_, index) => toIsoDate(addDays(new Date(), index - 13)));
+const trendDays = Array.from({ length: 14 }, (_, index) => toIsoDate(addDays(new Date(), index - 13)));
+const calendarRangeOptions: CalendarRange[] = [14, 30, 100];
 
 function Tooltip({ text }: { text: string }) {
   return (
@@ -69,13 +72,14 @@ export default function DashboardPage() {
   const [data, setData] = useState<PublicDashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [calendarRange, setCalendarRange] = useState<CalendarRange>(14);
 
   useEffect(() => {
     let alive = true;
 
     async function load() {
       try {
-        const response = await fetch("/api/public-dashboard?days=30", { cache: "no-store" });
+        const response = await fetch("/api/public-dashboard?days=100", { cache: "no-store" });
         const json = await response.json();
         if (!response.ok) throw new Error(json.error || "대시보드 조회 실패");
         if (alive) {
@@ -96,6 +100,11 @@ export default function DashboardPage() {
       window.clearInterval(interval);
     };
   }, []);
+
+  const calendarDays = useMemo(
+    () => Array.from({ length: calendarRange }, (_, index) => toIsoDate(addDays(new Date(), index - (calendarRange - 1)))),
+    [calendarRange]
+  );
 
   const dashboard = useMemo(() => {
     const participants = data?.participants || [];
@@ -133,7 +142,7 @@ export default function DashboardPage() {
       .sort((a, b) => b.count - a.count || b.distance - a.distance);
 
     const maxDistance = Math.max(1, ...rankings.map((row) => row.distance));
-    const dailyDistance = timelineDays.map((day) =>
+    const dailyDistance = trendDays.map((day) =>
       certifiedRecords
         .filter((record) => record.record_date === day)
         .reduce((sum, record) => sum + (record.distance_km || 0), 0)
@@ -180,10 +189,10 @@ export default function DashboardPage() {
                 TODAY · {today}
               </p>
               <h2 className="max-w-2xl text-4xl font-black tracking-[-0.06em] sm:text-6xl">
-                오늘, 얼마나 같이 달렸을까?
+                오늘, 얼마나 인증했을까?
               </h2>
               <p className="mt-3 max-w-xl text-sm leading-6 text-white/55">
-                인증률, 거리, 랭킹만 빠르게 볼 수 있게 정리했어요. 자세한 의미는 물음표를 눌러 확인하세요.
+                인증 기록은 매일 정오에 업데이트됩니다.
               </p>
             </div>
 
@@ -290,23 +299,46 @@ export default function DashboardPage() {
         </section>
 
         <section className="mt-4 card overflow-hidden p-4 sm:p-5">
-          <div className="mb-4 flex items-center justify-between gap-3">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h3 className="text-lg font-black tracking-[-0.03em] text-oriwan-text">인증 캘린더</h3>
-              <p className="mt-1 text-xs text-oriwan-text-muted">참가자별 최근 14일 인증 여부</p>
+              <p className="mt-1 text-xs text-oriwan-text-muted">참가자별 최근 {calendarRange}일 인증 여부</p>
             </div>
-            <Tooltip text="초록색은 인증 완료, 주황색은 확인 필요, 옅은 점은 미제출입니다." />
+            <div className="flex items-center gap-2">
+              <div className="flex rounded-full bg-oriwan-surface-light p-1 ring-1 ring-slate-950/5">
+                {calendarRangeOptions.map((days) => (
+                  <button
+                    key={days}
+                    type="button"
+                    onClick={() => setCalendarRange(days)}
+                    className={`rounded-full px-3 py-1.5 text-xs font-black transition ${
+                      calendarRange === days ? "bg-slate-950 text-lime-200 shadow-sm" : "text-oriwan-text-muted hover:text-oriwan-text"
+                    }`}
+                  >
+                    {days}일
+                  </button>
+                ))}
+              </div>
+              <Tooltip text="초록색은 인증 완료, 주황색은 확인 필요, 옅은 점은 미제출입니다." />
+            </div>
           </div>
           <div className="overflow-x-auto pb-1">
-            <div className="min-w-[760px] space-y-2">
-              <div className="grid grid-cols-[130px_repeat(14,1fr)] gap-1 text-[10px] font-black text-oriwan-text-muted">
+            <div className="space-y-2" style={{ minWidth: `${130 + calendarRange * 42}px` }}>
+              <div
+                className="grid gap-1 text-[10px] font-black text-oriwan-text-muted"
+                style={{ gridTemplateColumns: `130px repeat(${calendarRange}, minmax(34px, 1fr))` }}
+              >
                 <div>참가자</div>
-                {timelineDays.map((day) => <div key={day} className="text-center">{day.slice(5).replace("-", "/")}</div>)}
+                {calendarDays.map((day) => <div key={day} className="text-center">{day.slice(5).replace("-", "/")}</div>)}
               </div>
               {dashboard.participants.map((participant) => (
-                <div key={participant.id} className="grid grid-cols-[130px_repeat(14,1fr)] items-center gap-1">
+                <div
+                  key={participant.id}
+                  className="grid items-center gap-1"
+                  style={{ gridTemplateColumns: `130px repeat(${calendarRange}, minmax(34px, 1fr))` }}
+                >
                   <div className="truncate text-xs font-black text-oriwan-text">{participant.name}</div>
-                  {timelineDays.map((day) => {
+                  {calendarDays.map((day) => {
                     const record = dashboard.byParticipantDate.get(`${participant.id}:${day}`);
                     const status = record?.status || "missing";
                     return (

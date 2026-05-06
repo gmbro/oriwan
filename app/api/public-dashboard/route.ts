@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
 
   const { searchParams } = new URL(request.url);
   const daysParam = Number(searchParams.get("days") || 30);
-  const days = Number.isFinite(daysParam) ? Math.min(Math.max(daysParam, 7), 90) : 30;
+  const days = Number.isFinite(daysParam) ? Math.min(Math.max(daysParam, 7), 100) : 30;
   const to = toIsoDate(new Date());
   const from = toIsoDate(addDays(new Date(), -(days - 1)));
 
