@@ -154,5 +154,5 @@ export function buildScoreRows({
       averageScore,
       badgeKind: row.score >= averageScore ? "praise" as ScoreBadgeKind : "encourage" as ScoreBadgeKind,
     }))
-    .sort((a, b) => b.score - a.score || b.certifiedCount - a.certifiedCount || b.growthDays - a.growthDays || b.distance - a.distance);
+    .sort((a, b) => b.score - a.score || a.participant.name.localeCompare(b.participant.name, "ko"));
 }

@@ -6,9 +6,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { IconCheck } from "@/components/icons";
 import { ScoreBadge } from "@/components/score-badge";
 import { YoutubeShortsSection } from "@/components/youtube-shorts-section";
-import { CERTIFICATION_DISPLAY_START_DATE, CHALLENGE_END_DATE, CHALLENGE_START_DATE } from "@/lib/challenge";
-import { addDays, secondsToTime, toIsoDate } from "@/lib/run-records";
-import { SCORE_WEIGHTS, buildScoreRows } from "@/lib/scoring";
+import { ACTUAL_CERTIFICATION_START_DATE, CERTIFICATION_DISPLAY_START_DATE, CHALLENGE_END_DATE, CHALLENGE_START_DATE } from "@/lib/challenge";
+import { addDays, toIsoDate } from "@/lib/run-records";
+import { buildScoreRows } from "@/lib/scoring";
 
 type Participant = {
   id: string;
@@ -58,24 +58,17 @@ function statusStyle(status: RunRecord["status"] | "missing" | "before_start") {
   return "bg-white/70 text-slate-300 ring-1 ring-slate-200";
 }
 
-function linePointItems(values: number[], width = 320, height = 120) {
-  const max = Math.max(1, ...values);
-  const padding = 14;
-  return values
-    .map((value, index) => {
-      const x = values.length <= 1 ? width / 2 : padding + (index / (values.length - 1)) * (width - padding * 2);
-      const y = height - padding - (value / max) * (height - padding * 2);
-      return { x, y };
-    });
-}
-
-function polyline(points: { x: number; y: number }[]) {
-  return points.map((point) => `${point.x},${point.y}`).join(" ");
-}
-
 function formatLastUpdated(value?: string) {
   if (!value) return "-";
   return new Date(value).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
+}
+
+function certificationDayLabel() {
+  const start = new Date(`${ACTUAL_CERTIFICATION_START_DATE}T00:00:00`);
+  const current = new Date(`${today > CHALLENGE_END_DATE ? CHALLENGE_END_DATE : today}T00:00:00`);
+  const diffDays = Math.floor((current.getTime() - start.getTime()) / 86_400_000);
+  if (diffDays < 0) return `D-${Math.abs(diffDays)}`;
+  return `D+${diffDays + 1}`;
 }
 
 export default function DashboardPage() {
@@ -121,7 +114,6 @@ export default function DashboardPage() {
     };
   }, [load]);
 
-  const trendDays = useMemo(() => makeDays(14, CHALLENGE_START_DATE), []);
   const calendarDays = useMemo(() => makeDays(calendarRange), [calendarRange]);
 
   const dashboard = useMemo(() => {
@@ -135,8 +127,6 @@ export default function DashboardPage() {
         .map((record) => record.participant_id)
     );
 
-    const todayDistance = todayRecords.reduce((sum, record) => sum + (record.distance_km || 0), 0);
-    const todayTime = todayRecords.reduce((sum, record) => sum + (record.duration_seconds || 0), 0);
     const completionRate = participants.length ? Math.round((todayCertifiedIds.size / participants.length) * 100) : 0;
 
     const byParticipantDate = new Map<string, RunRecord>();
@@ -153,28 +143,15 @@ export default function DashboardPage() {
       referenceDate: today > CHALLENGE_END_DATE ? CHALLENGE_END_DATE : today,
     });
 
-    const maxScore = Math.max(1, ...scoreRows.map((row) => row.score));
-    const dailyDistance = trendDays.map((day) =>
-      certifiedRecords
-        .filter((record) => record.record_date === day)
-        .reduce((sum, record) => sum + (record.distance_km || 0), 0)
-    );
-    const dailyDistancePoints = linePointItems(dailyDistance);
-
     return {
       participants,
       records,
       scoreRows,
       byParticipantDate,
       todayCertifiedIds,
-      todayDistance,
-      todayTime,
       completionRate,
-      maxScore,
-      dailyDistance,
-      dailyDistancePoints,
     };
-  }, [data, trendDays]);
+  }, [data]);
 
   return (
     <main className="min-h-screen bg-oriwan-bg">
@@ -202,10 +179,15 @@ export default function DashboardPage() {
           <div className="absolute bottom-0 left-8 h-32 w-72 rounded-full bg-orange-400/15 blur-3xl" />
           <div className="relative grid gap-5 lg:grid-cols-[1fr_320px] lg:items-center">
             <div>
-              <p className="mb-3 inline-flex rounded-full bg-white/10 px-3 py-1 text-[11px] font-black text-lime-200 ring-1 ring-white/10">
-                인증 기간 · {CERTIFICATION_DISPLAY_START_DATE} ~ {CHALLENGE_END_DATE}
-              </p>
-              <h2 className="max-w-2xl text-4xl font-black tracking-[-0.06em] sm:text-6xl">
+              <div className="mb-3 flex flex-wrap gap-2">
+                <p className="inline-flex rounded-full bg-white/10 px-3 py-1 text-[10px] font-black text-lime-200 ring-1 ring-white/10 sm:text-[11px]">
+                  인증 기간 · {CERTIFICATION_DISPLAY_START_DATE} ~ {CHALLENGE_END_DATE}
+                </p>
+                <p className="inline-flex rounded-full bg-lime-300 px-3 py-1 text-[10px] font-black text-slate-950 sm:text-[11px]">
+                  실제 인증 {certificationDayLabel()} · {ACTUAL_CERTIFICATION_START_DATE}부터
+                </p>
+              </div>
+              <h2 className="max-w-full whitespace-nowrap text-[clamp(1.95rem,8vw,3.75rem)] font-black leading-[1.05] tracking-[-0.07em]">
                 오늘, 얼마나 인증했을까?
               </h2>
               <p className="mt-3 max-w-xl text-sm leading-6 text-white/55">
@@ -251,68 +233,6 @@ export default function DashboardPage() {
             아직 운영 데이터 테이블이 연결되지 않았어요. 관리자가 Supabase 스키마를 적용하면 참가자 현황이 바로 표시됩니다.
           </div>
         )}
-
-        <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <MetricCard title="오늘 총 거리" value={`${dashboard.todayDistance.toFixed(1)}km`} />
-          <MetricCard title="오늘 총 시간" value={secondsToTime(dashboard.todayTime)} />
-          <MetricCard title="오늘 인증 인원" value={`${dashboard.todayCertifiedIds.size}명`} />
-          <MetricCard title="전체 참가자" value={`${dashboard.participants.length}명`} />
-        </div>
-
-        <section className="mt-4 grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
-          <div className="card p-4 sm:p-5">
-            <div className="mb-4">
-              <h3 className="text-lg font-black tracking-[-0.03em] text-oriwan-text">최근 인증 거리</h3>
-              <p className="mt-1 text-xs text-oriwan-text-muted">{CHALLENGE_START_DATE}부터 전체 참가자 거리 합계</p>
-            </div>
-            <div className="rounded-[26px] bg-slate-950 p-4">
-              <svg viewBox="0 0 320 120" className="h-44 w-full">
-                <line x1="14" y1="106" x2="306" y2="106" stroke="rgba(255,255,255,.14)" />
-                <polyline fill="none" stroke="#bef264" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" points={polyline(dashboard.dailyDistancePoints)} />
-                {dashboard.dailyDistancePoints.map((point, index) => <circle key={index} cx={point.x} cy={point.y} r="4" fill="#fed7aa" />)}
-              </svg>
-            </div>
-          </div>
-
-          <div className="card p-4 sm:p-5">
-            <div className="mb-4">
-              <h3 className="text-lg font-black tracking-[-0.03em] text-oriwan-text">성장 점수 보드</h3>
-              <p className="mt-1 text-xs text-oriwan-text-muted">
-                인증 +{SCORE_WEIGHTS.certification} · 꾸준함 +{SCORE_WEIGHTS.consistency} · 성장 +{SCORE_WEIGHTS.growth} 중심
-              </p>
-            </div>
-            <div className="space-y-3">
-              {dashboard.scoreRows.slice(0, 8).map((row, index) => (
-                <div key={row.participant.id} className="rounded-3xl bg-oriwan-surface-light p-3">
-                  <div className="mb-2 flex items-center justify-between gap-3">
-                    <div className="flex min-w-0 items-center gap-3">
-                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-2xl bg-slate-950 text-sm font-black text-lime-200">
-                        {index + 1}
-                      </span>
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-black text-oriwan-text">{row.participant.name}</p>
-                        <p className="text-[11px] text-oriwan-text-muted">
-                          인증 {row.certifiedCount}회 · 연속 {row.longestStreak}일 · 성장 {row.growthDays}일
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-2">
-                      <ScoreBadge kind={row.badgeKind} />
-                      <span className="text-xl font-black tracking-[-0.05em] text-oriwan-text">{row.score}점</span>
-                    </div>
-                  </div>
-                  <div className="h-2 overflow-hidden rounded-full bg-white">
-                    <div className="h-full rounded-full bg-lime-300" style={{ width: `${Math.max(6, (row.score / dashboard.maxScore) * 100)}%` }} />
-                  </div>
-                  <p className="mt-2 text-[10px] font-bold text-oriwan-text-muted">
-                    평균 {row.averageScore}점 · 거리 {row.distance.toFixed(1)}km · 시간 {secondsToTime(row.time)}
-                  </p>
-                </div>
-              ))}
-              {!dashboard.scoreRows.length && !loading && <p className="py-8 text-center text-sm text-oriwan-text-muted">아직 표시할 기록이 없습니다.</p>}
-            </div>
-          </div>
-        </section>
 
         <section className="mt-4 card overflow-hidden p-4 sm:p-5">
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -370,6 +290,27 @@ export default function DashboardPage() {
           </div>
         </section>
 
+        <section className="mt-4 card p-4 sm:p-5">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <h3 className="text-lg font-black tracking-[-0.03em] text-oriwan-text">러닝보드</h3>
+              <p className="mt-1 text-xs text-oriwan-text-muted">점수순 · 동점은 가나다순</p>
+            </div>
+            <span className="rounded-full bg-slate-950 px-3 py-1.5 text-[10px] font-black text-lime-200">{dashboard.scoreRows.length}명</span>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {dashboard.scoreRows.map((row, index) => (
+              <div key={row.participant.id} className="grid grid-cols-[28px_1fr_auto_auto] items-center gap-2 rounded-2xl bg-oriwan-surface-light px-3 py-2">
+                <span className="text-xs font-black text-oriwan-primary">{index + 1}</span>
+                <span className="truncate text-sm font-black text-oriwan-text">{row.participant.name}</span>
+                <ScoreBadge kind={row.badgeKind} />
+                <span className="text-sm font-black tabular-nums text-oriwan-text">{row.score}점</span>
+              </div>
+            ))}
+            {!dashboard.scoreRows.length && !loading && <p className="py-8 text-center text-sm text-oriwan-text-muted sm:col-span-2 lg:col-span-3">아직 표시할 기록이 없습니다.</p>}
+          </div>
+        </section>
+
         <YoutubeShortsSection />
 
         <p className="py-6 text-center text-[11px] font-semibold text-oriwan-text-muted">
@@ -377,14 +318,5 @@ export default function DashboardPage() {
         </p>
       </section>
     </main>
-  );
-}
-
-function MetricCard({ title, value }: { title: string; value: string }) {
-  return (
-    <div className="card p-4">
-      <p className="text-[11px] font-black uppercase tracking-[0.12em] text-oriwan-text-muted">{title}</p>
-      <p className="mt-2 text-2xl font-black tracking-[-0.05em] text-oriwan-text sm:text-3xl">{value}</p>
-    </div>
   );
 }

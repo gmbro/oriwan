@@ -46,7 +46,7 @@ export default function PrivacyPage() {
 
           <section>
             <h2 className="text-base font-bold text-oriwan-text mb-2">4. 공개 범위</h2>
-            <p>전체 참가자 대시보드는 로그인 없이 볼 수 있습니다. 개별 기록 입력 화면은 Google 로그인이 필요하며, 공개되는 정보는 참가자명, 인증 여부, 거리, 시간, 성장 점수와 평균 대비 뱃지 등 러닝 인증 현황에 필요한 항목으로 제한됩니다.</p>
+            <p>전체 참가자 대시보드는 로그인 없이 볼 수 있습니다. 개별 기록 입력 화면은 Google 로그인이 필요하며, 공개되는 정보는 참가자명, 인증 여부, 거리, 시간, 러닝보드 점수와 평균 대비 뱃지 등 러닝 인증 현황에 필요한 항목으로 제한됩니다.</p>
           </section>
 
           <section>

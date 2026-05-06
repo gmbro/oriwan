@@ -26,11 +26,11 @@ export default function TermsPage() {
             <h2 className="text-base font-bold text-oriwan-text mb-2">제2조 (서비스 내용)</h2>
             <ul className="list-disc pl-5 space-y-1">
               <li>인증 기록은 2026년 5월 1일부터 100일간 집계</li>
-              <li>전체 참가자의 오늘 거리, 시간, 인증 여부 제공</li>
+              <li>전체 참가자의 오늘 인증 여부와 인증률 제공</li>
               <li>참가자의 Google 로그인 기반 개인 기록 입력, 이미지 등록 및 조회</li>
               <li>운영자의 참가자 추가, 변경, 삭제 및 기록 수동 입력</li>
               <li>NRC, Garmin, Strava 등 러닝 인증 이미지 업로드, 텍스트 추출, 기록 검수 지원</li>
-              <li>인증 캘린더, 성장 점수, 평균 대비 뱃지, 거리/시간 그래프 제공</li>
+              <li>인증 캘린더, 러닝보드 점수, 평균 대비 뱃지 제공</li>
             </ul>
           </section>
 
