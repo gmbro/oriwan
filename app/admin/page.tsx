@@ -852,7 +852,16 @@ export default function AdminPage() {
                 />
               </label>
 
-              <div className="mt-4 rounded-[28px] border-2 border-dashed border-lime-300/80 bg-lime-50/70 p-5 text-center">
+              <div
+                className="mt-4 rounded-[28px] border-2 border-dashed border-lime-300/80 bg-lime-50/70 p-5 text-center transition hover:bg-lime-50"
+                onDragOver={(event) => event.preventDefault()}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  const droppedFiles = Array.from(event.dataTransfer.files).filter((file) => file.type.startsWith("image/"));
+                  setFiles(droppedFiles);
+                  setAnalysisMessage(droppedFiles.length ? `${droppedFiles.length}장 선택됨. 자동 추출을 눌러주세요.` : "이미지 파일만 업로드할 수 있어요.");
+                }}
+              >
                 <input
                   type="file"
                   accept="image/*"
@@ -864,6 +873,7 @@ export default function AdminPage() {
                   className="mx-auto block max-w-full text-sm text-oriwan-text-muted file:mr-4 file:rounded-xl file:border-0 file:bg-slate-950 file:px-4 file:py-2 file:text-sm file:font-bold file:text-lime-200"
                 />
                 <p className="mt-3 text-xs font-bold text-oriwan-text-muted">선택됨: {files.length}장</p>
+                <p className="mt-1 text-[11px] font-semibold text-oriwan-text-muted">여러 이미지를 이 영역에 그대로 끌어놓아도 됩니다.</p>
                 <button onClick={analyzeImages} disabled={!files.length || analyzing} className="btn-primary mt-4 w-full py-3 text-sm disabled:opacity-40">
                   {analyzing ? "사람·날짜·거리·시간 분석 중..." : "업로드하고 자동 추출"}
                 </button>

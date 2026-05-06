@@ -1,83 +1,23 @@
 import { GoogleGenAI } from "@google/genai";
 import { NextRequest, NextResponse } from "next/server";
 import { findAdminUserId, findParticipantByRunnerName, getServiceClient } from "@/lib/admin-data";
-import { CHALLENGE_DATE_ERROR, isWithinChallengeWindow } from "@/lib/challenge";
+import { CHALLENGE_DATE_ERROR, CHALLENGE_START_DATE, isWithinChallengeWindow } from "@/lib/challenge";
+import {
+  ExtractedRunBase,
+  UploadedImage,
+  normalizeRecordDate,
+  parseDataUrl,
+  parseDistanceKm,
+  parseDurationText,
+  parseJsonObject,
+  validImage,
+} from "@/lib/run-image-extraction";
 import { calculatePaceSeconds } from "@/lib/run-records";
 import { createClient } from "@/lib/supabase/server";
 
-type UploadedImage = {
-  name: string;
-  dataUrl: string;
-};
-
-type ExtractedRun = {
-  record_date?: string | null;
-  distance_km?: number | null;
-  duration_text?: string | null;
-  duration_seconds?: number | null;
-  pace_text?: string | null;
-  source_app?: string | null;
-  raw_text?: string | null;
-  confidence_score?: number | null;
-  notes?: string | null;
-};
+type ExtractedRun = ExtractedRunBase;
 
 const MAX_IMAGES = 5;
-const MAX_IMAGE_BYTES = 3 * 1024 * 1024;
-const SUPPORTED_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
-
-function parseDataUrl(dataUrl: string) {
-  const match = dataUrl.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
-  if (!match) throw new Error("Invalid image data URL");
-  if (!SUPPORTED_MIME_TYPES.has(match[1])) throw new Error("Unsupported image type");
-  if (Buffer.byteLength(match[2], "base64") > MAX_IMAGE_BYTES) throw new Error("Image too large");
-  return { mimeType: match[1], base64: match[2] };
-}
-
-function parseJson(text: string): ExtractedRun {
-  const cleaned = text
-    .trim()
-    .replace(/^```json/i, "")
-    .replace(/^```/, "")
-    .replace(/```$/, "")
-    .trim();
-  return JSON.parse(cleaned);
-}
-
-function parseDurationText(value: string | null | undefined) {
-  if (!value) return null;
-  const normalized = value
-    .replace(/[^\d:시간분초hms]/g, " ")
-    .replace(/시간|h/gi, ":")
-    .replace(/분|m/gi, ":")
-    .replace(/초|s/gi, "")
-    .replace(/\s+/g, "")
-    .replace(/:+$/g, "");
-
-  const parts = normalized.split(":").filter(Boolean).map(Number);
-  if (parts.some(Number.isNaN)) return null;
-  if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
-  if (parts.length === 2) return parts[0] * 60 + parts[1];
-  if (parts.length === 1) return parts[0] * 60;
-  return null;
-}
-
-function sanitizeDate(value: unknown) {
-  if (typeof value !== "string") return null;
-  return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null;
-}
-
-function validImage(input: unknown): input is UploadedImage {
-  if (!input || typeof input !== "object") return false;
-  const image = input as UploadedImage;
-  if (typeof image.name !== "string" || typeof image.dataUrl !== "string") return false;
-  try {
-    parseDataUrl(image.dataUrl);
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 async function analyzeImage(image: UploadedImage) {
   if (!process.env.GEMINI_API_KEY) throw new Error("Missing GEMINI_API_KEY");
@@ -86,7 +26,8 @@ async function analyzeImage(image: UploadedImage) {
   const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
   const prompt = `NRC, Garmin, Strava, Apple Fitness 또는 러닝 기록 스크린샷에서 배경/사진/앱 장식은 무시하고 텍스트와 숫자만 읽어 JSON으로 추출하세요.
 
-이미지에 보이는 텍스트만 근거로 판단하세요. 날짜가 보이지 않으면 record_date는 null, 시간이 보이지 않으면 duration_seconds는 null로 두세요.
+이미지에 보이는 텍스트만 근거로 판단하세요. 날짜가 "5월 5일"처럼 연도 없이 보이면 ${CHALLENGE_START_DATE.slice(0, 4)}년으로 보정해 record_date를 YYYY-MM-DD로 넣으세요.
+날짜가 전혀 보이지 않으면 record_date는 null, 시간이 보이지 않으면 duration_seconds는 null로 두세요.
 거리 단위가 km가 아니면 km로 환산하세요. 시간은 전체 러닝 시간을 의미하며 페이스가 아닙니다.
 
 반드시 아래 JSON 형식만 반환하세요.
@@ -119,7 +60,7 @@ async function analyzeImage(image: UploadedImage) {
     },
   });
 
-  return parseJson(response.text || "{}");
+  return parseJsonObject<ExtractedRun>(response.text || "{}");
 }
 
 export async function POST(request: NextRequest) {
@@ -132,7 +73,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const targetDate = sanitizeDate(body.targetDate);
+    const targetDate = normalizeRecordDate(body.targetDate);
     const rawImages = Array.isArray(body.images) ? body.images : [];
     const images = rawImages.filter(validImage).slice(0, MAX_IMAGES);
 
@@ -164,13 +105,11 @@ export async function POST(request: NextRequest) {
 
     for (const image of images) {
       const extracted = await analyzeImage(image);
-      const extractedDate = sanitizeDate(extracted.record_date);
+      const extractedDate = normalizeRecordDate(extracted.record_date);
       const recordDate = extractedDate || targetDate;
       const dateWasFallback = !extractedDate && Boolean(targetDate);
-      const distanceKm = typeof extracted.distance_km === "number" && Number.isFinite(extracted.distance_km) ? extracted.distance_km : null;
-      const durationSeconds = typeof extracted.duration_seconds === "number" && Number.isFinite(extracted.duration_seconds)
-        ? extracted.duration_seconds
-        : parseDurationText(extracted.duration_text);
+      const distanceKm = parseDistanceKm(extracted.distance_km);
+      const durationSeconds = parseDurationText(extracted.duration_seconds ?? extracted.duration_text);
 
       if (!recordDate) {
         return NextResponse.json({ error: "이미지에서 날짜를 찾지 못했어요. 선택한 인증일을 확인해주세요.", extracted }, { status: 422 });

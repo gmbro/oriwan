@@ -4,24 +4,20 @@ import { GoogleGenAI } from "@google/genai";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdminUser } from "@/lib/admin-server";
 import { calculatePaceSeconds } from "@/lib/run-records";
-import { CHALLENGE_DATE_ERROR, isWithinChallengeWindow } from "@/lib/challenge";
+import { CHALLENGE_DATE_ERROR, CHALLENGE_START_DATE, isWithinChallengeWindow } from "@/lib/challenge";
+import {
+  ExtractedRunBase,
+  UploadedImage,
+  normalizeRecordDate,
+  parseDataUrl,
+  parseDistanceKm,
+  parseDurationText,
+  parseJsonObject,
+  validImage,
+} from "@/lib/run-image-extraction";
 
-type UploadedImage = {
-  name: string;
-  dataUrl: string;
-};
-
-type ExtractedRun = {
+type ExtractedRun = ExtractedRunBase & {
   participant_name?: string | null;
-  record_date?: string | null;
-  distance_km?: number | null;
-  duration_text?: string | null;
-  duration_seconds?: number | null;
-  pace_text?: string | null;
-  source_app?: string | null;
-  raw_text?: string | null;
-  confidence_score?: number | null;
-  notes?: string | null;
 };
 
 type Participant = {
@@ -30,56 +26,6 @@ type Participant = {
 };
 
 const MAX_IMAGES = 40;
-const MAX_IMAGE_BYTES = 3 * 1024 * 1024;
-const SUPPORTED_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
-
-function parseDataUrl(dataUrl: string) {
-  const match = dataUrl.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
-  if (!match) throw new Error("Invalid image data URL");
-  if (!SUPPORTED_MIME_TYPES.has(match[1])) throw new Error("Unsupported image type");
-  if (Buffer.byteLength(match[2], "base64") > MAX_IMAGE_BYTES) throw new Error("Image too large");
-  return { mimeType: match[1], base64: match[2] };
-}
-
-function validImage(input: unknown): input is UploadedImage {
-  if (!input || typeof input !== "object") return false;
-  const image = input as UploadedImage;
-  if (typeof image.name !== "string" || typeof image.dataUrl !== "string") return false;
-  try {
-    parseDataUrl(image.dataUrl);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function parseJson(text: string): ExtractedRun {
-  const cleaned = text
-    .trim()
-    .replace(/^```json/i, "")
-    .replace(/^```/, "")
-    .replace(/```$/, "")
-    .trim();
-  return JSON.parse(cleaned);
-}
-
-function parseDurationText(value: string | null | undefined) {
-  if (!value) return null;
-  const normalized = value
-    .replace(/[^\d:시간분초hms]/g, " ")
-    .replace(/시간|h/gi, ":")
-    .replace(/분|m/gi, ":")
-    .replace(/초|s/gi, "")
-    .replace(/\s+/g, "")
-    .replace(/:+$/g, "");
-
-  const parts = normalized.split(":").filter(Boolean).map(Number);
-  if (parts.some(Number.isNaN)) return null;
-  if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
-  if (parts.length === 2) return parts[0] * 60 + parts[1];
-  if (parts.length === 1) return parts[0] * 60;
-  return null;
-}
 
 function matchParticipant(extractedName: string | null | undefined, participants: Participant[]) {
   if (!extractedName) return null;
@@ -104,11 +50,14 @@ function decideStatus(input: {
 }
 
 async function analyzeImage(image: UploadedImage, knownNames: string[]) {
+  if (!process.env.GEMINI_API_KEY) throw new Error("Missing GEMINI_API_KEY");
   const { mimeType, base64 } = parseDataUrl(image.dataUrl);
-  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
+  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
   const prompt = `러닝 인증 이미지에서 배경/사진/앱 장식은 무시하고 텍스트와 숫자만 읽어 JSON으로 추출하세요.
 
-이미지에 보이는 텍스트만 근거로 판단하세요. 날짜가 보이지 않으면 record_date는 null, 시간이 보이지 않으면 duration_seconds는 null로 두세요.
+이미지에 보이는 텍스트만 근거로 판단하세요. 날짜가 "5월 5일"처럼 연도 없이 보이면 ${CHALLENGE_START_DATE.slice(0, 4)}년으로 보정해 record_date를 YYYY-MM-DD로 넣으세요.
+날짜가 전혀 보이지 않으면 record_date는 null, 시간이 보이지 않으면 duration_seconds는 null로 두세요.
+거리 단위가 km가 아니면 km로 환산하세요. 시간은 전체 러닝 시간을 의미하며 페이스가 아닙니다.
 참가자 이름은 아래 등록된 이름 중 이미지에서 보이는 값과 가장 가까운 것을 넣고, 확실하지 않으면 null로 두세요.
 파일명은 근거로 사용하지 말고 이미지 안의 텍스트만 사용하세요.
 
@@ -147,10 +96,39 @@ ${knownNames.length ? knownNames.join(", ") : "없음"}
   });
 
   return {
-    extracted: parseJson(response.text || "{}"),
+    extracted: parseJsonObject<ExtractedRun>(response.text || "{}"),
     mimeType,
     base64,
   };
+}
+
+async function uploadImageToStorage(input: {
+  userId: string;
+  batchId: string;
+  imageIndex: number;
+  mimeType: string;
+  base64: string;
+}) {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) return null;
+
+  const supabaseAdmin = createSupabaseAdmin(url, key);
+  const extension = input.mimeType.split("/")[1] || "jpg";
+  const filePath = `run-records/${input.userId}/${input.batchId}/${input.imageIndex}-${Date.now()}.${extension}`;
+  const { error } = await supabaseAdmin.storage
+    .from("photos")
+    .upload(filePath, Buffer.from(input.base64, "base64"), {
+      contentType: input.mimeType,
+      upsert: true,
+    });
+
+  if (error) {
+    console.warn("Image storage upload skipped:", error.message);
+    return null;
+  }
+
+  return filePath;
 }
 
 export async function POST(request: NextRequest) {
@@ -160,7 +138,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const targetDate = typeof body.targetDate === "string" ? body.targetDate : null;
+    const targetDate = normalizeRecordDate(body.targetDate);
     const rawImages = Array.isArray(body.images) ? body.images : [];
     const images = rawImages.filter(validImage).slice(0, MAX_IMAGES);
 
@@ -202,23 +180,37 @@ export async function POST(request: NextRequest) {
 
     if (batchError) throw batchError;
 
-    const supabaseAdmin = createSupabaseAdmin(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    );
-
     const results = [];
     let needsReviewCount = 0;
 
     for (let index = 0; index < images.length; index += 1) {
       const image = images[index];
-      const analyzed = await analyzeImage(image, knownNames);
-      const extracted = analyzed.extracted;
+      let analyzed: Awaited<ReturnType<typeof analyzeImage>>;
+      let extracted: ExtractedRun;
+      try {
+        analyzed = await analyzeImage(image, knownNames);
+        extracted = analyzed.extracted;
+      } catch (error) {
+        needsReviewCount += 1;
+        results.push({
+          id: null,
+          file_name: image.name,
+          participant_name: "",
+          record_date: targetDate,
+          distance_km: null,
+          duration_seconds: null,
+          status: "needs_review",
+          confidence_score: null,
+          notes: error instanceof Error ? error.message : "이미지 분석 실패",
+        });
+        continue;
+      }
       const participant = matchParticipant(extracted.participant_name, participants);
-      const recordDate = extracted.record_date || targetDate;
-      const dateWasFallback = !extracted.record_date && Boolean(targetDate);
-      const durationSeconds = extracted.duration_seconds ?? parseDurationText(extracted.duration_text);
-      const distanceKm = typeof extracted.distance_km === "number" ? extracted.distance_km : null;
+      const extractedDate = normalizeRecordDate(extracted.record_date);
+      const recordDate = extractedDate || targetDate;
+      const dateWasFallback = !extractedDate && Boolean(targetDate);
+      const durationSeconds = parseDurationText(extracted.duration_seconds ?? extracted.duration_text);
+      const distanceKm = parseDistanceKm(extracted.distance_km);
 
       if (recordDate && !isWithinChallengeWindow(recordDate)) {
         return NextResponse.json({ error: CHALLENGE_DATE_ERROR }, { status: 400 });
@@ -235,16 +227,13 @@ export async function POST(request: NextRequest) {
 
       if (status === "needs_review") needsReviewCount += 1;
 
-      const extension = analyzed.mimeType.split("/")[1] || "jpg";
-      const filePath = `run-records/${user.id}/${batch.id}/${index + 1}-${Date.now()}.${extension}`;
-      const { error: uploadError } = await supabaseAdmin.storage
-        .from("photos")
-        .upload(filePath, Buffer.from(analyzed.base64, "base64"), {
-          contentType: analyzed.mimeType,
-          upsert: true,
-        });
-
-      if (uploadError) throw uploadError;
+      const filePath = await uploadImageToStorage({
+        userId: user.id,
+        batchId: batch.id,
+        imageIndex: index + 1,
+        mimeType: analyzed.mimeType,
+        base64: analyzed.base64,
+      });
 
       const recordPayload = {
         user_id: user.id,
@@ -264,6 +253,7 @@ export async function POST(request: NextRequest) {
           dateWasFallback ? "이미지에서 날짜가 보이지 않아 선택한 날짜를 임시 적용했습니다." : null,
           !durationSeconds ? "시간이 없어 수동 입력이 필요합니다." : null,
           !participant ? "참가자 매칭 확인이 필요합니다." : null,
+          !filePath ? "이미지 파일 저장은 건너뛰고 추출 기록만 저장했습니다." : null,
         ].filter(Boolean).join(" / ") || null,
       };
 
@@ -283,6 +273,7 @@ export async function POST(request: NextRequest) {
 
       results.push({
         id: record.id,
+        file_name: image.name,
         participant_name: participant?.name || extracted.participant_name || "",
         record_date: recordDate,
         distance_km: distanceKm,
