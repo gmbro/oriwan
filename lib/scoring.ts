@@ -14,7 +14,7 @@ export type ScoreRecord = {
   status: string;
 };
 
-export type ScoreBadgeKind = "praise" | "encourage";
+export type ScoreBadgeKind = "praise" | "steady" | "boost";
 
 export type ScoreRow = {
   participant: ScoreParticipant;
@@ -141,7 +141,7 @@ export function buildScoreRows({
       growthDays,
       score,
       averageScore: 0,
-      badgeKind: "encourage" as ScoreBadgeKind,
+      badgeKind: "boost" as ScoreBadgeKind,
       breakdown,
     };
   });
@@ -149,10 +149,10 @@ export function buildScoreRows({
   const averageScore = rows.length ? Math.round(rows.reduce((sum, row) => sum + row.score, 0) / rows.length) : 0;
 
   return rows
-    .map((row) => ({
+    .sort((a, b) => b.score - a.score || a.participant.name.localeCompare(b.participant.name, "ko"))
+    .map((row, index) => ({
       ...row,
       averageScore,
-      badgeKind: row.score >= averageScore ? "praise" as ScoreBadgeKind : "encourage" as ScoreBadgeKind,
+      badgeKind: index < 5 ? "praise" as ScoreBadgeKind : index < 11 ? "steady" as ScoreBadgeKind : "boost" as ScoreBadgeKind,
     }))
-    .sort((a, b) => b.score - a.score || a.participant.name.localeCompare(b.participant.name, "ko"));
 }

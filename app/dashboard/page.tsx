@@ -237,8 +237,23 @@ export default function DashboardPage() {
         <section className="mt-4 card overflow-hidden p-4 sm:p-5">
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h3 className="text-lg font-black tracking-[-0.03em] text-oriwan-text">인증 캘린더</h3>
-              <p className="mt-1 text-xs text-oriwan-text-muted">참가자별 인증 여부</p>
+              <div className="flex items-center gap-2">
+                <h3 className="text-lg font-black tracking-[-0.03em] text-oriwan-text">러닝 인증보드</h3>
+                <div className="group relative">
+                  <button
+                    type="button"
+                    aria-label="러닝 인증보드 점수 안내"
+                    className="flex h-6 w-6 items-center justify-center rounded-full bg-oriwan-surface-light text-xs font-black text-oriwan-text-muted ring-1 ring-slate-950/10 transition hover:bg-slate-950 hover:text-lime-200"
+                  >
+                    ?
+                  </button>
+                  <div className="pointer-events-none absolute left-0 top-8 z-30 w-[260px] rounded-3xl bg-slate-950 p-4 text-xs font-bold leading-5 text-white/80 opacity-0 shadow-2xl shadow-slate-950/20 ring-1 ring-white/10 transition group-hover:opacity-100 group-focus-within:opacity-100 sm:w-[320px]">
+                    <p className="font-black text-lime-200">순위는 내부 점수로 계산됩니다.</p>
+                    <p className="mt-2">인증, 연속 인증, 성장 흐름을 크게 반영하고 시간과 거리는 보조로 반영해요.</p>
+                    <p className="mt-2 text-white/55">올리는 팁: 매일 인증하기, 연속 인증 유지하기, 이전보다 조금씩 거리나 페이스를 개선하기, 거리와 시간을 함께 입력하기.</p>
+                  </div>
+                </div>
+              </div>
             </div>
             <div className="flex rounded-full bg-oriwan-surface-light p-1 ring-1 ring-slate-950/5">
               {calendarRangeOptions.map((days) => (
@@ -256,28 +271,34 @@ export default function DashboardPage() {
             </div>
           </div>
           <div className="overflow-x-auto pb-1">
-            <div className="space-y-2" style={{ minWidth: `${130 + calendarDays.length * 42}px` }}>
+            <div className="space-y-2" style={{ minWidth: `${236 + calendarDays.length * 42}px` }}>
               <div
                 className="grid gap-1 text-[10px] font-black text-oriwan-text-muted"
-                style={{ gridTemplateColumns: `130px repeat(${calendarDays.length || 1}, minmax(34px, 1fr))` }}
+                style={{ gridTemplateColumns: `34px 78px 112px repeat(${calendarDays.length || 1}, minmax(34px, 1fr))` }}
               >
+                <div>순위</div>
                 <div>참가자</div>
+                <div>뱃지</div>
                 {calendarDays.map((day) => <div key={day} className="text-center">{day.slice(5).replace("-", "/")}</div>)}
               </div>
-              {dashboard.participants.map((participant) => (
+              {dashboard.scoreRows.map((row, index) => (
                 <div
-                  key={participant.id}
+                  key={row.participant.id}
                   className="grid items-center gap-1"
-                  style={{ gridTemplateColumns: `130px repeat(${calendarDays.length || 1}, minmax(34px, 1fr))` }}
+                  style={{ gridTemplateColumns: `34px 78px 112px repeat(${calendarDays.length || 1}, minmax(34px, 1fr))` }}
                 >
-                  <div className="truncate text-xs font-black text-oriwan-text">{participant.name}</div>
+                  <div className="text-xs font-black tabular-nums text-oriwan-primary">{index + 1}</div>
+                  <div className="truncate text-xs font-black text-oriwan-text">{row.participant.name}</div>
+                  <div className="min-w-0">
+                    <ScoreBadge kind={row.badgeKind} />
+                  </div>
                   {calendarDays.map((day) => {
-                    const record = dashboard.byParticipantDate.get(`${participant.id}:${day}`);
+                    const record = dashboard.byParticipantDate.get(`${row.participant.id}:${day}`);
                     const status = day < CHALLENGE_START_DATE ? "before_start" : record?.status || "missing";
                     return (
                       <div
                         key={day}
-                        title={`${participant.name} · ${day} · ${status === "before_start" ? "집계 전" : status === "certified" ? "인증 완료" : status === "needs_review" ? "확인 필요" : "미제출"}`}
+                        title={`${row.participant.name} · ${day} · ${status === "before_start" ? "집계 전" : status === "certified" ? "인증 완료" : status === "needs_review" ? "확인 필요" : "미제출"}`}
                         className={`flex h-8 items-center justify-center rounded-xl text-[11px] font-black ${statusStyle(status)}`}
                       >
                         {status === "certified" ? <IconCheck size={13} /> : status === "needs_review" ? "!" : status === "before_start" ? "-" : "·"}
@@ -286,28 +307,8 @@ export default function DashboardPage() {
                   })}
                 </div>
               ))}
+              {!dashboard.scoreRows.length && !loading && <p className="py-8 text-center text-sm text-oriwan-text-muted">아직 표시할 기록이 없습니다.</p>}
             </div>
-          </div>
-        </section>
-
-        <section className="mt-4 card p-4 sm:p-5">
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <div>
-              <h3 className="text-lg font-black tracking-[-0.03em] text-oriwan-text">러닝보드</h3>
-              <p className="mt-1 text-xs text-oriwan-text-muted">점수순 · 동점은 가나다순</p>
-            </div>
-            <span className="rounded-full bg-slate-950 px-3 py-1.5 text-[10px] font-black text-lime-200">{dashboard.scoreRows.length}명</span>
-          </div>
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            {dashboard.scoreRows.map((row, index) => (
-              <div key={row.participant.id} className="grid grid-cols-[28px_1fr_auto_auto] items-center gap-2 rounded-2xl bg-oriwan-surface-light px-3 py-2">
-                <span className="text-xs font-black text-oriwan-primary">{index + 1}</span>
-                <span className="truncate text-sm font-black text-oriwan-text">{row.participant.name}</span>
-                <ScoreBadge kind={row.badgeKind} />
-                <span className="text-sm font-black tabular-nums text-oriwan-text">{row.score}점</span>
-              </div>
-            ))}
-            {!dashboard.scoreRows.length && !loading && <p className="py-8 text-center text-sm text-oriwan-text-muted sm:col-span-2 lg:col-span-3">아직 표시할 기록이 없습니다.</p>}
           </div>
         </section>
 

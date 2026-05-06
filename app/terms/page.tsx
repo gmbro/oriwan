@@ -30,7 +30,7 @@ export default function TermsPage() {
               <li>참가자의 Google 로그인 기반 개인 기록 입력, 이미지 등록 및 조회</li>
               <li>운영자의 참가자 추가, 변경, 삭제 및 기록 수동 입력</li>
               <li>NRC, Garmin, Strava 등 러닝 인증 이미지 업로드, 텍스트 추출, 기록 검수 지원</li>
-              <li>인증 캘린더, 러닝보드 점수, 평균 대비 뱃지 제공</li>
+              <li>러닝 인증보드, 순위, 구간별 뱃지 제공</li>
             </ul>
           </section>
 

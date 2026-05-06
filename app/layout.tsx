@@ -4,7 +4,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "스내사 3기 대시보드",
   description:
-    "러닝 인증 이미지를 업로드하면 AI가 거리, 시간, 날짜를 추출하고 스내사 3기 인증 현황과 러닝보드를 실시간으로 보여줍니다.",
+    "러닝 인증 이미지를 업로드하면 AI가 거리, 시간, 날짜를 추출하고 스내사 3기 인증 현황과 러닝 인증보드를 실시간으로 보여줍니다.",
   keywords: ["스내사", "러닝", "기록인증", "대시보드", "OCR", "챌린지"],
   openGraph: {
     title: "스내사 3기 대시보드",
