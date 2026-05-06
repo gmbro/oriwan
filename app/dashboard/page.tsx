@@ -198,7 +198,7 @@ export default function DashboardPage() {
                 오늘, 얼마나 인증했을까?
               </h2>
               <p className="mt-3 max-w-xl text-sm leading-6 text-white/55">
-                실제 인증 기록은 {CHALLENGE_START_DATE}부터 100일간 집계됩니다.
+                인증 기록은 {CHALLENGE_START_DATE}부터 100일간 집계됩니다.
               </p>
             </div>
 

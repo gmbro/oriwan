@@ -48,7 +48,7 @@ type RecordDraft = {
 
 type RankingMode = "certified" | "distance" | "time";
 type AdminOtpType = "email" | "magiclink" | "signup";
-type AdminModal = "participant" | "record" | null;
+type AdminModal = "participant" | "record" | "upload" | null;
 
 const today = toIsoDate(new Date());
 const effectiveToday = today > CHALLENGE_END_DATE ? CHALLENGE_END_DATE : today;
@@ -119,6 +119,7 @@ export default function AdminPage() {
   const [targetDate, setTargetDate] = useState(initialRecordDate);
   const [files, setFiles] = useState<File[]>([]);
   const [analyzing, setAnalyzing] = useState(false);
+  const [analysisMessage, setAnalysisMessage] = useState("");
   const [manualParticipantId, setManualParticipantId] = useState("");
   const [manualDate, setManualDate] = useState(initialRecordDate);
   const [manualDistance, setManualDistance] = useState("");
@@ -315,6 +316,13 @@ export default function AdminPage() {
     setNewNickname("");
   }, []);
 
+  const openUploadForDate = useCallback((date: string) => {
+    setTargetDate(date);
+    setFiles([]);
+    setAnalysisMessage("");
+    setAdminModal("upload");
+  }, []);
+
   const saveParticipant = useCallback(async () => {
     if (!newName.trim()) return;
     if (!editingParticipantId) {
@@ -350,6 +358,7 @@ export default function AdminPage() {
   const analyzeImages = useCallback(async () => {
     if (!files.length) return;
     setAnalyzing(true);
+    setAnalysisMessage("");
     try {
       const images = await Promise.all(files.map(async (file) => ({ name: file.name, dataUrl: await readFileAsDataUrl(file) })));
       const res = await fetch("/api/records/analyze", {
@@ -357,11 +366,16 @@ export default function AdminPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ targetDate, images }),
       });
-      if (!res.ok) throw new Error("analysis failed");
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "analysis failed");
       setFiles([]);
+      const results = Array.isArray(json.results) ? json.results : [];
+      const certified = results.filter((result: { status?: string }) => result.status === "certified").length;
+      const review = results.length - certified;
+      setAnalysisMessage(`${results.length}장 분석 완료 · 인증 ${certified}건 · 확인 필요 ${review}건`);
       await loadData();
-    } catch {
-      alert("이미지 분석에 실패했어요. 흐린 이미지는 직접 입력으로 등록해주세요.");
+    } catch (err) {
+      setAnalysisMessage(err instanceof Error ? err.message : "이미지 분석에 실패했어요. 흐린 이미지는 직접 입력으로 등록해주세요.");
     } finally {
       setAnalyzing(false);
     }
@@ -679,27 +693,24 @@ export default function AdminPage() {
           </div>
 
           <div className="card p-4 space-y-3">
-            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
+            <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
               <div>
-                <h2 className="text-lg font-black text-oriwan-text">이미지 업로드 분석</h2>
-                <p className="text-xs text-oriwan-text-muted mt-1">배경은 무시하고 텍스트/숫자만 추출합니다. 날짜가 없으면 아래 날짜를 임시 적용하고 확인 필요로 남겨요.</p>
+                <h2 className="text-lg font-black text-oriwan-text">날짜별 이미지 등록</h2>
+                <p className="mt-1 text-xs leading-5 text-oriwan-text-muted">아래 인증 시계열에서 날짜를 누르면 업로드가 열립니다. 여러 장을 한 번에 넣으면 사람과 날짜를 자동 추출해요.</p>
               </div>
-              <label className="text-xs font-bold text-oriwan-text-muted">
-                기본 날짜
-                <input type="date" min={CHALLENGE_START_DATE} max={CHALLENGE_END_DATE} value={targetDate} onChange={(e) => setTargetDate(e.target.value)} className="block mt-1 rounded-xl border border-oriwan-border px-3 py-2 text-sm text-oriwan-text bg-white" />
-              </label>
+              <button type="button" onClick={() => openUploadForDate(initialRecordDate)} className="rounded-2xl bg-slate-950 px-4 py-3 text-sm font-black text-lime-200">
+                이미지 한꺼번에 등록
+              </button>
             </div>
-            <div className="rounded-3xl border-2 border-dashed border-lime-300/70 bg-lime-50/70 p-5 text-center">
-              <input
-                type="file"
-                accept="image/*"
-                multiple
-                onChange={(e) => setFiles(Array.from(e.target.files || []))}
-                className="mx-auto block text-sm text-oriwan-text-muted file:mr-4 file:rounded-xl file:border-0 file:bg-slate-950 file:px-4 file:py-2 file:text-sm file:font-bold file:text-lime-200"
-              />
-              <p className="text-xs text-oriwan-text-muted mt-3">선택됨: {files.length}장</p>
-              <button onClick={analyzeImages} disabled={!files.length || analyzing} className="btn-primary mt-4 px-5 py-3 text-sm disabled:opacity-40">
-                {analyzing ? "이미지 분석 중..." : "업로드하고 자동 추출"}
+            <div className="grid gap-2 sm:grid-cols-3">
+              <button type="button" onClick={() => openUploadForDate(CHALLENGE_START_DATE)} className="rounded-2xl bg-oriwan-surface-light px-4 py-3 text-left text-xs font-black text-oriwan-text">
+                시작일<br /><span className="text-oriwan-text-muted">{CHALLENGE_START_DATE}</span>
+              </button>
+              <button type="button" onClick={() => openUploadForDate(effectiveToday)} className="rounded-2xl bg-lime-100 px-4 py-3 text-left text-xs font-black text-lime-950">
+                오늘<br /><span className="text-lime-800">{effectiveToday}</span>
+              </button>
+              <button type="button" onClick={() => setAdminModal("record")} className="rounded-2xl bg-orange-50 px-4 py-3 text-left text-xs font-black text-orange-950">
+                OCR 실패 시<br /><span className="text-orange-800">수동 입력</span>
               </button>
             </div>
           </div>
@@ -709,7 +720,7 @@ export default function AdminPage() {
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h2 className="text-lg font-black text-oriwan-text">인증 시계열</h2>
-                <p className="text-xs text-oriwan-text-muted mt-1">최근 14일 인증 여부를 한눈에 봅니다.</p>
+                <p className="text-xs text-oriwan-text-muted mt-1">날짜를 누르면 해당 날짜 이미지 업로드가 열립니다.</p>
               </div>
               <IconSprout size={22} className="text-oriwan-primary" />
             </div>
@@ -717,7 +728,17 @@ export default function AdminPage() {
               <div className="min-w-[720px] space-y-2">
                 <div className="grid gap-1 text-[10px] font-bold text-oriwan-text-muted" style={{ gridTemplateColumns: `120px repeat(${timelineDays.length || 1}, minmax(0, 1fr))` }}>
                   <div>참가자</div>
-                  {timelineDays.map((day) => <div key={day} className="text-center">{day.slice(5).replace("-", "/")}</div>)}
+                  {timelineDays.map((day) => (
+                    <button
+                      key={day}
+                      type="button"
+                      onClick={() => openUploadForDate(day)}
+                      className="rounded-lg px-1 py-1 text-center transition hover:bg-lime-100 hover:text-lime-900"
+                      title={`${day} 이미지 등록`}
+                    >
+                      {day.slice(5).replace("-", "/")}
+                    </button>
+                  ))}
                 </div>
                 {participants.map((participant) => (
                   <div key={participant.id} className="grid items-center gap-1" style={{ gridTemplateColumns: `120px repeat(${timelineDays.length || 1}, minmax(0, 1fr))` }}>
@@ -725,7 +746,17 @@ export default function AdminPage() {
                     {timelineDays.map((day) => {
                       const record = recordsByParticipantDate.get(`${participant.id}:${day}`);
                       const status = record?.status || "missing";
-                      return <div key={day} title={statusLabel(status)} className={`h-8 rounded-lg border flex items-center justify-center text-[11px] font-black ${statusClass(status)}`}>{status === "certified" ? <IconCheck size={13} /> : status === "needs_review" ? "!" : "·"}</div>;
+                      return (
+                        <button
+                          key={day}
+                          type="button"
+                          onClick={() => openUploadForDate(day)}
+                          title={`${participant.name} · ${day} · ${statusLabel(status)} · 이미지 등록`}
+                          className={`flex h-8 items-center justify-center rounded-lg border text-[11px] font-black transition hover:scale-[1.03] hover:ring-2 hover:ring-lime-300 ${statusClass(status)}`}
+                        >
+                          {status === "certified" ? <IconCheck size={13} /> : status === "needs_review" ? "!" : "+"}
+                        </button>
+                      );
                     })}
                   </div>
                 ))}
@@ -842,6 +873,79 @@ export default function AdminPage() {
             {!records.length && !loading && <p className="py-10 text-center text-sm text-oriwan-text-muted">아직 기록이 없습니다. 이미지를 업로드하거나 수동으로 입력해주세요.</p>}
           </div>
         </section>
+
+        {adminModal === "upload" && (
+          <div className="fixed inset-0 z-[80] flex items-end bg-slate-950/45 px-4 py-4 backdrop-blur-sm sm:items-center sm:justify-center">
+            <div className="card max-h-[88vh] w-full max-w-2xl overflow-y-auto p-5 sm:p-6">
+              <div className="mb-4 flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-[11px] font-black uppercase tracking-[0.12em] text-oriwan-primary">Bulk OCR Upload</p>
+                  <h2 className="mt-1 text-xl font-black tracking-[-0.04em] text-oriwan-text">{targetDate} 이미지 등록</h2>
+                  <p className="mt-1 text-xs leading-5 text-oriwan-text-muted">
+                    여러 사람, 여러 날짜 이미지도 한 번에 올릴 수 있어요. 이미지 안에 날짜가 있으면 그 날짜를 우선 쓰고, 없으면 선택한 날짜로 임시 등록됩니다.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setAdminModal(null)}
+                  className="rounded-full bg-oriwan-surface-light px-3 py-1.5 text-xs font-black text-oriwan-text-muted"
+                >
+                  닫기
+                </button>
+              </div>
+
+              <label className="text-xs font-bold text-oriwan-text-muted">
+                이미지에 날짜가 없을 때 적용할 날짜
+                <input
+                  type="date"
+                  min={CHALLENGE_START_DATE}
+                  max={CHALLENGE_END_DATE}
+                  value={targetDate}
+                  onChange={(e) => setTargetDate(e.target.value)}
+                  className="mt-1 block w-full rounded-2xl border border-oriwan-border bg-white px-4 py-3 text-sm font-black text-oriwan-text"
+                />
+              </label>
+
+              <div className="mt-4 rounded-[28px] border-2 border-dashed border-lime-300/80 bg-lime-50/70 p-5 text-center">
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={(e) => {
+                    setFiles(Array.from(e.target.files || []));
+                    setAnalysisMessage("");
+                  }}
+                  className="mx-auto block max-w-full text-sm text-oriwan-text-muted file:mr-4 file:rounded-xl file:border-0 file:bg-slate-950 file:px-4 file:py-2 file:text-sm file:font-bold file:text-lime-200"
+                />
+                <p className="mt-3 text-xs font-bold text-oriwan-text-muted">선택됨: {files.length}장</p>
+                <button onClick={analyzeImages} disabled={!files.length || analyzing} className="btn-primary mt-4 w-full py-3 text-sm disabled:opacity-40">
+                  {analyzing ? "사람·날짜·거리·시간 분석 중..." : "업로드하고 자동 추출"}
+                </button>
+              </div>
+
+              {analysisMessage && (
+                <p className="mt-4 rounded-2xl bg-white px-4 py-3 text-sm font-bold text-oriwan-text-muted ring-1 ring-slate-950/5">
+                  {analysisMessage}
+                </p>
+              )}
+
+              <div className="mt-4 grid gap-2 sm:grid-cols-3">
+                <div className="rounded-2xl bg-oriwan-surface-light p-3">
+                  <p className="text-[11px] font-black text-oriwan-text">사람 구분</p>
+                  <p className="mt-1 text-[11px] leading-4 text-oriwan-text-muted">이미지 속 이름/닉네임과 참가자명을 자동 매칭합니다.</p>
+                </div>
+                <div className="rounded-2xl bg-oriwan-surface-light p-3">
+                  <p className="text-[11px] font-black text-oriwan-text">날짜 구분</p>
+                  <p className="mt-1 text-[11px] leading-4 text-oriwan-text-muted">이미지 날짜가 있으면 선택일보다 우선 적용합니다.</p>
+                </div>
+                <div className="rounded-2xl bg-oriwan-surface-light p-3">
+                  <p className="text-[11px] font-black text-oriwan-text">검수 대기</p>
+                  <p className="mt-1 text-[11px] leading-4 text-oriwan-text-muted">이름/시간/날짜가 불확실하면 기록 검수에 남깁니다.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {adminModal === "participant" && (
           <div className="fixed inset-0 z-[80] flex items-end bg-slate-950/45 px-4 py-4 backdrop-blur-sm sm:items-center sm:justify-center">

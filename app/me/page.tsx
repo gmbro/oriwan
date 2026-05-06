@@ -256,7 +256,7 @@ export default function MyPage() {
 
           <div className="card p-4 sm:p-5">
             <h3 className="text-lg font-black text-oriwan-text">기록 입력</h3>
-            <p className="mt-1 text-xs text-oriwan-text-muted">{CHALLENGE_START_DATE}부터 {CHALLENGE_END_DATE}까지 실제 인증 기록만 입력할 수 있습니다.</p>
+            <p className="mt-1 text-xs text-oriwan-text-muted">{CHALLENGE_START_DATE}부터 {CHALLENGE_END_DATE}까지 인증 기록만 입력할 수 있습니다.</p>
             <div className="mt-4 grid gap-2 sm:grid-cols-3">
               <input type="date" min={CHALLENGE_START_DATE} max={CHALLENGE_END_DATE} value={recordDate} onChange={(event) => setRecordDate(event.target.value)} className="rounded-2xl border border-oriwan-border bg-white px-3 py-3 text-sm" />
               <input value={distance} onChange={(event) => setDistance(event.target.value)} inputMode="decimal" placeholder="거리 km" className="rounded-2xl border border-oriwan-border bg-white px-3 py-3 text-sm" />

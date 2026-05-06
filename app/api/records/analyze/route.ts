@@ -94,6 +94,8 @@ async function analyzeImage(image: UploadedImage, knownNames: string[]) {
 
 이미지에 보이는 텍스트만 근거로 판단하세요. 날짜가 보이지 않으면 record_date는 null, 시간이 보이지 않으면 duration_seconds는 null로 두세요.
 참가자 이름은 아래 등록된 이름/닉네임 중 이미지에서 보이는 값과 가장 가까운 것을 넣고, 확실하지 않으면 null로 두세요.
+NRC, Garmin, Strava, Apple Fitness 같은 앱에서 프로필명, 닉네임, 계정명, 활동 작성자 이름이 보이면 participant_name 판단에 우선 활용하세요.
+파일명은 근거로 사용하지 말고 이미지 안의 텍스트만 사용하세요.
 
 등록된 참가자:
 ${knownNames.length ? knownNames.join(", ") : "없음"}
@@ -243,9 +245,15 @@ export async function POST(request: NextRequest) {
         ].filter(Boolean).join(" / ") || null,
       };
 
-      const { data: record, error: recordError } = await supabase
-        .from("daily_run_records")
-        .insert(recordPayload)
+      const recordQuery = participant?.id && recordDate
+        ? supabase
+            .from("daily_run_records")
+            .upsert(recordPayload, { onConflict: "user_id,participant_id,record_date" })
+        : supabase
+            .from("daily_run_records")
+            .insert(recordPayload);
+
+      const { data: record, error: recordError } = await recordQuery
         .select("id")
         .single();
 
