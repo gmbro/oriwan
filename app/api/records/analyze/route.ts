@@ -139,6 +139,12 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const targetDate = normalizeRecordDate(body.targetDate);
+    const requestedParticipantId =
+      typeof body.participantId === "string"
+        ? body.participantId
+        : typeof body.participant_id === "string"
+          ? body.participant_id
+          : "";
     const rawImages = Array.isArray(body.images) ? body.images : [];
     const images = rawImages.filter(validImage).slice(0, MAX_IMAGES);
 
@@ -164,7 +170,15 @@ export async function POST(request: NextRequest) {
     if (participantError) throw participantError;
 
     const participants = (participantsData || []) as Participant[];
-    const knownNames = participants.map((participant) => participant.name);
+    const targetParticipant = requestedParticipantId
+      ? participants.find((participant) => participant.id === requestedParticipantId) || null
+      : null;
+
+    if (requestedParticipantId && !targetParticipant) {
+      return NextResponse.json({ error: "선택한 참가자를 찾을 수 없습니다." }, { status: 400 });
+    }
+
+    const knownNames = targetParticipant ? [targetParticipant.name] : participants.map((participant) => participant.name);
 
     const { data: batch, error: batchError } = await supabase
       .from("upload_batches")
@@ -195,7 +209,8 @@ export async function POST(request: NextRequest) {
         results.push({
           id: null,
           file_name: image.name,
-          participant_name: "",
+          participant_id: targetParticipant?.id || null,
+          participant_name: targetParticipant?.name || "",
           record_date: targetDate,
           distance_km: null,
           duration_seconds: null,
@@ -205,7 +220,7 @@ export async function POST(request: NextRequest) {
         });
         continue;
       }
-      const participant = matchParticipant(extracted.participant_name, participants);
+      const participant = targetParticipant || matchParticipant(extracted.participant_name, participants);
       const extractedDate = normalizeRecordDate(extracted.record_date);
       const recordDate = extractedDate || targetDate;
       const dateWasFallback = !extractedDate && Boolean(targetDate);
@@ -274,6 +289,7 @@ export async function POST(request: NextRequest) {
       results.push({
         id: record.id,
         file_name: image.name,
+        participant_id: participant?.id || null,
         participant_name: participant?.name || extracted.participant_name || "",
         record_date: recordDate,
         distance_km: distanceKm,
