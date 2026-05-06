@@ -4,6 +4,7 @@ import { GoogleGenAI } from "@google/genai";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdminUser } from "@/lib/admin-server";
 import { calculatePaceSeconds } from "@/lib/run-records";
+import { CHALLENGE_START_DATE } from "@/lib/challenge";
 
 type UploadedImage = {
   name: string;
@@ -147,6 +148,9 @@ export async function POST(request: NextRequest) {
 
     if (!images.length) {
       return NextResponse.json({ error: "이미지가 필요합니다." }, { status: 400 });
+    }
+    if (targetDate && targetDate < CHALLENGE_START_DATE) {
+      return NextResponse.json({ error: "인증일은 2026-05-05부터 입력할 수 있습니다." }, { status: 400 });
     }
 
     const { data: participantsData, error: participantError } = await supabase

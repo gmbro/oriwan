@@ -34,6 +34,9 @@ export default async function Home() {
             <Link href="/dashboard" className="btn-primary w-full">
               참가자 대시보드 보기
             </Link>
+            <Link href="/me" className="btn-google w-full">
+              개인 기록 입력
+            </Link>
             <Link href="/admin" className="btn-google w-full">
               관리자 페이지
             </Link>

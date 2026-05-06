@@ -2,13 +2,13 @@
 
 import { createClient } from "@/lib/supabase/client";
 
-export default function GoogleLoginButton() {
+export default function GoogleLoginButton({ redirectPath = "/dashboard" }: { redirectPath?: string }) {
   const handleLogin = async () => {
     const supabase = createClient();
     await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/api/auth/callback`,
+        redirectTo: `${window.location.origin}/api/auth/callback?next=${encodeURIComponent(redirectPath)}`,
       },
     });
   };

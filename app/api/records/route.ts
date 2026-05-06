@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireAdminUser } from "@/lib/admin-server";
 import { calculatePaceSeconds } from "@/lib/run-records";
 import { isMissingTableError, missingSchemaResponse } from "@/lib/supabase-errors";
+import { CHALLENGE_START_DATE } from "@/lib/challenge";
 
 function sanitizeNumber(value: unknown) {
   if (value === null || value === undefined || value === "") return null;
@@ -71,6 +72,9 @@ export async function POST(request: NextRequest) {
 
   if (!participantId || !recordDate) {
     return NextResponse.json({ error: "참가자와 날짜가 필요합니다." }, { status: 400 });
+  }
+  if (recordDate < CHALLENGE_START_DATE) {
+    return NextResponse.json({ error: "인증일은 2026-05-05부터 입력할 수 있습니다." }, { status: 400 });
   }
 
   const status = body.status || (distanceKm && durationSeconds ? "certified" : "needs_review");

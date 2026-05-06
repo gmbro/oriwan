@@ -26,7 +26,8 @@ export default function PrivacyPage() {
             <h2 className="text-base font-bold text-oriwan-text mb-2">2. 수집하는 정보</h2>
             <ul className="list-disc pl-5 space-y-1">
               <li><strong>관리자 인증 정보:</strong> 관리자 이메일, 인증 세션</li>
-              <li><strong>참가자 정보:</strong> 운영자가 등록한 이름, 닉네임 또는 앱 이름</li>
+              <li><strong>개별 로그인 정보:</strong> Google 계정 이메일, 인증 세션</li>
+              <li><strong>참가자 정보:</strong> 운영자가 등록한 이름, 닉네임 또는 앱 이름, 참가자가 직접 입력한 필수 이름</li>
               <li><strong>러닝 인증 기록:</strong> 날짜, 거리, 시간, 페이스, 인증 상태, 메모</li>
               <li><strong>인증 이미지:</strong> 운영자가 업로드한 러닝 기록 이미지와 추출 텍스트</li>
             </ul>
@@ -35,8 +36,9 @@ export default function PrivacyPage() {
           <section>
             <h2 className="text-base font-bold text-oriwan-text mb-2">3. 이용 목적</h2>
             <ul className="list-disc pl-5 space-y-1">
-              <li>참가자별 러닝 인증 여부 확인</li>
+              <li>2026년 5월 5일부터의 러닝 인증 여부 확인</li>
               <li>전체 및 개별 참가자의 거리, 시간, 인증률 시각화</li>
+              <li>참가자가 입력한 이름과 운영자가 등록한 참가자명 매칭</li>
               <li>관리자의 참가자 관리 및 기록 검수</li>
               <li>이미지 기반 기록 추출과 수동 보정 지원</li>
             </ul>
@@ -44,7 +46,7 @@ export default function PrivacyPage() {
 
           <section>
             <h2 className="text-base font-bold text-oriwan-text mb-2">4. 공개 범위</h2>
-            <p>참가자 대시보드는 로그인 없이 볼 수 있습니다. 공개되는 정보는 참가자명, 인증 여부, 거리, 시간, 랭킹 등 러닝 인증 현황에 필요한 항목으로 제한됩니다.</p>
+            <p>전체 참가자 대시보드는 로그인 없이 볼 수 있습니다. 개별 기록 입력 화면은 Google 로그인이 필요하며, 공개되는 정보는 참가자명, 인증 여부, 거리, 시간, 랭킹 등 러닝 인증 현황에 필요한 항목으로 제한됩니다.</p>
           </section>
 
           <section>
@@ -56,6 +58,7 @@ export default function PrivacyPage() {
             <h2 className="text-base font-bold text-oriwan-text mb-2">6. 보안</h2>
             <ul className="list-disc pl-5 space-y-1">
               <li>관리자 화면은 이메일 인증번호 기반으로 접근을 제한합니다.</li>
+              <li>개별 기록 입력 화면은 Google 로그인 세션으로 접근을 제한합니다.</li>
               <li>API 통신은 HTTPS로 암호화됩니다.</li>
               <li>운영 데이터는 Supabase 권한 정책과 서버 검증을 통해 보호됩니다.</li>
             </ul>

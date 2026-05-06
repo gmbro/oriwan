@@ -1,48 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-import type { SupabaseClient } from "@supabase/supabase-js";
-import { ADMIN_EMAIL } from "@/lib/admin";
 import { addDays, toIsoDate } from "@/lib/run-records";
 import { isMissingTableError, missingSchemaResponse } from "@/lib/supabase-errors";
-
-type AdminUser = {
-  id: string;
-  email?: string;
-};
-
-function getAdminClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!url || !key) return null;
-  return createClient(url, key, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-  });
-}
-
-async function findAdminUserId(supabase: SupabaseClient) {
-  let page = 1;
-
-  while (page <= 20) {
-    const { data, error } = await supabase.auth.admin.listUsers({ page, perPage: 100 });
-    if (error) throw error;
-
-    const admin = data.users.find(
-      (user: AdminUser) => user.email?.toLowerCase() === ADMIN_EMAIL
-    );
-    if (admin) return admin.id;
-    if (data.users.length < 100) break;
-    page += 1;
-  }
-
-  return null;
-}
+import { CHALLENGE_START_DATE, clampToChallengeStart } from "@/lib/challenge";
+import { findAdminUserId, getServiceClient } from "@/lib/admin-data";
 
 export async function GET(request: NextRequest) {
-  const supabase = getAdminClient();
+  const supabase = getServiceClient();
   if (!supabase) {
     return NextResponse.json({ error: "공개 대시보드 환경변수가 설정되지 않았습니다." }, { status: 500 });
   }
@@ -51,7 +14,7 @@ export async function GET(request: NextRequest) {
   const daysParam = Number(searchParams.get("days") || 30);
   const days = Number.isFinite(daysParam) ? Math.min(Math.max(daysParam, 7), 100) : 30;
   const to = toIsoDate(new Date());
-  const from = toIsoDate(addDays(new Date(), -(days - 1)));
+  const from = clampToChallengeStart(toIsoDate(addDays(new Date(), -(days - 1))));
 
   try {
     const adminUserId = await findAdminUserId(supabase);
@@ -102,6 +65,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       from,
       to,
+      challenge_start_date: CHALLENGE_START_DATE,
       generated_at: new Date().toISOString(),
       participants: participantsResult.data || [],
       records: recordsResult.data || [],
