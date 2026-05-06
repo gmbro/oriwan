@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { IconCheck } from "@/components/icons";
 import { ScoreBadge } from "@/components/score-badge";
+import { YoutubeShortsSection } from "@/components/youtube-shorts-section";
 import { CERTIFICATION_DISPLAY_START_DATE, CHALLENGE_END_DATE, CHALLENGE_START_DATE } from "@/lib/challenge";
 import { addDays, secondsToTime, toIsoDate } from "@/lib/run-records";
 import { SCORE_WEIGHTS, buildScoreRows } from "@/lib/scoring";
@@ -57,16 +58,19 @@ function statusStyle(status: RunRecord["status"] | "missing" | "before_start") {
   return "bg-white/70 text-slate-300 ring-1 ring-slate-200";
 }
 
-function linePoints(values: number[], width = 320, height = 120) {
+function linePointItems(values: number[], width = 320, height = 120) {
   const max = Math.max(1, ...values);
   const padding = 14;
   return values
     .map((value, index) => {
       const x = values.length <= 1 ? width / 2 : padding + (index / (values.length - 1)) * (width - padding * 2);
       const y = height - padding - (value / max) * (height - padding * 2);
-      return `${x},${y}`;
-    })
-    .join(" ");
+      return { x, y };
+    });
+}
+
+function polyline(points: { x: number; y: number }[]) {
+  return points.map((point) => `${point.x},${point.y}`).join(" ");
 }
 
 function formatLastUpdated(value?: string) {
@@ -155,6 +159,7 @@ export default function DashboardPage() {
         .filter((record) => record.record_date === day)
         .reduce((sum, record) => sum + (record.distance_km || 0), 0)
     );
+    const dailyDistancePoints = linePointItems(dailyDistance);
 
     return {
       participants,
@@ -167,6 +172,7 @@ export default function DashboardPage() {
       completionRate,
       maxScore,
       dailyDistance,
+      dailyDistancePoints,
     };
   }, [data, trendDays]);
 
@@ -203,7 +209,7 @@ export default function DashboardPage() {
                 오늘, 얼마나 인증했을까?
               </h2>
               <p className="mt-3 max-w-xl text-sm leading-6 text-white/55">
-                인증 기록은 {CHALLENGE_START_DATE}부터 100일간 집계됩니다.
+                인증 기록은 매일 정오에 업데이트됩니다.
               </p>
             </div>
 
@@ -262,11 +268,8 @@ export default function DashboardPage() {
             <div className="rounded-[26px] bg-slate-950 p-4">
               <svg viewBox="0 0 320 120" className="h-44 w-full">
                 <line x1="14" y1="106" x2="306" y2="106" stroke="rgba(255,255,255,.14)" />
-                <polyline fill="none" stroke="#bef264" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" points={linePoints(dashboard.dailyDistance)} />
-                {dashboard.dailyDistance.map((value, index) => {
-                  const points = linePoints(dashboard.dailyDistance).split(" ")[index]?.split(",") || ["0", "0"];
-                  return <circle key={`${value}-${index}`} cx={points[0]} cy={points[1]} r="4" fill="#fed7aa" />;
-                })}
+                <polyline fill="none" stroke="#bef264" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" points={polyline(dashboard.dailyDistancePoints)} />
+                {dashboard.dailyDistancePoints.map((point, index) => <circle key={index} cx={point.x} cy={point.y} r="4" fill="#fed7aa" />)}
               </svg>
             </div>
           </div>
@@ -366,6 +369,8 @@ export default function DashboardPage() {
             </div>
           </div>
         </section>
+
+        <YoutubeShortsSection />
 
         <p className="py-6 text-center text-[11px] font-semibold text-oriwan-text-muted">
           {loading ? "데이터를 불러오는 중..." : `마지막 업데이트 ${formatLastUpdated(data?.generated_at)}`}

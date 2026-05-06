@@ -1,0 +1,126 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { IconYoutube } from "@/components/icons";
+import { tipCategoryLabels, youtubeEmbedUrl, youtubeShortTips, youtubeWatchUrl } from "@/lib/youtube-shorts";
+import type { TipCategory, YoutubeShortTip } from "@/lib/youtube-shorts";
+
+const categoryOptions: Array<TipCategory | "all"> = ["all", "running", "recovery", "stretching"];
+
+export function YoutubeShortsSection() {
+  const [category, setCategory] = useState<TipCategory | "all">("all");
+  const [selectedTip, setSelectedTip] = useState<YoutubeShortTip | null>(null);
+
+  const tips = useMemo(
+    () => category === "all" ? youtubeShortTips : youtubeShortTips.filter((tip) => tip.category === category),
+    [category]
+  );
+
+  useEffect(() => {
+    if (!selectedTip) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setSelectedTip(null);
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [selectedTip]);
+
+  return (
+    <section className="mt-4 card overflow-hidden p-4 sm:p-5">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-3 py-1 text-[11px] font-black text-rose-600 ring-1 ring-rose-100">
+            <IconYoutube size={14} /> Shorts
+          </p>
+          <h3 className="mt-2 text-lg font-black tracking-[-0.03em] text-oriwan-text">오늘의 러닝 팁</h3>
+          <p className="mt-1 text-xs leading-5 text-oriwan-text-muted">짧게 보고 바로 따라 할 수 있는 러닝팁, 회복, 스트레칭 영상만 모았어요.</p>
+        </div>
+        <div className="flex overflow-x-auto rounded-full bg-oriwan-surface-light p-1 ring-1 ring-slate-950/5">
+          {categoryOptions.map((option) => (
+            <button
+              key={option}
+              type="button"
+              onClick={() => setCategory(option)}
+              className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-black transition ${
+                category === option ? "bg-slate-950 text-lime-200 shadow-sm" : "text-oriwan-text-muted hover:text-oriwan-text"
+              }`}
+            >
+              {option === "all" ? "전체" : tipCategoryLabels[option]}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {tips.map((tip) => (
+          <button
+            key={tip.id}
+            type="button"
+            onClick={() => setSelectedTip(tip)}
+            className="group overflow-hidden rounded-[24px] bg-slate-950 text-left text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-xl hover:shadow-slate-950/10"
+          >
+            <div className="relative aspect-[9/12] bg-gradient-to-br from-slate-900 via-[#26351d] to-slate-950 p-4">
+              <div className="absolute right-3 top-3 rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-black text-lime-200 ring-1 ring-white/10">
+                {tip.tag}
+              </div>
+              <div className="absolute inset-x-4 bottom-4">
+                <p className="text-[11px] font-black uppercase tracking-[0.12em] text-white/45">{tipCategoryLabels[tip.category]}</p>
+                <p className="mt-1 text-2xl font-black leading-tight tracking-[-0.05em]">{tip.title}</p>
+                <p className="mt-3 text-xs font-bold text-white/50">{tip.channel}</p>
+              </div>
+              <div className="absolute left-4 top-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-rose-500 shadow-lg">
+                <IconYoutube size={22} />
+              </div>
+            </div>
+          </button>
+        ))}
+      </div>
+
+      {selectedTip && (
+        <div
+          className="fixed inset-0 z-[90] flex items-end bg-slate-950/70 px-4 py-4 backdrop-blur-sm sm:items-center sm:justify-center"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`${selectedTip.title} 영상 보기`}
+          onClick={() => setSelectedTip(null)}
+        >
+          <div className="w-full max-w-[420px] overflow-hidden rounded-[28px] bg-[#101522] shadow-2xl" onClick={(event) => event.stopPropagation()}>
+            <div className="flex items-center justify-between gap-3 px-4 py-3 text-white">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-black">{selectedTip.title}</p>
+                <p className="truncate text-[11px] font-bold text-white/45">{selectedTip.channel}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedTip(null)}
+                className="rounded-full bg-white/10 px-3 py-1.5 text-xs font-black text-white/70 transition hover:text-white"
+              >
+                닫기
+              </button>
+            </div>
+            <div className="aspect-[9/16] bg-black">
+              <iframe
+                key={selectedTip.id}
+                src={youtubeEmbedUrl(selectedTip.id)}
+                title={selectedTip.title}
+                className="h-full w-full"
+                loading="lazy"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                referrerPolicy="strict-origin-when-cross-origin"
+                allowFullScreen
+              />
+            </div>
+            <a
+              href={youtubeWatchUrl(selectedTip.id)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block px-4 py-3 text-center text-xs font-black text-lime-200 transition hover:bg-white/5"
+            >
+              YouTube Shorts에서 열기
+            </a>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
