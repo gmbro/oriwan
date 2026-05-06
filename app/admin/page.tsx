@@ -6,7 +6,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { ADMIN_EMAIL, isAdminEmail } from "@/lib/admin";
-import { IconCheck, IconRun, IconSprout } from "@/components/icons";
+import { IconCheck, IconRun } from "@/components/icons";
 import { CHALLENGE_END_DATE, CHALLENGE_START_DATE, clampToChallengeWindow } from "@/lib/challenge";
 import { addDays, parseDurationToSeconds, secondsToPace, secondsToTime, toIsoDate } from "@/lib/run-records";
 
@@ -228,7 +228,6 @@ export default function AdminPage() {
 
   const todayRecords = useMemo(() => records.filter((record) => record.record_date === today), [records]);
   const certifiedToday = useMemo(() => todayRecords.filter((record) => record.status === "certified").length, [todayRecords]);
-  const needsReview = useMemo(() => records.filter((record) => record.status === "needs_review").length, [records]);
   const totalDistance = useMemo(() => todayRecords.reduce((sum, record) => sum + (record.distance_km || 0), 0), [todayRecords]);
   const totalTime = useMemo(() => todayRecords.reduce((sum, record) => sum + (record.duration_seconds || 0), 0), [todayRecords]);
 
@@ -584,7 +583,7 @@ export default function AdminPage() {
             </div>
             <div>
               <h1 className="text-base sm:text-lg font-black tracking-tight leading-none">스내사 3기 관리자</h1>
-              <p className="text-[11px] text-white/55 mt-1">참가자 등록 · 기록 입력 · OCR 검수</p>
+              <p className="text-[11px] text-white/55 mt-1">참가자 · 기록 운영</p>
             </div>
           </div>
           <div className="flex items-center gap-2.5">
@@ -607,7 +606,7 @@ export default function AdminPage() {
             <div>
               <p className="mb-2 inline-flex rounded-full bg-white/10 px-3 py-1 text-[11px] font-black text-lime-200 ring-1 ring-white/10">SNASA RUNNING CLUB · 3RD</p>
               <h2 className="text-3xl sm:text-4xl font-black tracking-[-0.04em]">스내사 3기 대시보드</h2>
-              <p className="mt-2 max-w-2xl text-sm text-white/60">이미지를 넣으면 인증 상태, 거리, 시간이 즉시 갱신됩니다. 날짜/시간 누락분은 검수 테이블에서 바로 보정하세요.</p>
+              <p className="mt-2 max-w-2xl text-sm text-white/60">날짜를 누르거나 이미지를 한꺼번에 넣으면 참가자와 기록을 자동으로 정리합니다.</p>
             </div>
             <div className="grid grid-cols-2 gap-2 text-right sm:grid-cols-3">
               <div className="rounded-2xl bg-white/10 px-4 py-3 ring-1 ring-white/10">
@@ -624,6 +623,27 @@ export default function AdminPage() {
               </div>
             </div>
           </div>
+          <div className="relative mt-4 grid gap-2 sm:grid-cols-3">
+            <button type="button" onClick={() => openUploadForDate(effectiveToday)} className="rounded-2xl bg-lime-300 px-4 py-3 text-left text-sm font-black text-slate-950">
+              이미지 등록
+              <span className="mt-1 block text-[11px] font-bold opacity-65">여러 장 한 번에 업로드</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                resetParticipantForm();
+                setAdminModal("participant");
+              }}
+              className="rounded-2xl bg-white/10 px-4 py-3 text-left text-sm font-black text-white ring-1 ring-white/10"
+            >
+              참가자 관리
+              <span className="mt-1 block text-[11px] font-bold text-white/50">추가 · 변경 · 삭제</span>
+            </button>
+            <button type="button" onClick={() => setAdminModal("record")} className="rounded-2xl bg-white/10 px-4 py-3 text-left text-sm font-black text-white ring-1 ring-white/10">
+              수동 입력
+              <span className="mt-1 block text-[11px] font-bold text-white/50">OCR이 어려울 때만</span>
+            </button>
+          </div>
         </section>
 
         {setupMessage && (
@@ -635,94 +655,22 @@ export default function AdminPage() {
           </section>
         )}
 
-        <section className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+        <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <SummaryCard title="전체 참가자" value={`${participants.length}명`} />
           <SummaryCard title="오늘 인증" value={`${certifiedToday}/${participants.length}`} />
-          <SummaryCard title="검수 대기" value={`${needsReview}건`} tone="amber" />
           <SummaryCard title="오늘 거리" value={`${totalDistance.toFixed(1)}km`} />
           <SummaryCard title="오늘 시간" value={secondsToTime(totalTime)} />
-        </section>
-
-        <section className="grid gap-5 lg:grid-cols-[1fr_1.1fr]">
-          <div className="card p-4">
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <div>
-                <h2 className="text-lg font-black text-oriwan-text">관리 작업</h2>
-                <p className="mt-1 text-xs text-oriwan-text-muted">참가자와 기록은 모달에서 추가, 수정, 삭제합니다.</p>
-              </div>
-              <IconSprout size={22} className="text-oriwan-primary" />
-            </div>
-            <div className="grid gap-2 sm:grid-cols-2">
-              <button
-                type="button"
-                onClick={() => {
-                  resetParticipantForm();
-                  setAdminModal("participant");
-                }}
-                className="rounded-2xl bg-slate-950 px-4 py-4 text-left text-sm font-black text-lime-200"
-              >
-                참가자 관리
-              </button>
-              <button
-                type="button"
-                onClick={() => setAdminModal("record")}
-                className="rounded-2xl bg-lime-300 px-4 py-4 text-left text-sm font-black text-slate-950"
-              >
-                기록 수동 입력
-              </button>
-            </div>
-            <div className="mt-4 rounded-3xl bg-oriwan-surface-light p-4">
-              <p className="text-xs font-black text-oriwan-text">등록된 참가자</p>
-              <div className="mt-3 flex flex-wrap gap-1.5">
-                {participants.map((participant) => (
-                  <button
-                    key={participant.id}
-                    type="button"
-                    onClick={() => {
-                      startEditParticipant(participant);
-                      setAdminModal("participant");
-                    }}
-                    className="rounded-full bg-white px-3 py-1.5 text-xs font-bold text-oriwan-text shadow-sm"
-                  >
-                    {participant.name}{participant.nickname ? ` · ${participant.nickname}` : ""}
-                  </button>
-                ))}
-                {!participants.length && <p className="text-xs text-oriwan-text-muted">참가자를 추가하면 여기에 표시됩니다.</p>}
-              </div>
-            </div>
-          </div>
-
-          <div className="card p-4 space-y-3">
-            <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-              <div>
-                <h2 className="text-lg font-black text-oriwan-text">날짜별 이미지 등록</h2>
-                <p className="mt-1 text-xs leading-5 text-oriwan-text-muted">아래 인증 시계열에서 날짜를 누르면 업로드가 열립니다. 여러 장을 한 번에 넣으면 사람과 날짜를 자동 추출해요.</p>
-              </div>
-              <button type="button" onClick={() => openUploadForDate(initialRecordDate)} className="rounded-2xl bg-slate-950 px-4 py-3 text-sm font-black text-lime-200">
-                이미지 한꺼번에 등록
-              </button>
-            </div>
-            <div className="grid gap-2 sm:grid-cols-3">
-              <button type="button" onClick={() => openUploadForDate(CHALLENGE_START_DATE)} className="rounded-2xl bg-oriwan-surface-light px-4 py-3 text-left text-xs font-black text-oriwan-text">
-                시작일<br /><span className="text-oriwan-text-muted">{CHALLENGE_START_DATE}</span>
-              </button>
-              <button type="button" onClick={() => openUploadForDate(effectiveToday)} className="rounded-2xl bg-lime-100 px-4 py-3 text-left text-xs font-black text-lime-950">
-                오늘<br /><span className="text-lime-800">{effectiveToday}</span>
-              </button>
-              <button type="button" onClick={() => setAdminModal("record")} className="rounded-2xl bg-orange-50 px-4 py-3 text-left text-xs font-black text-orange-950">
-                OCR 실패 시<br /><span className="text-orange-800">수동 입력</span>
-              </button>
-            </div>
-          </div>
         </section>
 
         <section className="card p-4 overflow-hidden">
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h2 className="text-lg font-black text-oriwan-text">인증 시계열</h2>
-                <p className="text-xs text-oriwan-text-muted mt-1">날짜를 누르면 해당 날짜 이미지 업로드가 열립니다.</p>
+                <p className="text-xs text-oriwan-text-muted mt-1">날짜 또는 빈 칸을 눌러 이미지를 등록합니다.</p>
               </div>
-              <IconSprout size={22} className="text-oriwan-primary" />
+              <button type="button" onClick={() => openUploadForDate(effectiveToday)} className="rounded-xl bg-slate-950 px-3 py-2 text-xs font-black text-lime-200">
+                이미지 등록
+              </button>
             </div>
             <div className="overflow-x-auto">
               <div className="min-w-[720px] space-y-2">
@@ -815,14 +763,14 @@ export default function AdminPage() {
           </div>
         </section>
 
-        <section className="card p-4 overflow-hidden">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="text-lg font-black text-oriwan-text">기록 검수</h2>
-              <p className="text-xs text-oriwan-text-muted mt-1">이미지에서 시간이 없거나 날짜가 없으면 여기서 직접 수정해 인증 처리합니다.</p>
-            </div>
-            <button onClick={() => loadData()} className="rounded-xl bg-oriwan-surface-light px-3 py-2 text-xs font-bold text-oriwan-text-muted">새로고침</button>
-          </div>
+        <details className="card overflow-hidden p-4">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
+            <span>
+              <span className="block text-lg font-black text-oriwan-text">기록 수정</span>
+              <span className="mt-1 block text-xs text-oriwan-text-muted">필요할 때만 열어서 상태, 날짜, 거리, 시간을 보정합니다.</span>
+            </span>
+            <button type="button" onClick={(event) => { event.preventDefault(); loadData(); }} className="rounded-xl bg-oriwan-surface-light px-3 py-2 text-xs font-bold text-oriwan-text-muted">새로고침</button>
+          </summary>
           <div className="overflow-x-auto">
             <table className="min-w-[1040px] w-full text-left text-xs">
               <thead className="text-oriwan-text-muted">
@@ -872,7 +820,7 @@ export default function AdminPage() {
             </table>
             {!records.length && !loading && <p className="py-10 text-center text-sm text-oriwan-text-muted">아직 기록이 없습니다. 이미지를 업로드하거나 수동으로 입력해주세요.</p>}
           </div>
-        </section>
+        </details>
 
         {adminModal === "upload" && (
           <div className="fixed inset-0 z-[80] flex items-end bg-slate-950/45 px-4 py-4 backdrop-blur-sm sm:items-center sm:justify-center">
@@ -881,9 +829,7 @@ export default function AdminPage() {
                 <div>
                   <p className="text-[11px] font-black uppercase tracking-[0.12em] text-oriwan-primary">Bulk OCR Upload</p>
                   <h2 className="mt-1 text-xl font-black tracking-[-0.04em] text-oriwan-text">{targetDate} 이미지 등록</h2>
-                  <p className="mt-1 text-xs leading-5 text-oriwan-text-muted">
-                    여러 사람, 여러 날짜 이미지도 한 번에 올릴 수 있어요. 이미지 안에 날짜가 있으면 그 날짜를 우선 쓰고, 없으면 선택한 날짜로 임시 등록됩니다.
-                  </p>
+                  <p className="mt-1 text-xs leading-5 text-oriwan-text-muted">여러 장을 한 번에 올리면 사람, 날짜, 거리, 시간을 자동 추출합니다.</p>
                 </div>
                 <button
                   type="button"
@@ -929,20 +875,9 @@ export default function AdminPage() {
                 </p>
               )}
 
-              <div className="mt-4 grid gap-2 sm:grid-cols-3">
-                <div className="rounded-2xl bg-oriwan-surface-light p-3">
-                  <p className="text-[11px] font-black text-oriwan-text">사람 구분</p>
-                  <p className="mt-1 text-[11px] leading-4 text-oriwan-text-muted">이미지 속 이름/닉네임과 참가자명을 자동 매칭합니다.</p>
-                </div>
-                <div className="rounded-2xl bg-oriwan-surface-light p-3">
-                  <p className="text-[11px] font-black text-oriwan-text">날짜 구분</p>
-                  <p className="mt-1 text-[11px] leading-4 text-oriwan-text-muted">이미지 날짜가 있으면 선택일보다 우선 적용합니다.</p>
-                </div>
-                <div className="rounded-2xl bg-oriwan-surface-light p-3">
-                  <p className="text-[11px] font-black text-oriwan-text">검수 대기</p>
-                  <p className="mt-1 text-[11px] leading-4 text-oriwan-text-muted">이름/시간/날짜가 불확실하면 기록 검수에 남깁니다.</p>
-                </div>
-              </div>
+              <p className="mt-4 rounded-2xl bg-oriwan-surface-light px-4 py-3 text-[11px] font-bold leading-5 text-oriwan-text-muted">
+                이미지 속 날짜가 있으면 그 날짜를 우선 사용하고, 없으면 선택한 날짜로 저장합니다.
+              </p>
             </div>
           </div>
         )}
@@ -1040,9 +975,9 @@ export default function AdminPage() {
   );
 }
 
-function SummaryCard({ title, value, tone = "blue" }: { title: string; value: string; tone?: "blue" | "amber" }) {
+function SummaryCard({ title, value }: { title: string; value: string }) {
   return (
-    <div className={`card p-4 ${tone === "amber" ? "bg-orange-50/80" : ""}`}>
+    <div className="card p-4">
       <p className="text-[11px] font-black uppercase tracking-[0.12em] text-oriwan-text-muted">{title}</p>
       <p className="text-2xl font-black text-oriwan-text tracking-[-0.04em]">{value}</p>
     </div>
