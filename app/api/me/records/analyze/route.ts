@@ -2,6 +2,7 @@ import { GoogleGenAI } from "@google/genai";
 import { NextRequest, NextResponse } from "next/server";
 import { findAdminUserId, findParticipantByRunnerName, getServiceClient } from "@/lib/admin-data";
 import { CHALLENGE_DATE_ERROR, CHALLENGE_START_DATE, isWithinChallengeWindow } from "@/lib/challenge";
+import { GEMINI_OCR_MODEL, getGeminiErrorMessage } from "@/lib/gemini";
 import {
   ExtractedRunBase,
   UploadedImage,
@@ -50,7 +51,7 @@ async function analyzeImage(image: UploadedImage) {
 }`;
 
   const response = await ai.models.generateContent({
-    model: "gemini-2.0-flash",
+    model: GEMINI_OCR_MODEL,
     contents: [
       {
         role: "user",
@@ -114,8 +115,8 @@ export async function POST(request: NextRequest) {
       let extracted: ExtractedRun;
       try {
         extracted = await analyzeImage(image);
-      } catch {
-        failed.push({ file_name: image.name, error: "이미지 텍스트를 읽지 못했어요. 화면이 선명한지 확인해주세요." });
+      } catch (error) {
+        failed.push({ file_name: image.name, error: getGeminiErrorMessage(error) });
         continue;
       }
 

@@ -3,6 +3,7 @@ import { createClient as createSupabaseAdmin } from "@supabase/supabase-js";
 import { GoogleGenAI } from "@google/genai";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdminUser } from "@/lib/admin-server";
+import { GEMINI_OCR_MODEL, getGeminiErrorMessage } from "@/lib/gemini";
 import { calculatePaceSeconds } from "@/lib/run-records";
 import { CHALLENGE_DATE_ERROR, CHALLENGE_START_DATE, isWithinChallengeWindow } from "@/lib/challenge";
 import {
@@ -79,7 +80,7 @@ ${knownNames.length ? knownNames.join(", ") : "없음"}
 }`;
 
   const response = await ai.models.generateContent({
-    model: "gemini-2.0-flash",
+    model: GEMINI_OCR_MODEL,
     contents: [
       {
         role: "user",
@@ -216,7 +217,7 @@ export async function POST(request: NextRequest) {
           duration_seconds: null,
           status: "needs_review",
           confidence_score: null,
-          notes: error instanceof Error ? error.message : "이미지 분석 실패",
+          notes: getGeminiErrorMessage(error),
         });
         continue;
       }
