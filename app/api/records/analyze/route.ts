@@ -3,7 +3,7 @@ import { createClient as createSupabaseAdmin } from "@supabase/supabase-js";
 import { GoogleGenAI } from "@google/genai";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdminUser } from "@/lib/admin-server";
-import { GEMINI_OCR_MODEL, getGeminiErrorMessage } from "@/lib/gemini";
+import { GEMINI_OCR_MODEL, RUN_IMAGE_RESPONSE_SCHEMA, buildRunImagePrompt, getGeminiErrorDebug, getGeminiErrorMessage } from "@/lib/gemini";
 import { calculatePaceSeconds } from "@/lib/run-records";
 import { CHALLENGE_DATE_ERROR, CHALLENGE_START_DATE, isWithinChallengeWindow } from "@/lib/challenge";
 import {
@@ -44,40 +44,23 @@ function decideStatus(input: {
   distanceKm?: number | null;
   durationSeconds?: number | null;
   dateWasFallback: boolean;
+  allowFallbackDate: boolean;
 }) {
   if (!input.participantId || !input.recordDate || !input.distanceKm || !input.durationSeconds) return "needs_review";
-  if (input.dateWasFallback) return "needs_review";
+  if (input.dateWasFallback && !input.allowFallbackDate) return "needs_review";
   return "certified";
 }
 
-async function analyzeImage(image: UploadedImage, knownNames: string[]) {
+async function analyzeImage(image: UploadedImage, knownNames: string[], targetDate?: string | null) {
   if (!process.env.GEMINI_API_KEY) throw new Error("Missing GEMINI_API_KEY");
   const { mimeType, base64 } = parseDataUrl(image.dataUrl);
   const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-  const prompt = `러닝 인증 이미지에서 배경/사진/앱 장식은 무시하고 텍스트와 숫자만 읽어 JSON으로 추출하세요.
-
-이미지에 보이는 텍스트만 근거로 판단하세요. 날짜가 "5월 5일"처럼 연도 없이 보이면 ${CHALLENGE_START_DATE.slice(0, 4)}년으로 보정해 record_date를 YYYY-MM-DD로 넣으세요.
-날짜가 전혀 보이지 않으면 record_date는 null, 시간이 보이지 않으면 duration_seconds는 null로 두세요.
-거리 단위가 km가 아니면 km로 환산하세요. 시간은 전체 러닝 시간을 의미하며 페이스가 아닙니다.
-참가자 이름은 아래 등록된 이름 중 이미지에서 보이는 값과 가장 가까운 것을 넣고, 확실하지 않으면 null로 두세요.
-파일명은 근거로 사용하지 말고 이미지 안의 텍스트만 사용하세요.
-
-등록된 참가자:
-${knownNames.length ? knownNames.join(", ") : "없음"}
-
-반드시 아래 JSON 형식만 반환하세요.
-{
-  "participant_name": string | null,
-  "record_date": "YYYY-MM-DD" | null,
-  "distance_km": number | null,
-  "duration_text": string | null,
-  "duration_seconds": number | null,
-  "pace_text": string | null,
-  "source_app": string | null,
-  "raw_text": string,
-  "confidence_score": number,
-  "notes": string | null
-}`;
+  const prompt = buildRunImagePrompt({
+    challengeYear: CHALLENGE_START_DATE.slice(0, 4),
+    targetDate,
+    knownNames,
+    includeParticipantName: true,
+  });
 
   const response = await ai.models.generateContent({
     model: GEMINI_OCR_MODEL,
@@ -92,6 +75,7 @@ ${knownNames.length ? knownNames.join(", ") : "없음"}
     ],
     config: {
       responseMimeType: "application/json",
+      responseSchema: RUN_IMAGE_RESPONSE_SCHEMA,
       temperature: 0.1,
     },
   });
@@ -203,9 +187,14 @@ export async function POST(request: NextRequest) {
       let analyzed: Awaited<ReturnType<typeof analyzeImage>>;
       let extracted: ExtractedRun;
       try {
-        analyzed = await analyzeImage(image, knownNames);
+        analyzed = await analyzeImage(image, knownNames, targetDate);
         extracted = analyzed.extracted;
       } catch (error) {
+        console.warn("Admin OCR image analysis failed", {
+          model: GEMINI_OCR_MODEL,
+          file: image.name,
+          error: getGeminiErrorDebug(error),
+        });
         needsReviewCount += 1;
         results.push({
           id: null,
@@ -239,6 +228,7 @@ export async function POST(request: NextRequest) {
         distanceKm,
         durationSeconds,
         dateWasFallback,
+        allowFallbackDate: Boolean(targetDate),
       });
 
       if (status === "needs_review") needsReviewCount += 1;

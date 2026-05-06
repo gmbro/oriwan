@@ -1,4 +1,74 @@
+import { Type } from "@google/genai";
+
 export const GEMINI_OCR_MODEL = process.env.GEMINI_OCR_MODEL || "gemini-2.5-flash";
+
+export const RUN_IMAGE_RESPONSE_SCHEMA = {
+  type: Type.OBJECT,
+  properties: {
+    participant_name: { type: Type.STRING, nullable: true },
+    record_date: { type: Type.STRING, nullable: true, description: "YYYY-MM-DD format" },
+    distance_km: { type: Type.NUMBER, nullable: true },
+    duration_text: { type: Type.STRING, nullable: true },
+    duration_seconds: { type: Type.INTEGER, nullable: true },
+    pace_text: { type: Type.STRING, nullable: true },
+    source_app: { type: Type.STRING, nullable: true },
+    raw_text: { type: Type.STRING },
+    confidence_score: { type: Type.NUMBER },
+    notes: { type: Type.STRING, nullable: true },
+  },
+  required: [
+    "record_date",
+    "distance_km",
+    "duration_text",
+    "duration_seconds",
+    "pace_text",
+    "source_app",
+    "raw_text",
+    "confidence_score",
+    "notes",
+  ],
+  propertyOrdering: [
+    "participant_name",
+    "record_date",
+    "distance_km",
+    "duration_text",
+    "duration_seconds",
+    "pace_text",
+    "source_app",
+    "raw_text",
+    "confidence_score",
+    "notes",
+  ],
+} as const;
+
+export function buildRunImagePrompt(input: {
+  challengeYear: string;
+  targetDate?: string | null;
+  knownNames?: string[];
+  includeParticipantName?: boolean;
+}) {
+  const knownNames = input.knownNames?.filter(Boolean) || [];
+  const targetDateGuide = input.targetDate
+    ? `선택된 기준 날짜는 ${input.targetDate}입니다. 이미지에 "오늘", "어제", "수요일"처럼 상대 날짜만 보이거나 날짜가 전혀 없으면 record_date에 이 기준 날짜를 사용하세요.`
+    : "선택된 기준 날짜가 없습니다. 이미지에 날짜가 전혀 없으면 record_date는 null로 두세요.";
+  const participantGuide = input.includeParticipantName
+    ? `참가자 이름은 아래 등록된 이름 중 이미지에서 보이는 값과 가장 가까운 것을 participant_name에 넣고, 확실하지 않으면 null로 두세요.\n등록된 참가자: ${knownNames.length ? knownNames.join(", ") : "없음"}`
+    : "참가자 이름은 추출하지 않아도 됩니다. participant_name은 null로 두세요.";
+
+  return `러닝 기록 스크린샷에서 배경/사진/앱 장식은 무시하고 텍스트와 숫자만 읽어 JSON으로 추출하세요.
+
+이미지에 보이는 텍스트와 사용자가 선택한 기준 날짜만 근거로 판단하세요.
+${targetDateGuide}
+연도 없이 "5월 5일"처럼 보이면 ${input.challengeYear}년으로 보정해 record_date를 YYYY-MM-DD로 넣으세요.
+거리 단위가 km가 아니면 km로 환산하세요. 예: "8.50 킬로미터"는 distance_km 8.5입니다.
+시간은 전체 러닝 시간, 운동 시간, 총 시간을 의미합니다. 예: "1:00:21 시간"은 duration_text "1:00:21", duration_seconds 3621입니다.
+평균 페이스는 duration으로 쓰지 마세요. 예: "7'06'' 평균 페이스"는 pace_text로만 넣으세요.
+칼로리, 고도 상승, 심박수, 케이던스는 거리나 시간으로 쓰지 마세요.
+${participantGuide}
+
+앱 이름은 화면에서 추론할 수 있으면 source_app에 넣으세요. 예: Nike Run Club, Garmin, Strava, Apple Fitness.
+반드시 스키마에 맞는 JSON 객체만 반환하세요.`;
+}
 
 export function getGeminiErrorMessage(error: unknown) {
   const message = error instanceof Error ? error.message : String(error || "");
@@ -9,4 +79,9 @@ export function getGeminiErrorMessage(error: unknown) {
     return "OCR 서버 키가 설정되지 않았어요. 관리자에게 환경변수 확인을 요청해주세요.";
   }
   return "이미지 텍스트를 읽지 못했어요. 화면이 선명한지 확인해주세요.";
+}
+
+export function getGeminiErrorDebug(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error || "Unknown OCR error");
+  return message.replace(/\s+/g, " ").slice(0, 500);
 }

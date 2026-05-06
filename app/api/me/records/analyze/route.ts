@@ -2,7 +2,7 @@ import { GoogleGenAI } from "@google/genai";
 import { NextRequest, NextResponse } from "next/server";
 import { findAdminUserId, findParticipantByRunnerName, getServiceClient } from "@/lib/admin-data";
 import { CHALLENGE_DATE_ERROR, CHALLENGE_START_DATE, isWithinChallengeWindow } from "@/lib/challenge";
-import { GEMINI_OCR_MODEL, getGeminiErrorMessage } from "@/lib/gemini";
+import { GEMINI_OCR_MODEL, RUN_IMAGE_RESPONSE_SCHEMA, buildRunImagePrompt, getGeminiErrorDebug, getGeminiErrorMessage } from "@/lib/gemini";
 import {
   ExtractedRunBase,
   UploadedImage,
@@ -26,29 +26,15 @@ type AnalyzeFailure = {
   extracted?: ExtractedRun;
 };
 
-async function analyzeImage(image: UploadedImage) {
+async function analyzeImage(image: UploadedImage, targetDate?: string | null) {
   if (!process.env.GEMINI_API_KEY) throw new Error("Missing GEMINI_API_KEY");
 
   const { mimeType, base64 } = parseDataUrl(image.dataUrl);
   const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-  const prompt = `NRC, Garmin, Strava, Apple Fitness 또는 러닝 기록 스크린샷에서 배경/사진/앱 장식은 무시하고 텍스트와 숫자만 읽어 JSON으로 추출하세요.
-
-이미지에 보이는 텍스트만 근거로 판단하세요. 날짜가 "5월 5일"처럼 연도 없이 보이면 ${CHALLENGE_START_DATE.slice(0, 4)}년으로 보정해 record_date를 YYYY-MM-DD로 넣으세요.
-날짜가 전혀 보이지 않으면 record_date는 null, 시간이 보이지 않으면 duration_seconds는 null로 두세요.
-거리 단위가 km가 아니면 km로 환산하세요. 시간은 전체 러닝 시간을 의미하며 페이스가 아닙니다.
-
-반드시 아래 JSON 형식만 반환하세요.
-{
-  "record_date": "YYYY-MM-DD" | null,
-  "distance_km": number | null,
-  "duration_text": string | null,
-  "duration_seconds": number | null,
-  "pace_text": string | null,
-  "source_app": string | null,
-  "raw_text": string,
-  "confidence_score": number,
-  "notes": string | null
-}`;
+  const prompt = buildRunImagePrompt({
+    challengeYear: CHALLENGE_START_DATE.slice(0, 4),
+    targetDate,
+  });
 
   const response = await ai.models.generateContent({
     model: GEMINI_OCR_MODEL,
@@ -63,6 +49,7 @@ async function analyzeImage(image: UploadedImage) {
     ],
     config: {
       responseMimeType: "application/json",
+      responseSchema: RUN_IMAGE_RESPONSE_SCHEMA,
       temperature: 0.1,
     },
   });
@@ -114,8 +101,13 @@ export async function POST(request: NextRequest) {
     for (const image of images) {
       let extracted: ExtractedRun;
       try {
-        extracted = await analyzeImage(image);
+        extracted = await analyzeImage(image, targetDate);
       } catch (error) {
+        console.warn("Personal OCR image analysis failed", {
+          model: GEMINI_OCR_MODEL,
+          file: image.name,
+          error: getGeminiErrorDebug(error),
+        });
         failed.push({ file_name: image.name, error: getGeminiErrorMessage(error) });
         continue;
       }
