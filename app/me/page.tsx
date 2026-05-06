@@ -250,7 +250,7 @@ export default function MyPage() {
   }
 
   return (
-    <main className="min-h-screen bg-oriwan-bg">
+    <main className="min-h-screen overflow-x-hidden bg-oriwan-bg">
       <header className="sticky top-0 z-50 border-b border-slate-950/10 bg-[#101522]/95 px-4 py-3 text-white backdrop-blur-2xl">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
@@ -260,27 +260,27 @@ export default function MyPage() {
               <p className="truncate text-[11px] font-semibold text-white/50">{data.user.email}</p>
             </div>
           </div>
-          <button onClick={handleLogout} className="rounded-full bg-white/10 px-3 py-2 text-xs font-black text-white/70 ring-1 ring-white/10 hover:text-white">로그아웃</button>
+          <button onClick={handleLogout} className="shrink-0 rounded-full bg-white/10 px-3 py-2 text-xs font-black text-white/70 ring-1 ring-white/10 hover:text-white">로그아웃</button>
         </div>
       </header>
 
-      <section className="mx-auto max-w-5xl px-4 py-4 sm:py-6">
+      <section className="mx-auto w-full max-w-5xl overflow-hidden px-3 py-4 sm:px-4 sm:py-6">
         {message && <p className="rounded-3xl bg-white px-5 py-4 text-sm font-bold text-oriwan-text-muted ring-1 ring-slate-950/5">{message}</p>}
 
-        <section className="mt-4 grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
-          <div className="card p-4 sm:p-5">
-            <div className="flex items-start justify-between gap-3">
-              <div>
+        <section className="mt-4 grid min-w-0 gap-4 lg:grid-cols-[0.9fr_1.1fr]">
+          <div className="card min-w-0 overflow-hidden p-4 sm:p-5">
+            <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
                 <h3 className="text-lg font-black text-oriwan-text">이름 등록</h3>
                 <p className="mt-1 text-xs leading-5 text-oriwan-text-muted">운영자가 어드민에 등록한 이름과 띄어쓰기까지 똑같이 입력해주세요.</p>
               </div>
-              <span className={`shrink-0 rounded-full px-3 py-1 text-[10px] font-black ${data.matched_participant ? "bg-lime-200 text-slate-950" : "bg-amber-100 text-amber-800"}`}>
+              <span className={`w-fit shrink-0 rounded-full px-3 py-1 text-[10px] font-black ${data.matched_participant ? "bg-lime-200 text-slate-950" : "bg-amber-100 text-amber-800"}`}>
                 {data.matched_participant ? "연결 완료" : "이름 확인 필요"}
               </span>
             </div>
-            <div className="mt-4 flex gap-2">
-              <input value={name} onChange={(event) => setName(event.target.value)} placeholder="예: 어드민 등록 이름 그대로" className="min-w-0 flex-1 rounded-2xl border border-oriwan-border bg-white px-4 py-3 text-sm font-bold outline-none focus:border-oriwan-primary" />
-              <button onClick={saveName} disabled={savingName} className="rounded-2xl bg-slate-950 px-4 py-3 text-sm font-black text-lime-200 disabled:opacity-50">저장</button>
+            <div className="mt-4 grid min-w-0 gap-2 sm:grid-cols-[1fr_auto]">
+              <input value={name} onChange={(event) => setName(event.target.value)} placeholder="예: 어드민 등록 이름 그대로" className="w-full min-w-0 rounded-2xl border border-oriwan-border bg-white px-4 py-3 text-sm font-bold outline-none focus:border-oriwan-primary" />
+              <button onClick={saveName} disabled={savingName} className="w-full rounded-2xl bg-slate-950 px-5 py-3 text-sm font-black text-lime-200 disabled:opacity-50 sm:w-auto">저장</button>
             </div>
             {!data.matched_participant && (
               <p className="mt-3 rounded-2xl bg-amber-50 px-3 py-2 text-[11px] font-bold leading-5 text-amber-800 ring-1 ring-amber-100">
@@ -289,21 +289,21 @@ export default function MyPage() {
             )}
           </div>
 
-          <div className="card p-4 sm:p-5">
+          <div className="card min-w-0 overflow-hidden p-4 sm:p-5">
             <h3 className="text-lg font-black text-oriwan-text">기록 입력</h3>
             <p className="mt-1 text-xs text-oriwan-text-muted">{CHALLENGE_START_DATE}부터 {CHALLENGE_END_DATE}까지 인증 기록만 입력할 수 있습니다.</p>
-            <div className="mt-4 grid gap-2 sm:grid-cols-3">
-              <input type="date" min={CHALLENGE_START_DATE} max={CHALLENGE_END_DATE} value={recordDate} onChange={(event) => setRecordDate(event.target.value)} className="rounded-2xl border border-oriwan-border bg-white px-3 py-3 text-sm" />
-              <input value={distance} onChange={(event) => setDistance(event.target.value)} inputMode="decimal" placeholder="거리 km" className="rounded-2xl border border-oriwan-border bg-white px-3 py-3 text-sm" />
-              <input value={duration} onChange={(event) => setDuration(event.target.value)} placeholder="시간 32:10" className="rounded-2xl border border-oriwan-border bg-white px-3 py-3 text-sm" />
+            <div className="mt-4 grid min-w-0 gap-2 sm:grid-cols-3">
+              <input type="date" min={CHALLENGE_START_DATE} max={CHALLENGE_END_DATE} value={recordDate} onChange={(event) => setRecordDate(event.target.value)} className="w-full min-w-0 rounded-2xl border border-oriwan-border bg-white px-3 py-3 text-sm" />
+              <input value={distance} onChange={(event) => setDistance(event.target.value)} inputMode="decimal" placeholder="거리 km" className="w-full min-w-0 rounded-2xl border border-oriwan-border bg-white px-3 py-3 text-sm" />
+              <input value={duration} onChange={(event) => setDuration(event.target.value)} placeholder="시간 32:10" className="w-full min-w-0 rounded-2xl border border-oriwan-border bg-white px-3 py-3 text-sm" />
             </div>
             <button onClick={saveRecord} disabled={savingRecord || !data.matched_participant} className="btn-primary mt-3 w-full py-3 text-sm disabled:opacity-40">
               {savingRecord ? "저장 중..." : data.matched_participant ? "내 기록 저장" : "이름 연결 후 저장 가능"}
             </button>
 
-            <div className="mt-5 rounded-[26px] bg-oriwan-surface-light p-4 ring-1 ring-slate-950/5">
+            <div className="mt-5 min-w-0 rounded-[26px] bg-oriwan-surface-light p-4 ring-1 ring-slate-950/5">
               <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
+                <div className="min-w-0">
                   <h4 className="text-sm font-black text-oriwan-text">러닝 앱 이미지로 등록</h4>
                   <p className="mt-1 text-xs leading-5 text-oriwan-text-muted">
                     NRC, Garmin, Strava 등 스크린샷 여러 장에서 날짜, 거리, 시간을 자동 추출합니다.
@@ -367,26 +367,26 @@ export default function MyPage() {
         </section>
 
         {(imageResults.length > 0 || imageFailures.length > 0) && (
-          <section className="mt-4 card p-4 sm:p-5">
-            <div className="flex items-center justify-between gap-3">
-              <div>
+          <section className="mt-4 card min-w-0 overflow-hidden p-4 sm:p-5">
+            <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
                 <h3 className="text-lg font-black text-oriwan-text">이미지 등록 결과</h3>
                 <p className="mt-1 text-xs text-oriwan-text-muted">저장된 기록은 아래 내 인증 기록과 전체 대시보드에 바로 반영됩니다.</p>
               </div>
-              <span className="rounded-full bg-lime-200 px-3 py-1 text-[10px] font-black text-slate-950">{imageResults.length}개 저장</span>
+              <span className="w-fit shrink-0 rounded-full bg-lime-200 px-3 py-1 text-[10px] font-black text-slate-950">{imageResults.length}개 저장</span>
             </div>
             <div className="mt-4 space-y-2">
               {imageResults.map((result) => (
-                <div key={result.id} className="rounded-3xl bg-white p-3 ring-1 ring-slate-950/5">
+                <div key={result.id} className="min-w-0 rounded-3xl bg-white p-3 ring-1 ring-slate-950/5">
                   <p className="truncate text-sm font-black text-oriwan-text">{result.record_date || "날짜 없음"} · {(result.distance_km || 0).toFixed(2)}km</p>
-                  <p className="mt-1 text-[11px] text-oriwan-text-muted">
+                  <p className="mt-1 truncate text-[11px] text-oriwan-text-muted">
                     {secondsToTime(result.duration_seconds)} · {secondsToPace(result.pace_seconds_per_km)} · {result.source_app || "러닝 앱 이미지"}
                     {result.date_was_fallback ? " · 선택일 적용" : ""}
                   </p>
                 </div>
               ))}
               {imageFailures.map((failure, index) => (
-                <div key={`${failure.file_name}-${index}`} className="rounded-3xl bg-rose-50 p-3 ring-1 ring-rose-100">
+                <div key={`${failure.file_name}-${index}`} className="min-w-0 rounded-3xl bg-rose-50 p-3 ring-1 ring-rose-100">
                   <p className="truncate text-sm font-black text-rose-700">{failure.file_name || "이미지"} 확인 필요</p>
                   <p className="mt-1 text-[11px] font-bold leading-5 text-rose-700/70">{failure.error}</p>
                 </div>
@@ -395,21 +395,21 @@ export default function MyPage() {
           </section>
         )}
 
-        <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="mt-4 grid min-w-0 grid-cols-2 gap-3 lg:grid-cols-4">
           <Metric title="오늘 거리" value={`${stats.todayDistance.toFixed(1)}km`} />
           <Metric title="오늘 시간" value={secondsToTime(stats.todayTime)} />
           <Metric title="누적 거리" value={`${stats.totalDistance.toFixed(1)}km`} />
           <Metric title="누적 시간" value={secondsToTime(stats.totalTime)} />
         </div>
 
-        <section className="mt-4 card p-4 sm:p-5">
+        <section className="mt-4 card min-w-0 overflow-hidden p-4 sm:p-5">
           <h3 className="text-lg font-black text-oriwan-text">내 인증 기록</h3>
           <div className="mt-4 space-y-2">
             {stats.records.map((record) => (
-              <div key={record.id} className="grid grid-cols-[1fr_auto] items-center gap-3 rounded-3xl bg-oriwan-surface-light p-3">
-                <div>
+              <div key={record.id} className="grid min-w-0 grid-cols-[1fr_auto] items-center gap-3 rounded-3xl bg-oriwan-surface-light p-3">
+                <div className="min-w-0">
                   <p className="text-sm font-black text-oriwan-text">{record.record_date || "날짜 없음"}</p>
-                  <p className="text-[11px] text-oriwan-text-muted">{(record.distance_km || 0).toFixed(1)}km · {secondsToTime(record.duration_seconds)} · {secondsToPace(record.pace_seconds_per_km)}</p>
+                  <p className="truncate text-[11px] text-oriwan-text-muted">{(record.distance_km || 0).toFixed(1)}km · {secondsToTime(record.duration_seconds)} · {secondsToPace(record.pace_seconds_per_km)}</p>
                 </div>
                 <span className="rounded-full bg-lime-300 px-3 py-1 text-[10px] font-black text-slate-950">인증</span>
               </div>
@@ -424,9 +424,9 @@ export default function MyPage() {
 
 function Metric({ title, value }: { title: string; value: string }) {
   return (
-    <div className="card p-4">
+    <div className="card min-w-0 p-4">
       <p className="text-[11px] font-black uppercase tracking-[0.12em] text-oriwan-text-muted">{title}</p>
-      <p className="mt-2 text-2xl font-black tracking-[-0.05em] text-oriwan-text sm:text-3xl">{value}</p>
+      <p className="mt-2 truncate text-2xl font-black tracking-[-0.05em] text-oriwan-text sm:text-3xl">{value}</p>
     </div>
   );
 }
