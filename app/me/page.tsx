@@ -34,6 +34,15 @@ type MeData = {
 
 const today = toIsoDate(new Date());
 
+function readFileAsDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+
 export default function MyPage() {
   const [data, setData] = useState<MeData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -42,8 +51,11 @@ export default function MyPage() {
   const [recordDate, setRecordDate] = useState(today < CHALLENGE_START_DATE ? CHALLENGE_START_DATE : today);
   const [distance, setDistance] = useState("");
   const [duration, setDuration] = useState("");
+  const [imageDate, setImageDate] = useState(today < CHALLENGE_START_DATE ? CHALLENGE_START_DATE : today);
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [savingName, setSavingName] = useState(false);
   const [savingRecord, setSavingRecord] = useState(false);
+  const [analyzingImages, setAnalyzingImages] = useState(false);
 
   const loadMe = useCallback(async () => {
     setLoading(true);
@@ -143,6 +155,43 @@ export default function MyPage() {
     setSavingRecord(false);
   };
 
+  const analyzeImages = async () => {
+    if (!imageFiles.length) {
+      setMessage("NRC나 Garmin 같은 러닝 기록 이미지를 선택해주세요.");
+      return;
+    }
+
+    setAnalyzingImages(true);
+    setMessage("");
+    try {
+      const images = await Promise.all(
+        imageFiles.map(async (file) => ({
+          name: file.name,
+          dataUrl: await readFileAsDataUrl(file),
+        }))
+      );
+
+      const response = await fetch("/api/me/records/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ targetDate: imageDate, images }),
+      });
+      const json = await response.json();
+
+      if (response.ok) {
+        setImageFiles([]);
+        setMessage(`${json.results?.length || 1}개 이미지 기록을 저장했습니다.`);
+        await loadMe();
+      } else {
+        setMessage(json.error || "이미지 기록 저장 실패");
+      }
+    } catch {
+      setMessage("이미지를 읽거나 분석하지 못했어요.");
+    } finally {
+      setAnalyzingImages(false);
+    }
+  };
+
   if (loading) return <main className="min-h-screen bg-oriwan-bg" />;
 
   if (!data) {
@@ -184,9 +233,11 @@ export default function MyPage() {
           <p className="mb-3 inline-flex rounded-full bg-white/10 px-3 py-1 text-[11px] font-black text-lime-200 ring-1 ring-white/10">
             인증 시작일 · {CHALLENGE_START_DATE}
           </p>
-          <h2 className="text-4xl font-black tracking-[-0.06em] sm:text-6xl">{data.runner_name || "이름을 등록해주세요"}</h2>
+          <h2 className="text-4xl font-black tracking-[-0.06em] sm:text-6xl">달린 만큼 쌓이고, 인증한 만큼 선명해져요.</h2>
           <p className="mt-3 text-sm text-white/55">
-            {data.matched_participant ? "어드민 참가자명과 연결되어 있습니다." : "이름이 어드민 참가자명과 같아야 기록이 연결됩니다."}
+            {data.matched_participant
+              ? `${data.runner_name}님의 기록이 어드민 참가자 데이터와 연결되어 있습니다.`
+              : "이름을 저장하면 어드민 참가자명과 일치하는 기록이 자동으로 연결됩니다."}
           </p>
         </div>
 
@@ -213,6 +264,40 @@ export default function MyPage() {
             <button onClick={saveRecord} disabled={savingRecord || !data.matched_participant} className="btn-primary mt-3 w-full py-3 text-sm disabled:opacity-40">
               {savingRecord ? "저장 중..." : "내 기록 저장"}
             </button>
+
+            <div className="mt-5 rounded-[26px] bg-oriwan-surface-light p-4 ring-1 ring-slate-950/5">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h4 className="text-sm font-black text-oriwan-text">러닝 앱 이미지로 등록</h4>
+                  <p className="mt-1 text-xs leading-5 text-oriwan-text-muted">
+                    NRC, Garmin, Strava 등 스크린샷에서 날짜, 거리, 시간을 자동 추출합니다.
+                  </p>
+                </div>
+                <span className="rounded-full bg-lime-200 px-3 py-1 text-[10px] font-black text-slate-950">OCR</span>
+              </div>
+              <div className="mt-4 grid gap-2 sm:grid-cols-[0.72fr_1.28fr]">
+                <input
+                  type="date"
+                  min={CHALLENGE_START_DATE}
+                  value={imageDate}
+                  onChange={(event) => setImageDate(event.target.value)}
+                  className="rounded-2xl border border-oriwan-border bg-white px-3 py-3 text-sm"
+                />
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={(event) => setImageFiles(Array.from(event.target.files || []))}
+                  className="rounded-2xl border border-oriwan-border bg-white px-3 py-2.5 text-xs text-oriwan-text-muted file:mr-3 file:rounded-xl file:border-0 file:bg-slate-950 file:px-3 file:py-2 file:text-xs file:font-black file:text-lime-200"
+                />
+              </div>
+              <p className="mt-2 text-[11px] text-oriwan-text-muted">
+                이미지에 날짜가 없으면 왼쪽 선택일로 저장되고, 거리나 시간이 안 보이면 직접 입력으로 보완할 수 있어요.
+              </p>
+              <button onClick={analyzeImages} disabled={analyzingImages || !data.matched_participant || !imageFiles.length} className="mt-3 w-full rounded-2xl bg-slate-950 px-4 py-3 text-sm font-black text-lime-200 disabled:opacity-40">
+                {analyzingImages ? "이미지 분석 중..." : `이미지 기록 저장${imageFiles.length ? ` (${imageFiles.length})` : ""}`}
+              </button>
+            </div>
           </div>
         </section>
 
