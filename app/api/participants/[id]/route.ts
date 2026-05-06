@@ -1,16 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { requireAdminUser } from "@/lib/admin-server";
 
 export async function PATCH(
   request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 });
-  }
+  const { user, response } = await requireAdminUser(supabase);
+  if (response) return response;
 
   const { id } = await context.params;
   const body = await request.json().catch(() => ({}));
@@ -42,11 +40,8 @@ export async function DELETE(
   context: { params: Promise<{ id: string }> }
 ) {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 });
-  }
+  const { user, response } = await requireAdminUser(supabase);
+  if (response) return response;
 
   const { id } = await context.params;
   const { error } = await supabase

@@ -1,21 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { createClient } from "@/lib/supabase/client";
-import { IconCheck, IconRun, IconSprout } from "@/components/icons";
-import { addDays, parseDurationToSeconds, secondsToPace, secondsToTime, toIsoDate } from "@/lib/run-records";
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
+import { IconCheck, IconRun } from "@/components/icons";
+import { addDays, secondsToPace, secondsToTime, toIsoDate } from "@/lib/run-records";
 
 type Participant = {
   id: string;
   name: string;
   nickname: string | null;
-  active: boolean;
-  display_order: number;
 };
-
-type RecordStatus = "certified" | "needs_review" | "missing" | "rejected";
 
 type RunRecord = {
   id: string;
@@ -24,576 +19,340 @@ type RunRecord = {
   distance_km: number | null;
   duration_seconds: number | null;
   pace_seconds_per_km: number | null;
-  source_app: string | null;
-  status: RecordStatus;
-  confidence_score: number | null;
-  image_url: string | null;
-  raw_extracted_text: string | null;
-  notes: string | null;
-  participants?: { id: string; name: string; nickname: string | null } | null;
+  status: "certified" | "needs_review" | "missing" | "rejected";
 };
 
-type RecordDraft = {
-  participant_id: string;
-  record_date: string;
-  distance_km: string;
-  duration: string;
-  status: RecordStatus;
-  source_app: string;
-  notes: string;
+type PublicDashboardData = {
+  from: string;
+  to: string;
+  generated_at: string;
+  participants: Participant[];
+  records: RunRecord[];
 };
-
-type RankingMode = "certified" | "distance" | "time";
 
 const today = toIsoDate(new Date());
-const rangeStart = toIsoDate(addDays(new Date(), -20));
 const timelineDays = Array.from({ length: 14 }, (_, index) => toIsoDate(addDays(new Date(), index - 13)));
 
-function readFileAsDataUrl(file: File) {
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
-
-function statusLabel(status: RecordStatus) {
-  if (status === "certified") return "인증";
-  if (status === "needs_review") return "확인 필요";
-  if (status === "rejected") return "반려";
-  return "미제출";
-}
-
-function statusClass(status: RecordStatus) {
-  if (status === "certified") return "bg-lime-100 text-lime-900 border-lime-200";
-  if (status === "needs_review") return "bg-orange-100 text-orange-900 border-orange-200";
-  if (status === "rejected") return "bg-rose-100 text-rose-900 border-rose-200";
-  return "bg-slate-100 text-slate-400 border-slate-200";
-}
-
-function makeDraft(record: RunRecord): RecordDraft {
-  return {
-    participant_id: record.participant_id || "",
-    record_date: record.record_date || today,
-    distance_km: record.distance_km ? String(record.distance_km) : "",
-    duration: record.duration_seconds ? secondsToTime(record.duration_seconds) : "",
-    status: record.status || "needs_review",
-    source_app: record.source_app || "",
-    notes: record.notes || "",
-  };
-}
-
-function polyline(points: { x: number; y: number }[]) {
-  return points.map((point) => `${point.x},${point.y}`).join(" ");
-}
-
-export default function DashboardPage() {
-  const router = useRouter();
-  const [mounted, setMounted] = useState(false);
-  const [userName, setUserName] = useState("");
-  const [userAvatar, setUserAvatar] = useState("");
-  const [participants, setParticipants] = useState<Participant[]>([]);
-  const [records, setRecords] = useState<RunRecord[]>([]);
-  const [drafts, setDrafts] = useState<Record<string, RecordDraft>>({});
-  const [loading, setLoading] = useState(true);
-  const [newName, setNewName] = useState("");
-  const [newNickname, setNewNickname] = useState("");
-  const [targetDate, setTargetDate] = useState(today);
-  const [files, setFiles] = useState<File[]>([]);
-  const [analyzing, setAnalyzing] = useState(false);
-  const [manualParticipantId, setManualParticipantId] = useState("");
-  const [manualDate, setManualDate] = useState(today);
-  const [manualDistance, setManualDistance] = useState("");
-  const [manualDuration, setManualDuration] = useState("");
-  const [rankingMode, setRankingMode] = useState<RankingMode>("certified");
-  const [selectedParticipantId, setSelectedParticipantId] = useState("");
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const [liveStatus, setLiveStatus] = useState<"connecting" | "live" | "polling">("connecting");
-
-  const loadData = useCallback(async (showLoading = true) => {
-    if (showLoading) setLoading(true);
-    try {
-      const [participantsRes, recordsRes] = await Promise.all([
-        fetch("/api/participants", { cache: "no-store" }),
-        fetch(`/api/records?from=${rangeStart}&to=${today}`, { cache: "no-store" }),
-      ]);
-
-      const participantsJson = await participantsRes.json();
-      const recordsJson = await recordsRes.json();
-      const nextParticipants = participantsJson.participants || [];
-      const nextRecords = recordsJson.records || [];
-
-      setParticipants(nextParticipants);
-      setRecords(nextRecords);
-      setSelectedParticipantId((current) => current || nextParticipants[0]?.id || "");
-      setManualParticipantId((current) => current || nextParticipants[0]?.id || "");
-      setDrafts(Object.fromEntries(nextRecords.map((record: RunRecord) => [record.id, makeDraft(record)])));
-      setLastUpdated(new Date());
-    } finally {
-      if (showLoading) setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    setMounted(true);
-    const init = async () => {
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { router.push("/"); return; }
-      setUserName(user.user_metadata?.full_name || user.email?.split("@")[0] || "운영자");
-      setUserAvatar(user.user_metadata?.avatar_url || "");
-      await loadData();
-    };
-    init();
-  }, [loadData, router]);
-
-  useEffect(() => {
-    if (!mounted) return;
-
-    const supabase = createClient();
-    const channel = supabase
-      .channel("snasa-dashboard-live")
-      .on("postgres_changes", { event: "*", schema: "public", table: "participants" }, () => {
-        setLiveStatus("live");
-        loadData(false);
-      })
-      .on("postgres_changes", { event: "*", schema: "public", table: "daily_run_records" }, () => {
-        setLiveStatus("live");
-        loadData(false);
-      })
-      .subscribe((status) => {
-        if (status === "SUBSCRIBED") setLiveStatus("live");
-        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") setLiveStatus("polling");
-      });
-
-    const interval = window.setInterval(() => {
-      if (document.visibilityState === "visible") {
-        setLiveStatus((current) => current === "live" ? "live" : "polling");
-        loadData(false);
-      }
-    }, 10000);
-
-    return () => {
-      window.clearInterval(interval);
-      supabase.removeChannel(channel);
-    };
-  }, [loadData, mounted]);
-
-  const todayRecords = useMemo(() => records.filter((record) => record.record_date === targetDate), [records, targetDate]);
-  const certifiedToday = useMemo(() => todayRecords.filter((record) => record.status === "certified").length, [todayRecords]);
-  const needsReview = useMemo(() => records.filter((record) => record.status === "needs_review").length, [records]);
-  const totalDistance = useMemo(() => todayRecords.reduce((sum, record) => sum + (record.distance_km || 0), 0), [todayRecords]);
-  const totalTime = useMemo(() => todayRecords.reduce((sum, record) => sum + (record.duration_seconds || 0), 0), [todayRecords]);
-
-  const recordsByParticipantDate = useMemo(() => {
-    const map = new Map<string, RunRecord>();
-    records.forEach((record) => {
-      if (record.participant_id && record.record_date) {
-        map.set(`${record.participant_id}:${record.record_date}`, record);
-      }
-    });
-    return map;
-  }, [records]);
-
-  const rankings = useMemo(() => {
-    const rows = participants.map((participant) => {
-      const participantRecords = records.filter((record) => record.participant_id === participant.id && record.status === "certified");
-      return {
-        participant,
-        certifiedCount: participantRecords.length,
-        distance: participantRecords.reduce((sum, record) => sum + (record.distance_km || 0), 0),
-        time: participantRecords.reduce((sum, record) => sum + (record.duration_seconds || 0), 0),
-      };
-    });
-
-    return rows.sort((a, b) => {
-      if (rankingMode === "distance") return b.distance - a.distance;
-      if (rankingMode === "time") return b.time - a.time;
-      return b.certifiedCount - a.certifiedCount || b.distance - a.distance;
-    });
-  }, [participants, rankingMode, records]);
-
-  const selectedSeries = useMemo(() => {
-    const participantRecords = records
-      .filter((record) => record.participant_id === selectedParticipantId && record.record_date)
-      .sort((a, b) => String(a.record_date).localeCompare(String(b.record_date)));
-    return participantRecords;
-  }, [records, selectedParticipantId]);
-
-  const graph = useMemo(() => {
-    const width = 320;
-    const height = 128;
-    const padding = 18;
-    const distanceMax = Math.max(1, ...selectedSeries.map((record) => record.distance_km || 0));
-    const timeMax = Math.max(1, ...selectedSeries.map((record) => (record.duration_seconds || 0) / 60));
-    const makePoints = (kind: "distance" | "time") => selectedSeries.map((record, index) => {
-      const x = selectedSeries.length <= 1 ? width / 2 : padding + (index / (selectedSeries.length - 1)) * (width - padding * 2);
-      const value = kind === "distance" ? (record.distance_km || 0) : (record.duration_seconds || 0) / 60;
-      const max = kind === "distance" ? distanceMax : timeMax;
-      const y = height - padding - (value / max) * (height - padding * 2);
-      return { x, y };
-    });
-    return { width, height, distancePoints: makePoints("distance"), timePoints: makePoints("time") };
-  }, [selectedSeries]);
-
-  const addParticipant = useCallback(async () => {
-    if (!newName.trim()) return;
-    const res = await fetch("/api/participants", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: newName, nickname: newNickname }),
-    });
-    if (res.ok) {
-      setNewName("");
-      setNewNickname("");
-      await loadData();
-    } else {
-      alert("참가자를 저장하지 못했어요.");
-    }
-  }, [loadData, newName, newNickname]);
-
-  const analyzeImages = useCallback(async () => {
-    if (!files.length) return;
-    setAnalyzing(true);
-    try {
-      const images = await Promise.all(files.map(async (file) => ({ name: file.name, dataUrl: await readFileAsDataUrl(file) })));
-      const res = await fetch("/api/records/analyze", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ targetDate, images }),
-      });
-      if (!res.ok) throw new Error("analysis failed");
-      setFiles([]);
-      await loadData();
-    } catch {
-      alert("이미지 분석에 실패했어요. 흐린 이미지는 직접 입력으로 등록해주세요.");
-    } finally {
-      setAnalyzing(false);
-    }
-  }, [files, loadData, targetDate]);
-
-  const saveManualRecord = useCallback(async () => {
-    const duration = parseDurationToSeconds(manualDuration);
-    const res = await fetch("/api/records", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        participant_id: manualParticipantId,
-        record_date: manualDate,
-        distance_km: manualDistance,
-        duration_seconds: duration,
-        status: manualDistance && duration ? "certified" : "needs_review",
-        notes: duration ? null : "시간 수동 입력 필요",
-      }),
-    });
-    if (res.ok) {
-      setManualDistance("");
-      setManualDuration("");
-      await loadData();
-    } else {
-      alert("기록 저장에 실패했어요.");
-    }
-  }, [loadData, manualDate, manualDistance, manualDuration, manualParticipantId]);
-
-  const updateDraft = useCallback((recordId: string, patch: Partial<RecordDraft>) => {
-    setDrafts((current) => ({ ...current, [recordId]: { ...current[recordId], ...patch } }));
-  }, []);
-
-  const saveDraft = useCallback(async (recordId: string) => {
-    const draft = drafts[recordId];
-    if (!draft) return;
-    const duration = parseDurationToSeconds(draft.duration);
-    const res = await fetch(`/api/records/${recordId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        participant_id: draft.participant_id || null,
-        record_date: draft.record_date,
-        distance_km: draft.distance_km,
-        duration_seconds: duration,
-        source_app: draft.source_app,
-        status: draft.status,
-        notes: draft.notes,
-      }),
-    });
-    if (res.ok) await loadData();
-    else alert("수정 저장에 실패했어요.");
-  }, [drafts, loadData]);
-
-  const handleLogout = useCallback(() => {
-    fetch("/api/auth/logout", { method: "POST" }).then(() => { router.push("/"); router.refresh(); });
-  }, [router]);
-
-  if (!mounted) return <div className="min-h-screen bg-oriwan-bg" />;
-
+function Tooltip({ text }: { text: string }) {
   return (
-    <div className="min-h-screen bg-oriwan-bg">
-      <header className="sticky top-0 z-50 px-4 py-3 bg-[#101522]/92 backdrop-blur-2xl border-b border-white/10 text-white">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-2xl overflow-hidden ring-1 ring-white/20 bg-lime-300">
-              <Image src="/oriwan-logo-v2.png" alt="스내사 3기 대시보드" width={36} height={36} className="object-cover" />
-            </div>
-            <div>
-              <h1 className="text-base sm:text-lg font-black tracking-tight leading-none">스내사 3기 대시보드</h1>
-              <p className="text-[11px] text-white/55 mt-1">러닝 인증 · OCR 검수 · 실시간 랭킹</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2.5">
-            <span className={`hidden sm:inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-black ${liveStatus === "live" ? "bg-lime-300 text-slate-950" : "bg-white/10 text-white/70"}`}>
-              <span className="h-1.5 w-1.5 rounded-full bg-current animate-pulse" />
-              {liveStatus === "live" ? "LIVE" : liveStatus === "polling" ? "SYNC" : "연결 중"}
-            </span>
-            {userAvatar && <img src={userAvatar} alt="" width={28} height={28} className="rounded-full border border-white/20" />}
-            <span className="hidden md:inline text-xs font-semibold text-white/60">{userName}</span>
-            <button onClick={handleLogout} className="text-xs text-white/55 hover:text-white transition-colors font-medium">로그아웃</button>
-          </div>
-        </div>
-      </header>
-
-      <main className="max-w-7xl mx-auto px-4 py-4 space-y-4 pb-10">
-        <section className="relative overflow-hidden rounded-[28px] bg-[#101522] px-5 py-5 text-white shadow-2xl shadow-slate-950/10">
-          <div className="absolute -right-16 -top-20 h-56 w-56 rounded-full bg-lime-300/25 blur-3xl" />
-          <div className="absolute bottom-0 left-1/2 h-24 w-72 -translate-x-1/2 rounded-full bg-orange-400/15 blur-3xl" />
-          <div className="relative flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-            <div>
-              <p className="mb-2 inline-flex rounded-full bg-white/10 px-3 py-1 text-[11px] font-black text-lime-200 ring-1 ring-white/10">SNASA RUNNING CLUB · 3RD</p>
-              <h2 className="text-3xl sm:text-4xl font-black tracking-[-0.04em]">스내사 3기 대시보드</h2>
-              <p className="mt-2 max-w-2xl text-sm text-white/60">이미지를 넣으면 인증 상태, 거리, 시간이 즉시 갱신됩니다. 날짜/시간 누락분은 검수 테이블에서 바로 보정하세요.</p>
-            </div>
-            <div className="grid grid-cols-2 gap-2 text-right sm:grid-cols-3">
-              <div className="rounded-2xl bg-white/10 px-4 py-3 ring-1 ring-white/10">
-                <p className="text-[10px] font-bold text-white/45">선택일</p>
-                <p className="text-sm font-black text-white">{targetDate}</p>
-              </div>
-              <div className="rounded-2xl bg-lime-300 px-4 py-3 text-slate-950">
-                <p className="text-[10px] font-bold opacity-60">인증률</p>
-                <p className="text-sm font-black">{participants.length ? Math.round((certifiedToday / participants.length) * 100) : 0}%</p>
-              </div>
-              <div className="col-span-2 rounded-2xl bg-white/10 px-4 py-3 ring-1 ring-white/10 sm:col-span-1">
-                <p className="text-[10px] font-bold text-white/45">업데이트</p>
-                <p className="text-sm font-black text-white">{lastUpdated ? lastUpdated.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "-"}</p>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-          <SummaryCard title="참가자" value={`${participants.length}명`} caption="직접 추가/관리" />
-          <SummaryCard title="선택일 인증" value={`${certifiedToday}/${participants.length}`} caption={targetDate} />
-          <SummaryCard title="확인 필요" value={`${needsReview}건`} caption="날짜/시간/이름 검수" tone="amber" />
-          <SummaryCard title="선택일 거리" value={`${totalDistance.toFixed(1)}km`} caption="인증 완료 기준" />
-          <SummaryCard title="선택일 시간" value={secondsToTime(totalTime)} caption="누적 러닝 시간" />
-        </section>
-
-        <section className="grid lg:grid-cols-[1.1fr_0.9fr] gap-5">
-          <div className="card p-4 space-y-3">
-            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
-              <div>
-                <h2 className="text-lg font-black text-oriwan-text">이미지 업로드 분석</h2>
-                <p className="text-xs text-oriwan-text-muted mt-1">배경은 무시하고 텍스트/숫자만 추출합니다. 날짜가 없으면 아래 날짜를 임시 적용하고 확인 필요로 남겨요.</p>
-              </div>
-              <label className="text-xs font-bold text-oriwan-text-muted">
-                기본 날짜
-                <input type="date" value={targetDate} onChange={(e) => setTargetDate(e.target.value)} className="block mt-1 rounded-xl border border-oriwan-border px-3 py-2 text-sm text-oriwan-text bg-white" />
-              </label>
-            </div>
-            <div className="rounded-3xl border-2 border-dashed border-lime-300/70 bg-lime-50/70 p-5 text-center">
-              <input
-                type="file"
-                accept="image/*"
-                multiple
-                onChange={(e) => setFiles(Array.from(e.target.files || []))}
-                className="mx-auto block text-sm text-oriwan-text-muted file:mr-4 file:rounded-xl file:border-0 file:bg-slate-950 file:px-4 file:py-2 file:text-sm file:font-bold file:text-lime-200"
-              />
-              <p className="text-xs text-oriwan-text-muted mt-3">선택됨: {files.length}장</p>
-              <button onClick={analyzeImages} disabled={!files.length || analyzing} className="btn-primary mt-4 px-5 py-3 text-sm disabled:opacity-40">
-                {analyzing ? "이미지 분석 중..." : "업로드하고 자동 추출"}
-              </button>
-            </div>
-          </div>
-
-          <div className="card p-4 space-y-3">
-            <h2 className="text-lg font-black text-oriwan-text">참가자 추가</h2>
-            <div className="grid sm:grid-cols-2 gap-2">
-              <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="이름" className="rounded-xl border border-oriwan-border px-3 py-2.5 text-sm" />
-              <input value={newNickname} onChange={(e) => setNewNickname(e.target.value)} placeholder="닉네임 또는 앱 이름" className="rounded-xl border border-oriwan-border px-3 py-2.5 text-sm" />
-            </div>
-            <button onClick={addParticipant} className="btn-primary w-full py-3 text-sm">참가자 등록</button>
-            <div className="flex flex-wrap gap-1.5 pt-1">
-              {participants.map((participant) => (
-                <span key={participant.id} className="rounded-full bg-oriwan-surface-light px-3 py-1.5 text-xs font-bold text-oriwan-text">
-                  {participant.name}{participant.nickname ? ` · ${participant.nickname}` : ""}
-                </span>
-              ))}
-              {!participants.length && <p className="text-xs text-oriwan-text-muted">먼저 참가자 이름을 등록해주세요.</p>}
-            </div>
-          </div>
-        </section>
-
-        <section className="grid lg:grid-cols-[0.9fr_1.1fr] gap-5">
-          <div className="card p-4 space-y-3">
-            <h2 className="text-lg font-black text-oriwan-text">수동 기록 입력</h2>
-            <div className="grid sm:grid-cols-2 gap-2">
-              <select value={manualParticipantId} onChange={(e) => setManualParticipantId(e.target.value)} className="rounded-xl border border-oriwan-border px-3 py-2.5 text-sm bg-white">
-                <option value="">참가자 선택</option>
-                {participants.map((participant) => <option key={participant.id} value={participant.id}>{participant.name}</option>)}
-              </select>
-              <input type="date" value={manualDate} onChange={(e) => setManualDate(e.target.value)} className="rounded-xl border border-oriwan-border px-3 py-2.5 text-sm" />
-              <input value={manualDistance} onChange={(e) => setManualDistance(e.target.value)} placeholder="거리 km" inputMode="decimal" className="rounded-xl border border-oriwan-border px-3 py-2.5 text-sm" />
-              <input value={manualDuration} onChange={(e) => setManualDuration(e.target.value)} placeholder="시간 예: 32:10" className="rounded-xl border border-oriwan-border px-3 py-2.5 text-sm" />
-            </div>
-            <button onClick={saveManualRecord} className="btn-primary w-full py-3 text-sm">수동 기록 저장</button>
-          </div>
-
-          <div className="card p-4 overflow-hidden">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="text-lg font-black text-oriwan-text">인증 시계열</h2>
-                <p className="text-xs text-oriwan-text-muted mt-1">최근 14일 인증 여부를 한눈에 봅니다.</p>
-              </div>
-              <IconSprout size={22} className="text-oriwan-primary" />
-            </div>
-            <div className="overflow-x-auto">
-              <div className="min-w-[720px] space-y-2">
-                <div className="grid grid-cols-[120px_repeat(14,1fr)] gap-1 text-[10px] font-bold text-oriwan-text-muted">
-                  <div>참가자</div>
-                  {timelineDays.map((day) => <div key={day} className="text-center">{day.slice(5).replace("-", "/")}</div>)}
-                </div>
-                {participants.map((participant) => (
-                  <div key={participant.id} className="grid grid-cols-[120px_repeat(14,1fr)] gap-1 items-center">
-                    <div className="truncate text-xs font-bold text-oriwan-text">{participant.name}</div>
-                    {timelineDays.map((day) => {
-                      const record = recordsByParticipantDate.get(`${participant.id}:${day}`);
-                      const status = record?.status || "missing";
-                      return <div key={day} title={statusLabel(status)} className={`h-8 rounded-lg border flex items-center justify-center text-[11px] font-black ${statusClass(status)}`}>{status === "certified" ? <IconCheck size={13} /> : status === "needs_review" ? "!" : "·"}</div>;
-                    })}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section className="grid lg:grid-cols-[0.9fr_1.1fr] gap-5">
-          <div className="card p-4">
-            <div className="flex items-center justify-between gap-3 mb-4">
-              <h2 className="text-lg font-black text-oriwan-text">랭킹</h2>
-              <div className="flex rounded-xl bg-oriwan-surface-light p-1 text-xs font-bold">
-                {(["certified", "distance", "time"] as RankingMode[]).map((mode) => (
-                  <button key={mode} onClick={() => setRankingMode(mode)} className={`rounded-lg px-3 py-1.5 ${rankingMode === mode ? "bg-white text-oriwan-primary shadow-sm" : "text-oriwan-text-muted"}`}>
-                    {mode === "certified" ? "인증" : mode === "distance" ? "거리" : "시간"}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="space-y-2">
-              {rankings.map((row, index) => (
-                <div key={row.participant.id} className="grid grid-cols-[32px_1fr_auto] items-center gap-3 rounded-2xl bg-oriwan-surface-light px-3 py-3">
-                  <div className="text-sm font-black text-oriwan-primary">{index + 1}</div>
-                  <div>
-                    <p className="text-sm font-bold text-oriwan-text">{row.participant.name}</p>
-                    <p className="text-[11px] text-oriwan-text-muted">인증 {row.certifiedCount}회 · {row.distance.toFixed(1)}km · {secondsToTime(row.time)}</p>
-                  </div>
-                  <IconRun size={18} className="text-oriwan-primary" />
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="card p-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-              <div>
-                <h2 className="text-lg font-black text-oriwan-text">개인별 거리/시간 그래프</h2>
-                <p className="text-xs text-oriwan-text-muted mt-1">파란 선은 거리, 초록 선은 시간입니다.</p>
-              </div>
-              <select value={selectedParticipantId} onChange={(e) => setSelectedParticipantId(e.target.value)} className="rounded-xl border border-oriwan-border px-3 py-2 text-sm bg-white">
-                {participants.map((participant) => <option key={participant.id} value={participant.id}>{participant.name}</option>)}
-              </select>
-            </div>
-            <div className="rounded-3xl bg-slate-950 p-4 overflow-hidden ring-1 ring-white/10">
-              {selectedSeries.length ? (
-                <svg viewBox={`0 0 ${graph.width} ${graph.height}`} className="w-full h-48">
-                  <line x1="18" y1="110" x2="302" y2="110" stroke="rgba(255,255,255,.16)" />
-                  <polyline fill="none" stroke="#60A5FA" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" points={polyline(graph.distancePoints)} />
-                  <polyline fill="none" stroke="#34D399" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" points={polyline(graph.timePoints)} />
-                  {graph.distancePoints.map((point, index) => <circle key={`d${index}`} cx={point.x} cy={point.y} r="4" fill="#BFDBFE" />)}
-                </svg>
-              ) : (
-                <div className="h-48 flex items-center justify-center text-sm text-white/50">기록이 생기면 그래프가 표시됩니다.</div>
-              )}
-            </div>
-          </div>
-        </section>
-
-        <section className="card p-4 overflow-hidden">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="text-lg font-black text-oriwan-text">기록 검수</h2>
-              <p className="text-xs text-oriwan-text-muted mt-1">이미지에서 시간이 없거나 날짜가 없으면 여기서 직접 수정해 인증 처리합니다.</p>
-            </div>
-            <button onClick={() => loadData()} className="rounded-xl bg-oriwan-surface-light px-3 py-2 text-xs font-bold text-oriwan-text-muted">새로고침</button>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-[980px] w-full text-left text-xs">
-              <thead className="text-oriwan-text-muted">
-                <tr className="border-b border-oriwan-border">
-                  <th className="py-2 pr-2">상태</th>
-                  <th className="py-2 pr-2">참가자</th>
-                  <th className="py-2 pr-2">날짜</th>
-                  <th className="py-2 pr-2">거리</th>
-                  <th className="py-2 pr-2">시간</th>
-                  <th className="py-2 pr-2">페이스</th>
-                  <th className="py-2 pr-2">출처</th>
-                  <th className="py-2 pr-2">메모</th>
-                  <th className="py-2 pr-2">저장</th>
-                </tr>
-              </thead>
-              <tbody>
-                {records.map((record) => {
-                  const draft = drafts[record.id] || makeDraft(record);
-                  return (
-                    <tr key={record.id} className="border-b border-oriwan-border/60 align-top">
-                      <td className="py-2 pr-2">
-                        <select value={draft.status} onChange={(e) => updateDraft(record.id, { status: e.target.value as RecordStatus })} className={`rounded-lg border px-2 py-1.5 font-bold ${statusClass(draft.status)}`}>
-                          <option value="certified">인증</option>
-                          <option value="needs_review">확인 필요</option>
-                          <option value="rejected">반려</option>
-                        </select>
-                      </td>
-                      <td className="py-2 pr-2">
-                        <select value={draft.participant_id} onChange={(e) => updateDraft(record.id, { participant_id: e.target.value })} className="w-28 rounded-lg border border-oriwan-border px-2 py-1.5 bg-white">
-                          <option value="">미매칭</option>
-                          {participants.map((participant) => <option key={participant.id} value={participant.id}>{participant.name}</option>)}
-                        </select>
-                      </td>
-                      <td className="py-2 pr-2"><input type="date" value={draft.record_date} onChange={(e) => updateDraft(record.id, { record_date: e.target.value })} className="rounded-lg border border-oriwan-border px-2 py-1.5" /></td>
-                      <td className="py-2 pr-2"><input value={draft.distance_km} onChange={(e) => updateDraft(record.id, { distance_km: e.target.value })} className="w-20 rounded-lg border border-oriwan-border px-2 py-1.5" /></td>
-                      <td className="py-2 pr-2"><input value={draft.duration} onChange={(e) => updateDraft(record.id, { duration: e.target.value })} placeholder="32:10" className="w-20 rounded-lg border border-oriwan-border px-2 py-1.5" /></td>
-                      <td className="py-2 pr-2 font-bold text-oriwan-primary">{secondsToPace(record.pace_seconds_per_km)}</td>
-                      <td className="py-2 pr-2"><input value={draft.source_app} onChange={(e) => updateDraft(record.id, { source_app: e.target.value })} className="w-24 rounded-lg border border-oriwan-border px-2 py-1.5" /></td>
-                      <td className="py-2 pr-2"><input value={draft.notes} onChange={(e) => updateDraft(record.id, { notes: e.target.value })} className="w-56 rounded-lg border border-oriwan-border px-2 py-1.5" /></td>
-                      <td className="py-2 pr-2"><button onClick={() => saveDraft(record.id)} className="rounded-lg bg-oriwan-primary px-3 py-1.5 font-bold text-white">저장</button></td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-            {!records.length && !loading && <p className="py-10 text-center text-sm text-oriwan-text-muted">아직 기록이 없습니다. 이미지를 업로드하거나 수동으로 입력해주세요.</p>}
-          </div>
-        </section>
-      </main>
-    </div>
+    <span
+      title={text}
+      className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-slate-950/8 text-[11px] font-black text-slate-500 ring-1 ring-slate-950/5"
+    >
+      ?
+    </span>
   );
 }
 
-function SummaryCard({ title, value, caption, tone = "blue" }: { title: string; value: string; caption: string; tone?: "blue" | "amber" }) {
+function statusStyle(status: RunRecord["status"] | "missing") {
+  if (status === "certified") return "bg-lime-300 text-slate-950 shadow-sm shadow-lime-300/50";
+  if (status === "needs_review") return "bg-orange-200 text-orange-950";
+  if (status === "rejected") return "bg-rose-200 text-rose-950";
+  return "bg-white/70 text-slate-300 ring-1 ring-slate-200";
+}
+
+function linePoints(values: number[], width = 320, height = 120) {
+  const max = Math.max(1, ...values);
+  const padding = 14;
+  return values
+    .map((value, index) => {
+      const x = values.length <= 1 ? width / 2 : padding + (index / (values.length - 1)) * (width - padding * 2);
+      const y = height - padding - (value / max) * (height - padding * 2);
+      return `${x},${y}`;
+    })
+    .join(" ");
+}
+
+export default function DashboardPage() {
+  const [data, setData] = useState<PublicDashboardData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let alive = true;
+
+    async function load() {
+      try {
+        const response = await fetch("/api/public-dashboard?days=30", { cache: "no-store" });
+        const json = await response.json();
+        if (!response.ok) throw new Error(json.error || "대시보드 조회 실패");
+        if (alive) {
+          setData(json);
+          setError("");
+        }
+      } catch (err) {
+        if (alive) setError(err instanceof Error ? err.message : "대시보드를 불러오지 못했어요.");
+      } finally {
+        if (alive) setLoading(false);
+      }
+    }
+
+    load();
+    const interval = window.setInterval(load, 15000);
+    return () => {
+      alive = false;
+      window.clearInterval(interval);
+    };
+  }, []);
+
+  const dashboard = useMemo(() => {
+    const participants = data?.participants || [];
+    const records = data?.records || [];
+    const certifiedRecords = records.filter((record) => record.status === "certified");
+    const todayCertifiedIds = new Set(
+      certifiedRecords
+        .filter((record) => record.record_date === today && record.participant_id)
+        .map((record) => record.participant_id)
+    );
+
+    const todayRecords = certifiedRecords.filter((record) => record.record_date === today);
+    const todayDistance = todayRecords.reduce((sum, record) => sum + (record.distance_km || 0), 0);
+    const todayTime = todayRecords.reduce((sum, record) => sum + (record.duration_seconds || 0), 0);
+    const completionRate = participants.length ? Math.round((todayCertifiedIds.size / participants.length) * 100) : 0;
+
+    const byParticipantDate = new Map<string, RunRecord>();
+    records.forEach((record) => {
+      if (record.participant_id && record.record_date) {
+        byParticipantDate.set(`${record.participant_id}:${record.record_date}`, record);
+      }
+    });
+
+    const rankings = participants
+      .map((participant) => {
+        const participantRecords = certifiedRecords.filter((record) => record.participant_id === participant.id);
+        return {
+          participant,
+          count: participantRecords.length,
+          distance: participantRecords.reduce((sum, record) => sum + (record.distance_km || 0), 0),
+          time: participantRecords.reduce((sum, record) => sum + (record.duration_seconds || 0), 0),
+          latestPace: participantRecords[0]?.pace_seconds_per_km || null,
+        };
+      })
+      .sort((a, b) => b.count - a.count || b.distance - a.distance);
+
+    const maxDistance = Math.max(1, ...rankings.map((row) => row.distance));
+    const dailyDistance = timelineDays.map((day) =>
+      certifiedRecords
+        .filter((record) => record.record_date === day)
+        .reduce((sum, record) => sum + (record.distance_km || 0), 0)
+    );
+
+    return {
+      participants,
+      records,
+      rankings,
+      byParticipantDate,
+      todayCertifiedIds,
+      todayDistance,
+      todayTime,
+      completionRate,
+      maxDistance,
+      dailyDistance,
+    };
+  }, [data]);
+
   return (
-    <div className={`card p-4 ${tone === "amber" ? "bg-orange-50/80" : ""}`}>
-      <p className="text-[11px] font-black uppercase tracking-[0.12em] text-oriwan-text-muted mb-1">{title}</p>
-      <p className="text-2xl font-black text-oriwan-text tracking-[-0.04em]">{value}</p>
-      <p className="text-[11px] text-oriwan-text-muted mt-1">{caption}</p>
+    <main className="min-h-screen bg-oriwan-bg">
+      <header className="sticky top-0 z-50 border-b border-slate-950/10 bg-[#101522]/95 px-4 py-3 text-white backdrop-blur-2xl">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <Image src="/oriwan-logo-v2.png" alt="스내사 3기" width={38} height={38} className="rounded-2xl bg-lime-300" />
+            <div>
+              <h1 className="text-base font-black tracking-[-0.03em] sm:text-lg">스내사 3기 대시보드</h1>
+              <p className="text-[11px] font-semibold text-white/50">참가자용 실시간 인증 현황</p>
+            </div>
+          </div>
+          <Link href="/admin" className="rounded-full bg-white/10 px-3 py-2 text-xs font-bold text-white/70 ring-1 ring-white/10 hover:text-white">
+            Admin
+          </Link>
+        </div>
+      </header>
+
+      <section className="mx-auto max-w-7xl px-4 py-4 sm:py-6">
+        <div className="relative overflow-hidden rounded-[30px] bg-[#101522] p-5 text-white shadow-2xl shadow-slate-950/10 sm:p-7">
+          <div className="absolute -right-16 -top-20 h-64 w-64 rounded-full bg-lime-300/25 blur-3xl" />
+          <div className="absolute bottom-0 left-8 h-32 w-72 rounded-full bg-orange-400/15 blur-3xl" />
+          <div className="relative grid gap-5 lg:grid-cols-[1fr_320px] lg:items-center">
+            <div>
+              <p className="mb-3 inline-flex rounded-full bg-white/10 px-3 py-1 text-[11px] font-black text-lime-200 ring-1 ring-white/10">
+                TODAY · {today}
+              </p>
+              <h2 className="max-w-2xl text-4xl font-black tracking-[-0.06em] sm:text-6xl">
+                오늘, 얼마나 같이 달렸을까?
+              </h2>
+              <p className="mt-3 max-w-xl text-sm leading-6 text-white/55">
+                인증률, 거리, 랭킹만 빠르게 볼 수 있게 정리했어요. 자세한 의미는 물음표를 눌러 확인하세요.
+              </p>
+            </div>
+
+            <div className="rounded-[28px] bg-white/10 p-4 ring-1 ring-white/10">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-black text-white/45">오늘 인증률</p>
+                  <p className="mt-1 text-5xl font-black tracking-[-0.08em] text-lime-200">{dashboard.completionRate}%</p>
+                </div>
+                <svg viewBox="0 0 120 120" className="h-28 w-28 -rotate-90">
+                  <circle cx="60" cy="60" r="48" fill="none" stroke="rgba(255,255,255,.12)" strokeWidth="14" />
+                  <circle
+                    cx="60"
+                    cy="60"
+                    r="48"
+                    fill="none"
+                    stroke="#bef264"
+                    strokeWidth="14"
+                    strokeLinecap="round"
+                    strokeDasharray={`${dashboard.completionRate * 3.02} 302`}
+                  />
+                </svg>
+              </div>
+              <p className="mt-2 text-xs font-semibold text-white/50">
+                {dashboard.todayCertifiedIds.size}/{dashboard.participants.length}명 인증 완료
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {error && (
+          <div className="mt-4 rounded-3xl bg-rose-50 px-5 py-4 text-sm font-bold text-rose-900 ring-1 ring-rose-100">
+            {error}
+          </div>
+        )}
+
+        <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <MetricCard title="참가자" value={`${dashboard.participants.length}명`} helper="현재 활성 참가자 수" />
+          <MetricCard title="오늘 거리" value={`${dashboard.todayDistance.toFixed(1)}km`} helper="오늘 인증 완료 기록만 합산" />
+          <MetricCard title="오늘 시간" value={secondsToTime(dashboard.todayTime)} helper="오늘 인증 완료 기록의 총 시간" />
+          <MetricCard title="최근 기록" value={`${dashboard.records.length}건`} helper="최근 30일 동안 올라온 기록 수" />
+        </div>
+
+        <section className="mt-4 grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
+          <div className="card p-4 sm:p-5">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-black tracking-[-0.03em] text-oriwan-text">최근 14일 흐름</h3>
+                <p className="mt-1 text-xs text-oriwan-text-muted">전체 인증 거리 추이</p>
+              </div>
+              <Tooltip text="하루 동안 인증 완료된 기록의 거리 합계를 선으로 표시합니다." />
+            </div>
+            <div className="rounded-[26px] bg-slate-950 p-4">
+              <svg viewBox="0 0 320 120" className="h-44 w-full">
+                <line x1="14" y1="106" x2="306" y2="106" stroke="rgba(255,255,255,.14)" />
+                <polyline fill="none" stroke="#bef264" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" points={linePoints(dashboard.dailyDistance)} />
+                {dashboard.dailyDistance.map((value, index) => {
+                  const points = linePoints(dashboard.dailyDistance).split(" ")[index]?.split(",") || ["0", "0"];
+                  return <circle key={`${value}-${index}`} cx={points[0]} cy={points[1]} r="4" fill="#fed7aa" />;
+                })}
+              </svg>
+            </div>
+          </div>
+
+          <div className="card p-4 sm:p-5">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-black tracking-[-0.03em] text-oriwan-text">랭킹</h3>
+                <p className="mt-1 text-xs text-oriwan-text-muted">인증 횟수 우선, 동률은 거리순</p>
+              </div>
+              <Tooltip text="최근 30일 인증 완료 기록을 기준으로 정렬합니다." />
+            </div>
+            <div className="space-y-3">
+              {dashboard.rankings.slice(0, 8).map((row, index) => (
+                <div key={row.participant.id} className="rounded-3xl bg-oriwan-surface-light p-3">
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-2xl bg-slate-950 text-sm font-black text-lime-200">
+                        {index + 1}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-black text-oriwan-text">{row.participant.name}</p>
+                        <p className="text-[11px] text-oriwan-text-muted">
+                          인증 {row.count}회 · {row.distance.toFixed(1)}km · 평균 {secondsToPace(row.latestPace)}
+                        </p>
+                      </div>
+                    </div>
+                    <IconRun size={18} className="shrink-0 text-oriwan-primary" />
+                  </div>
+                  <div className="h-2 overflow-hidden rounded-full bg-white">
+                    <div className="h-full rounded-full bg-lime-300" style={{ width: `${Math.max(6, (row.distance / dashboard.maxDistance) * 100)}%` }} />
+                  </div>
+                </div>
+              ))}
+              {!dashboard.rankings.length && !loading && <p className="py-8 text-center text-sm text-oriwan-text-muted">아직 표시할 기록이 없습니다.</p>}
+            </div>
+          </div>
+        </section>
+
+        <section className="mt-4 card overflow-hidden p-4 sm:p-5">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div>
+              <h3 className="text-lg font-black tracking-[-0.03em] text-oriwan-text">인증 캘린더</h3>
+              <p className="mt-1 text-xs text-oriwan-text-muted">참가자별 최근 14일 인증 여부</p>
+            </div>
+            <Tooltip text="초록색은 인증 완료, 주황색은 확인 필요, 옅은 점은 미제출입니다." />
+          </div>
+          <div className="overflow-x-auto pb-1">
+            <div className="min-w-[760px] space-y-2">
+              <div className="grid grid-cols-[130px_repeat(14,1fr)] gap-1 text-[10px] font-black text-oriwan-text-muted">
+                <div>참가자</div>
+                {timelineDays.map((day) => <div key={day} className="text-center">{day.slice(5).replace("-", "/")}</div>)}
+              </div>
+              {dashboard.participants.map((participant) => (
+                <div key={participant.id} className="grid grid-cols-[130px_repeat(14,1fr)] items-center gap-1">
+                  <div className="truncate text-xs font-black text-oriwan-text">{participant.name}</div>
+                  {timelineDays.map((day) => {
+                    const record = dashboard.byParticipantDate.get(`${participant.id}:${day}`);
+                    const status = record?.status || "missing";
+                    return (
+                      <div
+                        key={day}
+                        title={`${participant.name} · ${day} · ${status === "certified" ? "인증 완료" : status === "needs_review" ? "확인 필요" : "미제출"}`}
+                        className={`flex h-8 items-center justify-center rounded-xl text-[11px] font-black ${statusStyle(status)}`}
+                      >
+                        {status === "certified" ? <IconCheck size={13} /> : status === "needs_review" ? "!" : "·"}
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {dashboard.participants.map((participant) => {
+            const participantRecords = dashboard.records.filter((record) => record.participant_id === participant.id && record.status === "certified");
+            const distance = participantRecords.reduce((sum, record) => sum + (record.distance_km || 0), 0);
+            const isTodayDone = dashboard.todayCertifiedIds.has(participant.id);
+            return (
+              <div key={participant.id} className="card p-4">
+                <div className="mb-3 flex items-center justify-between">
+                  <p className="truncate text-sm font-black text-oriwan-text">{participant.name}</p>
+                  <span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${isTodayDone ? "bg-lime-300 text-slate-950" : "bg-slate-100 text-slate-400"}`}>
+                    {isTodayDone ? "TODAY" : "WAIT"}
+                  </span>
+                </div>
+                <p className="text-3xl font-black tracking-[-0.06em] text-oriwan-text">{distance.toFixed(1)}km</p>
+                <p className="mt-1 text-[11px] text-oriwan-text-muted">최근 30일 누적 거리</p>
+              </div>
+            );
+          })}
+        </section>
+
+        <p className="py-6 text-center text-[11px] font-semibold text-oriwan-text-muted">
+          {loading ? "데이터를 불러오는 중..." : `마지막 업데이트 ${data?.generated_at ? new Date(data.generated_at).toLocaleTimeString("ko-KR") : "-"}`}
+        </p>
+      </section>
+    </main>
+  );
+}
+
+function MetricCard({ title, value, helper }: { title: string; value: string; helper: string }) {
+  return (
+    <div className="card p-4">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <p className="text-[11px] font-black uppercase tracking-[0.12em] text-oriwan-text-muted">{title}</p>
+        <Tooltip text={helper} />
+      </div>
+      <p className="text-2xl font-black tracking-[-0.05em] text-oriwan-text sm:text-3xl">{value}</p>
     </div>
   );
 }

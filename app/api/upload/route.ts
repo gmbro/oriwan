@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { createClient as createServerClient } from "@/lib/supabase/server";
+import { requireAdminUser } from "@/lib/admin-server";
 
 /**
  * POST /api/upload
@@ -9,11 +10,8 @@ import { createClient as createServerClient } from "@/lib/supabase/server";
  */
 export async function POST(request: NextRequest) {
   const supabaseAuth = await createServerClient();
-  const { data: { user } } = await supabaseAuth.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 });
-  }
+  const { user, response } = await requireAdminUser(supabaseAuth);
+  if (response) return response;
 
   try {
     const { image } = await request.json();

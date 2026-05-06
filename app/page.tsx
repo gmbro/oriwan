@@ -1,7 +1,5 @@
 import Image from "next/image";
 import Link from "next/link";
-import GoogleLoginButton from "./GoogleLoginButton";
-import { IconRun, IconDna, IconSprout } from "@/components/icons";
 
 export default async function Home() {
   return (
@@ -29,42 +27,23 @@ export default async function Home() {
             스내사 3기
           </h1>
           <p className="animate-fade-up text-[13px] text-oriwan-primary font-semibold tracking-wide mb-8" style={{ animationDelay: "0.08s" }}>
-            러닝 인증을 실시간으로 읽는 운영 보드
+            러닝 인증 현황을 한눈에 보는 실시간 보드
           </p>
 
-          {/* 구글 로그인 */}
-          <div className="animate-fade-up" style={{ animationDelay: "0.12s" }}>
-            <GoogleLoginButton />
-          </div>
-
-          {/* 구분선 */}
-          <div className="animate-fade-up my-6 flex items-center gap-3" style={{ animationDelay: "0.18s" }}>
-            <div className="flex-1 h-px bg-oriwan-border" />
-            <span className="text-[11px] text-oriwan-text-muted tracking-wider whitespace-nowrap">이런 걸 할 수 있어요</span>
-            <div className="flex-1 h-px bg-oriwan-border" />
-          </div>
-
-          {/* 기능 태그 — 한 줄 */}
-          <div className="animate-fade-up flex items-center justify-center gap-1.5" style={{ animationDelay: "0.22s" }}>
-            <span className="inline-flex items-center gap-1 text-[11px] text-oriwan-text-muted px-2.5 py-1.5 rounded-full bg-oriwan-surface-light whitespace-nowrap">
-              <IconRun size={12} className="text-oriwan-primary" />
-              이미지 인증
-            </span>
-            <span className="inline-flex items-center gap-1 text-[11px] text-oriwan-text-muted px-2.5 py-1.5 rounded-full bg-oriwan-surface-light whitespace-nowrap">
-              <IconDna size={12} className="text-oriwan-primary" />
-              AI 추출
-            </span>
-            <span className="inline-flex items-center gap-1 text-[11px] text-oriwan-text-muted px-2.5 py-1.5 rounded-full bg-oriwan-surface-light whitespace-nowrap">
-              <IconSprout size={12} className="text-oriwan-primary" />
-              그래프 대시보드
-            </span>
+          <div className="animate-fade-up space-y-3" style={{ animationDelay: "0.12s" }}>
+            <Link href="/dashboard" className="btn-primary w-full">
+              참가자 대시보드 보기
+            </Link>
+            <Link href="/admin" className="btn-google w-full">
+              관리자 페이지
+            </Link>
           </div>
         </div>
 
         {/* 하단 약관 */}
         <div className="animate-fade-up text-center mt-5 space-y-2" style={{ animationDelay: "0.26s" }}>
           <p className="text-[11px] text-oriwan-text-muted/60">
-            Google 계정으로 스내사 3기 대시보드를 시작하세요
+            참가자는 바로 보고, 운영자는 인증번호로 관리합니다
           </p>
           <div className="flex items-center justify-center gap-3 text-[11px] text-oriwan-text-muted/50">
             <Link href="/terms" className="hover:text-oriwan-text-muted transition-colors underline underline-offset-2">

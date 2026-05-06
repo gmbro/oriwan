@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { requireAdminUser } from "@/lib/admin-server";
 import { calculatePaceSeconds } from "@/lib/run-records";
 
 function sanitizeNumber(value: unknown) {
@@ -10,11 +11,8 @@ function sanitizeNumber(value: unknown) {
 
 export async function GET(request: NextRequest) {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 });
-  }
+  const { user, response } = await requireAdminUser(supabase);
+  if (response) return response;
 
   const { searchParams } = new URL(request.url);
   const from = searchParams.get("from");
@@ -57,11 +55,8 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 });
-  }
+  const { user, response } = await requireAdminUser(supabase);
+  if (response) return response;
 
   const body = await request.json().catch(() => ({}));
   const participantId = typeof body.participant_id === "string" ? body.participant_id : null;
