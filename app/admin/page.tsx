@@ -47,6 +47,7 @@ type RecordDraft = {
 
 type RankingMode = "certified" | "distance" | "time";
 type AdminOtpType = "email" | "magiclink" | "signup";
+type AdminModal = "participant" | "record" | null;
 
 const today = toIsoDate(new Date());
 const rangeStart = toIsoDate(addDays(new Date(), -20));
@@ -122,6 +123,8 @@ export default function AdminPage() {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [liveStatus, setLiveStatus] = useState<"connecting" | "live" | "polling">("connecting");
   const [setupMessage, setSetupMessage] = useState("");
+  const [adminModal, setAdminModal] = useState<AdminModal>(null);
+  const [editingParticipantId, setEditingParticipantId] = useState("");
 
   const loadData = useCallback(async (showLoading = true) => {
     if (showLoading) setLoading(true);
@@ -217,7 +220,7 @@ export default function AdminPage() {
     };
   }, [authorized, loadData, mounted]);
 
-  const todayRecords = useMemo(() => records.filter((record) => record.record_date === targetDate), [records, targetDate]);
+  const todayRecords = useMemo(() => records.filter((record) => record.record_date === today), [records]);
   const certifiedToday = useMemo(() => todayRecords.filter((record) => record.status === "certified").length, [todayRecords]);
   const needsReview = useMemo(() => records.filter((record) => record.status === "needs_review").length, [records]);
   const totalDistance = useMemo(() => todayRecords.reduce((sum, record) => sum + (record.distance_km || 0), 0), [todayRecords]);
@@ -290,6 +293,55 @@ export default function AdminPage() {
     }
   }, [loadData, newName, newNickname]);
 
+  const editingParticipant = useMemo(
+    () => participants.find((participant) => participant.id === editingParticipantId) || null,
+    [editingParticipantId, participants]
+  );
+
+  const startEditParticipant = useCallback((participant: Participant) => {
+    setEditingParticipantId(participant.id);
+    setNewName(participant.name);
+    setNewNickname(participant.nickname || "");
+  }, []);
+
+  const resetParticipantForm = useCallback(() => {
+    setEditingParticipantId("");
+    setNewName("");
+    setNewNickname("");
+  }, []);
+
+  const saveParticipant = useCallback(async () => {
+    if (!newName.trim()) return;
+    if (!editingParticipantId) {
+      await addParticipant();
+      return;
+    }
+
+    const res = await fetch(`/api/participants/${editingParticipantId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: newName, nickname: newNickname }),
+    });
+
+    if (res.ok) {
+      resetParticipantForm();
+      await loadData();
+    } else {
+      alert("참가자 정보를 수정하지 못했어요.");
+    }
+  }, [addParticipant, editingParticipantId, loadData, newName, newNickname, resetParticipantForm]);
+
+  const deleteParticipant = useCallback(async (participantId: string) => {
+    if (!window.confirm("이 참가자를 목록에서 삭제할까요? 기존 기록은 보존됩니다.")) return;
+    const res = await fetch(`/api/participants/${participantId}`, { method: "DELETE" });
+    if (res.ok) {
+      if (editingParticipantId === participantId) resetParticipantForm();
+      await loadData();
+    } else {
+      alert("참가자를 삭제하지 못했어요.");
+    }
+  }, [editingParticipantId, loadData, resetParticipantForm]);
+
   const analyzeImages = useCallback(async () => {
     if (!files.length) return;
     setAnalyzing(true);
@@ -327,6 +379,7 @@ export default function AdminPage() {
     if (res.ok) {
       setManualDistance("");
       setManualDuration("");
+      setAdminModal(null);
       await loadData();
     } else {
       alert("기록 저장에 실패했어요.");
@@ -357,6 +410,13 @@ export default function AdminPage() {
     if (res.ok) await loadData();
     else alert("수정 저장에 실패했어요.");
   }, [drafts, loadData]);
+
+  const deleteRecord = useCallback(async (recordId: string) => {
+    if (!window.confirm("이 기록을 삭제할까요?")) return;
+    const res = await fetch(`/api/records/${recordId}`, { method: "DELETE" });
+    if (res.ok) await loadData();
+    else alert("기록 삭제에 실패했어요.");
+  }, [loadData]);
 
   const sendAdminCode = useCallback(async () => {
     setSendingCode(true);
@@ -533,8 +593,8 @@ export default function AdminPage() {
             </div>
             <div className="grid grid-cols-2 gap-2 text-right sm:grid-cols-3">
               <div className="rounded-2xl bg-white/10 px-4 py-3 ring-1 ring-white/10">
-                <p className="text-[10px] font-bold text-white/45">선택일</p>
-                <p className="text-sm font-black text-white">{targetDate}</p>
+                <p className="text-[10px] font-bold text-white/45">오늘</p>
+                <p className="text-sm font-black text-white">{today}</p>
               </div>
               <div className="rounded-2xl bg-lime-300 px-4 py-3 text-slate-950">
                 <p className="text-[10px] font-bold opacity-60">인증률</p>
@@ -557,15 +617,63 @@ export default function AdminPage() {
           </section>
         )}
 
-        <section className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-          <SummaryCard title="참가자" value={`${participants.length}명`} caption="직접 추가/관리" />
-          <SummaryCard title="선택일 인증" value={`${certifiedToday}/${participants.length}`} caption={targetDate} />
-          <SummaryCard title="확인 필요" value={`${needsReview}건`} caption="날짜/시간/이름 검수" tone="amber" />
-          <SummaryCard title="선택일 거리" value={`${totalDistance.toFixed(1)}km`} caption="인증 완료 기준" />
-          <SummaryCard title="선택일 시간" value={secondsToTime(totalTime)} caption="누적 러닝 시간" />
+        <section className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+          <SummaryCard title="전체 참가자" value={`${participants.length}명`} />
+          <SummaryCard title="오늘 인증" value={`${certifiedToday}/${participants.length}`} />
+          <SummaryCard title="검수 대기" value={`${needsReview}건`} tone="amber" />
+          <SummaryCard title="오늘 거리" value={`${totalDistance.toFixed(1)}km`} />
+          <SummaryCard title="오늘 시간" value={secondsToTime(totalTime)} />
         </section>
 
-        <section className="grid lg:grid-cols-[1.1fr_0.9fr] gap-5">
+        <section className="grid gap-5 lg:grid-cols-[1fr_1.1fr]">
+          <div className="card p-4">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-black text-oriwan-text">관리 작업</h2>
+                <p className="mt-1 text-xs text-oriwan-text-muted">참가자와 기록은 모달에서 추가, 수정, 삭제합니다.</p>
+              </div>
+              <IconSprout size={22} className="text-oriwan-primary" />
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => {
+                  resetParticipantForm();
+                  setAdminModal("participant");
+                }}
+                className="rounded-2xl bg-slate-950 px-4 py-4 text-left text-sm font-black text-lime-200"
+              >
+                참가자 관리
+              </button>
+              <button
+                type="button"
+                onClick={() => setAdminModal("record")}
+                className="rounded-2xl bg-lime-300 px-4 py-4 text-left text-sm font-black text-slate-950"
+              >
+                기록 수동 입력
+              </button>
+            </div>
+            <div className="mt-4 rounded-3xl bg-oriwan-surface-light p-4">
+              <p className="text-xs font-black text-oriwan-text">등록된 참가자</p>
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {participants.map((participant) => (
+                  <button
+                    key={participant.id}
+                    type="button"
+                    onClick={() => {
+                      startEditParticipant(participant);
+                      setAdminModal("participant");
+                    }}
+                    className="rounded-full bg-white px-3 py-1.5 text-xs font-bold text-oriwan-text shadow-sm"
+                  >
+                    {participant.name}{participant.nickname ? ` · ${participant.nickname}` : ""}
+                  </button>
+                ))}
+                {!participants.length && <p className="text-xs text-oriwan-text-muted">참가자를 추가하면 여기에 표시됩니다.</p>}
+              </div>
+            </div>
+          </div>
+
           <div className="card p-4 space-y-3">
             <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
               <div>
@@ -591,41 +699,9 @@ export default function AdminPage() {
               </button>
             </div>
           </div>
-
-          <div className="card p-4 space-y-3">
-            <h2 className="text-lg font-black text-oriwan-text">참가자 추가</h2>
-            <div className="grid sm:grid-cols-2 gap-2">
-              <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="이름" className="rounded-xl border border-oriwan-border px-3 py-2.5 text-sm" />
-              <input value={newNickname} onChange={(e) => setNewNickname(e.target.value)} placeholder="닉네임 또는 앱 이름" className="rounded-xl border border-oriwan-border px-3 py-2.5 text-sm" />
-            </div>
-            <button onClick={addParticipant} className="btn-primary w-full py-3 text-sm">참가자 등록</button>
-            <div className="flex flex-wrap gap-1.5 pt-1">
-              {participants.map((participant) => (
-                <span key={participant.id} className="rounded-full bg-oriwan-surface-light px-3 py-1.5 text-xs font-bold text-oriwan-text">
-                  {participant.name}{participant.nickname ? ` · ${participant.nickname}` : ""}
-                </span>
-              ))}
-              {!participants.length && <p className="text-xs text-oriwan-text-muted">먼저 참가자 이름을 등록해주세요.</p>}
-            </div>
-          </div>
         </section>
 
-        <section className="grid lg:grid-cols-[0.9fr_1.1fr] gap-5">
-          <div className="card p-4 space-y-3">
-            <h2 className="text-lg font-black text-oriwan-text">수동 기록 입력</h2>
-            <div className="grid sm:grid-cols-2 gap-2">
-              <select value={manualParticipantId} onChange={(e) => setManualParticipantId(e.target.value)} className="rounded-xl border border-oriwan-border px-3 py-2.5 text-sm bg-white">
-                <option value="">참가자 선택</option>
-                {participants.map((participant) => <option key={participant.id} value={participant.id}>{participant.name}</option>)}
-              </select>
-              <input type="date" value={manualDate} onChange={(e) => setManualDate(e.target.value)} className="rounded-xl border border-oriwan-border px-3 py-2.5 text-sm" />
-              <input value={manualDistance} onChange={(e) => setManualDistance(e.target.value)} placeholder="거리 km" inputMode="decimal" className="rounded-xl border border-oriwan-border px-3 py-2.5 text-sm" />
-              <input value={manualDuration} onChange={(e) => setManualDuration(e.target.value)} placeholder="시간 예: 32:10" className="rounded-xl border border-oriwan-border px-3 py-2.5 text-sm" />
-            </div>
-            <button onClick={saveManualRecord} className="btn-primary w-full py-3 text-sm">수동 기록 저장</button>
-          </div>
-
-          <div className="card p-4 overflow-hidden">
+        <section className="card p-4 overflow-hidden">
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h2 className="text-lg font-black text-oriwan-text">인증 시계열</h2>
@@ -651,7 +727,6 @@ export default function AdminPage() {
                 ))}
               </div>
             </div>
-          </div>
         </section>
 
         <section className="grid lg:grid-cols-[0.9fr_1.1fr] gap-5">
@@ -714,7 +789,7 @@ export default function AdminPage() {
             <button onClick={() => loadData()} className="rounded-xl bg-oriwan-surface-light px-3 py-2 text-xs font-bold text-oriwan-text-muted">새로고침</button>
           </div>
           <div className="overflow-x-auto">
-            <table className="min-w-[980px] w-full text-left text-xs">
+            <table className="min-w-[1040px] w-full text-left text-xs">
               <thead className="text-oriwan-text-muted">
                 <tr className="border-b border-oriwan-border">
                   <th className="py-2 pr-2">상태</th>
@@ -726,6 +801,7 @@ export default function AdminPage() {
                   <th className="py-2 pr-2">출처</th>
                   <th className="py-2 pr-2">메모</th>
                   <th className="py-2 pr-2">저장</th>
+                  <th className="py-2 pr-2">삭제</th>
                 </tr>
               </thead>
               <tbody>
@@ -753,6 +829,7 @@ export default function AdminPage() {
                       <td className="py-2 pr-2"><input value={draft.source_app} onChange={(e) => updateDraft(record.id, { source_app: e.target.value })} className="w-24 rounded-lg border border-oriwan-border px-2 py-1.5" /></td>
                       <td className="py-2 pr-2"><input value={draft.notes} onChange={(e) => updateDraft(record.id, { notes: e.target.value })} className="w-56 rounded-lg border border-oriwan-border px-2 py-1.5" /></td>
                       <td className="py-2 pr-2"><button onClick={() => saveDraft(record.id)} className="rounded-lg bg-oriwan-primary px-3 py-1.5 font-bold text-white">저장</button></td>
+                      <td className="py-2 pr-2"><button onClick={() => deleteRecord(record.id)} className="rounded-lg bg-rose-50 px-3 py-1.5 font-bold text-rose-700">삭제</button></td>
                     </tr>
                   );
                 })}
@@ -761,17 +838,105 @@ export default function AdminPage() {
             {!records.length && !loading && <p className="py-10 text-center text-sm text-oriwan-text-muted">아직 기록이 없습니다. 이미지를 업로드하거나 수동으로 입력해주세요.</p>}
           </div>
         </section>
+
+        {adminModal === "participant" && (
+          <div className="fixed inset-0 z-[80] flex items-end bg-slate-950/45 px-4 py-4 backdrop-blur-sm sm:items-center sm:justify-center">
+            <div className="card max-h-[88vh] w-full max-w-2xl overflow-y-auto p-5 sm:p-6">
+              <div className="mb-4 flex items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-xl font-black tracking-[-0.04em] text-oriwan-text">참가자 관리</h2>
+                  <p className="mt-1 text-xs text-oriwan-text-muted">이름을 추가하거나 기존 참가자를 수정/삭제합니다.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAdminModal(null);
+                    resetParticipantForm();
+                  }}
+                  className="rounded-full bg-oriwan-surface-light px-3 py-1.5 text-xs font-black text-oriwan-text-muted"
+                >
+                  닫기
+                </button>
+              </div>
+
+              <div className="rounded-3xl bg-oriwan-surface-light p-4">
+                <p className="mb-3 text-xs font-black text-oriwan-text">{editingParticipant ? "참가자 수정" : "새 참가자 추가"}</p>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="이름" className="rounded-xl border border-oriwan-border px-3 py-2.5 text-sm" />
+                  <input value={newNickname} onChange={(e) => setNewNickname(e.target.value)} placeholder="닉네임 또는 앱 이름" className="rounded-xl border border-oriwan-border px-3 py-2.5 text-sm" />
+                </div>
+                <div className="mt-3 flex gap-2">
+                  <button type="button" onClick={saveParticipant} className="btn-primary flex-1 py-3 text-sm">
+                    {editingParticipant ? "수정 저장" : "참가자 추가"}
+                  </button>
+                  {editingParticipant && (
+                    <button type="button" onClick={resetParticipantForm} className="rounded-2xl bg-white px-4 py-3 text-sm font-black text-oriwan-text">
+                      새로 입력
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-4 space-y-2">
+                {participants.map((participant) => (
+                  <div key={participant.id} className="flex items-center justify-between gap-3 rounded-2xl bg-white px-4 py-3 ring-1 ring-slate-950/5">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-black text-oriwan-text">{participant.name}</p>
+                      <p className="text-[11px] text-oriwan-text-muted">{participant.nickname || "닉네임 없음"}</p>
+                    </div>
+                    <div className="flex shrink-0 gap-1.5">
+                      <button type="button" onClick={() => startEditParticipant(participant)} className="rounded-xl bg-oriwan-surface-light px-3 py-2 text-xs font-black text-oriwan-text">
+                        변경
+                      </button>
+                      <button type="button" onClick={() => deleteParticipant(participant.id)} className="rounded-xl bg-rose-50 px-3 py-2 text-xs font-black text-rose-700">
+                        삭제
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                {!participants.length && <p className="rounded-2xl bg-white px-4 py-6 text-center text-sm text-oriwan-text-muted">아직 참가자가 없습니다.</p>}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {adminModal === "record" && (
+          <div className="fixed inset-0 z-[80] flex items-end bg-slate-950/45 px-4 py-4 backdrop-blur-sm sm:items-center sm:justify-center">
+            <div className="card w-full max-w-xl p-5 sm:p-6">
+              <div className="mb-4 flex items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-xl font-black tracking-[-0.04em] text-oriwan-text">기록 수동 입력</h2>
+                  <p className="mt-1 text-xs text-oriwan-text-muted">참가자, 날짜, 거리, 시간을 입력하면 인증 기록으로 저장됩니다.</p>
+                </div>
+                <button type="button" onClick={() => setAdminModal(null)} className="rounded-full bg-oriwan-surface-light px-3 py-1.5 text-xs font-black text-oriwan-text-muted">
+                  닫기
+                </button>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <select value={manualParticipantId} onChange={(e) => setManualParticipantId(e.target.value)} className="rounded-xl border border-oriwan-border bg-white px-3 py-2.5 text-sm">
+                  <option value="">참가자 선택</option>
+                  {participants.map((participant) => <option key={participant.id} value={participant.id}>{participant.name}</option>)}
+                </select>
+                <input type="date" value={manualDate} onChange={(e) => setManualDate(e.target.value)} className="rounded-xl border border-oriwan-border px-3 py-2.5 text-sm" />
+                <input value={manualDistance} onChange={(e) => setManualDistance(e.target.value)} placeholder="거리 km" inputMode="decimal" className="rounded-xl border border-oriwan-border px-3 py-2.5 text-sm" />
+                <input value={manualDuration} onChange={(e) => setManualDuration(e.target.value)} placeholder="시간 예: 32:10" className="rounded-xl border border-oriwan-border px-3 py-2.5 text-sm" />
+              </div>
+              <button type="button" onClick={saveManualRecord} className="btn-primary mt-4 w-full py-3 text-sm">
+                기록 저장
+              </button>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );
 }
 
-function SummaryCard({ title, value, caption, tone = "blue" }: { title: string; value: string; caption: string; tone?: "blue" | "amber" }) {
+function SummaryCard({ title, value, tone = "blue" }: { title: string; value: string; tone?: "blue" | "amber" }) {
   return (
     <div className={`card p-4 ${tone === "amber" ? "bg-orange-50/80" : ""}`}>
-      <p className="text-[11px] font-black uppercase tracking-[0.12em] text-oriwan-text-muted mb-1">{title}</p>
+      <p className="text-[11px] font-black uppercase tracking-[0.12em] text-oriwan-text-muted">{title}</p>
       <p className="text-2xl font-black text-oriwan-text tracking-[-0.04em]">{value}</p>
-      <p className="text-[11px] text-oriwan-text-muted mt-1">{caption}</p>
     </div>
   );
 }

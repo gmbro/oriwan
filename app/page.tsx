@@ -42,8 +42,8 @@ export default async function Home() {
 
         {/* 하단 약관 */}
         <div className="animate-fade-up text-center mt-5 space-y-2" style={{ animationDelay: "0.26s" }}>
-          <p className="text-[11px] text-oriwan-text-muted/60">
-            참가자는 바로 보고, 운영자는 인증번호로 관리합니다
+          <p className="text-[11px] font-semibold text-oriwan-text-muted/70">
+            (주)아키랩 · 관리자 이경민
           </p>
           <div className="flex items-center justify-center gap-3 text-[11px] text-oriwan-text-muted/50">
             <Link href="/terms" className="hover:text-oriwan-text-muted transition-colors underline underline-offset-2">

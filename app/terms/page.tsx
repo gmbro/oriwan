@@ -19,35 +19,37 @@ export default function TermsPage() {
         <div className="card p-6 space-y-6 text-sm leading-relaxed text-oriwan-text-muted">
           <section>
             <h2 className="text-base font-bold text-oriwan-text mb-2">제1조 (목적)</h2>
-            <p>본 약관은 스내사 3기 대시보드가 제공하는 이미지 기반 러닝 인증 관리 및 대시보드 서비스의 이용 조건과 절차를 규정합니다.</p>
+            <p>본 약관은 (주)아키랩이 운영하고 관리자 이경민이 관리하는 스내사 3기 대시보드의 이용 조건과 운영 기준을 규정합니다.</p>
           </section>
 
           <section>
             <h2 className="text-base font-bold text-oriwan-text mb-2">제2조 (서비스 내용)</h2>
             <ul className="list-disc pl-5 space-y-1">
-              <li>참가자 등록 및 관리</li>
-              <li>러닝 인증 이미지 업로드 및 AI 텍스트 추출</li>
-              <li>날짜, 거리, 시간, 페이스 수동 검수</li>
-              <li>인증 시계열, 랭킹, 그래프 대시보드 제공</li>
+              <li>참가자별 러닝 인증 현황 조회</li>
+              <li>전체 및 개별 참가자의 오늘 거리, 시간, 인증 여부 제공</li>
+              <li>운영자의 참가자 추가, 변경, 삭제 및 기록 수동 입력</li>
+              <li>러닝 인증 이미지 업로드, 텍스트 추출, 기록 검수 지원</li>
+              <li>인증 캘린더, 랭킹, 거리/시간 그래프 제공</li>
             </ul>
           </section>
 
           <section>
-            <h2 className="text-base font-bold text-oriwan-text mb-2">제3조 (운영자의 책임)</h2>
-            <ul className="list-disc pl-5 space-y-1">
-              <li>참가자 이미지 업로드에 필요한 동의를 확보해야 합니다.</li>
-              <li>AI 추출 결과가 부정확할 수 있으므로 최종 인증 여부를 직접 확인해야 합니다.</li>
-              <li>타인의 개인정보 또는 민감정보가 불필요하게 포함된 이미지를 업로드하지 않아야 합니다.</li>
-            </ul>
+            <h2 className="text-base font-bold text-oriwan-text mb-2">제3조 (참가자 화면)</h2>
+            <p>참가자 화면은 로그인 없이 전체 현황과 개별 참가자 현황을 볼 수 있는 공개 대시보드입니다. 공개 범위는 운영자가 등록한 참가자명, 인증 여부, 거리, 시간 등 러닝 인증 운영에 필요한 정보로 제한됩니다.</p>
           </section>
 
           <section>
-            <h2 className="text-base font-bold text-oriwan-text mb-2">제4조 (면책)</h2>
-            <p>AI 이미지 분석 결과는 보조 도구이며, 인증 여부와 기록의 정확성에 대한 최종 판단은 운영자에게 있습니다.</p>
+            <h2 className="text-base font-bold text-oriwan-text mb-2">제4조 (관리자 권한)</h2>
+            <p>관리자 화면은 지정된 관리자 이메일 인증번호로만 접근할 수 있습니다. 관리자는 참가자 정보와 인증 기록을 추가, 변경, 삭제할 수 있으며, 입력된 기록의 정확성을 확인할 책임이 있습니다.</p>
+          </section>
+
+          <section>
+            <h2 className="text-base font-bold text-oriwan-text mb-2">제5조 (면책)</h2>
+            <p>이미지 분석 및 텍스트 추출 결과는 보조 도구이며, 인증 여부와 기록의 최종 판단은 관리자에게 있습니다.</p>
           </section>
 
           <p className="text-xs text-oriwan-text-muted/60 pt-4 border-t border-oriwan-border">
-            시행일: 2026년 5월 5일
+            시행일: 2026년 5월 6일 · 운영: (주)아키랩 · 관리자: 이경민
           </p>
         </div>
       </div>

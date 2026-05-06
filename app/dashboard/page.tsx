@@ -1,7 +1,6 @@
 "use client";
 
 import Image from "next/image";
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { IconCheck, IconRun } from "@/components/icons";
 import { addDays, secondsToPace, secondsToTime, toIsoDate } from "@/lib/run-records";
@@ -38,17 +37,6 @@ const today = toIsoDate(new Date());
 const trendDays = Array.from({ length: 14 }, (_, index) => toIsoDate(addDays(new Date(), index - 13)));
 const calendarRangeOptions: CalendarRange[] = [14, 30, 100];
 
-function Tooltip({ text }: { text: string }) {
-  return (
-    <span
-      title={text}
-      className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-slate-950/8 text-[11px] font-black text-slate-500 ring-1 ring-slate-950/5"
-    >
-      ?
-    </span>
-  );
-}
-
 function statusStyle(status: RunRecord["status"] | "missing") {
   if (status === "certified") return "bg-lime-300 text-slate-950 shadow-sm shadow-lime-300/50";
   if (status === "needs_review") return "bg-orange-200 text-orange-950";
@@ -68,11 +56,17 @@ function linePoints(values: number[], width = 320, height = 120) {
     .join(" ");
 }
 
+function formatLastUpdated(value?: string) {
+  if (!value) return "-";
+  return new Date(value).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
+}
+
 export default function DashboardPage() {
   const [data, setData] = useState<PublicDashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [calendarRange, setCalendarRange] = useState<CalendarRange>(14);
+  const [selectedParticipantId, setSelectedParticipantId] = useState("all");
 
   useEffect(() => {
     let alive = true;
@@ -106,19 +100,32 @@ export default function DashboardPage() {
     [calendarRange]
   );
 
+  const selectedParticipant = useMemo(
+    () => data?.participants.find((participant) => participant.id === selectedParticipantId) || null,
+    [data?.participants, selectedParticipantId]
+  );
+
   const dashboard = useMemo(() => {
     const participants = data?.participants || [];
     const records = data?.records || [];
     const certifiedRecords = records.filter((record) => record.status === "certified");
+    const visibleRecords = selectedParticipant
+      ? certifiedRecords.filter((record) => record.participant_id === selectedParticipant.id)
+      : certifiedRecords;
+
+    const todayVisibleRecords = visibleRecords.filter((record) => record.record_date === today);
+    const todayAllRecords = certifiedRecords.filter((record) => record.record_date === today);
     const todayCertifiedIds = new Set(
-      certifiedRecords
-        .filter((record) => record.record_date === today && record.participant_id)
+      todayAllRecords
+        .filter((record) => record.participant_id)
         .map((record) => record.participant_id)
     );
+    const selectedTodayRecord = selectedParticipant
+      ? todayVisibleRecords.find((record) => record.participant_id === selectedParticipant.id) || null
+      : null;
 
-    const todayRecords = certifiedRecords.filter((record) => record.record_date === today);
-    const todayDistance = todayRecords.reduce((sum, record) => sum + (record.distance_km || 0), 0);
-    const todayTime = todayRecords.reduce((sum, record) => sum + (record.duration_seconds || 0), 0);
+    const todayDistance = todayVisibleRecords.reduce((sum, record) => sum + (record.distance_km || 0), 0);
+    const todayTime = todayVisibleRecords.reduce((sum, record) => sum + (record.duration_seconds || 0), 0);
     const completionRate = participants.length ? Math.round((todayCertifiedIds.size / participants.length) * 100) : 0;
 
     const byParticipantDate = new Map<string, RunRecord>();
@@ -143,7 +150,7 @@ export default function DashboardPage() {
 
     const maxDistance = Math.max(1, ...rankings.map((row) => row.distance));
     const dailyDistance = trendDays.map((day) =>
-      certifiedRecords
+      visibleRecords
         .filter((record) => record.record_date === day)
         .reduce((sum, record) => sum + (record.distance_km || 0), 0)
     );
@@ -151,16 +158,21 @@ export default function DashboardPage() {
     return {
       participants,
       records,
+      visibleRecords,
       rankings,
       byParticipantDate,
       todayCertifiedIds,
+      selectedTodayRecord,
       todayDistance,
       todayTime,
       completionRate,
       maxDistance,
       dailyDistance,
     };
-  }, [data]);
+  }, [data, selectedParticipant]);
+
+  const calendarParticipants = selectedParticipant ? [selectedParticipant] : dashboard.participants;
+  const isIndividual = Boolean(selectedParticipant);
 
   return (
     <main className="min-h-screen bg-oriwan-bg">
@@ -170,12 +182,22 @@ export default function DashboardPage() {
             <Image src="/oriwan-logo-v2.png" alt="스내사 3기" width={38} height={38} className="rounded-2xl bg-lime-300" />
             <div>
               <h1 className="text-base font-black tracking-[-0.03em] sm:text-lg">스내사 3기 대시보드</h1>
-              <p className="text-[11px] font-semibold text-white/50">참가자용 실시간 인증 현황</p>
+              <p className="text-[11px] font-semibold text-white/50">오늘의 러닝 인증 현황</p>
             </div>
           </div>
-          <Link href="/admin" className="rounded-full bg-white/10 px-3 py-2 text-xs font-bold text-white/70 ring-1 ring-white/10 hover:text-white">
-            Admin
-          </Link>
+          <label className="min-w-[128px] text-right">
+            <span className="mb-1 block text-[10px] font-black text-white/45">참가자 {dashboard.participants.length}명</span>
+            <select
+              value={selectedParticipantId}
+              onChange={(event) => setSelectedParticipantId(event.target.value)}
+              className="w-full rounded-full bg-white/10 px-3 py-2 text-xs font-black text-white outline-none ring-1 ring-white/10 [color-scheme:dark]"
+            >
+              <option value="all">전체 보기</option>
+              {dashboard.participants.map((participant) => (
+                <option key={participant.id} value={participant.id}>{participant.name}</option>
+              ))}
+            </select>
+          </label>
         </div>
       </header>
 
@@ -189,7 +211,7 @@ export default function DashboardPage() {
                 TODAY · {today}
               </p>
               <h2 className="max-w-2xl text-4xl font-black tracking-[-0.06em] sm:text-6xl">
-                오늘, 얼마나 인증했을까?
+                {isIndividual ? `${selectedParticipant?.name}님의 오늘 인증` : "오늘, 얼마나 인증했을까?"}
               </h2>
               <p className="mt-3 max-w-xl text-sm leading-6 text-white/55">
                 인증 기록은 매일 정오에 업데이트됩니다.
@@ -199,8 +221,10 @@ export default function DashboardPage() {
             <div className="rounded-[28px] bg-white/10 p-4 ring-1 ring-white/10">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs font-black text-white/45">오늘 인증률</p>
-                  <p className="mt-1 text-5xl font-black tracking-[-0.08em] text-lime-200">{dashboard.completionRate}%</p>
+                  <p className="text-xs font-black text-white/45">{isIndividual ? "오늘 인증" : "오늘 인증률"}</p>
+                  <p className="mt-1 text-5xl font-black tracking-[-0.08em] text-lime-200">
+                    {isIndividual ? (dashboard.selectedTodayRecord ? "완료" : "대기") : `${dashboard.completionRate}%`}
+                  </p>
                 </div>
                 <svg viewBox="0 0 120 120" className="h-28 w-28 -rotate-90">
                   <circle cx="60" cy="60" r="48" fill="none" stroke="rgba(255,255,255,.12)" strokeWidth="14" />
@@ -212,12 +236,14 @@ export default function DashboardPage() {
                     stroke="#bef264"
                     strokeWidth="14"
                     strokeLinecap="round"
-                    strokeDasharray={`${dashboard.completionRate * 3.02} 302`}
+                    strokeDasharray={`${(isIndividual ? (dashboard.selectedTodayRecord ? 100 : 0) : dashboard.completionRate) * 3.02} 302`}
                   />
                 </svg>
               </div>
               <p className="mt-2 text-xs font-semibold text-white/50">
-                {dashboard.todayCertifiedIds.size}/{dashboard.participants.length}명 인증 완료
+                {isIndividual
+                  ? dashboard.selectedTodayRecord ? "오늘 인증 기록이 등록됐습니다" : "아직 오늘 인증 기록이 없습니다"
+                  : `${dashboard.todayCertifiedIds.size}/${dashboard.participants.length}명 인증 완료`}
               </p>
             </div>
           </div>
@@ -236,20 +262,17 @@ export default function DashboardPage() {
         )}
 
         <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <MetricCard title="참가자" value={`${dashboard.participants.length}명`} helper="현재 활성 참가자 수" />
-          <MetricCard title="오늘 거리" value={`${dashboard.todayDistance.toFixed(1)}km`} helper="오늘 인증 완료 기록만 합산" />
-          <MetricCard title="오늘 시간" value={secondsToTime(dashboard.todayTime)} helper="오늘 인증 완료 기록의 총 시간" />
-          <MetricCard title="최근 기록" value={`${dashboard.records.length}건`} helper="최근 30일 동안 올라온 기록 수" />
+          <MetricCard title={isIndividual ? "오늘 거리" : "오늘 총 거리"} value={`${dashboard.todayDistance.toFixed(1)}km`} />
+          <MetricCard title={isIndividual ? "오늘 시간" : "오늘 총 시간"} value={secondsToTime(dashboard.todayTime)} />
+          <MetricCard title={isIndividual ? "최근 인증" : "오늘 인증 인원"} value={isIndividual ? `${dashboard.visibleRecords.length}건` : `${dashboard.todayCertifiedIds.size}명`} />
+          <MetricCard title="전체 참가자" value={`${dashboard.participants.length}명`} />
         </div>
 
         <section className="mt-4 grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
           <div className="card p-4 sm:p-5">
-            <div className="mb-4 flex items-center justify-between">
-              <div>
-                <h3 className="text-lg font-black tracking-[-0.03em] text-oriwan-text">최근 14일 흐름</h3>
-                <p className="mt-1 text-xs text-oriwan-text-muted">전체 인증 거리 추이</p>
-              </div>
-              <Tooltip text="하루 동안 인증 완료된 기록의 거리 합계를 선으로 표시합니다." />
+            <div className="mb-4">
+              <h3 className="text-lg font-black tracking-[-0.03em] text-oriwan-text">최근 14일 거리</h3>
+              <p className="mt-1 text-xs text-oriwan-text-muted">{isIndividual ? "선택 참가자" : "전체 참가자"} 인증 거리 합계</p>
             </div>
             <div className="rounded-[26px] bg-slate-950 p-4">
               <svg viewBox="0 0 320 120" className="h-44 w-full">
@@ -264,15 +287,12 @@ export default function DashboardPage() {
           </div>
 
           <div className="card p-4 sm:p-5">
-            <div className="mb-4 flex items-center justify-between">
-              <div>
-                <h3 className="text-lg font-black tracking-[-0.03em] text-oriwan-text">랭킹</h3>
-                <p className="mt-1 text-xs text-oriwan-text-muted">인증 횟수 우선, 동률은 거리순</p>
-              </div>
-              <Tooltip text="최근 30일 인증 완료 기록을 기준으로 정렬합니다." />
+            <div className="mb-4">
+              <h3 className="text-lg font-black tracking-[-0.03em] text-oriwan-text">{isIndividual ? "개별 최근 기록" : "랭킹"}</h3>
+              <p className="mt-1 text-xs text-oriwan-text-muted">{isIndividual ? "최근 인증 기록 요약" : "인증 횟수 우선, 동률은 거리순"}</p>
             </div>
             <div className="space-y-3">
-              {dashboard.rankings.slice(0, 8).map((row, index) => (
+              {!isIndividual && dashboard.rankings.slice(0, 8).map((row, index) => (
                 <div key={row.participant.id} className="rounded-3xl bg-oriwan-surface-light p-3">
                   <div className="mb-2 flex items-center justify-between gap-3">
                     <div className="flex min-w-0 items-center gap-3">
@@ -293,6 +313,17 @@ export default function DashboardPage() {
                   </div>
                 </div>
               ))}
+
+              {isIndividual && dashboard.visibleRecords.slice(0, 6).map((record) => (
+                <div key={record.id} className="grid grid-cols-[1fr_auto] items-center gap-3 rounded-3xl bg-oriwan-surface-light p-3">
+                  <div>
+                    <p className="text-sm font-black text-oriwan-text">{record.record_date || "날짜 없음"}</p>
+                    <p className="text-[11px] text-oriwan-text-muted">{(record.distance_km || 0).toFixed(1)}km · {secondsToTime(record.duration_seconds || 0)} · {secondsToPace(record.pace_seconds_per_km)}</p>
+                  </div>
+                  <span className="rounded-full bg-lime-300 px-3 py-1 text-[10px] font-black text-slate-950">인증</span>
+                </div>
+              ))}
+
               {!dashboard.rankings.length && !loading && <p className="py-8 text-center text-sm text-oriwan-text-muted">아직 표시할 기록이 없습니다.</p>}
             </div>
           </div>
@@ -302,24 +333,21 @@ export default function DashboardPage() {
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h3 className="text-lg font-black tracking-[-0.03em] text-oriwan-text">인증 캘린더</h3>
-              <p className="mt-1 text-xs text-oriwan-text-muted">참가자별 최근 {calendarRange}일 인증 여부</p>
+              <p className="mt-1 text-xs text-oriwan-text-muted">{isIndividual ? selectedParticipant?.name : "참가자별"} 최근 {calendarRange}일 인증 여부</p>
             </div>
-            <div className="flex items-center gap-2">
-              <div className="flex rounded-full bg-oriwan-surface-light p-1 ring-1 ring-slate-950/5">
-                {calendarRangeOptions.map((days) => (
-                  <button
-                    key={days}
-                    type="button"
-                    onClick={() => setCalendarRange(days)}
-                    className={`rounded-full px-3 py-1.5 text-xs font-black transition ${
-                      calendarRange === days ? "bg-slate-950 text-lime-200 shadow-sm" : "text-oriwan-text-muted hover:text-oriwan-text"
-                    }`}
-                  >
-                    {days}일
-                  </button>
-                ))}
-              </div>
-              <Tooltip text="초록색은 인증 완료, 주황색은 확인 필요, 옅은 점은 미제출입니다." />
+            <div className="flex rounded-full bg-oriwan-surface-light p-1 ring-1 ring-slate-950/5">
+              {calendarRangeOptions.map((days) => (
+                <button
+                  key={days}
+                  type="button"
+                  onClick={() => setCalendarRange(days)}
+                  className={`rounded-full px-3 py-1.5 text-xs font-black transition ${
+                    calendarRange === days ? "bg-slate-950 text-lime-200 shadow-sm" : "text-oriwan-text-muted hover:text-oriwan-text"
+                  }`}
+                >
+                  {days}일
+                </button>
+              ))}
             </div>
           </div>
           <div className="overflow-x-auto pb-1">
@@ -331,7 +359,7 @@ export default function DashboardPage() {
                 <div>참가자</div>
                 {calendarDays.map((day) => <div key={day} className="text-center">{day.slice(5).replace("-", "/")}</div>)}
               </div>
-              {dashboard.participants.map((participant) => (
+              {calendarParticipants.map((participant) => (
                 <div
                   key={participant.id}
                   className="grid items-center gap-1"
@@ -357,42 +385,19 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        <section className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {dashboard.participants.map((participant) => {
-            const participantRecords = dashboard.records.filter((record) => record.participant_id === participant.id && record.status === "certified");
-            const distance = participantRecords.reduce((sum, record) => sum + (record.distance_km || 0), 0);
-            const isTodayDone = dashboard.todayCertifiedIds.has(participant.id);
-            return (
-              <div key={participant.id} className="card p-4">
-                <div className="mb-3 flex items-center justify-between">
-                  <p className="truncate text-sm font-black text-oriwan-text">{participant.name}</p>
-                  <span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${isTodayDone ? "bg-lime-300 text-slate-950" : "bg-slate-100 text-slate-400"}`}>
-                    {isTodayDone ? "TODAY" : "WAIT"}
-                  </span>
-                </div>
-                <p className="text-3xl font-black tracking-[-0.06em] text-oriwan-text">{distance.toFixed(1)}km</p>
-                <p className="mt-1 text-[11px] text-oriwan-text-muted">최근 30일 누적 거리</p>
-              </div>
-            );
-          })}
-        </section>
-
         <p className="py-6 text-center text-[11px] font-semibold text-oriwan-text-muted">
-          {loading ? "데이터를 불러오는 중..." : `마지막 업데이트 ${data?.generated_at ? new Date(data.generated_at).toLocaleTimeString("ko-KR") : "-"}`}
+          {loading ? "데이터를 불러오는 중..." : `마지막 업데이트 ${formatLastUpdated(data?.generated_at)}`}
         </p>
       </section>
     </main>
   );
 }
 
-function MetricCard({ title, value, helper }: { title: string; value: string; helper: string }) {
+function MetricCard({ title, value }: { title: string; value: string }) {
   return (
     <div className="card p-4">
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <p className="text-[11px] font-black uppercase tracking-[0.12em] text-oriwan-text-muted">{title}</p>
-        <Tooltip text={helper} />
-      </div>
-      <p className="text-2xl font-black tracking-[-0.05em] text-oriwan-text sm:text-3xl">{value}</p>
+      <p className="text-[11px] font-black uppercase tracking-[0.12em] text-oriwan-text-muted">{title}</p>
+      <p className="mt-2 text-2xl font-black tracking-[-0.05em] text-oriwan-text sm:text-3xl">{value}</p>
     </div>
   );
 }

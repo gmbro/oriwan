@@ -18,47 +18,51 @@ export default function PrivacyPage() {
       <div className="max-w-lg mx-auto px-5 py-8">
         <div className="card p-6 space-y-6 text-sm leading-relaxed text-oriwan-text-muted">
           <section>
-            <h2 className="text-base font-bold text-oriwan-text mb-2">1. 수집하는 개인정보</h2>
-            <p>스내사 3기 대시보드는 이미지 기반 러닝 인증 운영을 위해 다음 정보를 수집합니다.</p>
-            <ul className="list-disc pl-5 space-y-1 mt-2">
-              <li><strong>Google 계정:</strong> 이름, 이메일, 프로필 이미지</li>
-              <li><strong>참가자 정보:</strong> 운영자가 등록한 이름, 닉네임</li>
-              <li><strong>인증 이미지:</strong> 운영자가 업로드한 러닝 기록 이미지</li>
-              <li><strong>추출 기록:</strong> 날짜, 거리, 시간, 페이스, 앱 출처, 인증 상태</li>
+            <h2 className="text-base font-bold text-oriwan-text mb-2">1. 처리 주체</h2>
+            <p>스내사 3기 대시보드는 (주)아키랩이 운영하며, 관리자 이경민이 참가자 및 러닝 인증 기록을 관리합니다.</p>
+          </section>
+
+          <section>
+            <h2 className="text-base font-bold text-oriwan-text mb-2">2. 수집하는 정보</h2>
+            <ul className="list-disc pl-5 space-y-1">
+              <li><strong>관리자 인증 정보:</strong> 관리자 이메일, 인증 세션</li>
+              <li><strong>참가자 정보:</strong> 운영자가 등록한 이름, 닉네임 또는 앱 이름</li>
+              <li><strong>러닝 인증 기록:</strong> 날짜, 거리, 시간, 페이스, 인증 상태, 메모</li>
+              <li><strong>인증 이미지:</strong> 운영자가 업로드한 러닝 기록 이미지와 추출 텍스트</li>
             </ul>
           </section>
 
           <section>
-            <h2 className="text-base font-bold text-oriwan-text mb-2">2. 개인정보 이용 목적</h2>
+            <h2 className="text-base font-bold text-oriwan-text mb-2">3. 이용 목적</h2>
             <ul className="list-disc pl-5 space-y-1">
-              <li>회원 식별 및 인증</li>
               <li>참가자별 러닝 인증 여부 확인</li>
-              <li>거리, 시간, 페이스 변화 분석</li>
-              <li>이미지 텍스트 추출 및 검수 지원</li>
+              <li>전체 및 개별 참가자의 거리, 시간, 인증률 시각화</li>
+              <li>관리자의 참가자 관리 및 기록 검수</li>
+              <li>이미지 기반 기록 추출과 수동 보정 지원</li>
             </ul>
           </section>
 
           <section>
-            <h2 className="text-base font-bold text-oriwan-text mb-2">3. 이미지 분석</h2>
-            <p>업로드된 이미지는 러닝 인증에 필요한 텍스트와 숫자를 추출하기 위해 AI 분석에 사용될 수 있습니다. 운영자는 추출 결과를 직접 수정하거나 반려할 수 있습니다.</p>
+            <h2 className="text-base font-bold text-oriwan-text mb-2">4. 공개 범위</h2>
+            <p>참가자 대시보드는 로그인 없이 볼 수 있습니다. 공개되는 정보는 참가자명, 인증 여부, 거리, 시간, 랭킹 등 러닝 인증 현황에 필요한 항목으로 제한됩니다.</p>
           </section>
 
           <section>
-            <h2 className="text-base font-bold text-oriwan-text mb-2">4. 보관 및 파기</h2>
-            <p>수집된 정보는 서비스 이용 기간 동안 보관되며, 삭제 요청 또는 회원 탈퇴 시 관련 데이터를 삭제합니다. 단, 관련 법령에 따라 보존이 필요한 경우 해당 기간 동안 보관합니다.</p>
+            <h2 className="text-base font-bold text-oriwan-text mb-2">5. 보관 및 삭제</h2>
+            <p>수집된 정보는 스내사 3기 운영 기간 동안 보관됩니다. 참가자 삭제 시 참가자는 목록에서 비활성화되며, 기록 보존이 필요한 경우 기존 인증 기록은 유지될 수 있습니다.</p>
           </section>
 
           <section>
-            <h2 className="text-base font-bold text-oriwan-text mb-2">5. 보안</h2>
+            <h2 className="text-base font-bold text-oriwan-text mb-2">6. 보안</h2>
             <ul className="list-disc pl-5 space-y-1">
-              <li>모든 API 통신은 HTTPS로 암호화됩니다.</li>
-              <li>Supabase Row Level Security로 사용자별 데이터 접근을 제한합니다.</li>
-              <li>이미지 저장 경로와 분석 결과는 로그인한 운영자 계정에 귀속됩니다.</li>
+              <li>관리자 화면은 이메일 인증번호 기반으로 접근을 제한합니다.</li>
+              <li>API 통신은 HTTPS로 암호화됩니다.</li>
+              <li>운영 데이터는 Supabase 권한 정책과 서버 검증을 통해 보호됩니다.</li>
             </ul>
           </section>
 
           <p className="text-xs text-oriwan-text-muted/60 pt-4 border-t border-oriwan-border">
-            시행일: 2026년 5월 5일
+            시행일: 2026년 5월 6일 · 운영: (주)아키랩 · 관리자: 이경민
           </p>
         </div>
       </div>
