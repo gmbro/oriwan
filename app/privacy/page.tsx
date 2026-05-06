@@ -27,7 +27,7 @@ export default function PrivacyPage() {
             <ul className="list-disc pl-5 space-y-1">
               <li><strong>관리자 인증 정보:</strong> 관리자 이메일, 인증 세션</li>
               <li><strong>개별 로그인 정보:</strong> Google 계정 이메일, 인증 세션</li>
-              <li><strong>참가자 정보:</strong> 운영자가 등록한 이름, 닉네임 또는 앱 이름, 참가자가 직접 입력한 필수 이름</li>
+              <li><strong>참가자 정보:</strong> 운영자가 등록한 이름, 참가자가 직접 입력한 필수 이름</li>
               <li><strong>러닝 인증 기록:</strong> 날짜, 거리, 시간, 페이스, 인증 상태, 메모</li>
               <li><strong>인증 이미지:</strong> 운영자 또는 참가자가 업로드한 NRC, Garmin, Strava 등 러닝 기록 이미지와 추출 텍스트</li>
             </ul>

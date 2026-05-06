@@ -115,7 +115,6 @@ export default function AdminPage() {
   const [drafts, setDrafts] = useState<Record<string, RecordDraft>>({});
   const [loading, setLoading] = useState(true);
   const [newName, setNewName] = useState("");
-  const [newNickname, setNewNickname] = useState("");
   const [targetDate, setTargetDate] = useState(initialRecordDate);
   const [files, setFiles] = useState<File[]>([]);
   const [analyzing, setAnalyzing] = useState(false);
@@ -287,16 +286,15 @@ export default function AdminPage() {
     const res = await fetch("/api/participants", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: newName, nickname: newNickname }),
+      body: JSON.stringify({ name: newName }),
     });
     if (res.ok) {
       setNewName("");
-      setNewNickname("");
       await loadData();
     } else {
       alert("참가자를 저장하지 못했어요.");
     }
-  }, [loadData, newName, newNickname]);
+  }, [loadData, newName]);
 
   const editingParticipant = useMemo(
     () => participants.find((participant) => participant.id === editingParticipantId) || null,
@@ -306,13 +304,11 @@ export default function AdminPage() {
   const startEditParticipant = useCallback((participant: Participant) => {
     setEditingParticipantId(participant.id);
     setNewName(participant.name);
-    setNewNickname(participant.nickname || "");
   }, []);
 
   const resetParticipantForm = useCallback(() => {
     setEditingParticipantId("");
     setNewName("");
-    setNewNickname("");
   }, []);
 
   const openUploadForDate = useCallback((date: string) => {
@@ -332,7 +328,7 @@ export default function AdminPage() {
     const res = await fetch(`/api/participants/${editingParticipantId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: newName, nickname: newNickname }),
+      body: JSON.stringify({ name: newName, nickname: "" }),
     });
 
     if (res.ok) {
@@ -341,7 +337,7 @@ export default function AdminPage() {
     } else {
       alert("참가자 정보를 수정하지 못했어요.");
     }
-  }, [addParticipant, editingParticipantId, loadData, newName, newNickname, resetParticipantForm]);
+  }, [addParticipant, editingParticipantId, loadData, newName, resetParticipantForm]);
 
   const deleteParticipant = useCallback(async (participantId: string) => {
     if (!window.confirm("이 참가자를 목록에서 삭제할까요? 기존 기록은 보존됩니다.")) return;
@@ -904,9 +900,8 @@ export default function AdminPage() {
 
               <div className="rounded-3xl bg-oriwan-surface-light p-4">
                 <p className="mb-3 text-xs font-black text-oriwan-text">{editingParticipant ? "참가자 수정" : "새 참가자 추가"}</p>
-                <div className="grid gap-2 sm:grid-cols-2">
+                <div className="grid gap-2">
                   <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="이름" className="rounded-xl border border-oriwan-border px-3 py-2.5 text-sm" />
-                  <input value={newNickname} onChange={(e) => setNewNickname(e.target.value)} placeholder="닉네임 또는 앱 이름" className="rounded-xl border border-oriwan-border px-3 py-2.5 text-sm" />
                 </div>
                 <div className="mt-3 flex gap-2">
                   <button type="button" onClick={saveParticipant} className="btn-primary flex-1 py-3 text-sm">
@@ -925,7 +920,6 @@ export default function AdminPage() {
                   <div key={participant.id} className="flex items-center justify-between gap-3 rounded-2xl bg-white px-4 py-3 ring-1 ring-slate-950/5">
                     <div className="min-w-0">
                       <p className="truncate text-sm font-black text-oriwan-text">{participant.name}</p>
-                      <p className="text-[11px] text-oriwan-text-muted">{participant.nickname || "닉네임 없음"}</p>
                     </div>
                     <div className="flex shrink-0 gap-1.5">
                       <button type="button" onClick={() => startEditParticipant(participant)} className="rounded-xl bg-oriwan-surface-light px-3 py-2 text-xs font-black text-oriwan-text">

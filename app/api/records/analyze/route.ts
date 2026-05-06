@@ -27,7 +27,6 @@ type ExtractedRun = {
 type Participant = {
   id: string;
   name: string;
-  nickname: string | null;
 };
 
 function parseDataUrl(dataUrl: string) {
@@ -70,8 +69,7 @@ function matchParticipant(extractedName: string | null | undefined, participants
 
   return participants.find((participant) => {
     const name = participant.name.toLowerCase().replace(/\s+/g, "");
-    const nickname = participant.nickname?.toLowerCase().replace(/\s+/g, "");
-    return normalized.includes(name) || name.includes(normalized) || Boolean(nickname && (normalized.includes(nickname) || nickname.includes(normalized)));
+    return normalized.includes(name) || name.includes(normalized);
   }) || null;
 }
 
@@ -93,8 +91,7 @@ async function analyzeImage(image: UploadedImage, knownNames: string[]) {
   const prompt = `러닝 인증 이미지에서 배경/사진/앱 장식은 무시하고 텍스트와 숫자만 읽어 JSON으로 추출하세요.
 
 이미지에 보이는 텍스트만 근거로 판단하세요. 날짜가 보이지 않으면 record_date는 null, 시간이 보이지 않으면 duration_seconds는 null로 두세요.
-참가자 이름은 아래 등록된 이름/닉네임 중 이미지에서 보이는 값과 가장 가까운 것을 넣고, 확실하지 않으면 null로 두세요.
-NRC, Garmin, Strava, Apple Fitness 같은 앱에서 프로필명, 닉네임, 계정명, 활동 작성자 이름이 보이면 participant_name 판단에 우선 활용하세요.
+참가자 이름은 아래 등록된 이름 중 이미지에서 보이는 값과 가장 가까운 것을 넣고, 확실하지 않으면 null로 두세요.
 파일명은 근거로 사용하지 말고 이미지 안의 텍스트만 사용하세요.
 
 등록된 참가자:
@@ -157,14 +154,14 @@ export async function POST(request: NextRequest) {
 
     const { data: participantsData, error: participantError } = await supabase
       .from("participants")
-      .select("id, name, nickname")
+      .select("id, name")
       .eq("user_id", user.id)
       .eq("active", true);
 
     if (participantError) throw participantError;
 
     const participants = (participantsData || []) as Participant[];
-    const knownNames = participants.flatMap((participant) => [participant.name, participant.nickname].filter(Boolean) as string[]);
+    const knownNames = participants.map((participant) => participant.name);
 
     const { data: batch, error: batchError } = await supabase
       .from("upload_batches")
