@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { IconCheck } from "@/components/icons";
 import { ScoreBadge } from "@/components/score-badge";
 import { YoutubeShortsSection } from "@/components/youtube-shorts-section";
-import { ACTUAL_CERTIFICATION_START_DATE, CERTIFICATION_DISPLAY_START_DATE, CHALLENGE_END_DATE, CHALLENGE_START_DATE } from "@/lib/challenge";
+import { ACTUAL_CERTIFICATION_START_DATE, CERTIFICATION_DISPLAY_START_DATE, CHALLENGE_DAYS, CHALLENGE_END_DATE, CHALLENGE_START_DATE } from "@/lib/challenge";
 import { addDays, toIsoDate } from "@/lib/run-records";
 import { buildScoreRows } from "@/lib/scoring";
 
@@ -67,8 +67,8 @@ function certificationDayLabel() {
   const start = new Date(`${ACTUAL_CERTIFICATION_START_DATE}T00:00:00`);
   const current = new Date(`${today > CHALLENGE_END_DATE ? CHALLENGE_END_DATE : today}T00:00:00`);
   const diffDays = Math.floor((current.getTime() - start.getTime()) / 86_400_000);
-  if (diffDays < 0) return `D-${Math.abs(diffDays)}`;
-  return `D+${diffDays + 1}`;
+  if (diffDays < 0) return `D-${CHALLENGE_DAYS}`;
+  return `D-${Math.max(CHALLENGE_DAYS - diffDays, 0)}`;
 }
 
 export default function DashboardPage() {
@@ -184,7 +184,7 @@ export default function DashboardPage() {
                   인증 기간 · {CERTIFICATION_DISPLAY_START_DATE} ~ {CHALLENGE_END_DATE}
                 </p>
                 <p className="inline-flex rounded-full bg-lime-300 px-3 py-1 text-[10px] font-black text-slate-950 sm:text-[11px]">
-                  실제 인증 {certificationDayLabel()} · {ACTUAL_CERTIFICATION_START_DATE}부터
+                  실제 인증 {certificationDayLabel()} · {ACTUAL_CERTIFICATION_START_DATE}부터 100일
                 </p>
               </div>
               <h2 className="max-w-full whitespace-nowrap text-[clamp(1.95rem,8vw,3.75rem)] font-black leading-[1.05] tracking-[-0.07em]">

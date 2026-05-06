@@ -239,7 +239,7 @@ export default function MyPage() {
           <p className="mt-5 text-xs font-black text-oriwan-primary">PERSONAL DASHBOARD</p>
           <h1 className="mt-1 text-3xl font-black tracking-[-0.05em] text-oriwan-text">개인 기록 입력</h1>
           <p className="mt-3 text-sm leading-6 text-oriwan-text-muted">
-            Google 로그인 후 이름을 등록하면, 어드민 참가자명과 일치할 때 내 인증 기록을 직접 입력하고 볼 수 있습니다.
+            Google 로그인 후 운영자가 등록한 참가자 이름과 똑같이 입력해주세요. 이름이 일치하면 내 인증 기록을 직접 입력하고 볼 수 있습니다.
           </p>
           {message && <p className="mt-4 rounded-2xl bg-oriwan-surface-light px-4 py-3 text-xs font-bold text-oriwan-text-muted">{message}</p>}
           <button onClick={handleGoogleLogin} className="btn-primary mt-6 w-full py-3 text-sm">Google 로그인</button>
@@ -269,12 +269,24 @@ export default function MyPage() {
 
         <section className="mt-4 grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
           <div className="card p-4 sm:p-5">
-            <h3 className="text-lg font-black text-oriwan-text">이름 등록</h3>
-            <p className="mt-1 text-xs text-oriwan-text-muted">어드민에서 등록한 참가자 이름과 정확히 같아야 합니다.</p>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-lg font-black text-oriwan-text">이름 등록</h3>
+                <p className="mt-1 text-xs leading-5 text-oriwan-text-muted">운영자가 어드민에 등록한 이름과 띄어쓰기까지 똑같이 입력해주세요.</p>
+              </div>
+              <span className={`shrink-0 rounded-full px-3 py-1 text-[10px] font-black ${data.matched_participant ? "bg-lime-200 text-slate-950" : "bg-amber-100 text-amber-800"}`}>
+                {data.matched_participant ? "연결 완료" : "이름 확인 필요"}
+              </span>
+            </div>
             <div className="mt-4 flex gap-2">
-              <input value={name} onChange={(event) => setName(event.target.value)} placeholder="이름 필수" className="min-w-0 flex-1 rounded-2xl border border-oriwan-border bg-white px-4 py-3 text-sm font-bold outline-none focus:border-oriwan-primary" />
+              <input value={name} onChange={(event) => setName(event.target.value)} placeholder="예: 어드민 등록 이름 그대로" className="min-w-0 flex-1 rounded-2xl border border-oriwan-border bg-white px-4 py-3 text-sm font-bold outline-none focus:border-oriwan-primary" />
               <button onClick={saveName} disabled={savingName} className="rounded-2xl bg-slate-950 px-4 py-3 text-sm font-black text-lime-200 disabled:opacity-50">저장</button>
             </div>
+            {!data.matched_participant && (
+              <p className="mt-3 rounded-2xl bg-amber-50 px-3 py-2 text-[11px] font-bold leading-5 text-amber-800 ring-1 ring-amber-100">
+                이름이 연결되어야 수동 기록과 이미지 기록을 저장할 수 있어요. 예: 운영자가 등록한 이름이 “김지우”라면 “김지우”로 입력해주세요.
+              </p>
+            )}
           </div>
 
           <div className="card p-4 sm:p-5">
@@ -286,7 +298,7 @@ export default function MyPage() {
               <input value={duration} onChange={(event) => setDuration(event.target.value)} placeholder="시간 32:10" className="rounded-2xl border border-oriwan-border bg-white px-3 py-3 text-sm" />
             </div>
             <button onClick={saveRecord} disabled={savingRecord || !data.matched_participant} className="btn-primary mt-3 w-full py-3 text-sm disabled:opacity-40">
-              {savingRecord ? "저장 중..." : "내 기록 저장"}
+              {savingRecord ? "저장 중..." : data.matched_participant ? "내 기록 저장" : "이름 연결 후 저장 가능"}
             </button>
 
             <div className="mt-5 rounded-[26px] bg-oriwan-surface-light p-4 ring-1 ring-slate-950/5">
@@ -348,7 +360,7 @@ export default function MyPage() {
                 </p>
               )}
               <button onClick={analyzeImages} disabled={analyzingImages || !data.matched_participant || !imageFiles.length} className="mt-3 w-full rounded-2xl bg-slate-950 px-4 py-3 text-sm font-black text-lime-200 disabled:opacity-40">
-                {analyzingImages ? "이미지 분석 중..." : `일괄 등록하기${imageFiles.length ? ` (${imageFiles.length})` : ""}`}
+                {analyzingImages ? "이미지 분석 중..." : data.matched_participant ? `일괄 등록하기${imageFiles.length ? ` (${imageFiles.length})` : ""}` : "이름 연결 후 일괄 등록 가능"}
               </button>
             </div>
           </div>
