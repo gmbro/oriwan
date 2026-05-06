@@ -32,6 +32,7 @@ body {
   color: var(--color-oriwan-text);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+  min-width: 320px;
 }
 
 main {
@@ -42,6 +43,10 @@ main {
 button, a, [role="button"] {
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
+}
+
+input, select, textarea {
+  font-size: 16px;
 }
 
 img { -webkit-user-drag: none; user-select: none; }

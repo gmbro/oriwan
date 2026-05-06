@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
       raw_extracted_text,
       notes,
       created_at,
-      participants(id, name, nickname)
+      participants(id, name)
     `)
     .eq("user_id", user.id)
     .order("record_date", { ascending: false })

@@ -5,12 +5,12 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { CERTIFICATION_DISPLAY_START_DATE, CHALLENGE_END_DATE, CHALLENGE_START_DATE, clampToChallengeWindow } from "@/lib/challenge";
+import { imageFileToOptimizedDataUrl } from "@/lib/image-client";
 import { parseDurationToSeconds, secondsToPace, secondsToTime, toIsoDate } from "@/lib/run-records";
 
 type Participant = {
   id: string;
   name: string;
-  nickname: string | null;
 };
 
 type RunRecord = {
@@ -34,15 +34,6 @@ type MeData = {
 
 const today = toIsoDate(new Date());
 const initialRecordDate = clampToChallengeWindow(today);
-
-function readFileAsDataUrl(file: File) {
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result || ""));
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(file);
-  });
-}
 
 export default function MyPage() {
   const [data, setData] = useState<MeData | null>(null);
@@ -168,7 +159,7 @@ export default function MyPage() {
       const images = await Promise.all(
         imageFiles.map(async (file) => ({
           name: file.name,
-          dataUrl: await readFileAsDataUrl(file),
+          dataUrl: await imageFileToOptimizedDataUrl(file),
         }))
       );
 

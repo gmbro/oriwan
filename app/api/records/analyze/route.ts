@@ -29,10 +29,28 @@ type Participant = {
   name: string;
 };
 
+const MAX_IMAGES = 40;
+const MAX_IMAGE_BYTES = 3 * 1024 * 1024;
+const SUPPORTED_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+
 function parseDataUrl(dataUrl: string) {
   const match = dataUrl.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
   if (!match) throw new Error("Invalid image data URL");
+  if (!SUPPORTED_MIME_TYPES.has(match[1])) throw new Error("Unsupported image type");
+  if (Buffer.byteLength(match[2], "base64") > MAX_IMAGE_BYTES) throw new Error("Image too large");
   return { mimeType: match[1], base64: match[2] };
+}
+
+function validImage(input: unknown): input is UploadedImage {
+  if (!input || typeof input !== "object") return false;
+  const image = input as UploadedImage;
+  if (typeof image.name !== "string" || typeof image.dataUrl !== "string") return false;
+  try {
+    parseDataUrl(image.dataUrl);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function parseJson(text: string): ExtractedRun {
@@ -143,10 +161,17 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const targetDate = typeof body.targetDate === "string" ? body.targetDate : null;
-    const images = Array.isArray(body.images) ? body.images as UploadedImage[] : [];
+    const rawImages = Array.isArray(body.images) ? body.images : [];
+    const images = rawImages.filter(validImage).slice(0, MAX_IMAGES);
 
     if (!images.length) {
       return NextResponse.json({ error: "이미지가 필요합니다." }, { status: 400 });
+    }
+    if (rawImages.length > MAX_IMAGES) {
+      return NextResponse.json({ error: `이미지는 한 번에 ${MAX_IMAGES}장까지 업로드할 수 있습니다.` }, { status: 400 });
+    }
+    if (images.length !== rawImages.length) {
+      return NextResponse.json({ error: "지원하지 않는 이미지 형식이거나 파일 용량이 너무 큽니다." }, { status: 400 });
     }
     if (targetDate && !isWithinChallengeWindow(targetDate)) {
       return NextResponse.json({ error: CHALLENGE_DATE_ERROR }, { status: 400 });

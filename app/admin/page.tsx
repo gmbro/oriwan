@@ -8,12 +8,12 @@ import { createClient } from "@/lib/supabase/client";
 import { ADMIN_EMAIL, isAdminEmail } from "@/lib/admin";
 import { IconCheck, IconRun } from "@/components/icons";
 import { CHALLENGE_END_DATE, CHALLENGE_START_DATE, clampToChallengeWindow } from "@/lib/challenge";
+import { imageFileToOptimizedDataUrl } from "@/lib/image-client";
 import { addDays, parseDurationToSeconds, secondsToPace, secondsToTime, toIsoDate } from "@/lib/run-records";
 
 type Participant = {
   id: string;
   name: string;
-  nickname: string | null;
   active: boolean;
   display_order: number;
 };
@@ -33,7 +33,7 @@ type RunRecord = {
   image_url: string | null;
   raw_extracted_text: string | null;
   notes: string | null;
-  participants?: { id: string; name: string; nickname: string | null } | null;
+  participants?: { id: string; name: string } | null;
 };
 
 type RecordDraft = {
@@ -57,15 +57,6 @@ const rangeStart = CHALLENGE_START_DATE;
 const timelineBaseDate = new Date(`${effectiveToday}T00:00:00`);
 const timelineDays = Array.from({ length: 14 }, (_, index) => toIsoDate(addDays(timelineBaseDate, index - 13)))
   .filter((day) => day >= CHALLENGE_START_DATE && day <= CHALLENGE_END_DATE);
-
-function readFileAsDataUrl(file: File) {
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
 
 function statusLabel(status: RecordStatus) {
   if (status === "certified") return "인증";
@@ -100,6 +91,8 @@ function polyline(points: { x: number; y: number }[]) {
 export default function AdminPage() {
   const router = useRouter();
   const autoSentRef = useRef(false);
+  const loadInFlightRef = useRef(false);
+  const refreshTimerRef = useRef<number | null>(null);
   const [mounted, setMounted] = useState(false);
   const [authReady, setAuthReady] = useState(false);
   const [authorized, setAuthorized] = useState(false);
@@ -132,6 +125,8 @@ export default function AdminPage() {
   const [editingParticipantId, setEditingParticipantId] = useState("");
 
   const loadData = useCallback(async (showLoading = true) => {
+    if (loadInFlightRef.current) return;
+    loadInFlightRef.current = true;
     if (showLoading) setLoading(true);
     try {
       const [participantsRes, recordsRes] = await Promise.all([
@@ -160,9 +155,17 @@ export default function AdminPage() {
     } catch (err) {
       setSetupMessage(err instanceof Error ? err.message : "데이터를 불러오지 못했습니다.");
     } finally {
+      loadInFlightRef.current = false;
       if (showLoading) setLoading(false);
     }
   }, []);
+
+  const scheduleRefresh = useCallback(() => {
+    if (refreshTimerRef.current) window.clearTimeout(refreshTimerRef.current);
+    refreshTimerRef.current = window.setTimeout(() => {
+      if (document.visibilityState === "visible") loadData(false);
+    }, 400);
+  }, [loadData]);
 
   useEffect(() => {
     setMounted(true);
@@ -201,11 +204,11 @@ export default function AdminPage() {
       .channel("snasa-dashboard-live")
       .on("postgres_changes", { event: "*", schema: "public", table: "participants" }, () => {
         setLiveStatus("live");
-        loadData(false);
+        scheduleRefresh();
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "daily_run_records" }, () => {
         setLiveStatus("live");
-        loadData(false);
+        scheduleRefresh();
       })
       .subscribe((status) => {
         if (status === "SUBSCRIBED") setLiveStatus("live");
@@ -217,13 +220,14 @@ export default function AdminPage() {
         setLiveStatus((current) => current === "live" ? "live" : "polling");
         loadData(false);
       }
-    }, 10000);
+    }, 30000);
 
     return () => {
       window.clearInterval(interval);
+      if (refreshTimerRef.current) window.clearTimeout(refreshTimerRef.current);
       supabase.removeChannel(channel);
     };
-  }, [authorized, loadData, mounted]);
+  }, [authorized, loadData, mounted, scheduleRefresh]);
 
   const todayRecords = useMemo(() => records.filter((record) => record.record_date === today), [records]);
   const certifiedToday = useMemo(() => todayRecords.filter((record) => record.status === "certified").length, [todayRecords]);
@@ -328,7 +332,7 @@ export default function AdminPage() {
     const res = await fetch(`/api/participants/${editingParticipantId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: newName, nickname: "" }),
+      body: JSON.stringify({ name: newName }),
     });
 
     if (res.ok) {
@@ -355,7 +359,7 @@ export default function AdminPage() {
     setAnalyzing(true);
     setAnalysisMessage("");
     try {
-      const images = await Promise.all(files.map(async (file) => ({ name: file.name, dataUrl: await readFileAsDataUrl(file) })));
+      const images = await Promise.all(files.map(async (file) => ({ name: file.name, dataUrl: await imageFileToOptimizedDataUrl(file) })));
       const res = await fetch("/api/records/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

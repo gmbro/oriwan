@@ -22,9 +22,15 @@ type ExtractedRun = {
   notes?: string | null;
 };
 
+const MAX_IMAGES = 5;
+const MAX_IMAGE_BYTES = 3 * 1024 * 1024;
+const SUPPORTED_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+
 function parseDataUrl(dataUrl: string) {
   const match = dataUrl.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
   if (!match) throw new Error("Invalid image data URL");
+  if (!SUPPORTED_MIME_TYPES.has(match[1])) throw new Error("Unsupported image type");
+  if (Buffer.byteLength(match[2], "base64") > MAX_IMAGE_BYTES) throw new Error("Image too large");
   return { mimeType: match[1], base64: match[2] };
 }
 
@@ -64,7 +70,13 @@ function sanitizeDate(value: unknown) {
 function validImage(input: unknown): input is UploadedImage {
   if (!input || typeof input !== "object") return false;
   const image = input as UploadedImage;
-  return typeof image.name === "string" && typeof image.dataUrl === "string" && image.dataUrl.startsWith("data:image/");
+  if (typeof image.name !== "string" || typeof image.dataUrl !== "string") return false;
+  try {
+    parseDataUrl(image.dataUrl);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function analyzeImage(image: UploadedImage) {
@@ -121,10 +133,17 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const targetDate = sanitizeDate(body.targetDate);
-    const images = Array.isArray(body.images) ? body.images.filter(validImage).slice(0, 5) : [];
+    const rawImages = Array.isArray(body.images) ? body.images : [];
+    const images = rawImages.filter(validImage).slice(0, MAX_IMAGES);
 
     if (!images.length) {
       return NextResponse.json({ error: "NRC나 Garmin 같은 러닝 기록 이미지를 업로드해주세요." }, { status: 400 });
+    }
+    if (rawImages.length > MAX_IMAGES) {
+      return NextResponse.json({ error: `개인 기록 이미지는 한 번에 ${MAX_IMAGES}장까지 업로드할 수 있습니다.` }, { status: 400 });
+    }
+    if (images.length !== rawImages.length) {
+      return NextResponse.json({ error: "지원하지 않는 이미지 형식이거나 파일 용량이 너무 큽니다." }, { status: 400 });
     }
     if (targetDate && !isWithinChallengeWindow(targetDate)) {
       return NextResponse.json({ error: CHALLENGE_DATE_ERROR }, { status: 400 });

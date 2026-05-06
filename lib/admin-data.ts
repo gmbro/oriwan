@@ -11,7 +11,6 @@ type AdminUser = {
 type ParticipantRow = {
   id: string;
   name: string;
-  nickname: string | null;
   active: boolean;
   display_order: number;
   created_at: string;
@@ -51,7 +50,7 @@ export async function findAdminUserId(supabase: SupabaseClient) {
 export async function getAdminParticipants(supabase: SupabaseClient, adminUserId: string) {
   const { data, error } = await supabase
     .from("participants")
-    .select("id, name, nickname, active, display_order, created_at")
+    .select("id, name, active, display_order, created_at")
     .eq("user_id", adminUserId)
     .eq("active", true)
     .order("display_order", { ascending: true })

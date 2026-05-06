@@ -10,7 +10,7 @@ export async function GET() {
 
   const { data, error } = await supabase
     .from("participants")
-    .select("id, name, nickname, active, display_order, created_at")
+    .select("id, name, active, display_order, created_at")
     .eq("user_id", user.id)
     .eq("active", true)
     .order("display_order", { ascending: true })
@@ -34,7 +34,6 @@ export async function POST(request: NextRequest) {
 
   const body = await request.json().catch(() => ({}));
   const name = typeof body.name === "string" ? body.name.trim() : "";
-  const nickname = typeof body.nickname === "string" ? body.nickname.trim() : "";
 
   if (!name) {
     return NextResponse.json({ error: "이름이 필요합니다." }, { status: 400 });
@@ -45,11 +44,10 @@ export async function POST(request: NextRequest) {
     .insert({
       user_id: user.id,
       name,
-      nickname: nickname || null,
       display_order: typeof body.display_order === "number" ? body.display_order : 0,
       active: true,
     })
-    .select("id, name, nickname, active, display_order, created_at")
+    .select("id, name, active, display_order, created_at")
     .single();
 
   if (error) {

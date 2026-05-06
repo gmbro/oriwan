@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { IconCheck, IconRun } from "@/components/icons";
 import { CERTIFICATION_DISPLAY_START_DATE, CHALLENGE_END_DATE, CHALLENGE_START_DATE } from "@/lib/challenge";
 import { addDays, secondsToPace, secondsToTime, toIsoDate } from "@/lib/run-records";
@@ -10,7 +10,6 @@ import { addDays, secondsToPace, secondsToTime, toIsoDate } from "@/lib/run-reco
 type Participant = {
   id: string;
   name: string;
-  nickname: string | null;
 };
 
 type RunRecord = {
@@ -78,33 +77,43 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [calendarRange, setCalendarRange] = useState<CalendarRange>(14);
+  const loadingRef = useRef(false);
+
+  const load = useCallback(async () => {
+    if (loadingRef.current) return;
+    loadingRef.current = true;
+    try {
+      const response = await fetch("/api/public-dashboard?days=100", { cache: "no-store" });
+      const json = await response.json();
+      if (!response.ok) throw new Error(json.error || "대시보드 조회 실패");
+      setData(json);
+      setError("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "대시보드를 불러오지 못했어요.");
+    } finally {
+      loadingRef.current = false;
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    let alive = true;
-
-    async function load() {
-      try {
-        const response = await fetch("/api/public-dashboard?days=100", { cache: "no-store" });
-        const json = await response.json();
-        if (!response.ok) throw new Error(json.error || "대시보드 조회 실패");
-        if (alive) {
-          setData(json);
-          setError("");
-        }
-      } catch (err) {
-        if (alive) setError(err instanceof Error ? err.message : "대시보드를 불러오지 못했어요.");
-      } finally {
-        if (alive) setLoading(false);
-      }
-    }
-
     load();
-    const interval = window.setInterval(load, 15000);
-    return () => {
-      alive = false;
-      window.clearInterval(interval);
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === "visible") load();
+    }, 30000);
+    const onFocus = () => load();
+    const onVisible = () => {
+      if (document.visibilityState === "visible") load();
     };
-  }, []);
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisible);
+
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [load]);
 
   const trendDays = useMemo(() => makeDays(14, CHALLENGE_START_DATE), []);
   const calendarDays = useMemo(() => makeDays(calendarRange), [calendarRange]);

@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
     const [participantsResult, recordsResult] = await Promise.all([
       supabase
         .from("participants")
-        .select("id, name, nickname, active, display_order, created_at")
+        .select("id, name, active, display_order, created_at")
         .eq("user_id", adminUserId)
         .eq("active", true)
         .order("display_order", { ascending: true })
@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
           duration_seconds,
           pace_seconds_per_km,
           status,
-          participants(id, name, nickname)
+          participants(id, name)
         `)
         .eq("user_id", adminUserId)
         .gte("record_date", from)

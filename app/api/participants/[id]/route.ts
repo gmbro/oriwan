@@ -15,7 +15,6 @@ export async function PATCH(
   const patch: Record<string, string | number | boolean | null> = {};
 
   if (typeof body.name === "string") patch.name = body.name.trim();
-  if (typeof body.nickname === "string") patch.nickname = body.nickname.trim() || null;
   if (typeof body.active === "boolean") patch.active = body.active;
   if (typeof body.display_order === "number") patch.display_order = body.display_order;
 
@@ -24,7 +23,7 @@ export async function PATCH(
     .update(patch)
     .eq("id", id)
     .eq("user_id", user.id)
-    .select("id, name, nickname, active, display_order, created_at")
+    .select("id, name, active, display_order, created_at")
     .single();
 
   if (error) {
