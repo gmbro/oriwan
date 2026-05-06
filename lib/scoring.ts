@@ -153,6 +153,6 @@ export function buildScoreRows({
     .map((row, index) => ({
       ...row,
       averageScore,
-      badgeKind: index < 5 ? "praise" as ScoreBadgeKind : index < 11 ? "steady" as ScoreBadgeKind : "boost" as ScoreBadgeKind,
+      badgeKind: index < 10 ? "praise" as ScoreBadgeKind : index < 17 ? "steady" as ScoreBadgeKind : "boost" as ScoreBadgeKind,
     }))
 }

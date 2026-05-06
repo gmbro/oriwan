@@ -250,6 +250,7 @@ export default function DashboardPage() {
                   <div className="pointer-events-none absolute left-0 top-8 z-30 w-[260px] rounded-3xl bg-slate-950 p-4 text-xs font-bold leading-5 text-white/80 opacity-0 shadow-2xl shadow-slate-950/20 ring-1 ring-white/10 transition group-hover:opacity-100 group-focus-within:opacity-100 sm:w-[320px]">
                     <p className="font-black text-lime-200">순위는 내부 점수로 계산됩니다.</p>
                     <p className="mt-2">인증, 연속 인증, 성장 흐름을 크게 반영하고 시간과 거리는 보조로 반영해요.</p>
+                    <p className="mt-2 text-white/65">뱃지 구간: 1~10등 참 잘했어요, 11~17등 잘하고 있어요, 18~21등 힘내세요 화이팅.</p>
                     <p className="mt-2 text-white/55">올리는 팁: 매일 인증하기, 연속 인증 유지하기, 이전보다 조금씩 거리나 페이스를 개선하기, 거리와 시간을 함께 입력하기.</p>
                   </div>
                 </div>
