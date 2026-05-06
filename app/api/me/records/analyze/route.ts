@@ -19,6 +19,12 @@ type ExtractedRun = ExtractedRunBase;
 
 const MAX_IMAGES = 5;
 
+type AnalyzeFailure = {
+  file_name: string;
+  error: string;
+  extracted?: ExtractedRun;
+};
+
 async function analyzeImage(image: UploadedImage) {
   if (!process.env.GEMINI_API_KEY) throw new Error("Missing GEMINI_API_KEY");
 
@@ -102,9 +108,17 @@ export async function POST(request: NextRequest) {
     }
 
     const results = [];
+    const failed: AnalyzeFailure[] = [];
 
     for (const image of images) {
-      const extracted = await analyzeImage(image);
+      let extracted: ExtractedRun;
+      try {
+        extracted = await analyzeImage(image);
+      } catch {
+        failed.push({ file_name: image.name, error: "이미지 텍스트를 읽지 못했어요. 화면이 선명한지 확인해주세요." });
+        continue;
+      }
+
       const extractedDate = normalizeRecordDate(extracted.record_date);
       const recordDate = extractedDate || targetDate;
       const dateWasFallback = !extractedDate && Boolean(targetDate);
@@ -112,13 +126,16 @@ export async function POST(request: NextRequest) {
       const durationSeconds = parseDurationText(extracted.duration_seconds ?? extracted.duration_text);
 
       if (!recordDate) {
-        return NextResponse.json({ error: "이미지에서 날짜를 찾지 못했어요. 선택한 인증일을 확인해주세요.", extracted }, { status: 422 });
+        failed.push({ file_name: image.name, error: "이미지에서 날짜를 찾지 못했어요. 날짜 없는 이미지는 선택일 적용을 켜주세요.", extracted });
+        continue;
       }
       if (!isWithinChallengeWindow(recordDate)) {
-        return NextResponse.json({ error: CHALLENGE_DATE_ERROR, extracted }, { status: 400 });
+        failed.push({ file_name: image.name, error: CHALLENGE_DATE_ERROR, extracted });
+        continue;
       }
       if (!distanceKm || distanceKm <= 0 || !durationSeconds || durationSeconds <= 0) {
-        return NextResponse.json({ error: "이미지에서 거리 또는 시간을 찾지 못했어요. 수동 입력으로 보완해주세요.", extracted }, { status: 422 });
+        failed.push({ file_name: image.name, error: "이미지에서 거리 또는 시간을 찾지 못했어요. 수동 입력으로 보완해주세요.", extracted });
+        continue;
       }
 
       const paceSeconds = calculatePaceSeconds(distanceKm, durationSeconds);
@@ -154,6 +171,7 @@ export async function POST(request: NextRequest) {
 
       results.push({
         id: data.id,
+        file_name: image.name,
         record_date: recordDate,
         distance_km: distanceKm,
         duration_seconds: durationSeconds,
@@ -164,7 +182,11 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    return NextResponse.json({ success: true, participant, results });
+    if (!results.length && failed.length) {
+      return NextResponse.json({ error: failed[0].error, participant, results, failed }, { status: 422 });
+    }
+
+    return NextResponse.json({ success: true, participant, results, failed });
   } catch (err) {
     console.error("Personal image analysis error:", err);
     return NextResponse.json({ error: "이미지 분석 중 오류가 발생했습니다." }, { status: 500 });

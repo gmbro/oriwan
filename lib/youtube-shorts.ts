@@ -30,6 +30,13 @@ export const youtubeShortTips: YoutubeShortTip[] = [
     tag: "초보",
   },
   {
+    id: "hHvz6IVrlx4",
+    title: "매일 달리면 안 되는 이유",
+    channel: "션과 함께",
+    category: "running",
+    tag: "루틴",
+  },
+  {
     id: "OJHg7gaqKao",
     title: "러닝 전 필수 드릴 6가지",
     channel: "힙으뜸",
@@ -44,6 +51,20 @@ export const youtubeShortTips: YoutubeShortTip[] = [
     tag: "스트레칭",
   },
   {
+    id: "0MjId6tCjVQ",
+    title: "러닝 전 워밍업 5가지",
+    channel: "운동선생님 비니",
+    category: "stretching",
+    tag: "워밍업",
+  },
+  {
+    id: "viwNg4P_J1Q",
+    title: "러닝 전 꼭 해야 할 스트레칭",
+    channel: "지니코치",
+    category: "stretching",
+    tag: "부상방지",
+  },
+  {
     id: "_mAJutRh7OU",
     title: "리커버리 러닝을 해야 되는 이유",
     channel: "장삐의 슬기로운 러닝생활",
@@ -56,6 +77,13 @@ export const youtubeShortTips: YoutubeShortTip[] = [
     channel: "효진 HYOJIN",
     category: "recovery",
     tag: "종아리",
+  },
+  {
+    id: "u-WCtnzttQo",
+    title: "달리기 후 회복과 영양",
+    channel: "런클리어 RUNCLEAR",
+    category: "recovery",
+    tag: "영양",
   },
 ];
 
