@@ -46,6 +46,7 @@ type RecordDraft = {
 };
 
 type RankingMode = "certified" | "distance" | "time";
+type AdminOtpType = "email" | "magiclink" | "signup";
 
 const today = toIsoDate(new Date());
 const rangeStart = toIsoDate(addDays(new Date(), -20));
@@ -385,20 +386,38 @@ export default function AdminPage() {
   }, [authReady, authorized, mounted, sendAdminCode]);
 
   const verifyAdminCode = useCallback(async () => {
-    if (!otp.trim()) return;
+    const token = otp.replace(/\D/g, "");
+    if (!token) return;
     setVerifyingCode(true);
     setAuthMessage("");
     const supabase = createClient();
-    const { data, error } = await supabase.auth.verifyOtp({
-      email: ADMIN_EMAIL,
-      token: otp.trim(),
-      type: "email",
-    });
+    const verifyTypes: AdminOtpType[] = ["email", "magiclink", "signup"];
+    let adminUser = null;
+    let lastErrorMessage = "";
 
-    const adminUser = data.user;
-    if (error || !adminUser || !isAdminEmail(adminUser.email)) {
+    for (const type of verifyTypes) {
+      const { data, error } = await supabase.auth.verifyOtp({
+        email: ADMIN_EMAIL,
+        token,
+        type,
+      });
+
+      if (!error && data.user) {
+        adminUser = data.user;
+        break;
+      }
+
+      lastErrorMessage = error?.message || lastErrorMessage;
+      if (error?.status === 429) break;
+    }
+
+    if (!adminUser || !isAdminEmail(adminUser.email)) {
       await supabase.auth.signOut();
-      setAuthMessage("인증번호가 맞지 않거나 관리자 계정이 아니에요.");
+      setAuthMessage(
+        lastErrorMessage.includes("rate limit") || lastErrorMessage.includes("429")
+          ? "요청이 많아 잠시 제한됐어요. 1분 정도 뒤 새 인증번호로 다시 시도해주세요."
+          : "인증번호가 맞지 않거나 만료됐어요. 새 인증번호를 받아 다시 시도해주세요."
+      );
       setAuthorized(false);
     } else {
       setAuthorized(true);
@@ -453,7 +472,7 @@ export default function AdminPage() {
                 className="w-full rounded-2xl border border-oriwan-border bg-white px-4 py-3 text-center text-lg font-black tracking-[0.25em] outline-none focus:border-oriwan-primary"
               />
               <button onClick={verifyAdminCode} disabled={!otp.trim() || verifyingCode} className="w-full rounded-2xl bg-lime-300 px-4 py-3 text-sm font-black text-slate-950 disabled:opacity-40">
-                {verifyingCode ? "확인 중..." : "관리자 페이지 입장"}
+                {verifyingCode ? "확인 중..." : "어드민 접속"}
               </button>
               <button
                 onClick={sendAdminCode}
