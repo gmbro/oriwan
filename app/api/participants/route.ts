@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdminUser } from "@/lib/admin-server";
+import { isMissingTableError, missingSchemaResponse } from "@/lib/supabase-errors";
 
 export async function GET() {
   const supabase = await createClient();
@@ -17,6 +18,9 @@ export async function GET() {
 
   if (error) {
     console.error("Participants query error:", error);
+    if (isMissingTableError(error)) {
+      return NextResponse.json(missingSchemaResponse("참가자 테이블이 아직 없습니다."), { status: 503 });
+    }
     return NextResponse.json({ error: "참가자 조회 실패" }, { status: 500 });
   }
 
@@ -50,6 +54,9 @@ export async function POST(request: NextRequest) {
 
   if (error) {
     console.error("Participant save error:", error);
+    if (isMissingTableError(error)) {
+      return NextResponse.json(missingSchemaResponse("참가자 테이블이 아직 없습니다."), { status: 503 });
+    }
     return NextResponse.json({ error: "참가자 저장 실패" }, { status: 500 });
   }
 

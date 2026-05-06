@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdminUser } from "@/lib/admin-server";
 import { calculatePaceSeconds } from "@/lib/run-records";
+import { isMissingTableError, missingSchemaResponse } from "@/lib/supabase-errors";
 
 function sanitizeNumber(value: unknown) {
   if (value === null || value === undefined || value === "") return null;
@@ -47,6 +48,9 @@ export async function GET(request: NextRequest) {
 
   if (error) {
     console.error("Records query error:", error);
+    if (isMissingTableError(error)) {
+      return NextResponse.json(missingSchemaResponse("기록 테이블이 아직 없습니다."), { status: 503 });
+    }
     return NextResponse.json({ error: "기록 조회 실패" }, { status: 500 });
   }
 
@@ -94,6 +98,9 @@ export async function POST(request: NextRequest) {
 
   if (error) {
     console.error("Record save error:", error);
+    if (isMissingTableError(error)) {
+      return NextResponse.json(missingSchemaResponse("기록 테이블이 아직 없습니다."), { status: 503 });
+    }
     return NextResponse.json({ error: "기록 저장 실패" }, { status: 500 });
   }
 

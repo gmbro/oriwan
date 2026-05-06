@@ -28,6 +28,8 @@ type PublicDashboardData = {
   generated_at: string;
   participants: Participant[];
   records: RunRecord[];
+  setup_required?: boolean;
+  error?: string;
 };
 
 const today = toIsoDate(new Date());
@@ -215,6 +217,12 @@ export default function DashboardPage() {
         {error && (
           <div className="mt-4 rounded-3xl bg-rose-50 px-5 py-4 text-sm font-bold text-rose-900 ring-1 ring-rose-100">
             {error}
+          </div>
+        )}
+
+        {data?.setup_required && (
+          <div className="mt-4 rounded-3xl bg-amber-50 px-5 py-4 text-sm font-bold text-amber-950 ring-1 ring-amber-100">
+            아직 운영 데이터 테이블이 연결되지 않았어요. 관리자가 Supabase 스키마를 적용하면 참가자 현황이 바로 표시됩니다.
           </div>
         )}
 

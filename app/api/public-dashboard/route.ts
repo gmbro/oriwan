@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ADMIN_EMAIL } from "@/lib/admin";
 import { addDays, toIsoDate } from "@/lib/run-records";
+import { isMissingTableError, missingSchemaResponse } from "@/lib/supabase-errors";
 
 type AdminUser = {
   id: string;
@@ -83,6 +84,17 @@ export async function GET(request: NextRequest) {
         .lte("record_date", to)
         .order("record_date", { ascending: false }),
     ]);
+
+    if (isMissingTableError(participantsResult.error) || isMissingTableError(recordsResult.error)) {
+      return NextResponse.json({
+        from,
+        to,
+        generated_at: new Date().toISOString(),
+        participants: [],
+        records: [],
+        ...missingSchemaResponse("Supabase에 참가자/기록 테이블을 먼저 만들어야 합니다."),
+      });
+    }
 
     if (participantsResult.error) throw participantsResult.error;
     if (recordsResult.error) throw recordsResult.error;

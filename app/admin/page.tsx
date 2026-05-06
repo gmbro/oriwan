@@ -119,6 +119,7 @@ export default function AdminPage() {
   const [selectedParticipantId, setSelectedParticipantId] = useState("");
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [liveStatus, setLiveStatus] = useState<"connecting" | "live" | "polling">("connecting");
+  const [setupMessage, setSetupMessage] = useState("");
 
   const loadData = useCallback(async (showLoading = true) => {
     if (showLoading) setLoading(true);
@@ -130,6 +131,13 @@ export default function AdminPage() {
 
       const participantsJson = await participantsRes.json();
       const recordsJson = await recordsRes.json();
+      if (participantsJson.setup_required || recordsJson.setup_required) {
+        setSetupMessage("Supabase SQL Editor에서 docs/supabase-schema.sql을 먼저 실행해야 참가자와 기록을 저장할 수 있어요.");
+      } else {
+        setSetupMessage("");
+      }
+      if (!participantsRes.ok && !participantsJson.setup_required) throw new Error(participantsJson.error || "참가자 조회 실패");
+      if (!recordsRes.ok && !recordsJson.setup_required) throw new Error(recordsJson.error || "기록 조회 실패");
       const nextParticipants = participantsJson.participants || [];
       const nextRecords = recordsJson.records || [];
 
@@ -139,6 +147,8 @@ export default function AdminPage() {
       setManualParticipantId((current) => current || nextParticipants[0]?.id || "");
       setDrafts(Object.fromEntries(nextRecords.map((record: RunRecord) => [record.id, makeDraft(record)])));
       setLastUpdated(new Date());
+    } catch (err) {
+      setSetupMessage(err instanceof Error ? err.message : "데이터를 불러오지 못했습니다.");
     } finally {
       if (showLoading) setLoading(false);
     }
@@ -505,6 +515,15 @@ export default function AdminPage() {
             </div>
           </div>
         </section>
+
+        {setupMessage && (
+          <section className="rounded-[24px] border border-amber-200 bg-amber-50 px-5 py-4 text-sm font-bold text-amber-950">
+            {setupMessage}
+            <span className="mt-1 block text-xs font-semibold text-amber-800">
+              저장소의 docs/supabase-schema.sql 파일 전체를 Supabase Dashboard의 SQL Editor에서 실행하면 연결됩니다.
+            </span>
+          </section>
+        )}
 
         <section className="grid grid-cols-2 lg:grid-cols-5 gap-3">
           <SummaryCard title="참가자" value={`${participants.length}명`} caption="직접 추가/관리" />
