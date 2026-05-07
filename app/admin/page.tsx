@@ -6,6 +6,7 @@ import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 import { ADMIN_EMAIL, isAdminEmail } from "@/lib/admin";
 import { CHALLENGE_DAYS, CHALLENGE_END_DATE, CHALLENGE_START_DATE, clampToChallengeWindow } from "@/lib/challenge";
+import { DASHBOARD_REFRESH_CHANNEL, DASHBOARD_REFRESH_EVENT, broadcastDashboardRefresh } from "@/lib/dashboard-refresh";
 import { imageFileToOptimizedDataUrl } from "@/lib/image-client";
 import { parseDurationToSeconds, secondsToTime, toIsoDate } from "@/lib/run-records";
 
@@ -186,7 +187,11 @@ export default function AdminPage() {
 
     const supabase = createClient();
     const channel = supabase
-      .channel("snasa-dashboard-live")
+      .channel(DASHBOARD_REFRESH_CHANNEL)
+      .on("broadcast", { event: DASHBOARD_REFRESH_EVENT }, () => {
+        setLiveStatus("live");
+        scheduleRefresh();
+      })
       .on("postgres_changes", { event: "*", schema: "public", table: "participants" }, () => {
         setLiveStatus("live");
         scheduleRefresh();
@@ -205,7 +210,7 @@ export default function AdminPage() {
         setLiveStatus((current) => current === "live" ? "live" : "polling");
         loadData(false);
       }
-    }, 30000);
+    }, 10000);
 
     return () => {
       window.clearInterval(interval);
@@ -240,6 +245,7 @@ export default function AdminPage() {
     });
     if (res.ok) {
       setNewName("");
+      void broadcastDashboardRefresh();
       await loadData();
     } else {
       alert("멤버를 저장하지 못했어요. 이름을 다시 확인해주세요.");
@@ -299,6 +305,7 @@ export default function AdminPage() {
 
     if (res.ok) {
       resetParticipantForm();
+      void broadcastDashboardRefresh();
       await loadData();
     } else {
       alert("멤버 정보를 수정하지 못했어요.");
@@ -310,6 +317,7 @@ export default function AdminPage() {
     const res = await fetch(`/api/participants/${participantId}`, { method: "DELETE" });
     if (res.ok) {
       if (editingParticipantId === participantId) resetParticipantForm();
+      void broadcastDashboardRefresh();
       await loadData();
     } else {
       alert("멤버를 삭제하지 못했어요.");
@@ -337,6 +345,7 @@ export default function AdminPage() {
       const review = results.length - certified;
       const ownerLabel = uploadParticipant ? `${uploadParticipant.name}님 ` : "";
       setAnalysisMessage(`${ownerLabel}${results.length}장 정리 완료 · 완료 ${certified}건 · 확인 ${review}건`);
+      void broadcastDashboardRefresh();
       await loadData();
     } catch (err) {
       setAnalysisMessage(err instanceof Error ? err.message : "이미지를 읽지 못했어요. 흐린 이미지는 직접 입력으로 가볍게 보완해주세요.");
@@ -363,6 +372,7 @@ export default function AdminPage() {
       setManualDistance("");
       setManualDuration("");
       setAdminModal(null);
+      void broadcastDashboardRefresh();
       await loadData();
     } else {
       alert("기록을 저장하지 못했어요.");

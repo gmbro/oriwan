@@ -5,7 +5,9 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { YoutubeShortsSection } from "@/components/youtube-shorts-section";
 import { ACTUAL_CERTIFICATION_START_DATE, CHALLENGE_DAYS } from "@/lib/challenge";
+import { DASHBOARD_REFRESH_CHANNEL, DASHBOARD_REFRESH_EVENT } from "@/lib/dashboard-refresh";
 import { addDays, toIsoDate } from "@/lib/run-records";
+import { createClient } from "@/lib/supabase/client";
 
 type Participant = {
   id: string;
@@ -140,6 +142,7 @@ export default function DashboardPage() {
   const [selectedParticipantId, setSelectedParticipantId] = useState("");
   const [trendModal, setTrendModal] = useState<TrendModal>(null);
   const loadingRef = useRef(false);
+  const refreshTimerRef = useRef<number | null>(null);
 
   const load = useCallback(async () => {
     if (loadingRef.current) return;
@@ -158,11 +161,26 @@ export default function DashboardPage() {
     }
   }, []);
 
+  const scheduleRefresh = useCallback(() => {
+    if (refreshTimerRef.current) window.clearTimeout(refreshTimerRef.current);
+    refreshTimerRef.current = window.setTimeout(() => {
+      if (document.visibilityState === "visible") load();
+    }, 350);
+  }, [load]);
+
   useEffect(() => {
     load();
+    const supabase = createClient();
+    const channel = supabase
+      .channel(DASHBOARD_REFRESH_CHANNEL)
+      .on("broadcast", { event: DASHBOARD_REFRESH_EVENT }, scheduleRefresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "participants" }, scheduleRefresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "daily_run_records" }, scheduleRefresh)
+      .subscribe();
+
     const interval = window.setInterval(() => {
       if (document.visibilityState === "visible") load();
-    }, 30000);
+    }, 10000);
     const onFocus = () => load();
     const onVisible = () => {
       if (document.visibilityState === "visible") load();
@@ -172,10 +190,12 @@ export default function DashboardPage() {
 
     return () => {
       window.clearInterval(interval);
+      if (refreshTimerRef.current) window.clearTimeout(refreshTimerRef.current);
+      supabase.removeChannel(channel);
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [load]);
+  }, [load, scheduleRefresh]);
 
   useEffect(() => {
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
