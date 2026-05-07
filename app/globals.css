@@ -173,12 +173,33 @@ img { -webkit-user-drag: none; user-select: none; }
   100% { filter: drop-shadow(0 0 0 rgba(190, 242, 100, 0)); }
 }
 
+@keyframes dashboard-line-draw {
+  from { stroke-dashoffset: 1; }
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes dashboard-dot-pop {
+  from { opacity: 0; transform: scale(0.7); }
+  to { opacity: 1; transform: scale(1); }
+}
+
 .animate-fade-up { animation: fade-up 0.45s ease-out forwards; }
 .dashboard-card-reveal {
   animation: dashboard-card-reveal 0.48s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 .dashboard-ring-pop {
   animation: dashboard-ring-pop 1.2s ease-out both;
+}
+.dashboard-line-draw {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: dashboard-line-draw 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+.dashboard-dot-pop {
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: dashboard-dot-pop 0.32s ease-out forwards;
 }
 
 @media (prefers-reduced-motion: reduce) {

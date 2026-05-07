@@ -35,6 +35,8 @@ type PublicDashboardData = {
   error?: string;
 };
 
+type TrendModal = "weekly" | "cumulative" | null;
+
 const today = toIsoDate(new Date());
 const actualCertificationEndDate = toIsoDate(addDays(new Date(`${ACTUAL_CERTIFICATION_START_DATE}T00:00:00`), CHALLENGE_DAYS - 1));
 const effectiveToday = today > actualCertificationEndDate ? actualCertificationEndDate : today;
@@ -81,6 +83,18 @@ function gaugeTextClass(certifiedDays: number) {
 const challengeDays = makeChallengeDays();
 const RING_CIRCUMFERENCE = 302;
 
+function makeGraphPath(items: { value: number }[], width = 320, height = 150, padding = 24) {
+  if (!items.length) return { path: "", points: [] as { x: number; y: number }[], width, height, padding };
+
+  const points = items.map((item, index) => {
+    const x = items.length === 1 ? width / 2 : padding + (index / (items.length - 1)) * (width - padding * 2);
+    const y = height - padding - (Math.max(0, Math.min(item.value, 100)) / 100) * (height - padding * 2);
+    return { x, y };
+  });
+  const path = points.map((point, index) => `${index ? "L" : "M"} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`).join(" ");
+  return { path, points, width, height, padding };
+}
+
 function AnimatedNumber({
   value,
   suffix = "",
@@ -123,6 +137,8 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [motionReady, setMotionReady] = useState(false);
+  const [selectedParticipantId, setSelectedParticipantId] = useState("");
+  const [trendModal, setTrendModal] = useState<TrendModal>(null);
   const loadingRef = useRef(false);
 
   const load = useCallback(async () => {
@@ -219,11 +235,22 @@ export default function DashboardPage() {
     const totalCertifiedSlots = dayTrend.reduce((sum, day) => sum + day.certifiedCount, 0);
     const possibleCertifiedSlots = elapsedDays.length * participants.length;
     const cumulativeRate = possibleCertifiedSlots ? Math.round((totalCertifiedSlots / possibleCertifiedSlots) * 100) : 0;
+    let runningCertifiedSlots = 0;
+    const cumulativeTrend = dayTrend.map((day, index) => {
+      runningCertifiedSlots += day.certifiedCount;
+      const possibleSlots = (index + 1) * participants.length;
+      return {
+        label: shortDate(day.day),
+        value: possibleSlots ? Math.round((runningCertifiedSlots / possibleSlots) * 100) : 0,
+        caption: `${shortDate(day.day)} · 누적 ${runningCertifiedSlots}건`,
+      };
+    });
     const participantProgress = participants
       .map((participant) => {
-        const certifiedDays = certifiedDaysByParticipant.get(participant.id)?.size || 0;
+        const certifiedDates = Array.from(certifiedDaysByParticipant.get(participant.id) || []).sort();
+        const certifiedDays = certifiedDates.length;
         const rate = Math.round((certifiedDays / CHALLENGE_DAYS) * 100);
-        return { participant, certifiedDays, rate };
+        return { participant, certifiedDates, certifiedDays, rate };
       })
       .sort((a, b) => b.certifiedDays - a.certifiedDays || a.participant.name.localeCompare(b.participant.name, "ko"));
 
@@ -232,13 +259,25 @@ export default function DashboardPage() {
       todayCertifiedIds,
       completionRate,
       elapsedDays,
+      dayTrend,
       weekTrend,
+      cumulativeTrend,
       totalCertifiedSlots,
       cumulativeRate,
       participantProgress,
     };
   }, [data]);
   const latestWeeklyRate = dashboard.weekTrend.at(-1)?.averageRate || 0;
+  const selectedParticipant = dashboard.participantProgress.find((row) => row.participant.id === selectedParticipantId) || null;
+  const selectedCertifiedDates = new Set(selectedParticipant?.certifiedDates || []);
+  const trendItems = trendModal === "weekly"
+    ? dashboard.weekTrend.map((week) => ({
+      label: week.label,
+      value: week.averageRate,
+      caption: week.to ? `${week.label} · ${shortDate(week.from)}-${shortDate(week.to)}` : week.label,
+    }))
+    : dashboard.cumulativeTrend;
+  const trendGraph = makeGraphPath(trendItems);
 
   return (
     <main className="min-h-screen bg-oriwan-bg">
@@ -320,18 +359,26 @@ export default function DashboardPage() {
                   <AnimatedNumber value={dashboard.elapsedDays.length} />/{CHALLENGE_DAYS}
                 </p>
               </div>
-              <div className="dashboard-card-reveal rounded-3xl bg-white px-3 py-4 text-center ring-1 ring-slate-950/5 [animation-delay:90ms]">
+              <button
+                type="button"
+                onClick={() => setTrendModal("weekly")}
+                className="dashboard-card-reveal rounded-3xl bg-white px-3 py-4 text-center ring-1 ring-slate-950/5 transition hover:-translate-y-0.5 hover:ring-lime-300 [animation-delay:90ms]"
+              >
                 <p className="text-[10px] font-black text-oriwan-text-muted">주차별 인증률</p>
                 <p className="mt-1 text-2xl font-black tracking-[-0.06em] text-oriwan-text">
                   <AnimatedNumber value={latestWeeklyRate} suffix="%" />
                 </p>
-              </div>
-              <div className="dashboard-card-reveal rounded-3xl bg-lime-300 px-3 py-4 text-center text-slate-950 shadow-sm shadow-lime-300/30 [animation-delay:180ms]">
+              </button>
+              <button
+                type="button"
+                onClick={() => setTrendModal("cumulative")}
+                className="dashboard-card-reveal rounded-3xl bg-lime-300 px-3 py-4 text-center text-slate-950 shadow-sm shadow-lime-300/30 transition hover:-translate-y-0.5 hover:ring-2 hover:ring-lime-400 [animation-delay:180ms]"
+              >
                 <p className="text-[10px] font-black opacity-60">누적 인증률</p>
                 <p className="mt-1 text-2xl font-black tracking-[-0.06em]">
                   <AnimatedNumber value={dashboard.cumulativeRate} suffix="%" />
                 </p>
-              </div>
+              </button>
             </div>
 
             <div className="mt-5">
@@ -343,7 +390,12 @@ export default function DashboardPage() {
               </div>
               <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                 {dashboard.participantProgress.map((row, index) => (
-                  <div key={row.participant.id} className="rounded-2xl bg-white px-3 py-3 ring-1 ring-slate-950/5">
+                  <button
+                    key={row.participant.id}
+                    type="button"
+                    onClick={() => setSelectedParticipantId(row.participant.id)}
+                    className="rounded-2xl bg-white px-3 py-3 text-left ring-1 ring-slate-950/5 transition hover:-translate-y-0.5 hover:ring-lime-300"
+                  >
                     <div className="flex items-center justify-between gap-2">
                       <p className="truncate text-sm font-black text-oriwan-text">{row.participant.name}</p>
                       <p className={`shrink-0 text-xs font-black ${gaugeTextClass(row.certifiedDays)}`}>
@@ -359,7 +411,7 @@ export default function DashboardPage() {
                         }}
                       />
                     </div>
-                  </div>
+                  </button>
                 ))}
                 {!dashboard.participantProgress.length && !loading && (
                   <p className="rounded-2xl bg-white px-4 py-8 text-center text-sm text-oriwan-text-muted sm:col-span-2 lg:col-span-3">
@@ -388,6 +440,94 @@ export default function DashboardPage() {
         <p className="py-6 text-center text-[11px] font-semibold text-oriwan-text-muted">
           {loading ? "오늘의 기록을 데려오는 중..." : `마지막 업데이트 ${formatLastUpdated(data?.generated_at)}`}
         </p>
+
+        {selectedParticipant && (
+          <div className="fixed inset-0 z-[80] flex items-end bg-slate-950/45 px-4 py-4 backdrop-blur-sm sm:items-center sm:justify-center">
+            <div className="card max-h-[88vh] w-full max-w-2xl overflow-y-auto p-5 sm:p-6">
+              <div className="mb-4 flex items-start justify-between gap-3">
+                <div>
+                  <p className="inline-flex rounded-full bg-lime-300 px-3 py-1 text-[11px] font-black text-slate-950">
+                    {selectedParticipant.rate}%
+                  </p>
+                  <h3 className="mt-2 text-2xl font-black tracking-[-0.05em] text-oriwan-text">{selectedParticipant.participant.name}</h3>
+                  <p className="mt-1 text-xs font-bold text-oriwan-text-muted">
+                    {selectedParticipant.certifiedDays}/{CHALLENGE_DAYS}일 인증
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedParticipantId("")}
+                  className="rounded-full bg-oriwan-surface-light px-3 py-1.5 text-xs font-black text-oriwan-text-muted"
+                >
+                  닫기
+                </button>
+              </div>
+              <div className="grid grid-cols-7 gap-1.5">
+                {challengeDays.map((day) => {
+                  const stamped = selectedCertifiedDates.has(day);
+                  return (
+                    <div
+                      key={day}
+                      title={day}
+                      className={`flex aspect-square flex-col items-center justify-center rounded-2xl border text-[10px] font-black ${
+                        stamped
+                          ? "border-lime-300 bg-lime-300 text-slate-950 shadow-sm shadow-lime-300/40"
+                          : "border-slate-950/5 bg-white text-oriwan-text-muted/45"
+                      }`}
+                    >
+                      <span>{shortDate(day)}</span>
+                      <span className="mt-0.5 text-xs">{stamped ? "✓" : "·"}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {trendModal && (
+          <div className="fixed inset-0 z-[80] flex items-end bg-slate-950/45 px-4 py-4 backdrop-blur-sm sm:items-center sm:justify-center">
+            <div className="card w-full max-w-2xl p-5 sm:p-6">
+              <div className="mb-4 flex items-start justify-between gap-3">
+                <div>
+                  <p className="inline-flex rounded-full bg-slate-950 px-3 py-1 text-[11px] font-black text-lime-200">
+                    {trendModal === "weekly" ? "주차별 인증률" : "누적 인증률"}
+                  </p>
+                  <h3 className="mt-2 text-2xl font-black tracking-[-0.05em] text-oriwan-text">
+                    {trendModal === "weekly" ? "주차별 흐름" : "누적 흐름"}
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setTrendModal(null)}
+                  className="rounded-full bg-oriwan-surface-light px-3 py-1.5 text-xs font-black text-oriwan-text-muted"
+                >
+                  닫기
+                </button>
+              </div>
+              <div className="rounded-[28px] bg-slate-950 p-4 text-white">
+                <svg viewBox={`0 0 ${trendGraph.width} ${trendGraph.height}`} className="h-52 w-full overflow-visible">
+                  <line x1={trendGraph.padding} y1={trendGraph.height - trendGraph.padding} x2={trendGraph.width - trendGraph.padding} y2={trendGraph.height - trendGraph.padding} stroke="rgba(255,255,255,.16)" strokeWidth="2" />
+                  <line x1={trendGraph.padding} y1={trendGraph.padding} x2={trendGraph.padding} y2={trendGraph.height - trendGraph.padding} stroke="rgba(255,255,255,.12)" strokeWidth="2" />
+                  <path key={trendModal} d={trendGraph.path} fill="none" stroke="#bef264" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" pathLength={1} className="dashboard-line-draw" />
+                  {trendGraph.points.map((point, index) => (
+                    <g key={`${trendModal}-${index}`} className="dashboard-dot-pop" style={{ animationDelay: `${Math.min(index * 70, 700)}ms` }}>
+                      <circle cx={point.x} cy={point.y} r="5" fill="#bef264" />
+                      <text x={point.x} y={Math.max(14, point.y - 10)} textAnchor="middle" className="fill-white text-[10px] font-black">{trendItems[index]?.value || 0}%</text>
+                    </g>
+                  ))}
+                </svg>
+                <div className="mt-3 flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                  {trendItems.map((item) => (
+                    <span key={`${item.label}-${item.caption}`} className="shrink-0 rounded-full bg-white/10 px-3 py-1 text-[10px] font-black text-white/70">
+                      {item.caption || `${item.label} · ${item.value}%`}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </section>
     </main>
   );
