@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 import { ADMIN_EMAIL, isAdminEmail } from "@/lib/admin";
-import { CHALLENGE_DAYS, CHALLENGE_END_DATE, CHALLENGE_START_DATE, clampToChallengeWindow } from "@/lib/challenge";
+import { ACTUAL_CERTIFICATION_START_DATE, CHALLENGE_DAYS, CHALLENGE_END_DATE, CHALLENGE_START_DATE, clampToChallengeWindow } from "@/lib/challenge";
 import { DASHBOARD_REFRESH_CHANNEL, DASHBOARD_REFRESH_EVENT, broadcastDashboardRefresh } from "@/lib/dashboard-refresh";
 import { imageFileToOptimizedDataUrl } from "@/lib/image-client";
 import { parseDurationToSeconds, secondsToTime, toIsoDate } from "@/lib/run-records";
@@ -222,7 +222,12 @@ export default function AdminPage() {
   const participantProgress = useMemo(() => {
     const certifiedDaysByParticipant = new Map<string, Set<string>>();
     records.forEach((record) => {
-      if (record.status !== "certified" || !record.participant_id || !record.record_date) return;
+      if (
+        record.status !== "certified" ||
+        !record.participant_id ||
+        !record.record_date ||
+        record.record_date < ACTUAL_CERTIFICATION_START_DATE
+      ) return;
       if (!certifiedDaysByParticipant.has(record.participant_id)) certifiedDaysByParticipant.set(record.participant_id, new Set());
       certifiedDaysByParticipant.get(record.participant_id)?.add(record.record_date);
     });

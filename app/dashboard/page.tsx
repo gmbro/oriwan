@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { YoutubeShortsSection } from "@/components/youtube-shorts-section";
-import { ACTUAL_CERTIFICATION_START_DATE, CHALLENGE_DAYS } from "@/lib/challenge";
+import { ACTUAL_CERTIFICATION_START_DATE, CERTIFICATION_DISPLAY_START_DATE, CHALLENGE_DAYS } from "@/lib/challenge";
 import { DASHBOARD_REFRESH_CHANNEL, DASHBOARD_REFRESH_EVENT } from "@/lib/dashboard-refresh";
 import { addDays, toIsoDate } from "@/lib/run-records";
 import { createClient } from "@/lib/supabase/client";
@@ -64,9 +64,13 @@ function todayLabel() {
   return shortDate(effectiveToday);
 }
 
-function makeChallengeDays() {
-  const start = new Date(`${ACTUAL_CERTIFICATION_START_DATE}T00:00:00`);
-  return Array.from({ length: CHALLENGE_DAYS }, (_, index) => toIsoDate(addDays(start, index)))
+function makeDaysFrom(startDate: string, days = CHALLENGE_DAYS) {
+  const start = new Date(`${startDate}T00:00:00`);
+  return Array.from({ length: days }, (_, index) => toIsoDate(addDays(start, index)));
+}
+
+function makeOfficialCertificationDays() {
+  return makeDaysFrom(ACTUAL_CERTIFICATION_START_DATE)
     .filter((day) => day <= actualCertificationEndDate);
 }
 
@@ -82,7 +86,8 @@ function gaugeTextClass(certifiedDays: number) {
   return "text-lime-700";
 }
 
-const challengeDays = makeChallengeDays();
+const officialCertificationDays = makeOfficialCertificationDays();
+const stampDays = makeDaysFrom(CERTIFICATION_DISPLAY_START_DATE);
 const RING_CIRCUMFERENCE = 302;
 
 function makeGraphPath(items: { value: number }[], width = 320, height = 150, padding = 24) {
@@ -212,7 +217,10 @@ export default function DashboardPage() {
     const participants = data?.participants || [];
     const records = data?.records || [];
     const certifiedRecords = records.filter((record) => record.status === "certified");
-    const todayRecords = certifiedRecords.filter((record) => record.record_date === today);
+    const officialCertifiedRecords = certifiedRecords.filter(
+      (record) => Boolean(record.record_date && record.record_date >= ACTUAL_CERTIFICATION_START_DATE)
+    );
+    const todayRecords = officialCertifiedRecords.filter((record) => record.record_date === today);
     const todayCertifiedIds = new Set(
       todayRecords
         .filter((record) => record.participant_id)
@@ -224,7 +232,7 @@ export default function DashboardPage() {
     const certifiedIdsByDay = new Map<string, Set<string>>();
     const certifiedDaysByParticipant = new Map<string, Set<string>>();
 
-    certifiedRecords.forEach((record) => {
+    officialCertifiedRecords.forEach((record) => {
       if (!record.participant_id || !record.record_date) return;
       if (!certifiedIdsByDay.has(record.record_date)) certifiedIdsByDay.set(record.record_date, new Set());
       certifiedIdsByDay.get(record.record_date)?.add(record.participant_id);
@@ -233,7 +241,14 @@ export default function DashboardPage() {
       certifiedDaysByParticipant.get(record.participant_id)?.add(record.record_date);
     });
 
-    const elapsedDays = challengeDays.filter((day) => day <= effectiveToday);
+    const stampDatesByParticipant = new Map<string, Set<string>>();
+    certifiedRecords.forEach((record) => {
+      if (!record.participant_id || !record.record_date) return;
+      if (!stampDatesByParticipant.has(record.participant_id)) stampDatesByParticipant.set(record.participant_id, new Set());
+      stampDatesByParticipant.get(record.participant_id)?.add(record.record_date);
+    });
+
+    const elapsedDays = officialCertificationDays.filter((day) => day <= effectiveToday);
     const dayTrend = elapsedDays.map((day) => {
       const certifiedCount = certifiedIdsByDay.get(day)?.size || 0;
       const rate = participants.length ? Math.round((certifiedCount / participants.length) * 100) : 0;
@@ -268,9 +283,10 @@ export default function DashboardPage() {
     const participantProgress = participants
       .map((participant) => {
         const certifiedDates = Array.from(certifiedDaysByParticipant.get(participant.id) || []).sort();
+        const stampedDates = Array.from(stampDatesByParticipant.get(participant.id) || []).sort();
         const certifiedDays = certifiedDates.length;
         const rate = Math.round((certifiedDays / CHALLENGE_DAYS) * 100);
-        return { participant, certifiedDates, certifiedDays, rate };
+        return { participant, certifiedDates, stampedDates, certifiedDays, rate };
       })
       .sort((a, b) => b.certifiedDays - a.certifiedDays || a.participant.name.localeCompare(b.participant.name, "ko"));
 
@@ -289,7 +305,7 @@ export default function DashboardPage() {
   }, [data]);
   const latestWeeklyRate = dashboard.weekTrend.at(-1)?.averageRate || 0;
   const selectedParticipant = dashboard.participantProgress.find((row) => row.participant.id === selectedParticipantId) || null;
-  const selectedCertifiedDates = new Set(selectedParticipant?.certifiedDates || []);
+  const selectedStampedDates = new Set(selectedParticipant?.stampedDates || []);
   const trendItems = trendModal === "weekly"
     ? dashboard.weekTrend.map((week) => ({
       label: week.label,
@@ -483,8 +499,8 @@ export default function DashboardPage() {
                 </button>
               </div>
               <div className="grid grid-cols-7 gap-1.5">
-                {challengeDays.map((day) => {
-                  const stamped = selectedCertifiedDates.has(day);
+                {stampDays.map((day) => {
+                  const stamped = selectedStampedDates.has(day);
                   return (
                     <div
                       key={day}
