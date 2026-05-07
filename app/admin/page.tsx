@@ -8,9 +8,9 @@ import { createClient } from "@/lib/supabase/client";
 import { ADMIN_EMAIL, isAdminEmail } from "@/lib/admin";
 import { IconCheck } from "@/components/icons";
 import { ScoreBadge } from "@/components/score-badge";
-import { CERTIFICATION_DISPLAY_START_DATE, CHALLENGE_END_DATE, CHALLENGE_START_DATE, clampToChallengeWindow } from "@/lib/challenge";
+import { CHALLENGE_END_DATE, CHALLENGE_START_DATE, clampToChallengeWindow } from "@/lib/challenge";
 import { imageFileToOptimizedDataUrl } from "@/lib/image-client";
-import { addDays, parseDurationToSeconds, secondsToPace, secondsToTime, toIsoDate } from "@/lib/run-records";
+import { parseDurationToSeconds, secondsToPace, secondsToTime, toIsoDate } from "@/lib/run-records";
 import { SCORE_WEIGHTS, buildScoreRows } from "@/lib/scoring";
 
 type Participant = {
@@ -62,19 +62,19 @@ type AnalysisResult = {
 
 type AdminOtpType = "email" | "magiclink" | "signup";
 type AdminModal = "participant" | "record" | "upload" | null;
-type CalendarRange = 14 | 30 | 100;
+type AdminBoardFilter = "all" | "certified" | "missing" | "review";
+type AdminBoardStatus = "certified" | "missing" | "review";
 
 const today = toIsoDate(new Date());
 const effectiveToday = today > CHALLENGE_END_DATE ? CHALLENGE_END_DATE : today;
 const initialRecordDate = clampToChallengeWindow(today);
 const rangeStart = CHALLENGE_START_DATE;
-const calendarRangeOptions: CalendarRange[] = [14, 30, 100];
-
-function makeTimelineDays(count: CalendarRange) {
-  const timelineBaseDate = new Date(`${effectiveToday}T00:00:00`);
-  return Array.from({ length: count }, (_, index) => toIsoDate(addDays(timelineBaseDate, index - (count - 1))))
-    .filter((day) => day >= CERTIFICATION_DISPLAY_START_DATE && day <= CHALLENGE_END_DATE);
-}
+const adminBoardFilterOptions: { value: AdminBoardFilter; label: string }[] = [
+  { value: "all", label: "전체" },
+  { value: "certified", label: "인증" },
+  { value: "missing", label: "미인증" },
+  { value: "review", label: "검수" },
+];
 
 function statusLabel(status: RecordStatus) {
   if (status === "certified") return "인증";
@@ -88,6 +88,30 @@ function statusClass(status: RecordStatus) {
   if (status === "needs_review") return "bg-orange-100 text-orange-900 border-orange-200";
   if (status === "rejected") return "bg-rose-100 text-rose-900 border-rose-200";
   return "bg-slate-100 text-slate-400 border-slate-200";
+}
+
+function adminBoardStatus(record?: RunRecord): AdminBoardStatus {
+  if (record?.status === "certified") return "certified";
+  if (record?.status === "needs_review" || record?.status === "rejected") return "review";
+  return "missing";
+}
+
+function adminBoardStatusLabel(status: AdminBoardStatus) {
+  if (status === "certified") return "인증";
+  if (status === "review") return "검수";
+  return "미인증";
+}
+
+function adminBoardCardClass(status: AdminBoardStatus) {
+  if (status === "certified") return "bg-lime-300 text-slate-950 ring-lime-400/70 shadow-sm shadow-lime-300/40";
+  if (status === "review") return "bg-orange-100 text-orange-950 ring-orange-200";
+  return "bg-white text-slate-500 ring-slate-950/5";
+}
+
+function recordPriority(status?: RecordStatus) {
+  if (status === "certified") return 3;
+  if (status === "needs_review" || status === "rejected") return 2;
+  return 1;
 }
 
 function makeDraft(record: RunRecord): RecordDraft {
@@ -137,7 +161,7 @@ export default function AdminPage() {
   const [manualDistance, setManualDistance] = useState("");
   const [manualDuration, setManualDuration] = useState("");
   const [selectedParticipantId, setSelectedParticipantId] = useState("");
-  const [calendarRange, setCalendarRange] = useState<CalendarRange>(14);
+  const [adminBoardFilter, setAdminBoardFilter] = useState<AdminBoardFilter>("all");
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [liveStatus, setLiveStatus] = useState<"connecting" | "live" | "polling">("connecting");
   const [setupMessage, setSetupMessage] = useState("");
@@ -250,19 +274,13 @@ export default function AdminPage() {
   }, [authorized, loadData, mounted, scheduleRefresh]);
 
   const todayRecords = useMemo(() => records.filter((record) => record.record_date === today), [records]);
-  const certifiedToday = useMemo(() => todayRecords.filter((record) => record.status === "certified").length, [todayRecords]);
+  const certifiedToday = useMemo(() => new Set(
+    todayRecords
+      .filter((record) => record.status === "certified" && record.participant_id)
+      .map((record) => record.participant_id)
+  ).size, [todayRecords]);
   const totalDistance = useMemo(() => todayRecords.reduce((sum, record) => sum + (record.distance_km || 0), 0), [todayRecords]);
   const totalTime = useMemo(() => todayRecords.reduce((sum, record) => sum + (record.duration_seconds || 0), 0), [todayRecords]);
-
-  const recordsByParticipantDate = useMemo(() => {
-    const map = new Map<string, RunRecord>();
-    records.forEach((record) => {
-      if (record.participant_id && record.record_date) {
-        map.set(`${record.participant_id}:${record.record_date}`, record);
-      }
-    });
-    return map;
-  }, [records]);
 
   const scoreRows = useMemo(() => buildScoreRows({
     participants,
@@ -271,7 +289,33 @@ export default function AdminPage() {
     referenceDate: effectiveToday,
   }), [participants, records]);
 
-  const timelineDays = useMemo(() => makeTimelineDays(calendarRange), [calendarRange]);
+  const adminBoard = useMemo(() => {
+    const selectedDateMap = new Map<string, RunRecord>();
+    records.forEach((record) => {
+      if (!record.participant_id || record.record_date !== targetDate) return;
+      const existing = selectedDateMap.get(record.participant_id);
+      if (!existing || recordPriority(record.status) > recordPriority(existing.status)) {
+        selectedDateMap.set(record.participant_id, record);
+      }
+    });
+
+    const cards = participants.map((participant) => {
+      const record = selectedDateMap.get(participant.id);
+      const status = adminBoardStatus(record);
+      return { participant, record, status };
+    });
+
+    const certified = cards.filter((card) => card.status === "certified").length;
+    const review = cards.filter((card) => card.status === "review").length;
+    const missing = Math.max(cards.length - certified - review, 0);
+
+    return { cards, certified, review, missing };
+  }, [participants, records, targetDate]);
+
+  const adminBoardCards = useMemo(() => {
+    if (adminBoardFilter === "all") return adminBoard.cards;
+    return adminBoard.cards.filter((card) => card.status === adminBoardFilter);
+  }, [adminBoard.cards, adminBoardFilter]);
 
   const selectedSeries = useMemo(() => {
     const participantRecords = records
@@ -683,107 +727,88 @@ export default function AdminPage() {
           <SummaryCard title="오늘 시간" value={secondsToTime(totalTime)} />
         </section>
 
-        <section className="card overflow-hidden p-4">
-          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <section className="card p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-lg font-black text-oriwan-text">러닝 인증캘린더</h2>
+                <h2 className="text-lg font-black text-oriwan-text">러닝 인증관리</h2>
                 <div className="group relative">
                   <span className="flex h-5 w-5 items-center justify-center rounded-full bg-oriwan-surface-light text-[11px] font-black text-oriwan-text-muted">?</span>
                   <div className="pointer-events-none absolute left-0 top-7 z-10 hidden w-64 rounded-2xl bg-slate-950 p-3 text-[11px] font-bold leading-5 text-white/80 shadow-2xl group-hover:block">
-                    순위는 인증, 연속 인증, 성장 기록을 크게 반영합니다. 날짜 칸을 누르면 해당 참가자의 이미지 일괄등록이 바로 열려요.
+                    선택한 날짜의 인증 상태만 압축해서 보여줍니다. 참가자 카드를 누르면 해당 날짜와 참가자로 이미지 등록이 바로 열려요.
                   </div>
                 </div>
               </div>
-              <p className="mt-1 text-xs text-oriwan-text-muted">뱃지와 선택한 기간의 인증 흐름을 함께 봅니다.</p>
+              <p className="mt-1 text-xs text-oriwan-text-muted">
+                {targetDate} · 인증 {adminBoard.certified}명 · 미인증 {adminBoard.missing}명{adminBoard.review ? ` · 검수 ${adminBoard.review}명` : ""}
+              </p>
             </div>
-            <div className="flex flex-col gap-2 sm:items-end">
-              <div className="flex rounded-full bg-oriwan-surface-light p-1 ring-1 ring-slate-950/5">
-                {calendarRangeOptions.map((days) => (
-                  <button
-                    key={days}
-                    type="button"
-                    onClick={() => setCalendarRange(days)}
-                    className={`rounded-full px-3 py-1.5 text-xs font-black transition ${
-                      calendarRange === days ? "bg-slate-950 text-lime-200 shadow-sm" : "text-oriwan-text-muted hover:text-oriwan-text"
-                    }`}
-                  >
-                    {days}일
-                  </button>
-                ))}
-              </div>
+            <div className="flex flex-col gap-2 sm:min-w-[280px] sm:items-end">
+              <input
+                type="date"
+                min={CHALLENGE_START_DATE}
+                max={CHALLENGE_END_DATE}
+                value={targetDate}
+                onChange={(event) => {
+                  setTargetDate(event.target.value);
+                  setAdminBoardFilter("all");
+                }}
+                className="w-full rounded-2xl border border-oriwan-border bg-white px-3 py-2 text-sm font-black text-oriwan-text sm:w-[170px]"
+              />
               <button
                 type="button"
-                onClick={() => openUploadForDate(effectiveToday)}
-                className="rounded-xl bg-slate-950 px-3 py-2 text-xs font-black text-lime-200"
+                onClick={() => openUploadForDate(targetDate)}
+                className="w-full rounded-xl bg-slate-950 px-3 py-2 text-xs font-black text-lime-200 sm:w-auto"
               >
-                참가자별 이미지 등록
+                선택일 이미지 등록
               </button>
             </div>
           </div>
 
-          <div className="overflow-x-auto pb-2">
-            <div className="space-y-2" style={{ minWidth: `${258 + timelineDays.length * 42}px` }}>
-              <div
-                className="grid items-center gap-1 text-[10px] font-black text-oriwan-text-muted"
-                style={{ gridTemplateColumns: `40px 96px 122px repeat(${timelineDays.length || 1}, 42px)` }}
+          <div className="mt-4 grid grid-cols-4 rounded-full bg-oriwan-surface-light p-1 ring-1 ring-slate-950/5">
+            {adminBoardFilterOptions.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => setAdminBoardFilter(option.value)}
+                className={`rounded-full px-2 py-1.5 text-[11px] font-black transition ${
+                  adminBoardFilter === option.value ? "bg-slate-950 text-lime-200 shadow-sm" : "text-oriwan-text-muted hover:text-oriwan-text"
+                }`}
               >
-                <div>순위</div>
-                <div>참가자</div>
-                <div>뱃지</div>
-                {timelineDays.map((day) => (
-                  <button
-                    key={day}
-                    type="button"
-                    onClick={() => openUploadForDate(day)}
-                    className="rounded-lg px-1 py-1 text-center transition hover:bg-lime-100 hover:text-lime-900"
-                    title={`${day} 이미지 등록`}
-                  >
-                    {day.slice(5).replace("-", "/")}
-                  </button>
-                ))}
-              </div>
+                {option.label}
+              </button>
+            ))}
+          </div>
 
-              {scoreRows.map((row, index) => (
-                <div
-                  key={row.participant.id}
-                  className="grid items-center gap-1 rounded-2xl bg-white/70 px-2 py-1.5 ring-1 ring-slate-950/5"
-                  style={{ gridTemplateColumns: `40px 96px 122px repeat(${timelineDays.length || 1}, 42px)` }}
+          <div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7">
+            {adminBoardCards.map((card) => (
+              <button
+                key={card.participant.id}
+                type="button"
+                onClick={() => openUploadForDate(targetDate, card.participant.id)}
+                title={`${card.participant.name} · ${targetDate} · ${adminBoardStatusLabel(card.status)} · 이미지 등록`}
+                className={`min-h-[60px] rounded-2xl px-2 py-2 text-center ring-1 transition hover:-translate-y-0.5 hover:ring-lime-300 ${adminBoardCardClass(card.status)}`}
+              >
+                <span
+                  className={`mx-auto flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-black ${
+                    card.status === "certified"
+                      ? "bg-slate-950 text-lime-200"
+                      : card.status === "review"
+                        ? "bg-orange-200 text-orange-950"
+                        : "bg-slate-100 text-slate-300"
+                  }`}
                 >
-                  <div className="text-xs font-black text-oriwan-primary">{index + 1}</div>
-                  <button
-                    type="button"
-                    onClick={() => openUploadForDate(effectiveToday, row.participant.id)}
-                    className="truncate text-left text-xs font-black text-oriwan-text transition hover:text-oriwan-primary"
-                    title={`${row.participant.name} 이미지 등록`}
-                  >
-                    {row.participant.name}
-                  </button>
-                  <ScoreBadge kind={row.badgeKind} />
-                  {timelineDays.map((day) => {
-                    const record = recordsByParticipantDate.get(`${row.participant.id}:${day}`);
-                    const status = record?.status || "missing";
-                    return (
-                      <button
-                        key={day}
-                        type="button"
-                        onClick={() => openUploadForDate(day, row.participant.id)}
-                        title={`${row.participant.name} · ${day} · ${statusLabel(status)} · 이미지 등록`}
-                        className={`flex h-8 items-center justify-center rounded-xl border text-[11px] font-black transition hover:scale-[1.03] hover:ring-2 hover:ring-lime-300 ${statusClass(status)}`}
-                      >
-                        {status === "certified" ? <IconCheck size={13} /> : status === "needs_review" ? "!" : "+"}
-                      </button>
-                    );
-                  })}
-                </div>
-              ))}
-
-              {!scoreRows.length && !loading && (
-                <p className="rounded-2xl bg-white px-4 py-8 text-center text-sm text-oriwan-text-muted">
-                  참가자를 추가하면 인증캘린더가 표시됩니다.
-                </p>
-              )}
-            </div>
+                  {card.status === "certified" ? <IconCheck size={12} /> : card.status === "review" ? "!" : "+"}
+                </span>
+                <span className="mt-1 block truncate text-[12px] font-black tracking-[-0.04em] sm:text-[13px]">{card.participant.name}</span>
+                <span className="mt-0.5 block text-[9px] font-black opacity-60">{adminBoardStatusLabel(card.status)}</span>
+              </button>
+            ))}
+            {!adminBoardCards.length && !loading && (
+              <p className="col-span-3 rounded-2xl bg-white px-4 py-8 text-center text-sm text-oriwan-text-muted">
+                조건에 맞는 참가자가 없습니다.
+              </p>
+            )}
           </div>
         </section>
 
