@@ -24,7 +24,6 @@ async function buildMePayload(userId: string, email: string | undefined, userMet
       .eq("user_id", adminUserId)
       .eq("participant_id", participant.id)
       .gte("record_date", CHALLENGE_START_DATE)
-      .lte("record_date", CHALLENGE_END_DATE)
       .order("record_date", { ascending: false });
     if (error) throw error;
     records = data || [];

@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import type { CSSProperties } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { YoutubeShortsSection } from "@/components/youtube-shorts-section";
 import { ACTUAL_CERTIFICATION_START_DATE, CERTIFICATION_DISPLAY_START_DATE, CHALLENGE_DAYS } from "@/lib/challenge";
@@ -61,12 +62,19 @@ function shortDate(value: string) {
 }
 
 function todayLabel() {
-  return shortDate(effectiveToday);
+  return shortDate(today);
 }
 
 function makeDaysFrom(startDate: string, days = CHALLENGE_DAYS) {
   const start = new Date(`${startDate}T00:00:00`);
   return Array.from({ length: days }, (_, index) => toIsoDate(addDays(start, index)));
+}
+
+function makeDaysThrough(startDate: string, endDate: string) {
+  const start = new Date(`${startDate}T00:00:00`);
+  const end = new Date(`${endDate < startDate ? startDate : endDate}T00:00:00`);
+  const days = Math.floor((end.getTime() - start.getTime()) / 86_400_000) + 1;
+  return makeDaysFrom(startDate, days);
 }
 
 function makeOfficialCertificationDays() {
@@ -87,7 +95,6 @@ function gaugeTextClass(certifiedDays: number) {
 }
 
 const officialCertificationDays = makeOfficialCertificationDays();
-const stampDays = makeDaysFrom(CERTIFICATION_DISPLAY_START_DATE);
 const RING_CIRCUMFERENCE = 302;
 
 function makeGraphPath(items: { value: number }[], width = 320, height = 150, padding = 24) {
@@ -139,6 +146,16 @@ function AnimatedNumber({
   return <span className={className}>{displayValue}{suffix}</span>;
 }
 
+function FanfareBurst({ compact = false }: { compact?: boolean }) {
+  return (
+    <div className={`fanfare-burst ${compact ? "fanfare-burst-compact" : ""}`} aria-hidden="true">
+      {Array.from({ length: compact ? 10 : 16 }, (_, index) => (
+        <span key={index} style={{ "--i": index } as CSSProperties} />
+      ))}
+    </div>
+  );
+}
+
 export default function DashboardPage() {
   const [data, setData] = useState<PublicDashboardData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -153,7 +170,7 @@ export default function DashboardPage() {
     if (loadingRef.current) return;
     loadingRef.current = true;
     try {
-      const response = await fetch("/api/public-dashboard?days=100", { cache: "no-store" });
+      const response = await fetch("/api/public-dashboard?scope=all", { cache: "no-store" });
       const json = await response.json();
       if (!response.ok) throw new Error(json.error || "오늘의 보드를 불러오지 못했어요.");
       setData(json);
@@ -218,7 +235,7 @@ export default function DashboardPage() {
     const records = data?.records || [];
     const certifiedRecords = records.filter((record) => record.status === "certified");
     const officialCertifiedRecords = certifiedRecords.filter(
-      (record) => Boolean(record.record_date && record.record_date >= ACTUAL_CERTIFICATION_START_DATE)
+      (record) => Boolean(record.record_date && record.record_date >= ACTUAL_CERTIFICATION_START_DATE && record.record_date <= actualCertificationEndDate)
     );
     const todayRecords = officialCertifiedRecords.filter((record) => record.record_date === today);
     const todayCertifiedIds = new Set(
@@ -242,6 +259,11 @@ export default function DashboardPage() {
     });
 
     const stampDatesByParticipant = new Map<string, Set<string>>();
+    const latestStampDate = certifiedRecords.reduce((latest, record) => {
+      if (!record.record_date) return latest;
+      return record.record_date > latest ? record.record_date : latest;
+    }, today > CERTIFICATION_DISPLAY_START_DATE ? today : CERTIFICATION_DISPLAY_START_DATE);
+
     certifiedRecords.forEach((record) => {
       if (!record.participant_id || !record.record_date) return;
       if (!stampDatesByParticipant.has(record.participant_id)) stampDatesByParticipant.set(record.participant_id, new Set());
@@ -301,6 +323,7 @@ export default function DashboardPage() {
       totalCertifiedSlots,
       cumulativeRate,
       participantProgress,
+      stampDays: makeDaysThrough(CERTIFICATION_DISPLAY_START_DATE, latestStampDate),
     };
   }, [data]);
   const latestWeeklyRate = dashboard.weekTrend.at(-1)?.averageRate || 0;
@@ -430,8 +453,11 @@ export default function DashboardPage() {
                     key={row.participant.id}
                     type="button"
                     onClick={() => setSelectedParticipantId(row.participant.id)}
-                    className="rounded-2xl bg-white px-3 py-3 text-left ring-1 ring-slate-950/5 transition hover:-translate-y-0.5 hover:ring-lime-300"
+                  className={`relative overflow-hidden rounded-2xl bg-white px-3 py-3 text-left ring-1 ring-slate-950/5 transition hover:-translate-y-0.5 hover:ring-lime-300 ${
+                    row.rate >= 100 ? "gauge-complete-card" : "dashboard-gauge-card"
+                  }`}
                   >
+                    {row.rate >= 100 && <FanfareBurst compact />}
                     <div className="flex items-center justify-between gap-2">
                       <p className="truncate text-sm font-black text-oriwan-text">{row.participant.name}</p>
                       <p className={`shrink-0 text-xs font-black ${gaugeTextClass(row.certifiedDays)}`}>
@@ -440,7 +466,7 @@ export default function DashboardPage() {
                     </div>
                     <div className="mt-2 h-3 overflow-hidden rounded-full bg-oriwan-surface-light">
                       <div
-                        className={`h-full rounded-full transition-all duration-1000 ease-out ${gaugeColorClass(row.certifiedDays)}`}
+                        className={`gauge-fill-flow h-full rounded-full transition-all duration-1000 ease-out ${gaugeColorClass(row.certifiedDays)}`}
                         style={{
                           width: `${motionReady ? Math.max(row.rate, row.certifiedDays ? 3 : 0) : 0}%`,
                           transitionDelay: `${Math.min(index * 45, 500)}ms`,
@@ -479,15 +505,18 @@ export default function DashboardPage() {
 
         {selectedParticipant && (
           <div className="fixed inset-0 z-[80] flex items-end bg-slate-950/45 px-4 py-4 backdrop-blur-sm sm:items-center sm:justify-center">
-            <div className="card max-h-[88vh] w-full max-w-2xl overflow-y-auto p-5 sm:p-6">
+            <div className="card modal-rise max-h-[88vh] w-full max-w-2xl overflow-y-auto p-5 sm:p-6">
+              {selectedParticipant.rate >= 100 && <FanfareBurst />}
               <div className="mb-4 flex items-start justify-between gap-3">
                 <div>
-                  <p className="inline-flex rounded-full bg-lime-300 px-3 py-1 text-[11px] font-black text-slate-950">
-                    {selectedParticipant.rate}%
+                  <p className={`inline-flex rounded-full px-3 py-1 text-[11px] font-black ${
+                    selectedParticipant.rate >= 100 ? "bg-slate-950 text-lime-200" : "bg-lime-300 text-slate-950"
+                  }`}>
+                    {selectedParticipant.rate >= 100 ? "100% 완주!" : `${selectedParticipant.rate}%`}
                   </p>
                   <h3 className="mt-2 text-2xl font-black tracking-[-0.05em] text-oriwan-text">{selectedParticipant.participant.name}</h3>
                   <p className="mt-1 text-xs font-bold text-oriwan-text-muted">
-                    {selectedParticipant.certifiedDays}/{CHALLENGE_DAYS}일 인증
+                    공식 게이지 {Math.min(selectedParticipant.certifiedDays, CHALLENGE_DAYS)}/{CHALLENGE_DAYS}일 · 스탬프는 5/1부터 계속 기록
                   </p>
                 </div>
                 <button
@@ -499,15 +528,15 @@ export default function DashboardPage() {
                 </button>
               </div>
               <div className="grid grid-cols-7 gap-1.5">
-                {stampDays.map((day) => {
+                {dashboard.stampDays.map((day) => {
                   const stamped = selectedStampedDates.has(day);
                   return (
                     <div
                       key={day}
                       title={day}
-                      className={`flex aspect-square flex-col items-center justify-center rounded-2xl border text-[10px] font-black ${
+                      className={`stamp-cell flex aspect-square flex-col items-center justify-center rounded-2xl border text-[10px] font-black ${
                         stamped
-                          ? "border-lime-300 bg-lime-300 text-slate-950 shadow-sm shadow-lime-300/40"
+                          ? "stamp-cell-hit border-lime-300 bg-lime-300 text-slate-950 shadow-sm shadow-lime-300/40"
                           : "border-slate-950/5 bg-white text-oriwan-text-muted/45"
                       }`}
                     >

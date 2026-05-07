@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { CHALLENGE_END_DATE, CHALLENGE_START_DATE, clampToChallengeWindow } from "@/lib/challenge";
+import { CHALLENGE_START_DATE, clampToChallengeWindow } from "@/lib/challenge";
 import { broadcastDashboardRefresh } from "@/lib/dashboard-refresh";
 import { imageFileToOptimizedDataUrl } from "@/lib/image-client";
 import { parseDurationToSeconds, secondsToPace, secondsToTime, toIsoDate } from "@/lib/run-records";
@@ -294,9 +294,9 @@ export default function MyPage() {
 
           <div className="card min-w-0 overflow-hidden p-4 sm:p-5">
             <h3 className="text-lg font-black text-oriwan-text">오늘의 러닝 남기기</h3>
-            <p className="mt-1 text-xs text-oriwan-text-muted">{CHALLENGE_START_DATE}부터 {CHALLENGE_END_DATE}까지의 러닝 기록을 남길 수 있어요.</p>
+            <p className="mt-1 text-xs text-oriwan-text-muted">{CHALLENGE_START_DATE}부터 쭉 러닝 기록을 남길 수 있어요.</p>
             <div className="mt-4 grid min-w-0 gap-2 sm:grid-cols-3">
-              <input type="date" min={CHALLENGE_START_DATE} max={CHALLENGE_END_DATE} value={recordDate} onChange={(event) => setRecordDate(event.target.value)} className="w-full min-w-0 rounded-2xl border border-oriwan-border bg-white px-3 py-3 text-sm" />
+              <input type="date" min={CHALLENGE_START_DATE} value={recordDate} onChange={(event) => setRecordDate(event.target.value)} className="w-full min-w-0 rounded-2xl border border-oriwan-border bg-white px-3 py-3 text-sm" />
               <input value={distance} onChange={(event) => setDistance(event.target.value)} inputMode="decimal" placeholder="거리 km" className="w-full min-w-0 rounded-2xl border border-oriwan-border bg-white px-3 py-3 text-sm" />
               <input value={duration} onChange={(event) => setDuration(event.target.value)} placeholder="시간 32:10" className="w-full min-w-0 rounded-2xl border border-oriwan-border bg-white px-3 py-3 text-sm" />
             </div>
@@ -349,7 +349,6 @@ export default function MyPage() {
                   <input
                     type="date"
                     min={CHALLENGE_START_DATE}
-                    max={CHALLENGE_END_DATE}
                     value={imageDate}
                     onChange={(event) => setImageDate(event.target.value)}
                     disabled={!useFallbackImageDate}

@@ -11,12 +11,13 @@ export async function GET(request: NextRequest) {
   }
 
   const { searchParams } = new URL(request.url);
+  const scope = searchParams.get("scope");
   const daysParam = Number(searchParams.get("days") || 30);
-  const days = Number.isFinite(daysParam) ? Math.min(Math.max(daysParam, 7), 100) : 30;
+  const days = Number.isFinite(daysParam) ? Math.min(Math.max(daysParam, 7), 366) : 30;
   const today = toIsoDate(new Date());
-  const to = today > CHALLENGE_END_DATE ? CHALLENGE_END_DATE : today;
+  const to = today;
   const rangeEnd = new Date(`${to}T00:00:00`);
-  const from = clampToChallengeStart(toIsoDate(addDays(rangeEnd, -(days - 1))));
+  const from = scope === "all" ? CHALLENGE_START_DATE : clampToChallengeStart(toIsoDate(addDays(rangeEnd, -(days - 1))));
 
   try {
     const adminUserId = await findAdminUserId(supabase);

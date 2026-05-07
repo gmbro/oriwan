@@ -183,6 +183,45 @@ img { -webkit-user-drag: none; user-select: none; }
   to { opacity: 1; transform: scale(1); }
 }
 
+@keyframes gauge-fill-flow {
+  0% { background-position: 0% 50%; filter: saturate(0.95); }
+  50% { background-position: 100% 50%; filter: saturate(1.18); }
+  100% { background-position: 0% 50%; filter: saturate(1); }
+}
+
+@keyframes gauge-complete-glow {
+  0%, 100% { box-shadow: 0 0 0 rgba(190, 242, 100, 0), 0 1px 0 rgba(255,255,255,0.8) inset; }
+  45% { box-shadow: 0 18px 40px rgba(132, 204, 22, 0.24), 0 0 0 1px rgba(190, 242, 100, 0.7) inset; }
+}
+
+@keyframes modal-rise {
+  from { opacity: 0; transform: translateY(18px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes stamp-pop {
+  0% { opacity: 0.72; transform: scale(0.86); }
+  65% { transform: scale(1.08); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes fanfare-pop {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) rotate(calc(var(--i) * 24deg)) translateY(0) scale(0.3);
+  }
+  18% { opacity: 1; }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) rotate(calc(var(--i) * 24deg)) translateY(-88px) scale(1);
+  }
+}
+
+@keyframes fanfare-center {
+  0%, 100% { transform: translate(-50%, -50%) scale(0.9); opacity: 0; }
+  20%, 72% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+}
+
 .animate-fade-up { animation: fade-up 0.45s ease-out forwards; }
 .dashboard-card-reveal {
   animation: dashboard-card-reveal 0.48s cubic-bezier(0.2, 0.8, 0.2, 1) both;
@@ -200,6 +239,69 @@ img { -webkit-user-drag: none; user-select: none; }
   transform-box: fill-box;
   transform-origin: center;
   animation: dashboard-dot-pop 0.32s ease-out forwards;
+}
+.dashboard-gauge-card {
+  animation: dashboard-card-reveal 0.46s ease-out both;
+}
+.gauge-fill-flow {
+  background-image: linear-gradient(90deg, rgba(255,255,255,0.08), rgba(255,255,255,0.38), rgba(255,255,255,0.08));
+  background-size: 180% 180%;
+  animation: gauge-fill-flow 2.4s ease-in-out infinite;
+}
+.gauge-complete-card {
+  position: relative;
+  background:
+    radial-gradient(circle at top right, rgba(190, 242, 100, 0.34), transparent 42%),
+    #fff;
+  animation: gauge-complete-glow 2.6s ease-in-out infinite;
+}
+.modal-rise {
+  position: relative;
+  animation: modal-rise 0.34s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.stamp-cell-hit {
+  animation: stamp-pop 0.34s ease-out both;
+}
+.fanfare-burst {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow: hidden;
+}
+.fanfare-burst::before {
+  content: "팡!";
+  position: absolute;
+  left: 50%;
+  top: 42%;
+  z-index: 2;
+  border-radius: 999px;
+  background: #101522;
+  color: #d9f99d;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  padding: 6px 9px;
+  animation: fanfare-center 1.45s ease-out both;
+}
+.fanfare-burst span {
+  --hue: calc(70 + var(--i) * 18);
+  position: absolute;
+  left: 50%;
+  top: 45%;
+  width: 7px;
+  height: 12px;
+  border-radius: 999px;
+  background: hsl(var(--hue) 92% 58%);
+  animation: fanfare-pop 1.55s cubic-bezier(0.16, 0.82, 0.26, 1) both;
+  animation-delay: calc(var(--i) * 28ms);
+}
+.fanfare-burst-compact::before { display: none; }
+.fanfare-burst-compact span {
+  top: 70%;
+  width: 5px;
+  height: 8px;
+  animation-duration: 1.15s;
 }
 
 @media (prefers-reduced-motion: reduce) {

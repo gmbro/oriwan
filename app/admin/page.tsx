@@ -5,10 +5,10 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 import { ADMIN_EMAIL, isAdminEmail } from "@/lib/admin";
-import { ACTUAL_CERTIFICATION_START_DATE, CHALLENGE_DAYS, CHALLENGE_END_DATE, CHALLENGE_START_DATE, clampToChallengeWindow } from "@/lib/challenge";
+import { ACTUAL_CERTIFICATION_START_DATE, CHALLENGE_DAYS, CHALLENGE_START_DATE, clampToChallengeWindow } from "@/lib/challenge";
 import { DASHBOARD_REFRESH_CHANNEL, DASHBOARD_REFRESH_EVENT, broadcastDashboardRefresh } from "@/lib/dashboard-refresh";
 import { imageFileToOptimizedDataUrl } from "@/lib/image-client";
-import { parseDurationToSeconds, secondsToTime, toIsoDate } from "@/lib/run-records";
+import { addDays, parseDurationToSeconds, secondsToTime, toIsoDate } from "@/lib/run-records";
 
 type Participant = {
   id: string;
@@ -51,7 +51,8 @@ type AdminOtpType = "email" | "magiclink" | "signup";
 type AdminModal = "participant" | "record" | "upload" | null;
 
 const today = toIsoDate(new Date());
-const effectiveToday = today > CHALLENGE_END_DATE ? CHALLENGE_END_DATE : today;
+const effectiveToday = today;
+const officialCertificationEndDate = toIsoDate(addDays(new Date(`${ACTUAL_CERTIFICATION_START_DATE}T00:00:00`), CHALLENGE_DAYS - 1));
 const initialRecordDate = clampToChallengeWindow(today);
 const rangeStart = CHALLENGE_START_DATE;
 function statusLabel(status: RecordStatus) {
@@ -226,7 +227,8 @@ export default function AdminPage() {
         record.status !== "certified" ||
         !record.participant_id ||
         !record.record_date ||
-        record.record_date < ACTUAL_CERTIFICATION_START_DATE
+        record.record_date < ACTUAL_CERTIFICATION_START_DATE ||
+        record.record_date > officialCertificationEndDate
       ) return;
       if (!certifiedDaysByParticipant.has(record.participant_id)) certifiedDaysByParticipant.set(record.participant_id, new Set());
       certifiedDaysByParticipant.get(record.participant_id)?.add(record.record_date);
@@ -567,7 +569,10 @@ export default function AdminPage() {
           </div>
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {participantProgress.map((row) => (
-              <div key={row.participant.id} className="rounded-2xl bg-white px-3 py-3 ring-1 ring-slate-950/5">
+              <div
+                key={row.participant.id}
+                className={`rounded-2xl bg-white px-3 py-3 ring-1 ring-slate-950/5 ${row.rate >= 100 ? "gauge-complete-card" : "dashboard-gauge-card"}`}
+              >
                 <div className="flex items-center justify-between gap-2">
                   <p className="truncate text-sm font-black text-oriwan-text">{row.participant.name}</p>
                   <p className={`shrink-0 text-xs font-black ${gaugeTextClass(row.certifiedDays)}`}>
@@ -576,7 +581,7 @@ export default function AdminPage() {
                 </div>
                 <div className="mt-2 h-3 overflow-hidden rounded-full bg-oriwan-surface-light">
                   <div
-                    className={`h-full rounded-full transition-all duration-1000 ease-out ${gaugeColorClass(row.certifiedDays)}`}
+                    className={`gauge-fill-flow h-full rounded-full transition-all duration-1000 ease-out ${gaugeColorClass(row.certifiedDays)}`}
                     style={{ width: `${Math.max(row.rate, row.certifiedDays ? 3 : 0)}%` }}
                   />
                 </div>
@@ -633,7 +638,6 @@ export default function AdminPage() {
                   <input
                     type="date"
                     min={CHALLENGE_START_DATE}
-                    max={CHALLENGE_END_DATE}
                     value={targetDate}
                     onChange={(e) => setTargetDate(e.target.value)}
                     className="mt-1 block w-full rounded-2xl border border-oriwan-border bg-white px-4 py-3 text-sm font-black text-oriwan-text"
@@ -784,7 +788,7 @@ export default function AdminPage() {
                   <option value="">멤버 선택</option>
                   {participants.map((participant) => <option key={participant.id} value={participant.id}>{participant.name}</option>)}
                 </select>
-                <input type="date" min={CHALLENGE_START_DATE} max={CHALLENGE_END_DATE} value={manualDate} onChange={(e) => setManualDate(e.target.value)} className="rounded-xl border border-oriwan-border px-3 py-2.5 text-sm" />
+                <input type="date" min={CHALLENGE_START_DATE} value={manualDate} onChange={(e) => setManualDate(e.target.value)} className="rounded-xl border border-oriwan-border px-3 py-2.5 text-sm" />
                 <input value={manualDistance} onChange={(e) => setManualDistance(e.target.value)} placeholder="거리 km" inputMode="decimal" className="rounded-xl border border-oriwan-border px-3 py-2.5 text-sm" />
                 <input value={manualDuration} onChange={(e) => setManualDuration(e.target.value)} placeholder="시간 예: 32:10" className="rounded-xl border border-oriwan-border px-3 py-2.5 text-sm" />
               </div>
