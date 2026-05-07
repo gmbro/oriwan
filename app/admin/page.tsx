@@ -162,7 +162,6 @@ export default function AdminPage() {
   const [manualDuration, setManualDuration] = useState("");
   const [selectedParticipantId, setSelectedParticipantId] = useState("");
   const [adminBoardFilter, setAdminBoardFilter] = useState<AdminBoardFilter>("all");
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [liveStatus, setLiveStatus] = useState<"connecting" | "live" | "polling">("connecting");
   const [setupMessage, setSetupMessage] = useState("");
   const [adminModal, setAdminModal] = useState<AdminModal>(null);
@@ -195,7 +194,6 @@ export default function AdminPage() {
       setSelectedParticipantId((current) => current || nextParticipants[0]?.id || "");
       setManualParticipantId((current) => current || nextParticipants[0]?.id || "");
       setDrafts(Object.fromEntries(nextRecords.map((record: RunRecord) => [record.id, makeDraft(record)])));
-      setLastUpdated(new Date());
     } catch (err) {
       setSetupMessage(err instanceof Error ? err.message : "데이터를 불러오지 못했어요. 잠시 후 다시 확인해주세요.");
     } finally {
@@ -272,15 +270,6 @@ export default function AdminPage() {
       supabase.removeChannel(channel);
     };
   }, [authorized, loadData, mounted, scheduleRefresh]);
-
-  const todayRecords = useMemo(() => records.filter((record) => record.record_date === today), [records]);
-  const certifiedToday = useMemo(() => new Set(
-    todayRecords
-      .filter((record) => record.status === "certified" && record.participant_id)
-      .map((record) => record.participant_id)
-  ).size, [todayRecords]);
-  const totalDistance = useMemo(() => todayRecords.reduce((sum, record) => sum + (record.distance_km || 0), 0), [todayRecords]);
-  const totalTime = useMemo(() => todayRecords.reduce((sum, record) => sum + (record.duration_seconds || 0), 0), [todayRecords]);
 
   const scoreRows = useMemo(() => buildScoreRows({
     participants,
@@ -664,34 +653,12 @@ export default function AdminPage() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 py-4 space-y-4 pb-10">
-        <section className="relative overflow-hidden rounded-[28px] bg-[#101522] px-5 py-5 text-white shadow-2xl shadow-slate-950/10">
+        <section className="relative overflow-hidden rounded-[28px] bg-[#101522] p-4 text-white shadow-2xl shadow-slate-950/10">
           <div className="absolute -right-16 -top-20 h-56 w-56 rounded-full bg-lime-300/25 blur-3xl" />
           <div className="absolute bottom-0 left-1/2 h-24 w-72 -translate-x-1/2 rounded-full bg-orange-400/15 blur-3xl" />
-          <div className="relative flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-            <div>
-              <p className="mb-2 inline-flex rounded-full bg-white/10 px-3 py-1 text-[11px] font-black text-lime-200 ring-1 ring-white/10">SNASA RUNNING CLUB · 3RD</p>
-              <h2 className="text-3xl sm:text-4xl font-black tracking-[-0.04em]">오늘의 러닝을 착착 정리해요</h2>
-              <p className="mt-2 max-w-2xl text-sm text-white/60">날짜를 누르거나 이미지를 한꺼번에 넣으면 멤버와 기록을 빠르게 정리합니다.</p>
-            </div>
-            <div className="grid grid-cols-2 gap-2 text-right sm:grid-cols-3">
-              <div className="rounded-2xl bg-white/10 px-4 py-3 ring-1 ring-white/10">
-                <p className="text-[10px] font-bold text-white/45">오늘</p>
-                <p className="text-sm font-black text-white">{today}</p>
-              </div>
-              <div className="rounded-2xl bg-lime-300 px-4 py-3 text-slate-950">
-                <p className="text-[10px] font-bold opacity-60">인증률</p>
-                <p className="text-sm font-black">{participants.length ? Math.round((certifiedToday / participants.length) * 100) : 0}%</p>
-              </div>
-              <div className="col-span-2 rounded-2xl bg-white/10 px-4 py-3 ring-1 ring-white/10 sm:col-span-1">
-                <p className="text-[10px] font-bold text-white/45">업데이트</p>
-                <p className="text-sm font-black text-white">{lastUpdated ? lastUpdated.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "-"}</p>
-              </div>
-            </div>
-          </div>
-          <div className="relative mt-4 grid gap-2 sm:grid-cols-3">
+          <div className="relative grid gap-2 sm:grid-cols-3">
             <button type="button" onClick={() => openUploadForDate(effectiveToday)} className="rounded-2xl bg-lime-300 px-4 py-3 text-left text-sm font-black text-slate-950">
               이미지 올리기
-              <span className="mt-1 block text-[11px] font-bold opacity-65">멤버별 여러 장 등록</span>
             </button>
             <button
               type="button"
@@ -702,11 +669,9 @@ export default function AdminPage() {
               className="rounded-2xl bg-white/10 px-4 py-3 text-left text-sm font-black text-white ring-1 ring-white/10"
             >
               멤버 관리
-              <span className="mt-1 block text-[11px] font-bold text-white/50">추가 · 변경 · 삭제</span>
             </button>
             <button type="button" onClick={() => setAdminModal("record")} className="rounded-2xl bg-white/10 px-4 py-3 text-left text-sm font-black text-white ring-1 ring-white/10">
               직접 입력
-              <span className="mt-1 block text-[11px] font-bold text-white/50">이미지가 흐릴 때 빠르게</span>
             </button>
           </div>
         </section>
@@ -719,13 +684,6 @@ export default function AdminPage() {
             </span>
           </section>
         )}
-
-        <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <SummaryCard title="전체 멤버" value={`${participants.length}명`} />
-          <SummaryCard title="오늘 완료" value={`${certifiedToday}/${participants.length}`} />
-          <SummaryCard title="오늘 거리" value={`${totalDistance.toFixed(1)}km`} />
-          <SummaryCard title="오늘 시간" value={secondsToTime(totalTime)} />
-        </section>
 
         <section className="card p-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -1146,15 +1104,6 @@ export default function AdminPage() {
           </div>
         )}
       </main>
-    </div>
-  );
-}
-
-function SummaryCard({ title, value }: { title: string; value: string }) {
-  return (
-    <div className="card p-4">
-      <p className="text-[11px] font-black uppercase tracking-[0.12em] text-oriwan-text-muted">{title}</p>
-      <p className="text-2xl font-black text-oriwan-text tracking-[-0.04em]">{value}</p>
     </div>
   );
 }
