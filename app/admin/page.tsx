@@ -679,7 +679,7 @@ export default function AdminPage() {
                 <p className="text-sm font-black text-white">{today}</p>
               </div>
               <div className="rounded-2xl bg-lime-300 px-4 py-3 text-slate-950">
-                <p className="text-[10px] font-bold opacity-60">완료율</p>
+                <p className="text-[10px] font-bold opacity-60">인증률</p>
                 <p className="text-sm font-black">{participants.length ? Math.round((certifiedToday / participants.length) * 100) : 0}%</p>
               </div>
               <div className="col-span-2 rounded-2xl bg-white/10 px-4 py-3 ring-1 ring-white/10 sm:col-span-1">
@@ -731,11 +731,11 @@ export default function AdminPage() {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-lg font-black text-oriwan-text">오늘의 러닝 체크</h2>
+                <h2 className="text-lg font-black text-oriwan-text">오늘 인증 편집</h2>
                 <div className="group relative">
                   <span className="flex h-5 w-5 items-center justify-center rounded-full bg-oriwan-surface-light text-[11px] font-black text-oriwan-text-muted">?</span>
                   <div className="pointer-events-none absolute left-0 top-7 z-10 hidden w-64 rounded-2xl bg-slate-950 p-3 text-[11px] font-bold leading-5 text-white/80 shadow-2xl group-hover:block">
-                    선택한 날짜의 러닝 상태를 압축해서 보여줘요. 멤버 카드를 누르면 해당 날짜와 멤버로 이미지 등록이 바로 열립니다.
+                    공통 대시보드의 오늘 인증 상태를 편집하는 영역이에요. 멤버 카드를 누르면 해당 날짜와 멤버로 이미지 등록이 바로 열립니다.
                   </div>
                 </div>
               </div>

@@ -3,7 +3,6 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { IconCheck } from "@/components/icons";
 import { YoutubeShortsSection } from "@/components/youtube-shorts-section";
 import { ACTUAL_CERTIFICATION_START_DATE, CERTIFICATION_DISPLAY_START_DATE, CHALLENGE_DAYS, CHALLENGE_END_DATE } from "@/lib/challenge";
 import { addDays, toIsoDate } from "@/lib/run-records";
@@ -36,21 +35,15 @@ type PublicDashboardData = {
   error?: string;
 };
 
-type BoardFilter = "all" | "certified" | "missing";
-type PublicBoardStatus = "certified" | "missing";
-type DashboardTab = "today" | "trend";
+type InsightTab = "progress" | "weekly" | "cumulative";
 
 const today = toIsoDate(new Date());
 const actualCertificationEndDate = toIsoDate(addDays(new Date(`${ACTUAL_CERTIFICATION_START_DATE}T00:00:00`), CHALLENGE_DAYS - 1));
 const effectiveToday = today > actualCertificationEndDate ? actualCertificationEndDate : today;
-const boardFilterOptions: { value: BoardFilter; label: string }[] = [
-  { value: "all", label: "전체" },
-  { value: "certified", label: "완료" },
-  { value: "missing", label: "아직" },
-];
-const dashboardTabOptions: { value: DashboardTab; label: string }[] = [
-  { value: "today", label: "오늘의 팀" },
-  { value: "trend", label: "100일 리듬" },
+const insightTabOptions: { value: InsightTab; label: string }[] = [
+  { value: "progress", label: "진행일" },
+  { value: "weekly", label: "주차별 인증률" },
+  { value: "cumulative", label: "누적 인증률" },
 ];
 
 function formatLastUpdated(value?: string) {
@@ -80,17 +73,16 @@ function makeChallengeDays() {
     .filter((day) => day <= actualCertificationEndDate);
 }
 
-function publicBoardStatus(record?: RunRecord): PublicBoardStatus {
-  return record?.status === "certified" ? "certified" : "missing";
+function gaugeColorClass(certifiedDays: number) {
+  if (certifiedDays <= 10) return "bg-rose-400";
+  if (certifiedDays <= 50) return "bg-amber-300";
+  return "bg-lime-300";
 }
 
-function publicStatusLabel(status: PublicBoardStatus) {
-  return status === "certified" ? "완료" : "아직";
-}
-
-function publicCardClass(status: PublicBoardStatus) {
-  if (status === "certified") return "bg-lime-300 text-slate-950 ring-lime-400/70 shadow-sm shadow-lime-300/40";
-  return "bg-white text-slate-500 ring-slate-950/5";
+function gaugeTextClass(certifiedDays: number) {
+  if (certifiedDays <= 10) return "text-rose-600";
+  if (certifiedDays <= 50) return "text-amber-700";
+  return "text-lime-700";
 }
 
 const challengeDays = makeChallengeDays();
@@ -99,8 +91,7 @@ export default function DashboardPage() {
   const [data, setData] = useState<PublicDashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [boardFilter, setBoardFilter] = useState<BoardFilter>("all");
-  const [dashboardTab, setDashboardTab] = useState<DashboardTab>("today");
+  const [insightTab, setInsightTab] = useState<InsightTab>("progress");
   const loadingRef = useRef(false);
 
   const load = useCallback(async () => {
@@ -152,17 +143,8 @@ export default function DashboardPage() {
 
     const completionRate = participants.length ? Math.round((todayCertifiedIds.size / participants.length) * 100) : 0;
 
-    const byParticipantDate = new Map<string, RunRecord>();
     const certifiedIdsByDay = new Map<string, Set<string>>();
     const certifiedDaysByParticipant = new Map<string, Set<string>>();
-
-    records.forEach((record) => {
-      if (record.participant_id && record.record_date) {
-        const key = `${record.participant_id}:${record.record_date}`;
-        const existing = byParticipantDate.get(key);
-        if (!existing || record.status === "certified") byParticipantDate.set(key, record);
-      }
-    });
 
     certifiedRecords.forEach((record) => {
       if (!record.participant_id || !record.record_date) return;
@@ -171,12 +153,6 @@ export default function DashboardPage() {
 
       if (!certifiedDaysByParticipant.has(record.participant_id)) certifiedDaysByParticipant.set(record.participant_id, new Set());
       certifiedDaysByParticipant.get(record.participant_id)?.add(record.record_date);
-    });
-
-    const boardCards = participants.map((participant) => {
-      const record = byParticipantDate.get(`${participant.id}:${today}`);
-      const status = publicBoardStatus(record);
-      return { participant, record, status };
     });
 
     const elapsedDays = challengeDays.filter((day) => day <= effectiveToday);
@@ -204,28 +180,23 @@ export default function DashboardPage() {
     const participantProgress = participants
       .map((participant) => {
         const certifiedDays = certifiedDaysByParticipant.get(participant.id)?.size || 0;
-        const rate = elapsedDays.length ? Math.round((certifiedDays / elapsedDays.length) * 100) : 0;
+        const rate = Math.round((certifiedDays / CHALLENGE_DAYS) * 100);
         return { participant, certifiedDays, rate };
       })
       .sort((a, b) => b.certifiedDays - a.certifiedDays || a.participant.name.localeCompare(b.participant.name, "ko"));
 
     return {
       participants,
-      boardCards,
       todayCertifiedIds,
       completionRate,
       elapsedDays,
       weekTrend,
       totalCertifiedSlots,
+      possibleCertifiedSlots,
       cumulativeRate,
       participantProgress,
     };
   }, [data]);
-
-  const boardRows = useMemo(() => {
-    if (boardFilter === "all") return dashboard.boardCards;
-    return dashboard.boardCards.filter((row) => row.status === boardFilter);
-  }, [boardFilter, dashboard.boardCards]);
 
   return (
     <main className="min-h-screen bg-oriwan-bg">
@@ -235,7 +206,7 @@ export default function DashboardPage() {
             <Image src="/oriwan-logo-v2.png" alt="스내사 3기" width={38} height={38} className="rounded-2xl bg-lime-300" />
             <div>
               <h1 className="text-base font-black tracking-[-0.03em] sm:text-lg">스내사 3기 대시보드</h1>
-              <p className="text-[11px] font-semibold text-white/50">함께 뛰는 오늘의 인증 보드</p>
+              <p className="text-[11px] font-semibold text-white/50">오늘 인증을 한눈에 보는 보드</p>
             </div>
           </div>
           <div className="text-right">
@@ -263,7 +234,7 @@ export default function DashboardPage() {
                   </p>
                 </div>
                 <h2 className="max-w-full whitespace-nowrap text-[clamp(1.95rem,8vw,3.75rem)] font-black leading-[1.05] tracking-[-0.07em]">
-                  오늘, 얼마나 함께 뛰었을까?
+                  오늘, 얼마나 인증했을까?
                 </h2>
                 <p className="mt-3 max-w-xl text-sm leading-6 text-white/55">
                   인증 기록은 매일 정오에 산뜻하게 업데이트됩니다.
@@ -273,7 +244,7 @@ export default function DashboardPage() {
               <div className="rounded-[28px] bg-white/10 p-4 ring-1 ring-white/10">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-xs font-black text-white/45">오늘 함께한 비율</p>
+                    <p className="text-xs font-black text-white/45">오늘 인증률</p>
                     <p className="mt-1 text-5xl font-black tracking-[-0.08em] text-lime-200">{dashboard.completionRate}%</p>
                   </div>
                   <svg viewBox="0 0 120 120" className="h-28 w-28 -rotate-90">
@@ -291,21 +262,36 @@ export default function DashboardPage() {
                   </svg>
                 </div>
                 <p className="mt-2 text-xs font-semibold text-white/50">
-                  {dashboard.todayCertifiedIds.size}/{dashboard.participants.length}명 오늘도 완료
+                  {dashboard.todayCertifiedIds.size}/{dashboard.participants.length}명 인증 완료
                 </p>
               </div>
             </div>
           </div>
 
           <div className="p-4 sm:p-5">
-            <div className="mb-4 grid grid-cols-2 rounded-full bg-oriwan-surface-light p-1 ring-1 ring-slate-950/5">
-              {dashboardTabOptions.map((option) => (
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p className="inline-flex rounded-full bg-slate-950 px-3 py-1 text-[11px] font-black text-lime-200">
+                  100일 인증 흐름
+                </p>
+                <h3 className="mt-2 text-xl font-black tracking-[-0.04em] text-oriwan-text">우리의 인증 흐름</h3>
+                <p className="mt-1 text-xs font-semibold leading-5 text-oriwan-text-muted">
+                  {shortDate(ACTUAL_CERTIFICATION_START_DATE)}부터 100일 동안 쌓이는 인증 기록입니다. 현재 {dashboard.elapsedDays.length}/{CHALLENGE_DAYS}일째예요.
+                </p>
+              </div>
+              <p className="text-xs font-black text-oriwan-text-muted">
+                지금까지 인증 {dashboard.totalCertifiedSlots}건
+              </p>
+            </div>
+
+            <div className="mt-4 grid grid-cols-3 rounded-full bg-oriwan-surface-light p-1 ring-1 ring-slate-950/5">
+              {insightTabOptions.map((option) => (
                 <button
                   key={option.value}
                   type="button"
-                  onClick={() => setDashboardTab(option.value)}
-                  className={`rounded-full px-3 py-2 text-xs font-black transition ${
-                    dashboardTab === option.value ? "bg-slate-950 text-lime-200 shadow-sm" : "text-oriwan-text-muted hover:text-oriwan-text"
+                  onClick={() => setInsightTab(option.value)}
+                  className={`whitespace-nowrap rounded-full px-1.5 py-2 text-[10px] font-black transition sm:px-2 sm:text-xs ${
+                    insightTab === option.value ? "bg-slate-950 text-lime-200 shadow-sm" : "text-oriwan-text-muted hover:text-oriwan-text"
                   }`}
                 >
                   {option.label}
@@ -313,147 +299,121 @@ export default function DashboardPage() {
               ))}
             </div>
 
-            {dashboardTab === "today" ? (
-              <>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="text-lg font-black tracking-[-0.03em] text-oriwan-text">오늘의 러닝 체크</h3>
-                  <span className="rounded-full bg-lime-100 px-2.5 py-1 text-[11px] font-black text-lime-900">
-                    {dashboard.todayCertifiedIds.size}/{dashboard.participants.length}
-                  </span>
-                </div>
-                <p className="mt-1 text-xs font-semibold text-oriwan-text-muted">오늘 함께 달린 사람과 아직 남은 사람을 가볍게 확인해요.</p>
-              </div>
-              <div className="grid grid-cols-3 rounded-full bg-oriwan-surface-light p-1 ring-1 ring-slate-950/5 sm:min-w-[240px]">
-                {boardFilterOptions.map((option) => (
-                  <button
-                    key={option.value}
-                    type="button"
-                    onClick={() => setBoardFilter(option.value)}
-                    className={`rounded-full px-2 py-1.5 text-[11px] font-black transition ${
-                      boardFilter === option.value ? "bg-slate-950 text-lime-200 shadow-sm" : "text-oriwan-text-muted hover:text-oriwan-text"
-                    }`}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7">
-              {boardRows.map((row) => (
-                <article
-                  key={row.participant.id}
-                  title={`${row.participant.name} · 오늘 ${publicStatusLabel(row.status)}`}
-                  className={`min-h-[54px] rounded-2xl px-2 py-2 text-center ring-1 transition ${publicCardClass(row.status)}`}
-                >
-                  <span
-                    className={`mx-auto flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-black ${
-                      row.status === "certified" ? "bg-slate-950 text-lime-200" : "bg-slate-100 text-slate-300"
-                    }`}
-                  >
-                    {row.status === "certified" ? <IconCheck size={12} /> : "-"}
-                  </span>
-                  <p className="mt-1 truncate text-[12px] font-black tracking-[-0.04em] sm:text-[13px]">{row.participant.name}</p>
-                  <p className="mt-0.5 text-[9px] font-black opacity-60">{publicStatusLabel(row.status)}</p>
-                </article>
-              ))}
-              {!boardRows.length && !loading && (
-                <p className="col-span-3 py-8 text-center text-sm text-oriwan-text-muted md:col-span-5 lg:col-span-7">
-                  지금 조건에 맞는 멤버가 없어요.
-                </p>
-              )}
-            </div>
-              </>
-            ) : (
-              <div>
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div className="mt-4 rounded-[28px] bg-oriwan-surface-light p-4 ring-1 ring-slate-950/5">
+              {insightTab === "progress" && (
+                <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
                   <div>
-                    <p className="inline-flex rounded-full bg-slate-950 px-3 py-1 text-[11px] font-black text-lime-200">
-                      100일 러닝 리듬
+                    <p className="text-[11px] font-black text-oriwan-primary">진행일</p>
+                    <h4 className="mt-1 text-3xl font-black tracking-[-0.07em] text-oriwan-text">
+                      {dashboard.elapsedDays.length}/{CHALLENGE_DAYS}일
+                    </h4>
+                    <p className="mt-2 text-xs font-semibold leading-5 text-oriwan-text-muted">
+                      실제 인증은 {shortDate(ACTUAL_CERTIFICATION_START_DATE)}부터 시작했고, 오늘은 {certificationDayLabel()} 지점입니다.
                     </p>
-                    <h3 className="mt-2 text-xl font-black tracking-[-0.04em] text-oriwan-text">우리의 러닝 리듬</h3>
-                    <p className="mt-1 text-xs font-semibold text-oriwan-text-muted">
-                      {shortDate(ACTUAL_CERTIFICATION_START_DATE)}부터 100일 동안 차곡차곡 쌓는 러닝 기록이에요. 현재 {dashboard.elapsedDays.length}/{CHALLENGE_DAYS}일째입니다.
-                    </p>
                   </div>
-                  <p className="text-xs font-black text-oriwan-text-muted">
-                    지금까지 함께한 인증 {dashboard.totalCertifiedSlots}건
-                  </p>
-                </div>
-
-                <div className="mt-4 grid grid-cols-3 gap-2">
-                  <div className="rounded-2xl bg-oriwan-surface-light px-3 py-3">
-                    <p className="text-[10px] font-black text-oriwan-text-muted">진행</p>
-                    <p className="mt-1 text-xl font-black tracking-[-0.05em] text-oriwan-text">{dashboard.elapsedDays.length}/{CHALLENGE_DAYS}</p>
-                  </div>
-                  <div className="rounded-2xl bg-lime-300 px-3 py-3 text-slate-950">
-                    <p className="text-[10px] font-black opacity-60">함께한 비율</p>
-                    <p className="mt-1 text-xl font-black tracking-[-0.05em]">{dashboard.cumulativeRate}%</p>
-                  </div>
-                  <div className="rounded-2xl bg-oriwan-surface-light px-3 py-3">
-                    <p className="text-[10px] font-black text-oriwan-text-muted">오늘 완료</p>
-                    <p className="mt-1 text-xl font-black tracking-[-0.05em] text-oriwan-text">{dashboard.todayCertifiedIds.size}명</p>
+                  <div className="grid grid-cols-2 gap-2 sm:min-w-[220px]">
+                    <div className="rounded-2xl bg-white px-3 py-3 ring-1 ring-slate-950/5">
+                      <p className="text-[10px] font-black text-oriwan-text-muted">오늘 인증</p>
+                      <p className="mt-1 text-xl font-black text-oriwan-text">{dashboard.todayCertifiedIds.size}명</p>
+                    </div>
+                    <div className="rounded-2xl bg-white px-3 py-3 ring-1 ring-slate-950/5">
+                      <p className="text-[10px] font-black text-oriwan-text-muted">남은 기간</p>
+                      <p className="mt-1 text-xl font-black text-oriwan-text">{Math.max(CHALLENGE_DAYS - dashboard.elapsedDays.length, 0)}일</p>
+                    </div>
                   </div>
                 </div>
+              )}
 
-                <div className="mt-4 rounded-[28px] bg-slate-950 p-4 text-white">
+              {insightTab === "weekly" && (
+                <div>
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <h4 className="text-sm font-black">주차별 러닝 온도</h4>
-                      <p className="mt-1 text-[11px] font-semibold text-white/45">한 주 한 주, 팀의 꾸준함이 얼마나 뜨거웠는지 보여줘요.</p>
+                      <p className="text-[11px] font-black text-oriwan-primary">주차별 인증률</p>
+                      <h4 className="mt-1 text-2xl font-black tracking-[-0.06em] text-oriwan-text">
+                        {dashboard.weekTrend.at(-1)?.label || "1주"} 평균 {dashboard.weekTrend.at(-1)?.averageRate || 0}%
+                      </h4>
                     </div>
-                    <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-black text-lime-200 ring-1 ring-white/10">
-                      평균 {dashboard.cumulativeRate}%
+                    <span className="rounded-full bg-white px-3 py-1 text-[10px] font-black text-oriwan-text-muted ring-1 ring-slate-950/5">
+                      최근 주차 기준
                     </span>
                   </div>
-
-                  <div className="mt-5 flex h-36 items-end gap-1.5">
+                  <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                     {dashboard.weekTrend.map((week) => (
-                      <div key={`${week.from}-${week.to}`} className="flex min-w-0 flex-1 flex-col items-center gap-2">
-                        <div className="flex h-28 w-full items-end rounded-2xl bg-white/5 p-1 ring-1 ring-white/5">
-                          <div
-                            className={`w-full rounded-xl ${week.averageRate ? "bg-lime-300" : "bg-white/15"}`}
-                            style={{ height: `${Math.max(week.averageRate, week.averageRate ? 8 : 4)}%` }}
-                            title={`${week.label} · 평균 ${week.averageRate}% · ${week.averageCount}명`}
-                          />
-                        </div>
-                        <span className="text-[9px] font-black text-white/45">{week.label}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="mt-4">
-                  <div className="mb-3 flex items-center justify-between gap-3">
-                    <h4 className="text-sm font-black text-oriwan-text">멤버별 꾸준함</h4>
-                    <p className="text-[10px] font-black text-oriwan-text-muted">오늘 기준</p>
-                  </div>
-                  <div className="grid gap-2 md:grid-cols-2">
-                    {dashboard.participantProgress.map((row) => (
-                      <div key={row.participant.id} className="rounded-2xl bg-white px-3 py-2.5 ring-1 ring-slate-950/5">
+                      <div key={`${week.from}-${week.to}`} className="rounded-2xl bg-white px-3 py-3 ring-1 ring-slate-950/5">
                         <div className="flex items-center justify-between gap-2">
-                          <p className="truncate text-xs font-black text-oriwan-text">{row.participant.name}</p>
-                          <p className="shrink-0 text-[10px] font-black text-oriwan-text-muted">{row.certifiedDays}일 · {row.rate}%</p>
+                          <p className="text-sm font-black text-oriwan-text">{week.label}</p>
+                          <p className="text-sm font-black text-oriwan-primary">{week.averageRate}%</p>
                         </div>
-                        <div className="mt-2 h-2 overflow-hidden rounded-full bg-oriwan-surface-light">
-                          <div
-                            className="h-full rounded-full bg-lime-300"
-                            style={{ width: `${Math.max(row.rate, row.certifiedDays ? 4 : 0)}%` }}
-                          />
-                        </div>
+                        <p className="mt-1 text-[11px] font-semibold text-oriwan-text-muted">
+                          하루 평균 {week.averageCount}명 인증
+                        </p>
                       </div>
                     ))}
-                    {!dashboard.participantProgress.length && !loading && (
-                      <p className="rounded-2xl bg-white px-4 py-8 text-center text-sm text-oriwan-text-muted md:col-span-2">
-                        멤버가 추가되면 러닝 리듬이 바로 채워집니다.
+                    {!dashboard.weekTrend.length && !loading && (
+                      <p className="rounded-2xl bg-white px-4 py-8 text-center text-sm text-oriwan-text-muted sm:col-span-2 lg:col-span-3">
+                        기록이 쌓이면 주차별 인증률이 채워집니다.
                       </p>
                     )}
                   </div>
                 </div>
+              )}
+
+              {insightTab === "cumulative" && (
+                <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
+                  <div>
+                    <p className="text-[11px] font-black text-oriwan-primary">누적 인증률</p>
+                    <h4 className="mt-1 text-4xl font-black tracking-[-0.08em] text-oriwan-text">{dashboard.cumulativeRate}%</h4>
+                    <p className="mt-2 text-xs font-semibold leading-5 text-oriwan-text-muted">
+                      현재까지 가능한 인증 {dashboard.possibleCertifiedSlots}칸 중 {dashboard.totalCertifiedSlots}칸을 채웠어요.
+                    </p>
+                  </div>
+                  <div className="rounded-[24px] bg-white p-4 ring-1 ring-slate-950/5 sm:min-w-[220px]">
+                    <div className="h-3 overflow-hidden rounded-full bg-oriwan-surface-light">
+                      <div
+                        className="h-full rounded-full bg-lime-300"
+                        style={{ width: `${Math.max(dashboard.cumulativeRate, dashboard.totalCertifiedSlots ? 3 : 0)}%` }}
+                      />
+                    </div>
+                    <p className="mt-3 text-xs font-black text-oriwan-text-muted">
+                      전체 멤버 {dashboard.participants.length}명 · 오늘 {dashboard.todayCertifiedIds.size}명 완료
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="mt-5">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div>
+                  <h4 className="text-base font-black tracking-[-0.03em] text-oriwan-text">스내사 크루별 인증게이지</h4>
+                  <p className="mt-1 text-xs font-semibold text-oriwan-text-muted">100일 동안 각 크루의 게이지가 차오르는 모습을 한눈에 봅니다.</p>
+                </div>
+                <p className="shrink-0 text-[10px] font-black text-oriwan-text-muted">100일 기준</p>
               </div>
-            )}
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {dashboard.participantProgress.map((row) => (
+                  <div key={row.participant.id} className="rounded-2xl bg-white px-3 py-3 ring-1 ring-slate-950/5">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="truncate text-sm font-black text-oriwan-text">{row.participant.name}</p>
+                      <p className={`shrink-0 text-xs font-black ${gaugeTextClass(row.certifiedDays)}`}>
+                        {row.certifiedDays}/{CHALLENGE_DAYS}일
+                      </p>
+                    </div>
+                    <div className="mt-2 h-3 overflow-hidden rounded-full bg-oriwan-surface-light">
+                      <div
+                        className={`h-full rounded-full transition-all ${gaugeColorClass(row.certifiedDays)}`}
+                        style={{ width: `${Math.max(row.rate, row.certifiedDays ? 3 : 0)}%` }}
+                      />
+                    </div>
+                  </div>
+                ))}
+                {!dashboard.participantProgress.length && !loading && (
+                  <p className="rounded-2xl bg-white px-4 py-8 text-center text-sm text-oriwan-text-muted sm:col-span-2 lg:col-span-3">
+                    멤버가 추가되면 인증게이지가 바로 채워집니다.
+                  </p>
+                )}
+              </div>
+            </div>
           </div>
         </section>
 
