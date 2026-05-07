@@ -39,9 +39,16 @@ type PublicDashboardData = {
 };
 
 type CalendarRange = 14 | 30 | 100;
+type BoardFilter = "all" | "praise" | "steady" | "boost";
 
 const today = toIsoDate(new Date());
 const calendarRangeOptions: CalendarRange[] = [14, 30, 100];
+const boardFilterOptions: { value: BoardFilter; label: string }[] = [
+  { value: "all", label: "전체" },
+  { value: "praise", label: "참 잘했어요" },
+  { value: "steady", label: "잘하고 있어요" },
+  { value: "boost", label: "힘내세요" },
+];
 
 function makeDays(count: number, startDate = CERTIFICATION_DISPLAY_START_DATE) {
   const endDate = today > CHALLENGE_END_DATE ? CHALLENGE_END_DATE : today;
@@ -56,6 +63,28 @@ function statusStyle(status: RunRecord["status"] | "missing" | "before_start") {
   if (status === "needs_review") return "bg-orange-200 text-orange-950";
   if (status === "rejected") return "bg-rose-200 text-rose-950";
   return "bg-white/70 text-slate-300 ring-1 ring-slate-200";
+}
+
+function miniStatusStyle(status: RunRecord["status"] | "missing" | "before_start") {
+  if (status === "before_start") return "bg-slate-200/70";
+  if (status === "certified") return "bg-lime-300 shadow-sm shadow-lime-300/40";
+  if (status === "needs_review") return "bg-orange-300";
+  if (status === "rejected") return "bg-rose-300";
+  return "bg-white ring-1 ring-slate-200";
+}
+
+function statusText(status: RunRecord["status"] | "missing" | "before_start") {
+  if (status === "before_start") return "집계 전";
+  if (status === "certified") return "인증 완료";
+  if (status === "needs_review") return "확인 필요";
+  if (status === "rejected") return "반려";
+  return "미제출";
+}
+
+function heatmapColumns(range: CalendarRange) {
+  if (range === 100) return 20;
+  if (range === 30) return 15;
+  return 14;
 }
 
 function formatLastUpdated(value?: string) {
@@ -76,6 +105,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [calendarRange, setCalendarRange] = useState<CalendarRange>(14);
+  const [boardFilter, setBoardFilter] = useState<BoardFilter>("all");
   const loadingRef = useRef(false);
 
   const load = useCallback(async () => {
@@ -152,6 +182,11 @@ export default function DashboardPage() {
       completionRate,
     };
   }, [data]);
+
+  const boardRows = useMemo(() => {
+    if (boardFilter === "all") return dashboard.scoreRows;
+    return dashboard.scoreRows.filter((row) => row.badgeKind === boardFilter);
+  }, [boardFilter, dashboard.scoreRows]);
 
   return (
     <main className="min-h-screen bg-oriwan-bg">
@@ -255,42 +290,124 @@ export default function DashboardPage() {
                   </div>
                 </div>
               </div>
+              <p className="mt-1 text-xs font-semibold text-oriwan-text-muted lg:hidden">참가자별 최근 인증 흐름을 카드로 가볍게 확인합니다.</p>
             </div>
-            <div className="flex rounded-full bg-oriwan-surface-light p-1 ring-1 ring-slate-950/5">
-              {calendarRangeOptions.map((days) => (
-                <button
-                  key={days}
-                  type="button"
-                  onClick={() => setCalendarRange(days)}
-                  className={`rounded-full px-3 py-1.5 text-xs font-black transition ${
-                    calendarRange === days ? "bg-slate-950 text-lime-200 shadow-sm" : "text-oriwan-text-muted hover:text-oriwan-text"
-                  }`}
-                >
-                  {days}일
-                </button>
-              ))}
+            <div className="flex flex-col gap-2 sm:items-end">
+              <div className="flex rounded-full bg-oriwan-surface-light p-1 ring-1 ring-slate-950/5">
+                {calendarRangeOptions.map((days) => (
+                  <button
+                    key={days}
+                    type="button"
+                    onClick={() => setCalendarRange(days)}
+                    className={`rounded-full px-3 py-1.5 text-xs font-black transition ${
+                      calendarRange === days ? "bg-slate-950 text-lime-200 shadow-sm" : "text-oriwan-text-muted hover:text-oriwan-text"
+                    }`}
+                  >
+                    {days}일
+                  </button>
+                ))}
+              </div>
+              <div className="flex max-w-full gap-1 overflow-x-auto pb-1 lg:hidden">
+                {boardFilterOptions.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setBoardFilter(option.value)}
+                    className={`shrink-0 rounded-full px-3 py-1.5 text-[11px] font-black transition ${
+                      boardFilter === option.value ? "bg-lime-300 text-slate-950 shadow-sm" : "bg-white text-oriwan-text-muted ring-1 ring-slate-950/5"
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
-          <div className="overflow-x-auto pb-1">
-            <div className="space-y-2" style={{ minWidth: `${236 + calendarDays.length * 42}px` }}>
+
+          <div className="space-y-3 lg:hidden">
+            {boardRows.map((row, index) => {
+              const originalRank = dashboard.scoreRows.findIndex((scoreRow) => scoreRow.participant.id === row.participant.id) + 1;
+              const certifiedInRange = calendarDays.filter((day) => {
+                const record = dashboard.byParticipantDate.get(`${row.participant.id}:${day}`);
+                return record?.status === "certified";
+              }).length;
+              const todayStatus = dashboard.byParticipantDate.get(`${row.participant.id}:${today}`)?.status || "missing";
+
+              return (
+                <article key={row.participant.id} className="rounded-[26px] bg-white p-3.5 shadow-sm ring-1 ring-slate-950/5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-slate-950 text-sm font-black text-lime-200">
+                        {originalRank || index + 1}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="truncate text-base font-black tracking-[-0.03em] text-oriwan-text">{row.participant.name}</p>
+                        <p className="mt-0.5 text-[11px] font-bold text-oriwan-text-muted">
+                          연속 {row.currentStreak}일 · 인증 {certifiedInRange}/{calendarDays.length}일
+                        </p>
+                      </div>
+                    </div>
+                    <ScoreBadge kind={row.badgeKind} />
+                  </div>
+
+                  <div className="mt-3 rounded-2xl bg-oriwan-surface-light p-2.5">
+                    <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${heatmapColumns(calendarRange)}, minmax(0, 1fr))` }}>
+                      {calendarDays.map((day) => {
+                        const record = dashboard.byParticipantDate.get(`${row.participant.id}:${day}`);
+                        const status = day < CHALLENGE_START_DATE ? "before_start" : record?.status || "missing";
+                        return (
+                          <span
+                            key={day}
+                            title={`${row.participant.name} · ${day} · ${statusText(status)}`}
+                            className={`h-3 rounded-full ${miniStatusStyle(status)}`}
+                          />
+                        );
+                      })}
+                    </div>
+                    <div className="mt-2 flex items-center justify-between gap-2 text-[10px] font-black text-oriwan-text-muted">
+                      <span>{calendarDays[0]?.slice(5).replace("-", "/")} 시작</span>
+                      <span>{calendarDays.at(-1)?.slice(5).replace("-", "/")} 종료</span>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+                    <div className={`rounded-2xl px-2 py-2 text-[11px] font-black ${statusStyle(todayStatus)}`}>
+                      오늘 {statusText(todayStatus)}
+                    </div>
+                    <div className="rounded-2xl bg-oriwan-surface-light px-2 py-2 text-[11px] font-black text-oriwan-text">
+                      {row.distance.toFixed(1)}km
+                    </div>
+                    <div className="rounded-2xl bg-oriwan-surface-light px-2 py-2 text-[11px] font-black text-oriwan-text">
+                      성장 {row.growthDays}일
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
+            {!boardRows.length && !loading && <p className="py-8 text-center text-sm text-oriwan-text-muted">조건에 맞는 참가자가 없습니다.</p>}
+          </div>
+
+          <div className="hidden overflow-x-auto pb-1 lg:block">
+            <div className="space-y-2" style={{ minWidth: `${220 + calendarDays.length * 42}px` }}>
               <div
                 className="grid gap-1 text-[10px] font-black text-oriwan-text-muted"
-                style={{ gridTemplateColumns: `34px 78px 112px repeat(${calendarDays.length || 1}, minmax(34px, 1fr))` }}
+                style={{ gridTemplateColumns: `220px repeat(${calendarDays.length || 1}, minmax(34px, 1fr))` }}
               >
-                <div>순위</div>
-                <div>참가자</div>
-                <div>뱃지</div>
+                <div className="sticky left-0 z-20 rounded-xl bg-oriwan-surface px-3 py-1 shadow-sm ring-1 ring-slate-950/5">참가자</div>
                 {calendarDays.map((day) => <div key={day} className="text-center">{day.slice(5).replace("-", "/")}</div>)}
               </div>
               {dashboard.scoreRows.map((row, index) => (
                 <div
                   key={row.participant.id}
                   className="grid items-center gap-1"
-                  style={{ gridTemplateColumns: `34px 78px 112px repeat(${calendarDays.length || 1}, minmax(34px, 1fr))` }}
+                  style={{ gridTemplateColumns: `220px repeat(${calendarDays.length || 1}, minmax(34px, 1fr))` }}
                 >
-                  <div className="text-xs font-black tabular-nums text-oriwan-primary">{index + 1}</div>
-                  <div className="truncate text-xs font-black text-oriwan-text">{row.participant.name}</div>
-                  <div className="min-w-0">
+                  <div className="sticky left-0 z-10 flex items-center gap-2 rounded-2xl bg-white/95 px-2 py-1.5 shadow-sm ring-1 ring-slate-950/5 backdrop-blur">
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-slate-950 text-[11px] font-black tabular-nums text-lime-200">{index + 1}</span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-xs font-black text-oriwan-text">{row.participant.name}</p>
+                      <p className="text-[10px] font-bold text-oriwan-text-muted">연속 {row.currentStreak}일 · 인증 {row.certifiedCount}회</p>
+                    </div>
                     <ScoreBadge kind={row.badgeKind} />
                   </div>
                   {calendarDays.map((day) => {
@@ -299,7 +416,7 @@ export default function DashboardPage() {
                     return (
                       <div
                         key={day}
-                        title={`${row.participant.name} · ${day} · ${status === "before_start" ? "집계 전" : status === "certified" ? "인증 완료" : status === "needs_review" ? "확인 필요" : "미제출"}`}
+                        title={`${row.participant.name} · ${day} · ${statusText(status)}`}
                         className={`flex h-8 items-center justify-center rounded-xl text-[11px] font-black ${statusStyle(status)}`}
                       >
                         {status === "certified" ? <IconCheck size={13} /> : status === "needs_review" ? "!" : status === "before_start" ? "-" : "·"}
