@@ -100,6 +100,10 @@ function certificationDayLabel() {
   return `D-${Math.max(CHALLENGE_DAYS - diffDays, 0)}`;
 }
 
+function shortDateRange(start: string, end: string) {
+  return `${start.slice(5).replace("-", ".")}-${end.slice(5).replace("-", ".")}`;
+}
+
 export default function DashboardPage() {
   const [data, setData] = useState<PublicDashboardData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -214,12 +218,12 @@ export default function DashboardPage() {
           <div className="absolute bottom-0 left-8 h-32 w-72 rounded-full bg-orange-400/15 blur-3xl" />
           <div className="relative grid gap-5 lg:grid-cols-[1fr_320px] lg:items-center">
             <div>
-              <div className="mb-3 flex flex-wrap gap-2">
-                <p className="inline-flex rounded-full bg-white/10 px-3 py-1 text-[10px] font-black text-lime-200 ring-1 ring-white/10 sm:text-[11px]">
-                  인증 기간 · {CERTIFICATION_DISPLAY_START_DATE} ~ {CHALLENGE_END_DATE}
+              <div className="mb-3 flex max-w-full flex-nowrap gap-1.5 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] sm:gap-2 [&::-webkit-scrollbar]:hidden">
+                <p className="inline-flex shrink-0 whitespace-nowrap rounded-full bg-white/10 px-2.5 py-1 text-[9px] font-black text-lime-200 ring-1 ring-white/10 sm:px-3 sm:text-[11px]">
+                  인증기간 · {shortDateRange(CERTIFICATION_DISPLAY_START_DATE, CHALLENGE_END_DATE)}
                 </p>
-                <p className="inline-flex rounded-full bg-lime-300 px-3 py-1 text-[10px] font-black text-slate-950 sm:text-[11px]">
-                  실제 인증 {certificationDayLabel()} · {ACTUAL_CERTIFICATION_START_DATE}부터 100일
+                <p className="inline-flex shrink-0 whitespace-nowrap rounded-full bg-lime-300 px-2.5 py-1 text-[9px] font-black text-slate-950 sm:px-3 sm:text-[11px]">
+                  실제인증 {certificationDayLabel()} · {ACTUAL_CERTIFICATION_START_DATE.slice(5).replace("-", ".")}부터
                 </p>
               </div>
               <h2 className="max-w-full whitespace-nowrap text-[clamp(1.95rem,8vw,3.75rem)] font-black leading-[1.05] tracking-[-0.07em]">

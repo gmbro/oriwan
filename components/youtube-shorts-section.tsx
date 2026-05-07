@@ -1,23 +1,23 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { IconYoutube } from "@/components/icons";
-import { tipCategoryLabels, youtubeEmbedUrl, youtubeShortTips, youtubeWatchUrl } from "@/lib/youtube-shorts";
+import { getCuratedYoutubeShortTips, tipCategoryLabels, youtubeEmbedUrl, youtubeThumbnailUrl, youtubeWatchUrl } from "@/lib/youtube-shorts";
 import type { TipCategory, YoutubeShortTip } from "@/lib/youtube-shorts";
 
 const categoryOptions: TipCategory[] = ["running", "stretching", "recovery"];
+const TIP_LIMIT = 10;
+
+type TipsResponse = {
+  tips?: YoutubeShortTip[];
+};
 
 export function YoutubeShortsSection() {
   const [category, setCategory] = useState<TipCategory>("running");
   const [refreshSeed, setRefreshSeed] = useState(0);
   const [selectedTip, setSelectedTip] = useState<YoutubeShortTip | null>(null);
-
-  const tips = useMemo(() => {
-    const filteredTips = youtubeShortTips.filter((tip) => tip.category === category);
-    if (!filteredTips.length) return [];
-    const offset = refreshSeed % filteredTips.length;
-    return [...filteredTips.slice(offset), ...filteredTips.slice(0, offset)];
-  }, [category, refreshSeed]);
+  const [tips, setTips] = useState<YoutubeShortTip[]>(() => getCuratedYoutubeShortTips("running", 0, TIP_LIMIT));
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (!selectedTip) return;
@@ -28,6 +28,36 @@ export function YoutubeShortsSection() {
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [selectedTip]);
 
+  useEffect(() => {
+    const controller = new AbortController();
+
+    async function loadTips() {
+      setLoading(true);
+      try {
+        const params = new URLSearchParams({
+          category,
+          seed: String(refreshSeed),
+          limit: String(TIP_LIMIT),
+        });
+        const response = await fetch(`/api/youtube-shorts?${params.toString()}`, {
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        const json = (await response.json()) as TipsResponse;
+        if (!response.ok || !json.tips?.length) throw new Error("shorts_fetch_failed");
+        setTips(json.tips.slice(0, TIP_LIMIT));
+      } catch (error) {
+        if ((error as Error).name === "AbortError") return;
+        setTips(getCuratedYoutubeShortTips(category, refreshSeed, TIP_LIMIT));
+      } finally {
+        if (!controller.signal.aborted) setLoading(false);
+      }
+    }
+
+    loadTips();
+    return () => controller.abort();
+  }, [category, refreshSeed]);
+
   return (
     <section className="mt-4 card overflow-hidden p-4 sm:p-5">
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -36,7 +66,7 @@ export function YoutubeShortsSection() {
             <IconYoutube size={14} /> Shorts
           </p>
           <h3 className="mt-2 text-lg font-black tracking-[-0.03em] text-oriwan-text">오늘의 러닝 팁</h3>
-          <p className="mt-1 text-xs leading-5 text-oriwan-text-muted">짧게 보고 바로 따라 할 수 있는 러닝팁, 회복, 스트레칭 영상만 모았어요.</p>
+          <p className="mt-1 text-xs leading-5 text-oriwan-text-muted">탭마다 쇼츠 10개를 보여주고, 새로고침하면 다른 조합으로 바뀝니다.</p>
         </div>
         <div className="flex min-w-0 items-center gap-2">
           <div className="flex min-w-0 overflow-x-auto rounded-full bg-oriwan-surface-light p-1 ring-1 ring-slate-950/5">
@@ -46,7 +76,7 @@ export function YoutubeShortsSection() {
                 type="button"
                 onClick={() => {
                   setCategory(option);
-                  setRefreshSeed(0);
+                  setRefreshSeed((value) => value + 1);
                 }}
                 className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-black transition ${
                   category === option ? "bg-slate-950 text-lime-200 shadow-sm" : "text-oriwan-text-muted hover:text-oriwan-text"
@@ -61,7 +91,7 @@ export function YoutubeShortsSection() {
             onClick={() => setRefreshSeed((value) => value + 1)}
             className="shrink-0 rounded-full bg-white px-3 py-2 text-xs font-black text-oriwan-text ring-1 ring-slate-950/10 transition hover:bg-lime-100"
           >
-            새로고침
+            {loading ? "불러오는 중" : "새로고침"}
           </button>
         </div>
       </div>
@@ -74,7 +104,14 @@ export function YoutubeShortsSection() {
             onClick={() => setSelectedTip(tip)}
             className="group min-w-[210px] max-w-[210px] snap-start overflow-hidden rounded-[24px] bg-slate-950 text-left text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-xl hover:shadow-slate-950/10 sm:min-w-[240px] sm:max-w-[240px]"
           >
-            <div className="relative aspect-[9/12] bg-gradient-to-br from-slate-900 via-[#26351d] to-slate-950 p-4">
+            <div className="relative aspect-[9/12] overflow-hidden bg-gradient-to-br from-slate-900 via-[#26351d] to-slate-950 p-4">
+              <img
+                src={tip.thumbnailUrl || youtubeThumbnailUrl(tip.id)}
+                alt=""
+                className="absolute inset-0 h-full w-full object-cover opacity-70 transition duration-500 group-hover:scale-105"
+                loading="lazy"
+              />
+              <div className="absolute inset-0 bg-gradient-to-b from-slate-950/15 via-slate-950/20 to-slate-950/90" />
               <div className="absolute right-3 top-3 rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-black text-lime-200 ring-1 ring-white/10">
                 {tip.tag}
               </div>
