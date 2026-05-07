@@ -46,7 +46,8 @@ function decideStatus(input: {
   dateWasFallback: boolean;
   allowFallbackDate: boolean;
 }) {
-  if (!input.participantId || !input.recordDate || !input.distanceKm || !input.durationSeconds) return "needs_review";
+  const hasMetric = Boolean((input.distanceKm && input.distanceKm > 0) || (input.durationSeconds && input.durationSeconds > 0));
+  if (!input.participantId || !input.recordDate || !hasMetric) return "needs_review";
   if (input.dateWasFallback && !input.allowFallbackDate) return "needs_review";
   return "certified";
 }
@@ -257,7 +258,8 @@ export async function POST(request: NextRequest) {
         notes: [
           extracted.notes,
           dateWasFallback ? "이미지에서 날짜가 보이지 않아 선택한 날짜를 임시 적용했어요." : null,
-          !durationSeconds ? "시간이 없어 직접 입력으로 보완이 필요해요." : null,
+          !distanceKm ? "거리는 나중에 보완할 수 있어요." : null,
+          !durationSeconds ? "시간은 나중에 보완할 수 있어요." : null,
           !participant ? "멤버 매칭을 한 번 확인해주세요." : null,
           !filePath ? "이미지 파일 저장은 건너뛰고 추출 기록만 저장했어요." : null,
         ].filter(Boolean).join(" / ") || null,

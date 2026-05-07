@@ -222,6 +222,7 @@ export default function AdminPage() {
 
   const participantProgress = useMemo(() => {
     const certifiedDaysByParticipant = new Map<string, Set<string>>();
+    const metricsByParticipant = new Map<string, { distanceKm: number; durationSeconds: number }>();
     records.forEach((record) => {
       if (
         record.status !== "certified" ||
@@ -232,13 +233,18 @@ export default function AdminPage() {
       ) return;
       if (!certifiedDaysByParticipant.has(record.participant_id)) certifiedDaysByParticipant.set(record.participant_id, new Set());
       certifiedDaysByParticipant.get(record.participant_id)?.add(record.record_date);
+      const metrics = metricsByParticipant.get(record.participant_id) || { distanceKm: 0, durationSeconds: 0 };
+      metrics.distanceKm += record.distance_km || 0;
+      metrics.durationSeconds += record.duration_seconds || 0;
+      metricsByParticipant.set(record.participant_id, metrics);
     });
 
     return participants
       .map((participant) => {
         const certifiedDays = certifiedDaysByParticipant.get(participant.id)?.size || 0;
-        const rate = Math.round((certifiedDays / CHALLENGE_DAYS) * 100);
-        return { participant, certifiedDays, rate };
+        const rate = Math.min(Math.round((certifiedDays / CHALLENGE_DAYS) * 100), 100);
+        const metrics = metricsByParticipant.get(participant.id) || { distanceKm: 0, durationSeconds: 0 };
+        return { participant, certifiedDays, rate, ...metrics };
       })
       .sort((a, b) => b.certifiedDays - a.certifiedDays || a.participant.name.localeCompare(b.participant.name, "ko"));
   }, [participants, records]);
@@ -371,8 +377,8 @@ export default function AdminPage() {
         record_date: manualDate,
         distance_km: manualDistance,
         duration_seconds: duration,
-        status: manualDistance && duration ? "certified" : "needs_review",
-        notes: duration ? null : "시간 직접 입력 필요",
+        status: manualDistance || duration ? "certified" : "needs_review",
+        notes: !manualDistance || !duration ? "거리 또는 시간은 나중에 보완 가능" : null,
       }),
     });
     if (res.ok) {
@@ -585,6 +591,14 @@ export default function AdminPage() {
                     style={{ width: `${Math.max(row.rate, row.certifiedDays ? 3 : 0)}%` }}
                   />
                 </div>
+                <div className="mt-2 grid grid-cols-2 gap-1.5 text-[10px] font-black">
+                  <span className="rounded-xl bg-oriwan-surface-light px-2 py-1 text-oriwan-text-muted">
+                    거리 {row.distanceKm.toFixed(1)}km
+                  </span>
+                  <span className="rounded-xl bg-oriwan-surface-light px-2 py-1 text-oriwan-text-muted">
+                    시간 {secondsToTime(row.durationSeconds)}
+                  </span>
+                </div>
               </div>
             ))}
             {!participantProgress.length && !loading && (
@@ -777,7 +791,7 @@ export default function AdminPage() {
               <div className="mb-4 flex items-start justify-between gap-3">
                 <div>
                   <h2 className="text-xl font-black tracking-[-0.04em] text-oriwan-text">기록 직접 입력</h2>
-                  <p className="mt-1 text-xs text-oriwan-text-muted">멤버, 날짜, 거리, 시간을 넣으면 러닝 기록으로 바로 저장돼요.</p>
+                  <p className="mt-1 text-xs text-oriwan-text-muted">멤버, 날짜, 거리 또는 시간만 있어도 인증으로 저장돼요.</p>
                 </div>
                 <button type="button" onClick={() => setAdminModal(null)} className="rounded-full bg-oriwan-surface-light px-3 py-1.5 text-xs font-black text-oriwan-text-muted">
                   닫기

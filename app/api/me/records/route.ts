@@ -10,6 +10,10 @@ function sanitizeNumber(value: unknown) {
   return Number.isFinite(n) ? n : null;
 }
 
+function hasPositiveMetric(value: number | null) {
+  return Boolean(value && value > 0);
+}
+
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
   const { data: { user }, error } = await supabase.auth.getUser();
@@ -27,8 +31,8 @@ export async function POST(request: NextRequest) {
   if (!isWithinChallengeWindow(recordDate)) {
     return NextResponse.json({ error: CHALLENGE_DATE_ERROR }, { status: 400 });
   }
-  if (!distanceKm || distanceKm <= 0 || !durationSeconds || durationSeconds <= 0) {
-    return NextResponse.json({ error: "거리와 시간을 함께 입력해주세요." }, { status: 400 });
+  if (!hasPositiveMetric(distanceKm) && !hasPositiveMetric(durationSeconds)) {
+    return NextResponse.json({ error: "거리 또는 시간 중 하나는 입력해주세요." }, { status: 400 });
   }
 
   const service = getServiceClient();

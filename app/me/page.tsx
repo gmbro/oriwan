@@ -153,6 +153,10 @@ export default function MyPage() {
 
   const saveRecord = async () => {
     const durationSeconds = parseDurationToSeconds(duration);
+    if (!distance.trim() && !durationSeconds) {
+      setMessage("거리 또는 시간 중 하나만 있어도 좋아요. 하나만 입력해도 인증됩니다.");
+      return;
+    }
     setSavingRecord(true);
     setMessage("");
     const response = await fetch("/api/me/records", {
@@ -172,7 +176,7 @@ export default function MyPage() {
       void broadcastDashboardRefresh();
       await loadMe(true);
     } else {
-      setMessage(json.error || "기록을 저장하지 못했어요. 거리와 시간을 다시 확인해주세요.");
+      setMessage(json.error || "기록을 저장하지 못했어요. 거리 또는 시간을 다시 확인해주세요.");
     }
     setSavingRecord(false);
   };

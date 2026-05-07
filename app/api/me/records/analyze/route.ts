@@ -126,8 +126,8 @@ export async function POST(request: NextRequest) {
         failed.push({ file_name: image.name, error: CHALLENGE_DATE_ERROR, extracted });
         continue;
       }
-      if (!distanceKm || distanceKm <= 0 || !durationSeconds || durationSeconds <= 0) {
-        failed.push({ file_name: image.name, error: "이미지에서 거리 또는 시간을 찾지 못했어요. 직접 입력으로 가볍게 보완해주세요.", extracted });
+      if ((!distanceKm || distanceKm <= 0) && (!durationSeconds || durationSeconds <= 0)) {
+        failed.push({ file_name: image.name, error: "이미지에서 거리와 시간을 찾지 못했어요. 직접 입력으로 가볍게 보완해주세요.", extracted });
         continue;
       }
 
@@ -136,6 +136,8 @@ export async function POST(request: NextRequest) {
         `${image.name} 이미지에서 자동 추출`,
         extracted.source_app ? `앱: ${extracted.source_app}` : null,
         dateWasFallback ? "이미지에 날짜가 없어 선택한 날짜를 적용" : null,
+        !distanceKm ? "거리는 나중에 보완 가능" : null,
+        !durationSeconds ? "시간은 나중에 보완 가능" : null,
         extracted.notes,
       ].filter(Boolean).join(" / ");
 

@@ -7,7 +7,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { YoutubeShortsSection } from "@/components/youtube-shorts-section";
 import { ACTUAL_CERTIFICATION_START_DATE, CERTIFICATION_DISPLAY_START_DATE, CHALLENGE_DAYS } from "@/lib/challenge";
 import { DASHBOARD_REFRESH_CHANNEL, DASHBOARD_REFRESH_EVENT } from "@/lib/dashboard-refresh";
-import { addDays, toIsoDate } from "@/lib/run-records";
+import { addDays, secondsToTime, toIsoDate } from "@/lib/run-records";
 import { createClient } from "@/lib/supabase/client";
 
 type Participant = {
@@ -248,6 +248,7 @@ export default function DashboardPage() {
 
     const certifiedIdsByDay = new Map<string, Set<string>>();
     const certifiedDaysByParticipant = new Map<string, Set<string>>();
+    const officialMetricsByParticipant = new Map<string, { distanceKm: number; durationSeconds: number }>();
 
     officialCertifiedRecords.forEach((record) => {
       if (!record.participant_id || !record.record_date) return;
@@ -256,6 +257,11 @@ export default function DashboardPage() {
 
       if (!certifiedDaysByParticipant.has(record.participant_id)) certifiedDaysByParticipant.set(record.participant_id, new Set());
       certifiedDaysByParticipant.get(record.participant_id)?.add(record.record_date);
+
+      const metrics = officialMetricsByParticipant.get(record.participant_id) || { distanceKm: 0, durationSeconds: 0 };
+      metrics.distanceKm += record.distance_km || 0;
+      metrics.durationSeconds += record.duration_seconds || 0;
+      officialMetricsByParticipant.set(record.participant_id, metrics);
     });
 
     const stampDatesByParticipant = new Map<string, Set<string>>();
@@ -306,9 +312,10 @@ export default function DashboardPage() {
       .map((participant) => {
         const certifiedDates = Array.from(certifiedDaysByParticipant.get(participant.id) || []).sort();
         const stampedDates = Array.from(stampDatesByParticipant.get(participant.id) || []).sort();
+        const metrics = officialMetricsByParticipant.get(participant.id) || { distanceKm: 0, durationSeconds: 0 };
         const certifiedDays = certifiedDates.length;
-        const rate = Math.round((certifiedDays / CHALLENGE_DAYS) * 100);
-        return { participant, certifiedDates, stampedDates, certifiedDays, rate };
+        const rate = Math.min(Math.round((certifiedDays / CHALLENGE_DAYS) * 100), 100);
+        return { participant, certifiedDates, stampedDates, certifiedDays, rate, ...metrics };
       })
       .sort((a, b) => b.certifiedDays - a.certifiedDays || a.participant.name.localeCompare(b.participant.name, "ko"));
 
@@ -472,6 +479,14 @@ export default function DashboardPage() {
                           transitionDelay: `${Math.min(index * 45, 500)}ms`,
                         }}
                       />
+                    </div>
+                    <div className="mt-2 grid grid-cols-2 gap-1.5 text-[10px] font-black">
+                      <span className="rounded-xl bg-oriwan-surface-light px-2 py-1 text-oriwan-text-muted">
+                        거리 {row.distanceKm.toFixed(1)}km
+                      </span>
+                      <span className="rounded-xl bg-oriwan-surface-light px-2 py-1 text-oriwan-text-muted">
+                        시간 {secondsToTime(row.durationSeconds)}
+                      </span>
                     </div>
                   </button>
                 ))}
