@@ -79,11 +79,50 @@ function gaugeTextClass(certifiedDays: number) {
 }
 
 const challengeDays = makeChallengeDays();
+const RING_CIRCUMFERENCE = 302;
+
+function AnimatedNumber({
+  value,
+  suffix = "",
+  className = "",
+  duration = 900,
+}: {
+  value: number;
+  suffix?: string;
+  className?: string;
+  duration?: number;
+}) {
+  const [displayValue, setDisplayValue] = useState(0);
+
+  useEffect(() => {
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduceMotion) {
+      setDisplayValue(value);
+      return;
+    }
+
+    let animationFrame = 0;
+    const startedAt = performance.now();
+
+    const tick = (now: number) => {
+      const progress = Math.min((now - startedAt) / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setDisplayValue(Math.round(value * eased));
+      if (progress < 1) animationFrame = requestAnimationFrame(tick);
+    };
+
+    animationFrame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(animationFrame);
+  }, [duration, value]);
+
+  return <span className={className}>{displayValue}{suffix}</span>;
+}
 
 export default function DashboardPage() {
   const [data, setData] = useState<PublicDashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [motionReady, setMotionReady] = useState(false);
   const loadingRef = useRef(false);
 
   const load = useCallback(async () => {
@@ -121,6 +160,17 @@ export default function DashboardPage() {
       document.removeEventListener("visibilitychange", onVisible);
     };
   }, [load]);
+
+  useEffect(() => {
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduceMotion) {
+      setMotionReady(true);
+      return;
+    }
+
+    const frame = requestAnimationFrame(() => setMotionReady(true));
+    return () => cancelAnimationFrame(frame);
+  }, []);
 
   const dashboard = useMemo(() => {
     const participants = data?.participants || [];
@@ -188,6 +238,7 @@ export default function DashboardPage() {
       participantProgress,
     };
   }, [data]);
+  const latestWeeklyRate = dashboard.weekTrend.at(-1)?.averageRate || 0;
 
   return (
     <main className="min-h-screen bg-oriwan-bg">
@@ -236,9 +287,11 @@ export default function DashboardPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-xs font-black text-white/45">오늘 인증률</p>
-                    <p className="mt-1 text-5xl font-black tracking-[-0.08em] text-lime-200">{dashboard.completionRate}%</p>
+                    <p className="mt-1 text-5xl font-black tracking-[-0.08em] text-lime-200">
+                      <AnimatedNumber value={dashboard.completionRate} suffix="%" />
+                    </p>
                   </div>
-                  <svg viewBox="0 0 120 120" className="h-28 w-28 -rotate-90">
+                  <svg viewBox="0 0 120 120" className="h-28 w-28 -rotate-90 dashboard-ring-pop">
                     <circle cx="60" cy="60" r="48" fill="none" stroke="rgba(255,255,255,.12)" strokeWidth="14" />
                     <circle
                       cx="60"
@@ -248,7 +301,9 @@ export default function DashboardPage() {
                       stroke="#bef264"
                       strokeWidth="14"
                       strokeLinecap="round"
-                      strokeDasharray={`${dashboard.completionRate * 3.02} 302`}
+                      strokeDasharray={RING_CIRCUMFERENCE}
+                      strokeDashoffset={RING_CIRCUMFERENCE - ((motionReady ? dashboard.completionRate : 0) / 100) * RING_CIRCUMFERENCE}
+                      className="transition-[stroke-dashoffset] duration-1000 ease-out"
                     />
                   </svg>
                 </div>
@@ -261,28 +316,30 @@ export default function DashboardPage() {
 
           <div className="p-4 sm:p-5">
             <div className="grid grid-cols-3 gap-2">
-              <div className="rounded-3xl bg-white px-3 py-4 text-center ring-1 ring-slate-950/5">
+              <div className="dashboard-card-reveal rounded-3xl bg-white px-3 py-4 text-center ring-1 ring-slate-950/5 [animation-delay:0ms]">
                 <p className="text-[10px] font-black text-oriwan-text-muted">진행일</p>
                 <p className="mt-1 text-2xl font-black tracking-[-0.06em] text-oriwan-text">
-                  {dashboard.elapsedDays.length}/{CHALLENGE_DAYS}
+                  <AnimatedNumber value={dashboard.elapsedDays.length} />/{CHALLENGE_DAYS}
                 </p>
               </div>
-              <div className="rounded-3xl bg-white px-3 py-4 text-center ring-1 ring-slate-950/5">
+              <div className="dashboard-card-reveal rounded-3xl bg-white px-3 py-4 text-center ring-1 ring-slate-950/5 [animation-delay:90ms]">
                 <p className="text-[10px] font-black text-oriwan-text-muted">주차별 인증률</p>
                 <p className="mt-1 text-2xl font-black tracking-[-0.06em] text-oriwan-text">
-                  {dashboard.weekTrend.at(-1)?.averageRate || 0}%
+                  <AnimatedNumber value={latestWeeklyRate} suffix="%" />
                 </p>
               </div>
-              <div className="rounded-3xl bg-lime-300 px-3 py-4 text-center text-slate-950 shadow-sm shadow-lime-300/30">
+              <div className="dashboard-card-reveal rounded-3xl bg-lime-300 px-3 py-4 text-center text-slate-950 shadow-sm shadow-lime-300/30 [animation-delay:180ms]">
                 <p className="text-[10px] font-black opacity-60">누적 인증률</p>
-                <p className="mt-1 text-2xl font-black tracking-[-0.06em]">{dashboard.cumulativeRate}%</p>
+                <p className="mt-1 text-2xl font-black tracking-[-0.06em]">
+                  <AnimatedNumber value={dashboard.cumulativeRate} suffix="%" />
+                </p>
               </div>
             </div>
 
             <div className="mt-5">
               <h4 className="mb-3 text-base font-black tracking-[-0.03em] text-oriwan-text">스내사 크루별 인증게이지</h4>
               <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                {dashboard.participantProgress.map((row) => (
+                {dashboard.participantProgress.map((row, index) => (
                   <div key={row.participant.id} className="rounded-2xl bg-white px-3 py-3 ring-1 ring-slate-950/5">
                     <div className="flex items-center justify-between gap-2">
                       <p className="truncate text-sm font-black text-oriwan-text">{row.participant.name}</p>
@@ -292,8 +349,11 @@ export default function DashboardPage() {
                     </div>
                     <div className="mt-2 h-3 overflow-hidden rounded-full bg-oriwan-surface-light">
                       <div
-                        className={`h-full rounded-full transition-all ${gaugeColorClass(row.certifiedDays)}`}
-                        style={{ width: `${Math.max(row.rate, row.certifiedDays ? 3 : 0)}%` }}
+                        className={`h-full rounded-full transition-all duration-1000 ease-out ${gaugeColorClass(row.certifiedDays)}`}
+                        style={{
+                          width: `${motionReady ? Math.max(row.rate, row.certifiedDays ? 3 : 0) : 0}%`,
+                          transitionDelay: `${Math.min(index * 45, 500)}ms`,
+                        }}
                       />
                     </div>
                   </div>
