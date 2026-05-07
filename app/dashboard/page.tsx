@@ -244,11 +244,10 @@ export default function DashboardPage() {
     <main className="min-h-screen bg-oriwan-bg">
       <header className="sticky top-0 z-50 border-b border-slate-950/10 bg-[#101522]/95 px-4 py-3 text-white backdrop-blur-2xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <Image src="/oriwan-logo-v2.png" alt="스내사 3기" width={38} height={38} className="rounded-2xl bg-lime-300" />
-            <div>
-              <h1 className="text-base font-black tracking-[-0.03em] sm:text-lg">스내사 3기 대시보드</h1>
-              <p className="text-[11px] font-semibold text-white/50">오늘 인증을 한눈에 보는 보드</p>
+          <div className="flex min-w-0 items-center gap-3">
+            <Image src="/oriwan-logo-v2.png" alt="스내사 러닝보드" width={38} height={38} className="rounded-2xl bg-lime-300" />
+            <div className="min-w-0">
+              <h1 className="truncate text-[26px] font-black leading-none tracking-[-0.06em] sm:text-[30px]">스내사 러닝보드</h1>
             </div>
           </div>
           <div className="text-right">

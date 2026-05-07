@@ -14,7 +14,7 @@ export default async function Home() {
             <div className="w-28 h-28 mx-auto relative rounded-3xl overflow-hidden">
               <Image
                 src="/oriwan-logo-v2.png"
-                alt="스내사 3기 대시보드 로고"
+                alt="스내사 러닝보드 로고"
                 width={112}
                 height={112}
                 className="object-cover"
@@ -24,7 +24,7 @@ export default async function Home() {
           </div>
 
           <h1 className="animate-fade-up text-3xl font-black tracking-tight mb-1" style={{ animationDelay: "0.05s" }}>
-            스내사 3기
+            스내사 러닝보드
           </h1>
           <p className="animate-fade-up text-[13px] text-oriwan-primary font-semibold tracking-wide mb-8" style={{ animationDelay: "0.08s" }}>
             오늘의 러닝 에너지를 함께 확인해요
