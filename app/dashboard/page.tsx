@@ -38,13 +38,19 @@ type PublicDashboardData = {
 
 type BoardFilter = "all" | "certified" | "missing";
 type PublicBoardStatus = "certified" | "missing";
+type DashboardTab = "today" | "trend";
 
 const today = toIsoDate(new Date());
-const effectiveToday = today > CHALLENGE_END_DATE ? CHALLENGE_END_DATE : today;
+const actualCertificationEndDate = toIsoDate(addDays(new Date(`${ACTUAL_CERTIFICATION_START_DATE}T00:00:00`), CHALLENGE_DAYS - 1));
+const effectiveToday = today > actualCertificationEndDate ? actualCertificationEndDate : today;
 const boardFilterOptions: { value: BoardFilter; label: string }[] = [
   { value: "all", label: "전체" },
   { value: "certified", label: "인증" },
   { value: "missing", label: "미인증" },
+];
+const dashboardTabOptions: { value: DashboardTab; label: string }[] = [
+  { value: "today", label: "오늘 인증" },
+  { value: "trend", label: "전체 추이" },
 ];
 
 function formatLastUpdated(value?: string) {
@@ -54,7 +60,7 @@ function formatLastUpdated(value?: string) {
 
 function certificationDayLabel() {
   const start = new Date(`${ACTUAL_CERTIFICATION_START_DATE}T00:00:00`);
-  const current = new Date(`${today > CHALLENGE_END_DATE ? CHALLENGE_END_DATE : today}T00:00:00`);
+  const current = new Date(`${effectiveToday}T00:00:00`);
   const diffDays = Math.floor((current.getTime() - start.getTime()) / 86_400_000);
   if (diffDays < 0) return `D-${CHALLENGE_DAYS}`;
   return `D-${Math.max(CHALLENGE_DAYS - diffDays, 0)}`;
@@ -69,9 +75,9 @@ function shortDate(value: string) {
 }
 
 function makeChallengeDays() {
-  const start = new Date(`${CERTIFICATION_DISPLAY_START_DATE}T00:00:00`);
+  const start = new Date(`${ACTUAL_CERTIFICATION_START_DATE}T00:00:00`);
   return Array.from({ length: CHALLENGE_DAYS }, (_, index) => toIsoDate(addDays(start, index)))
-    .filter((day) => day <= CHALLENGE_END_DATE);
+    .filter((day) => day <= actualCertificationEndDate);
 }
 
 function publicBoardStatus(record?: RunRecord): PublicBoardStatus {
@@ -94,6 +100,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [boardFilter, setBoardFilter] = useState<BoardFilter>("all");
+  const [dashboardTab, setDashboardTab] = useState<DashboardTab>("today");
   const loadingRef = useRef(false);
 
   const load = useCallback(async () => {
@@ -249,10 +256,10 @@ export default function DashboardPage() {
               <div>
                 <div className="mb-3 flex max-w-full flex-nowrap gap-1.5 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] sm:gap-2 [&::-webkit-scrollbar]:hidden">
                   <p className="inline-flex shrink-0 whitespace-nowrap rounded-full bg-white/10 px-2.5 py-1 text-[9px] font-black text-lime-200 ring-1 ring-white/10 sm:px-3 sm:text-[11px]">
-                    인증기간 · {shortDateRange(CERTIFICATION_DISPLAY_START_DATE, CHALLENGE_END_DATE)}
+                    운영기간 · {shortDateRange(CERTIFICATION_DISPLAY_START_DATE, CHALLENGE_END_DATE)}
                   </p>
                   <p className="inline-flex shrink-0 whitespace-nowrap rounded-full bg-lime-300 px-2.5 py-1 text-[9px] font-black text-slate-950 sm:px-3 sm:text-[11px]">
-                    실제인증 {certificationDayLabel()} · {shortDate(ACTUAL_CERTIFICATION_START_DATE)}부터
+                    인증시작 {certificationDayLabel()} · {shortDate(ACTUAL_CERTIFICATION_START_DATE)}부터
                   </p>
                 </div>
                 <h2 className="max-w-full whitespace-nowrap text-[clamp(1.95rem,8vw,3.75rem)] font-black leading-[1.05] tracking-[-0.07em]">
@@ -291,6 +298,23 @@ export default function DashboardPage() {
           </div>
 
           <div className="p-4 sm:p-5">
+            <div className="mb-4 grid grid-cols-2 rounded-full bg-oriwan-surface-light p-1 ring-1 ring-slate-950/5">
+              {dashboardTabOptions.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setDashboardTab(option.value)}
+                  className={`rounded-full px-3 py-2 text-xs font-black transition ${
+                    dashboardTab === option.value ? "bg-slate-950 text-lime-200 shadow-sm" : "text-oriwan-text-muted hover:text-oriwan-text"
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+
+            {dashboardTab === "today" ? (
+              <>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <div className="flex items-center gap-2">
@@ -341,6 +365,95 @@ export default function DashboardPage() {
                 </p>
               )}
             </div>
+              </>
+            ) : (
+              <div>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                  <div>
+                    <p className="inline-flex rounded-full bg-slate-950 px-3 py-1 text-[11px] font-black text-lime-200">
+                      100일 인증 추이
+                    </p>
+                    <h3 className="mt-2 text-xl font-black tracking-[-0.04em] text-oriwan-text">전체 흐름을 한눈에 봅니다</h3>
+                    <p className="mt-1 text-xs font-semibold text-oriwan-text-muted">
+                      {shortDate(ACTUAL_CERTIFICATION_START_DATE)}부터 100일, 현재 {dashboard.elapsedDays.length}/{CHALLENGE_DAYS}일 진행 중입니다.
+                    </p>
+                  </div>
+                  <p className="text-xs font-black text-oriwan-text-muted">
+                    누적 인증 {dashboard.totalCertifiedSlots}건
+                  </p>
+                </div>
+
+                <div className="mt-4 grid grid-cols-3 gap-2">
+                  <div className="rounded-2xl bg-oriwan-surface-light px-3 py-3">
+                    <p className="text-[10px] font-black text-oriwan-text-muted">진행일</p>
+                    <p className="mt-1 text-xl font-black tracking-[-0.05em] text-oriwan-text">{dashboard.elapsedDays.length}/{CHALLENGE_DAYS}</p>
+                  </div>
+                  <div className="rounded-2xl bg-lime-300 px-3 py-3 text-slate-950">
+                    <p className="text-[10px] font-black opacity-60">누적률</p>
+                    <p className="mt-1 text-xl font-black tracking-[-0.05em]">{dashboard.cumulativeRate}%</p>
+                  </div>
+                  <div className="rounded-2xl bg-oriwan-surface-light px-3 py-3">
+                    <p className="text-[10px] font-black text-oriwan-text-muted">오늘</p>
+                    <p className="mt-1 text-xl font-black tracking-[-0.05em] text-oriwan-text">{dashboard.todayCertifiedIds.size}명</p>
+                  </div>
+                </div>
+
+                <div className="mt-4 rounded-[28px] bg-slate-950 p-4 text-white">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h4 className="text-sm font-black">주차별 인증률</h4>
+                      <p className="mt-1 text-[11px] font-semibold text-white/45">각 주의 평균 인증률입니다.</p>
+                    </div>
+                    <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-black text-lime-200 ring-1 ring-white/10">
+                      평균 {dashboard.cumulativeRate}%
+                    </span>
+                  </div>
+
+                  <div className="mt-5 flex h-36 items-end gap-1.5">
+                    {dashboard.weekTrend.map((week) => (
+                      <div key={`${week.from}-${week.to}`} className="flex min-w-0 flex-1 flex-col items-center gap-2">
+                        <div className="flex h-28 w-full items-end rounded-2xl bg-white/5 p-1 ring-1 ring-white/5">
+                          <div
+                            className={`w-full rounded-xl ${week.averageRate ? "bg-lime-300" : "bg-white/15"}`}
+                            style={{ height: `${Math.max(week.averageRate, week.averageRate ? 8 : 4)}%` }}
+                            title={`${week.label} · 평균 ${week.averageRate}% · ${week.averageCount}명`}
+                          />
+                        </div>
+                        <span className="text-[9px] font-black text-white/45">{week.label}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="mt-4">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <h4 className="text-sm font-black text-oriwan-text">참가자별 누적 인증</h4>
+                    <p className="text-[10px] font-black text-oriwan-text-muted">현재까지 기준</p>
+                  </div>
+                  <div className="grid gap-2 md:grid-cols-2">
+                    {dashboard.participantProgress.map((row) => (
+                      <div key={row.participant.id} className="rounded-2xl bg-white px-3 py-2.5 ring-1 ring-slate-950/5">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="truncate text-xs font-black text-oriwan-text">{row.participant.name}</p>
+                          <p className="shrink-0 text-[10px] font-black text-oriwan-text-muted">{row.certifiedDays}일 · {row.rate}%</p>
+                        </div>
+                        <div className="mt-2 h-2 overflow-hidden rounded-full bg-oriwan-surface-light">
+                          <div
+                            className="h-full rounded-full bg-lime-300"
+                            style={{ width: `${Math.max(row.rate, row.certifiedDays ? 4 : 0)}%` }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                    {!dashboard.participantProgress.length && !loading && (
+                      <p className="rounded-2xl bg-white px-4 py-8 text-center text-sm text-oriwan-text-muted md:col-span-2">
+                        참가자를 추가하면 누적 인증 추이가 표시됩니다.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </section>
 
@@ -355,93 +468,6 @@ export default function DashboardPage() {
             아직 운영 데이터 테이블이 연결되지 않았어요. 관리자가 Supabase 스키마를 적용하면 참가자 현황이 바로 표시됩니다.
           </div>
         )}
-
-        <section className="mt-4 card overflow-hidden p-4 sm:p-5">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <p className="inline-flex rounded-full bg-slate-950 px-3 py-1 text-[11px] font-black text-lime-200">
-                100일 인증 추이
-              </p>
-              <h3 className="mt-2 text-xl font-black tracking-[-0.04em] text-oriwan-text">전체 흐름을 한눈에 봅니다</h3>
-              <p className="mt-1 text-xs font-semibold text-oriwan-text-muted">
-                {shortDate(CERTIFICATION_DISPLAY_START_DATE)}부터 {shortDate(CHALLENGE_END_DATE)}까지, 현재 {dashboard.elapsedDays.length}/{CHALLENGE_DAYS}일 진행 중입니다.
-              </p>
-            </div>
-            <p className="text-xs font-black text-oriwan-text-muted">
-              누적 인증 {dashboard.totalCertifiedSlots}건
-            </p>
-          </div>
-
-          <div className="mt-4 grid grid-cols-3 gap-2">
-            <div className="rounded-2xl bg-oriwan-surface-light px-3 py-3">
-              <p className="text-[10px] font-black text-oriwan-text-muted">진행일</p>
-              <p className="mt-1 text-xl font-black tracking-[-0.05em] text-oriwan-text">{dashboard.elapsedDays.length}/{CHALLENGE_DAYS}</p>
-            </div>
-            <div className="rounded-2xl bg-lime-300 px-3 py-3 text-slate-950">
-              <p className="text-[10px] font-black opacity-60">누적률</p>
-              <p className="mt-1 text-xl font-black tracking-[-0.05em]">{dashboard.cumulativeRate}%</p>
-            </div>
-            <div className="rounded-2xl bg-oriwan-surface-light px-3 py-3">
-              <p className="text-[10px] font-black text-oriwan-text-muted">오늘</p>
-              <p className="mt-1 text-xl font-black tracking-[-0.05em] text-oriwan-text">{dashboard.todayCertifiedIds.size}명</p>
-            </div>
-          </div>
-
-          <div className="mt-4 rounded-[28px] bg-slate-950 p-4 text-white">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <h4 className="text-sm font-black">주차별 인증률</h4>
-                <p className="mt-1 text-[11px] font-semibold text-white/45">각 주의 평균 인증률입니다.</p>
-              </div>
-              <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-black text-lime-200 ring-1 ring-white/10">
-                평균 {dashboard.cumulativeRate}%
-              </span>
-            </div>
-
-            <div className="mt-5 flex h-36 items-end gap-1.5">
-              {dashboard.weekTrend.map((week) => (
-                <div key={`${week.from}-${week.to}`} className="flex min-w-0 flex-1 flex-col items-center gap-2">
-                  <div className="flex h-28 w-full items-end rounded-2xl bg-white/5 p-1 ring-1 ring-white/5">
-                    <div
-                      className={`w-full rounded-xl ${week.averageRate ? "bg-lime-300" : "bg-white/15"}`}
-                      style={{ height: `${Math.max(week.averageRate, week.averageRate ? 8 : 4)}%` }}
-                      title={`${week.label} · 평균 ${week.averageRate}% · ${week.averageCount}명`}
-                    />
-                  </div>
-                  <span className="text-[9px] font-black text-white/45">{week.label}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="mt-4">
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <h4 className="text-sm font-black text-oriwan-text">참가자별 누적 인증</h4>
-              <p className="text-[10px] font-black text-oriwan-text-muted">현재까지 기준</p>
-            </div>
-            <div className="grid gap-2 md:grid-cols-2">
-              {dashboard.participantProgress.map((row) => (
-                <div key={row.participant.id} className="rounded-2xl bg-white px-3 py-2.5 ring-1 ring-slate-950/5">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="truncate text-xs font-black text-oriwan-text">{row.participant.name}</p>
-                    <p className="shrink-0 text-[10px] font-black text-oriwan-text-muted">{row.certifiedDays}일 · {row.rate}%</p>
-                  </div>
-                  <div className="mt-2 h-2 overflow-hidden rounded-full bg-oriwan-surface-light">
-                    <div
-                      className="h-full rounded-full bg-lime-300"
-                      style={{ width: `${Math.max(row.rate, row.certifiedDays ? 4 : 0)}%` }}
-                    />
-                  </div>
-                </div>
-              ))}
-              {!dashboard.participantProgress.length && !loading && (
-                <p className="rounded-2xl bg-white px-4 py-8 text-center text-sm text-oriwan-text-muted md:col-span-2">
-                  참가자를 추가하면 누적 인증 추이가 표시됩니다.
-                </p>
-              )}
-            </div>
-          </div>
-        </section>
 
         <YoutubeShortsSection />
 
