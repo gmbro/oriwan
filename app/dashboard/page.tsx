@@ -49,8 +49,8 @@ const boardFilterOptions: { value: BoardFilter; label: string }[] = [
   { value: "missing", label: "미인증" },
 ];
 const dashboardTabOptions: { value: DashboardTab; label: string }[] = [
-  { value: "today", label: "오늘 인증" },
-  { value: "trend", label: "전체 추이" },
+  { value: "today", label: "오늘 현황" },
+  { value: "trend", label: "인증 흐름" },
 ];
 
 function formatLastUpdated(value?: string) {
@@ -318,12 +318,12 @@ export default function DashboardPage() {
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <div className="flex items-center gap-2">
-                  <h3 className="text-lg font-black tracking-[-0.03em] text-oriwan-text">참가자별 오늘 인증</h3>
+                  <h3 className="text-lg font-black tracking-[-0.03em] text-oriwan-text">오늘의 인증 현황</h3>
                   <span className="rounded-full bg-lime-100 px-2.5 py-1 text-[11px] font-black text-lime-900">
                     {dashboard.todayCertifiedIds.size}/{dashboard.participants.length}
                   </span>
                 </div>
-                <p className="mt-1 text-xs font-semibold text-oriwan-text-muted">필터를 바꾸면 인증/미인증 인원을 바로 확인할 수 있어요.</p>
+                <p className="mt-1 text-xs font-semibold text-oriwan-text-muted">인증한 사람과 아직 남은 사람을 빠르게 나눠 볼 수 있어요.</p>
               </div>
               <div className="grid grid-cols-3 rounded-full bg-oriwan-surface-light p-1 ring-1 ring-slate-950/5 sm:min-w-[240px]">
                 {boardFilterOptions.map((option) => (
@@ -371,29 +371,29 @@ export default function DashboardPage() {
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
                   <div>
                     <p className="inline-flex rounded-full bg-slate-950 px-3 py-1 text-[11px] font-black text-lime-200">
-                      100일 인증 추이
+                      100일 인증 흐름
                     </p>
-                    <h3 className="mt-2 text-xl font-black tracking-[-0.04em] text-oriwan-text">전체 흐름을 한눈에 봅니다</h3>
+                    <h3 className="mt-2 text-xl font-black tracking-[-0.04em] text-oriwan-text">우리의 인증 흐름</h3>
                     <p className="mt-1 text-xs font-semibold text-oriwan-text-muted">
-                      {shortDate(ACTUAL_CERTIFICATION_START_DATE)}부터 100일, 현재 {dashboard.elapsedDays.length}/{CHALLENGE_DAYS}일 진행 중입니다.
+                      {shortDate(ACTUAL_CERTIFICATION_START_DATE)}부터 100일 동안 쌓이는 인증 기록입니다. 현재 {dashboard.elapsedDays.length}/{CHALLENGE_DAYS}일째예요.
                     </p>
                   </div>
                   <p className="text-xs font-black text-oriwan-text-muted">
-                    누적 인증 {dashboard.totalCertifiedSlots}건
+                    지금까지 인증 {dashboard.totalCertifiedSlots}건
                   </p>
                 </div>
 
                 <div className="mt-4 grid grid-cols-3 gap-2">
                   <div className="rounded-2xl bg-oriwan-surface-light px-3 py-3">
-                    <p className="text-[10px] font-black text-oriwan-text-muted">진행일</p>
+                    <p className="text-[10px] font-black text-oriwan-text-muted">진행</p>
                     <p className="mt-1 text-xl font-black tracking-[-0.05em] text-oriwan-text">{dashboard.elapsedDays.length}/{CHALLENGE_DAYS}</p>
                   </div>
                   <div className="rounded-2xl bg-lime-300 px-3 py-3 text-slate-950">
-                    <p className="text-[10px] font-black opacity-60">누적률</p>
+                    <p className="text-[10px] font-black opacity-60">누적 인증률</p>
                     <p className="mt-1 text-xl font-black tracking-[-0.05em]">{dashboard.cumulativeRate}%</p>
                   </div>
                   <div className="rounded-2xl bg-oriwan-surface-light px-3 py-3">
-                    <p className="text-[10px] font-black text-oriwan-text-muted">오늘</p>
+                    <p className="text-[10px] font-black text-oriwan-text-muted">오늘 인증</p>
                     <p className="mt-1 text-xl font-black tracking-[-0.05em] text-oriwan-text">{dashboard.todayCertifiedIds.size}명</p>
                   </div>
                 </div>
@@ -402,7 +402,7 @@ export default function DashboardPage() {
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <h4 className="text-sm font-black">주차별 인증률</h4>
-                      <p className="mt-1 text-[11px] font-semibold text-white/45">각 주의 평균 인증률입니다.</p>
+                      <p className="mt-1 text-[11px] font-semibold text-white/45">주마다 얼마나 꾸준히 인증했는지 보여줍니다.</p>
                     </div>
                     <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-black text-lime-200 ring-1 ring-white/10">
                       평균 {dashboard.cumulativeRate}%
@@ -427,8 +427,8 @@ export default function DashboardPage() {
 
                 <div className="mt-4">
                   <div className="mb-3 flex items-center justify-between gap-3">
-                    <h4 className="text-sm font-black text-oriwan-text">참가자별 누적 인증</h4>
-                    <p className="text-[10px] font-black text-oriwan-text-muted">현재까지 기준</p>
+                    <h4 className="text-sm font-black text-oriwan-text">참가자별 꾸준함</h4>
+                    <p className="text-[10px] font-black text-oriwan-text-muted">오늘 기준</p>
                   </div>
                   <div className="grid gap-2 md:grid-cols-2">
                     {dashboard.participantProgress.map((row) => (
@@ -447,7 +447,7 @@ export default function DashboardPage() {
                     ))}
                     {!dashboard.participantProgress.length && !loading && (
                       <p className="rounded-2xl bg-white px-4 py-8 text-center text-sm text-oriwan-text-muted md:col-span-2">
-                        참가자를 추가하면 누적 인증 추이가 표시됩니다.
+                        참가자를 추가하면 인증 흐름이 표시됩니다.
                       </p>
                     )}
                   </div>
