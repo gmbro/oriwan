@@ -13,10 +13,10 @@ function sanitizeNumber(value: unknown) {
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
   const { data: { user }, error } = await supabase.auth.getUser();
-  if (error || !user) return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 });
+  if (error || !user) return NextResponse.json({ error: "내 기록을 올리려면 먼저 로그인해주세요." }, { status: 401 });
 
   const runnerName = typeof user.user_metadata?.runner_name === "string" ? user.user_metadata.runner_name : "";
-  if (!runnerName.trim()) return NextResponse.json({ error: "먼저 이름을 등록해주세요." }, { status: 400 });
+  if (!runnerName.trim()) return NextResponse.json({ error: "먼저 이름을 연결해주세요." }, { status: 400 });
 
   const body = await request.json().catch(() => ({}));
   const recordDate = typeof body.record_date === "string" ? body.record_date : "";
@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: CHALLENGE_DATE_ERROR }, { status: 400 });
   }
   if (!distanceKm || distanceKm <= 0 || !durationSeconds || durationSeconds <= 0) {
-    return NextResponse.json({ error: "거리와 시간을 입력해주세요." }, { status: 400 });
+    return NextResponse.json({ error: "거리와 시간을 함께 입력해주세요." }, { status: 400 });
   }
 
   const service = getServiceClient();
@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
 
   const participant = await findParticipantByRunnerName(service, adminUserId, runnerName);
   if (!participant) {
-    return NextResponse.json({ error: "등록한 이름이 어드민 참가자명과 일치하지 않습니다." }, { status: 404 });
+    return NextResponse.json({ error: "등록한 이름이 어드민의 멤버 이름과 달라요. 띄어쓰기까지 맞춰주세요." }, { status: 404 });
   }
 
   const { data, error: saveError } = await service
@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
 
   if (saveError) {
     console.error("Participant self record save error:", saveError);
-    return NextResponse.json({ error: "기록 저장 실패" }, { status: 500 });
+    return NextResponse.json({ error: "기록을 저장하지 못했어요. 잠시 후 다시 시도해주세요." }, { status: 500 });
   }
 
   return NextResponse.json({ success: true, id: data.id, participant });

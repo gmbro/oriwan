@@ -44,24 +44,24 @@ async function buildMePayload(userId: string, email: string | undefined, userMet
 export async function GET() {
   const supabase = await createClient();
   const { data: { user }, error } = await supabase.auth.getUser();
-  if (error || !user) return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 });
+  if (error || !user) return NextResponse.json({ error: "내 러닝 보드를 보려면 먼저 로그인해주세요." }, { status: 401 });
 
   try {
     return NextResponse.json(await buildMePayload(user.id, user.email, user.user_metadata));
   } catch (err) {
     console.error("Me profile error:", err);
-    return NextResponse.json({ error: "개인 대시보드를 불러오지 못했습니다." }, { status: 500 });
+    return NextResponse.json({ error: "내 러닝 보드를 불러오지 못했어요." }, { status: 500 });
   }
 }
 
 export async function PATCH(request: NextRequest) {
   const supabase = await createClient();
   const { data: { user }, error } = await supabase.auth.getUser();
-  if (error || !user) return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 });
+  if (error || !user) return NextResponse.json({ error: "이름을 연결하려면 먼저 로그인해주세요." }, { status: 401 });
 
   const body = await request.json().catch(() => ({}));
   const runnerName = typeof body.runner_name === "string" ? body.runner_name.trim().replace(/\s+/g, " ") : "";
-  if (!runnerName) return NextResponse.json({ error: "이름은 필수입니다." }, { status: 400 });
+  if (!runnerName) return NextResponse.json({ error: "기록을 연결하려면 이름이 꼭 필요해요." }, { status: 400 });
 
   const service = getServiceClient();
   if (!service) return NextResponse.json({ error: "서버 환경변수가 설정되지 않았습니다." }, { status: 500 });
@@ -74,12 +74,12 @@ export async function PATCH(request: NextRequest) {
   const { error: updateError } = await service.auth.admin.updateUserById(user.id, {
     user_metadata: userMetadata,
   });
-  if (updateError) return NextResponse.json({ error: "이름 저장 실패" }, { status: 500 });
+  if (updateError) return NextResponse.json({ error: "이름을 저장하지 못했어요." }, { status: 500 });
 
   try {
     return NextResponse.json(await buildMePayload(user.id, user.email, userMetadata));
   } catch (err) {
     console.error("Me profile update payload error:", err);
-    return NextResponse.json({ error: "이름은 저장했지만 매칭 정보를 불러오지 못했습니다." }, { status: 500 });
+    return NextResponse.json({ error: "이름은 저장했지만 연결 정보를 불러오지 못했어요." }, { status: 500 });
   }
 }

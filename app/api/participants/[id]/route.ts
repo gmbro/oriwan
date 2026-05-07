@@ -28,7 +28,7 @@ export async function PATCH(
 
   if (error) {
     console.error("Participant update error:", error);
-    return NextResponse.json({ error: "참가자 수정 실패" }, { status: 500 });
+    return NextResponse.json({ error: "멤버 정보를 수정하지 못했어요." }, { status: 500 });
   }
 
   return NextResponse.json({ participant: data });
@@ -51,7 +51,7 @@ export async function DELETE(
 
   if (error) {
     console.error("Participant delete error:", error);
-    return NextResponse.json({ error: "참가자 삭제 실패" }, { status: 500 });
+    return NextResponse.json({ error: "멤버를 삭제하지 못했어요." }, { status: 500 });
   }
 
   return NextResponse.json({ success: true });

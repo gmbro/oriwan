@@ -84,14 +84,14 @@ export default function MyPage() {
       const json = await response.json();
       if (!response.ok) {
         setData(null);
-        setMessage(json.error || "로그인이 필요합니다.");
+        setMessage(json.error || "내 기록을 올리려면 먼저 로그인해주세요.");
         return;
       }
       setData(json);
       setName(json.runner_name || "");
       if (!preserveMessage) setMessage("");
     } catch {
-      setMessage("개인 대시보드를 불러오지 못했어요.");
+      setMessage("내 러닝 보드를 불러오지 못했어요. 잠시 후 다시 열어볼게요.");
     } finally {
       setLoading(false);
     }
@@ -125,12 +125,12 @@ export default function MyPage() {
   const handleLogout = async () => {
     await fetch("/api/auth/logout", { method: "POST" });
     setData(null);
-    setMessage("로그아웃되었습니다.");
+    setMessage("로그아웃됐어요. 오늘도 좋은 러닝이었어요.");
   };
 
   const saveName = async () => {
     if (!name.trim()) {
-      setMessage("이름은 필수입니다.");
+      setMessage("기록을 연결하려면 이름이 꼭 필요해요.");
       return;
     }
     setSavingName(true);
@@ -143,9 +143,9 @@ export default function MyPage() {
     const json = await response.json();
     if (response.ok) {
       setData(json);
-      setMessage(json.matched_participant ? "어드민 참가자명과 연결됐습니다." : "이름을 저장했어요. 어드민 참가자명과 일치하면 기록이 연결됩니다.");
+      setMessage(json.matched_participant ? "좋아요. 멤버 이름과 연결됐어요." : "이름을 저장했어요. 어드민에 등록된 이름과 같으면 기록이 바로 이어집니다.");
     } else {
-      setMessage(json.error || "이름 저장 실패");
+      setMessage(json.error || "이름을 저장하지 못했어요. 다시 한 번만 시도해주세요.");
     }
     setSavingName(false);
   };
@@ -167,17 +167,17 @@ export default function MyPage() {
     if (response.ok) {
       setDistance("");
       setDuration("");
-      setMessage("기록이 저장됐습니다.");
+      setMessage("기록 저장 완료. 오늘 러닝도 차곡차곡 쌓였어요.");
       await loadMe(true);
     } else {
-      setMessage(json.error || "기록 저장 실패");
+      setMessage(json.error || "기록을 저장하지 못했어요. 거리와 시간을 다시 확인해주세요.");
     }
     setSavingRecord(false);
   };
 
   const analyzeImages = async () => {
     if (!imageFiles.length) {
-      setMessage("NRC나 Garmin 같은 러닝 기록 이미지를 선택해주세요.");
+      setMessage("NRC나 Garmin 같은 러닝 기록 이미지를 먼저 선택해주세요.");
       return;
     }
 
@@ -208,7 +208,7 @@ export default function MyPage() {
         if (Array.isArray(json.results)) savedResults.push(...json.results);
         if (Array.isArray(json.failed)) failedResults.push(...json.failed);
         if (!response.ok && !Array.isArray(json.failed)) {
-          failedResults.push(...chunk.map((file) => ({ file_name: file.name, error: json.error || "이미지 기록 저장 실패" })));
+          failedResults.push(...chunk.map((file) => ({ file_name: file.name, error: json.error || "이미지 기록을 저장하지 못했어요." })));
         }
       }
 
@@ -217,13 +217,13 @@ export default function MyPage() {
       setImageFiles([]);
 
       if (savedResults.length) {
-        setMessage(`${savedResults.length}개 이미지 기록을 저장했습니다.${failedResults.length ? ` ${failedResults.length}개는 확인이 필요해요.` : ""}`);
+        setMessage(`${savedResults.length}개 이미지 기록을 저장했어요.${failedResults.length ? ` ${failedResults.length}개는 한 번만 확인해주세요.` : ""}`);
         await loadMe(true);
       } else {
-        setMessage(failedResults[0]?.error || "저장된 이미지 기록이 없습니다. 날짜, 거리, 시간이 보이는 이미지를 다시 선택해주세요.");
+        setMessage(failedResults[0]?.error || "저장된 이미지 기록이 없어요. 날짜, 거리, 시간이 잘 보이는 이미지로 다시 시도해주세요.");
       }
     } catch {
-      setMessage("이미지를 읽거나 분석하지 못했어요.");
+      setMessage("이미지를 읽지 못했어요. 화면이 선명한지 한 번만 확인해주세요.");
     } finally {
       setAnalyzingImages(false);
     }
@@ -236,14 +236,14 @@ export default function MyPage() {
       <main className="min-h-screen bg-oriwan-bg px-5 py-8 flex items-center justify-center">
         <div className="card w-full max-w-[430px] p-7 text-center sm:p-9">
           <Image src="/oriwan-logo-v2.png" alt="스내사 3기" width={72} height={72} className="mx-auto rounded-3xl" />
-          <p className="mt-5 text-xs font-black text-oriwan-primary">PERSONAL DASHBOARD</p>
-          <h1 className="mt-1 text-3xl font-black tracking-[-0.05em] text-oriwan-text">개인 기록 입력</h1>
+          <p className="mt-5 text-xs font-black text-oriwan-primary">MY RUNNING BOARD</p>
+          <h1 className="mt-1 text-3xl font-black tracking-[-0.05em] text-oriwan-text">내 러닝 기록 올리기</h1>
           <p className="mt-3 text-sm leading-6 text-oriwan-text-muted">
-            Google 로그인 후 운영자가 등록한 참가자 이름과 똑같이 입력해주세요. 이름이 일치하면 내 인증 기록을 직접 입력하고 볼 수 있습니다.
+            Google로 로그인하고, 어드민에 등록된 이름과 똑같이 입력해주세요. 이름이 맞으면 내 러닝 기록이 자동으로 이어집니다.
           </p>
           {message && <p className="mt-4 rounded-2xl bg-oriwan-surface-light px-4 py-3 text-xs font-bold text-oriwan-text-muted">{message}</p>}
           <button onClick={handleGoogleLogin} className="btn-primary mt-6 w-full py-3 text-sm">Google 로그인</button>
-          <Link href="/dashboard" className="mt-5 block text-xs font-bold text-oriwan-text-muted hover:text-oriwan-text">전체 대시보드 보기</Link>
+          <Link href="/dashboard" className="mt-5 block text-xs font-bold text-oriwan-text-muted hover:text-oriwan-text">팀 인증 보러가기</Link>
         </div>
       </main>
     );
@@ -256,7 +256,7 @@ export default function MyPage() {
           <div className="flex min-w-0 items-center gap-3">
             <Image src="/oriwan-logo-v2.png" alt="스내사 3기" width={38} height={38} className="rounded-2xl bg-lime-300" />
             <div className="min-w-0">
-              <h1 className="truncate text-base font-black tracking-[-0.03em] sm:text-lg">내 인증 대시보드</h1>
+              <h1 className="truncate text-base font-black tracking-[-0.03em] sm:text-lg">내 러닝 보드</h1>
               <p className="truncate text-[11px] font-semibold text-white/50">{data.user.email}</p>
             </div>
           </div>
@@ -271,42 +271,42 @@ export default function MyPage() {
           <div className="card min-w-0 overflow-hidden p-4 sm:p-5">
             <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0">
-                <h3 className="text-lg font-black text-oriwan-text">이름 등록</h3>
-                <p className="mt-1 text-xs leading-5 text-oriwan-text-muted">운영자가 어드민에 등록한 이름과 띄어쓰기까지 똑같이 입력해주세요.</p>
+                <h3 className="text-lg font-black text-oriwan-text">이름 연결하기</h3>
+                <p className="mt-1 text-xs leading-5 text-oriwan-text-muted">어드민에 등록된 이름과 띄어쓰기까지 똑같이 입력하면 기록이 착 붙어요.</p>
               </div>
               <span className={`w-fit shrink-0 rounded-full px-3 py-1 text-[10px] font-black ${data.matched_participant ? "bg-lime-200 text-slate-950" : "bg-amber-100 text-amber-800"}`}>
-                {data.matched_participant ? "연결 완료" : "이름 확인 필요"}
+                {data.matched_participant ? "연결 완료" : "이름 연결 전"}
               </span>
             </div>
             <div className="mt-4 grid min-w-0 gap-2 sm:grid-cols-[1fr_auto]">
-              <input value={name} onChange={(event) => setName(event.target.value)} placeholder="예: 어드민 등록 이름 그대로" className="w-full min-w-0 rounded-2xl border border-oriwan-border bg-white px-4 py-3 text-sm font-bold outline-none focus:border-oriwan-primary" />
+              <input value={name} onChange={(event) => setName(event.target.value)} placeholder="예: 등록된 이름 그대로" className="w-full min-w-0 rounded-2xl border border-oriwan-border bg-white px-4 py-3 text-sm font-bold outline-none focus:border-oriwan-primary" />
               <button onClick={saveName} disabled={savingName} className="w-full rounded-2xl bg-slate-950 px-5 py-3 text-sm font-black text-lime-200 disabled:opacity-50 sm:w-auto">저장</button>
             </div>
             {!data.matched_participant && (
               <p className="mt-3 rounded-2xl bg-amber-50 px-3 py-2 text-[11px] font-bold leading-5 text-amber-800 ring-1 ring-amber-100">
-                이름이 연결되어야 수동 기록과 이미지 기록을 저장할 수 있어요. 예: 운영자가 등록한 이름이 “김지우”라면 “김지우”로 입력해주세요.
+                이름이 연결되면 직접 입력한 기록과 이미지 기록을 바로 저장할 수 있어요. 예: 등록 이름이 “김지우”라면 “김지우”로 입력해주세요.
               </p>
             )}
           </div>
 
           <div className="card min-w-0 overflow-hidden p-4 sm:p-5">
-            <h3 className="text-lg font-black text-oriwan-text">기록 입력</h3>
-            <p className="mt-1 text-xs text-oriwan-text-muted">{CHALLENGE_START_DATE}부터 {CHALLENGE_END_DATE}까지 인증 기록만 입력할 수 있습니다.</p>
+            <h3 className="text-lg font-black text-oriwan-text">오늘의 러닝 남기기</h3>
+            <p className="mt-1 text-xs text-oriwan-text-muted">{CHALLENGE_START_DATE}부터 {CHALLENGE_END_DATE}까지의 러닝 기록을 남길 수 있어요.</p>
             <div className="mt-4 grid min-w-0 gap-2 sm:grid-cols-3">
               <input type="date" min={CHALLENGE_START_DATE} max={CHALLENGE_END_DATE} value={recordDate} onChange={(event) => setRecordDate(event.target.value)} className="w-full min-w-0 rounded-2xl border border-oriwan-border bg-white px-3 py-3 text-sm" />
               <input value={distance} onChange={(event) => setDistance(event.target.value)} inputMode="decimal" placeholder="거리 km" className="w-full min-w-0 rounded-2xl border border-oriwan-border bg-white px-3 py-3 text-sm" />
               <input value={duration} onChange={(event) => setDuration(event.target.value)} placeholder="시간 32:10" className="w-full min-w-0 rounded-2xl border border-oriwan-border bg-white px-3 py-3 text-sm" />
             </div>
             <button onClick={saveRecord} disabled={savingRecord || !data.matched_participant} className="btn-primary mt-3 w-full py-3 text-sm disabled:opacity-40">
-              {savingRecord ? "저장 중..." : data.matched_participant ? "내 기록 저장" : "이름 연결 후 저장 가능"}
+              {savingRecord ? "기록 쌓는 중..." : data.matched_participant ? "내 기록 저장하기" : "이름 연결 후 저장 가능"}
             </button>
 
             <div className="mt-5 min-w-0 rounded-[26px] bg-oriwan-surface-light p-4 ring-1 ring-slate-950/5">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <h4 className="text-sm font-black text-oriwan-text">러닝 앱 이미지로 등록</h4>
+                  <h4 className="text-sm font-black text-oriwan-text">러닝 앱 이미지 한 번에 올리기</h4>
                   <p className="mt-1 text-xs leading-5 text-oriwan-text-muted">
-                    NRC, Garmin, Strava 등 스크린샷 여러 장에서 날짜, 거리, 시간을 자동 추출합니다.
+                    NRC, Garmin, Strava 스크린샷 여러 장에서 날짜, 거리, 시간을 가볍게 읽어옵니다.
                   </p>
                 </div>
                 <span className="rounded-full bg-lime-200 px-3 py-1 text-[10px] font-black text-slate-950">일괄 OCR</span>
@@ -315,9 +315,9 @@ export default function MyPage() {
                 <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl bg-white px-4 py-5 text-center ring-1 ring-slate-950/5">
                   <span className="rounded-full bg-slate-950 px-4 py-2 text-xs font-black text-lime-200">이미지 여러 장 선택</span>
                   <span className="max-w-full truncate text-xs font-bold text-oriwan-text-muted">
-                    {imageFiles.length ? `${imageFiles.length}장 선택됨` : "카카오톡에서 저장한 러닝 기록 이미지를 한 번에 선택하세요"}
+                    {imageFiles.length ? `${imageFiles.length}장 선택됨` : "카카오톡에서 저장한 러닝 이미지를 한 번에 골라주세요"}
                   </span>
-                  <span className="text-[11px] text-oriwan-text-muted">날짜가 보이는 이미지는 자동 날짜로 저장됩니다.</span>
+                  <span className="text-[11px] text-oriwan-text-muted">날짜가 보이면 그 날짜로 알아서 저장해요.</span>
                   <input
                     type="file"
                     accept="image/*"
@@ -342,7 +342,7 @@ export default function MyPage() {
                   className="mt-0.5"
                 />
                 <span className="min-w-0 flex-1">
-                  이미지에 날짜가 없는 경우에만 아래 날짜로 저장
+                  이미지에 날짜가 없을 때만 아래 날짜로 저장
                   <input
                     type="date"
                     min={CHALLENGE_START_DATE}
@@ -356,11 +356,11 @@ export default function MyPage() {
               </label>
               {!data.matched_participant && (
                 <p className="mt-3 rounded-2xl bg-amber-50 px-3 py-2 text-[11px] font-bold leading-5 text-amber-800 ring-1 ring-amber-100">
-                  이름이 어드민 참가자명과 일치해야 이미지 기록을 저장할 수 있어요.
+                  이름이 연결되면 이미지 기록도 바로 저장할 수 있어요.
                 </p>
               )}
               <button onClick={analyzeImages} disabled={analyzingImages || !data.matched_participant || !imageFiles.length} className="mt-3 w-full rounded-2xl bg-slate-950 px-4 py-3 text-sm font-black text-lime-200 disabled:opacity-40">
-                {analyzingImages ? "이미지 분석 중..." : data.matched_participant ? `일괄 등록하기${imageFiles.length ? ` (${imageFiles.length})` : ""}` : "이름 연결 후 일괄 등록 가능"}
+                {analyzingImages ? "이미지 읽는 중..." : data.matched_participant ? `한 번에 등록하기${imageFiles.length ? ` (${imageFiles.length})` : ""}` : "이름 연결 후 등록 가능"}
               </button>
             </div>
           </div>
@@ -371,7 +371,7 @@ export default function MyPage() {
             <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">
                 <h3 className="text-lg font-black text-oriwan-text">이미지 등록 결과</h3>
-                <p className="mt-1 text-xs text-oriwan-text-muted">저장된 기록은 아래 내 인증 기록과 전체 대시보드에 바로 반영됩니다.</p>
+                <p className="mt-1 text-xs text-oriwan-text-muted">저장된 기록은 내 기록과 팀 보드에 바로 반영돼요.</p>
               </div>
               <span className="w-fit shrink-0 rounded-full bg-lime-200 px-3 py-1 text-[10px] font-black text-slate-950">{imageResults.length}개 저장</span>
             </div>
@@ -387,7 +387,7 @@ export default function MyPage() {
               ))}
               {imageFailures.map((failure, index) => (
                 <div key={`${failure.file_name}-${index}`} className="min-w-0 rounded-3xl bg-rose-50 p-3 ring-1 ring-rose-100">
-                  <p className="truncate text-sm font-black text-rose-700">{failure.file_name || "이미지"} 확인 필요</p>
+                  <p className="truncate text-sm font-black text-rose-700">{failure.file_name || "이미지"} 한 번 더 확인해주세요</p>
                   <p className="mt-1 text-[11px] font-bold leading-5 text-rose-700/70">{failure.error}</p>
                 </div>
               ))}
@@ -403,7 +403,7 @@ export default function MyPage() {
         </div>
 
         <section className="mt-4 card min-w-0 overflow-hidden p-4 sm:p-5">
-          <h3 className="text-lg font-black text-oriwan-text">내 인증 기록</h3>
+          <h3 className="text-lg font-black text-oriwan-text">내가 쌓은 러닝</h3>
           <div className="mt-4 space-y-2">
             {stats.records.map((record) => (
               <div key={record.id} className="grid min-w-0 grid-cols-[1fr_auto] items-center gap-3 rounded-3xl bg-oriwan-surface-light p-3">
@@ -414,7 +414,7 @@ export default function MyPage() {
                 <span className="rounded-full bg-lime-300 px-3 py-1 text-[10px] font-black text-slate-950">인증</span>
               </div>
             ))}
-            {!stats.records.length && <p className="py-8 text-center text-sm text-oriwan-text-muted">아직 내 기록이 없습니다.</p>}
+            {!stats.records.length && <p className="py-8 text-center text-sm text-oriwan-text-muted">아직 기록이 없어요. 첫 러닝을 가볍게 남겨볼까요?</p>}
           </div>
         </section>
       </section>

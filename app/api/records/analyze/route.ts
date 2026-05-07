@@ -134,10 +134,10 @@ export async function POST(request: NextRequest) {
     const images = rawImages.filter(validImage).slice(0, MAX_IMAGES);
 
     if (!images.length) {
-      return NextResponse.json({ error: "이미지가 필요합니다." }, { status: 400 });
+      return NextResponse.json({ error: "러닝 이미지를 먼저 올려주세요." }, { status: 400 });
     }
     if (rawImages.length > MAX_IMAGES) {
-      return NextResponse.json({ error: `이미지는 한 번에 ${MAX_IMAGES}장까지 업로드할 수 있습니다.` }, { status: 400 });
+      return NextResponse.json({ error: `이미지는 한 번에 ${MAX_IMAGES}장까지 올릴 수 있어요.` }, { status: 400 });
     }
     if (images.length !== rawImages.length) {
       return NextResponse.json({ error: "지원하지 않는 이미지 형식이거나 파일 용량이 너무 큽니다." }, { status: 400 });
@@ -160,7 +160,7 @@ export async function POST(request: NextRequest) {
       : null;
 
     if (requestedParticipantId && !targetParticipant) {
-      return NextResponse.json({ error: "선택한 참가자를 찾을 수 없습니다." }, { status: 400 });
+      return NextResponse.json({ error: "선택한 멤버를 찾지 못했어요." }, { status: 400 });
     }
 
     const knownNames = targetParticipant ? [targetParticipant.name] : participants.map((participant) => participant.name);
@@ -256,10 +256,10 @@ export async function POST(request: NextRequest) {
         raw_extracted_text: extracted.raw_text || null,
         notes: [
           extracted.notes,
-          dateWasFallback ? "이미지에서 날짜가 보이지 않아 선택한 날짜를 임시 적용했습니다." : null,
-          !durationSeconds ? "시간이 없어 수동 입력이 필요합니다." : null,
-          !participant ? "참가자 매칭 확인이 필요합니다." : null,
-          !filePath ? "이미지 파일 저장은 건너뛰고 추출 기록만 저장했습니다." : null,
+          dateWasFallback ? "이미지에서 날짜가 보이지 않아 선택한 날짜를 임시 적용했어요." : null,
+          !durationSeconds ? "시간이 없어 직접 입력으로 보완이 필요해요." : null,
+          !participant ? "멤버 매칭을 한 번 확인해주세요." : null,
+          !filePath ? "이미지 파일 저장은 건너뛰고 추출 기록만 저장했어요." : null,
         ].filter(Boolean).join(" / ") || null,
       };
 
@@ -303,6 +303,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ batch_id: batch.id, results });
   } catch (err) {
     console.error("Image analysis error:", err);
-    return NextResponse.json({ error: "이미지 분석 중 오류가 발생했습니다." }, { status: 500 });
+    return NextResponse.json({ error: "이미지를 읽는 중 문제가 생겼어요. 잠시 후 다시 시도해주세요." }, { status: 500 });
   }
 }

@@ -71,16 +71,16 @@ const initialRecordDate = clampToChallengeWindow(today);
 const rangeStart = CHALLENGE_START_DATE;
 const adminBoardFilterOptions: { value: AdminBoardFilter; label: string }[] = [
   { value: "all", label: "전체" },
-  { value: "certified", label: "인증" },
-  { value: "missing", label: "미인증" },
-  { value: "review", label: "검수" },
+  { value: "certified", label: "완료" },
+  { value: "missing", label: "아직" },
+  { value: "review", label: "확인" },
 ];
 
 function statusLabel(status: RecordStatus) {
-  if (status === "certified") return "인증";
-  if (status === "needs_review") return "확인 필요";
+  if (status === "certified") return "완료";
+  if (status === "needs_review") return "확인 중";
   if (status === "rejected") return "반려";
-  return "미제출";
+  return "아직";
 }
 
 function statusClass(status: RecordStatus) {
@@ -97,9 +97,9 @@ function adminBoardStatus(record?: RunRecord): AdminBoardStatus {
 }
 
 function adminBoardStatusLabel(status: AdminBoardStatus) {
-  if (status === "certified") return "인증";
-  if (status === "review") return "검수";
-  return "미인증";
+  if (status === "certified") return "완료";
+  if (status === "review") return "확인";
+  return "아직";
 }
 
 function adminBoardCardClass(status: AdminBoardStatus) {
@@ -181,12 +181,12 @@ export default function AdminPage() {
       const participantsJson = await participantsRes.json();
       const recordsJson = await recordsRes.json();
       if (participantsJson.setup_required || recordsJson.setup_required) {
-        setSetupMessage("Supabase SQL Editor에서 docs/supabase-schema.sql을 먼저 실행해야 참가자와 기록을 저장할 수 있어요.");
+        setSetupMessage("데이터 저장소 연결이 아직 준비되지 않았어요. Supabase SQL Editor에서 docs/supabase-schema.sql을 먼저 실행해주세요.");
       } else {
         setSetupMessage("");
       }
-      if (!participantsRes.ok && !participantsJson.setup_required) throw new Error(participantsJson.error || "참가자 조회 실패");
-      if (!recordsRes.ok && !recordsJson.setup_required) throw new Error(recordsJson.error || "기록 조회 실패");
+      if (!participantsRes.ok && !participantsJson.setup_required) throw new Error(participantsJson.error || "멤버 목록을 불러오지 못했어요.");
+      if (!recordsRes.ok && !recordsJson.setup_required) throw new Error(recordsJson.error || "러닝 기록을 불러오지 못했어요.");
       const nextParticipants = participantsJson.participants || [];
       const nextRecords = recordsJson.records || [];
 
@@ -197,7 +197,7 @@ export default function AdminPage() {
       setDrafts(Object.fromEntries(nextRecords.map((record: RunRecord) => [record.id, makeDraft(record)])));
       setLastUpdated(new Date());
     } catch (err) {
-      setSetupMessage(err instanceof Error ? err.message : "데이터를 불러오지 못했습니다.");
+      setSetupMessage(err instanceof Error ? err.message : "데이터를 불러오지 못했어요. 잠시 후 다시 확인해주세요.");
     } finally {
       loadInFlightRef.current = false;
       if (showLoading) setLoading(false);
@@ -225,7 +225,7 @@ export default function AdminPage() {
 
       if (!isAdminEmail(user.email)) {
         await supabase.auth.signOut();
-        setAuthMessage("관리자 이메일만 접근할 수 있어요.");
+        setAuthMessage("지정된 관리자 이메일로만 들어올 수 있어요.");
         setAuthReady(true);
         setLoading(false);
         return;
@@ -351,7 +351,7 @@ export default function AdminPage() {
       setNewName("");
       await loadData();
     } else {
-      alert("참가자를 저장하지 못했어요.");
+      alert("멤버를 저장하지 못했어요. 이름을 다시 확인해주세요.");
     }
   }, [loadData, newName]);
 
@@ -401,18 +401,18 @@ export default function AdminPage() {
       resetParticipantForm();
       await loadData();
     } else {
-      alert("참가자 정보를 수정하지 못했어요.");
+      alert("멤버 정보를 수정하지 못했어요.");
     }
   }, [addParticipant, editingParticipantId, loadData, newName, resetParticipantForm]);
 
   const deleteParticipant = useCallback(async (participantId: string) => {
-    if (!window.confirm("이 참가자를 목록에서 삭제할까요? 기존 기록은 보존됩니다.")) return;
+    if (!window.confirm("이 멤버를 목록에서 제외할까요? 기존 러닝 기록은 그대로 보관됩니다.")) return;
     const res = await fetch(`/api/participants/${participantId}`, { method: "DELETE" });
     if (res.ok) {
       if (editingParticipantId === participantId) resetParticipantForm();
       await loadData();
     } else {
-      alert("참가자를 삭제하지 못했어요.");
+      alert("멤버를 삭제하지 못했어요.");
     }
   }, [editingParticipantId, loadData, resetParticipantForm]);
 
@@ -436,10 +436,10 @@ export default function AdminPage() {
       const certified = results.filter((result: { status?: string }) => result.status === "certified").length;
       const review = results.length - certified;
       const ownerLabel = uploadParticipant ? `${uploadParticipant.name}님 ` : "";
-      setAnalysisMessage(`${ownerLabel}${results.length}장 처리 완료 · 인증 ${certified}건 · 확인 ${review}건`);
+      setAnalysisMessage(`${ownerLabel}${results.length}장 정리 완료 · 완료 ${certified}건 · 확인 ${review}건`);
       await loadData();
     } catch (err) {
-      setAnalysisMessage(err instanceof Error ? err.message : "이미지 분석에 실패했어요. 흐린 이미지는 직접 입력으로 등록해주세요.");
+      setAnalysisMessage(err instanceof Error ? err.message : "이미지를 읽지 못했어요. 흐린 이미지는 직접 입력으로 가볍게 보완해주세요.");
     } finally {
       setAnalyzing(false);
     }
@@ -456,7 +456,7 @@ export default function AdminPage() {
         distance_km: manualDistance,
         duration_seconds: duration,
         status: manualDistance && duration ? "certified" : "needs_review",
-        notes: duration ? null : "시간 수동 입력 필요",
+        notes: duration ? null : "시간 직접 입력 필요",
       }),
     });
     if (res.ok) {
@@ -465,7 +465,7 @@ export default function AdminPage() {
       setAdminModal(null);
       await loadData();
     } else {
-      alert("기록 저장에 실패했어요.");
+      alert("기록을 저장하지 못했어요.");
     }
   }, [loadData, manualDate, manualDistance, manualDuration, manualParticipantId]);
 
@@ -491,14 +491,14 @@ export default function AdminPage() {
       }),
     });
     if (res.ok) await loadData();
-    else alert("수정 저장에 실패했어요.");
+    else alert("수정 내용을 저장하지 못했어요.");
   }, [drafts, loadData]);
 
   const deleteRecord = useCallback(async (recordId: string) => {
-    if (!window.confirm("이 기록을 삭제할까요?")) return;
+    if (!window.confirm("이 러닝 기록을 삭제할까요?")) return;
     const res = await fetch(`/api/records/${recordId}`, { method: "DELETE" });
     if (res.ok) await loadData();
-    else alert("기록 삭제에 실패했어요.");
+    else alert("기록을 삭제하지 못했어요.");
   }, [loadData]);
 
   const sendAdminCode = useCallback(async () => {
@@ -513,10 +513,10 @@ export default function AdminPage() {
     });
 
     if (error) {
-      setAuthMessage("인증번호 발송에 실패했어요. Supabase 이메일 OTP 설정을 확인해주세요.");
+      setAuthMessage("인증번호를 보내지 못했어요. Supabase 이메일 OTP 설정을 확인해주세요.");
     } else {
       setCodeSent(true);
-      setAuthMessage("관리자 이메일로 인증번호를 보냈어요.");
+      setAuthMessage("관리자 이메일로 인증번호를 보냈어요. 메일함을 확인해주세요.");
     }
     setSendingCode(false);
   }, []);
@@ -558,8 +558,8 @@ export default function AdminPage() {
       await supabase.auth.signOut();
       setAuthMessage(
         lastErrorMessage.includes("rate limit") || lastErrorMessage.includes("429")
-          ? "요청이 많아 잠시 제한됐어요. 1분 정도 뒤 새 인증번호로 다시 시도해주세요."
-          : "인증번호가 맞지 않거나 만료됐어요. 새 인증번호를 받아 다시 시도해주세요."
+          ? "요청이 잠시 몰렸어요. 1분 정도 뒤 새 인증번호로 다시 시도해주세요."
+          : "인증번호가 맞지 않거나 만료됐어요. 새 번호를 받아 다시 들어와주세요."
       );
       setAuthorized(false);
     } else {
@@ -592,17 +592,17 @@ export default function AdminPage() {
               <Image src="/oriwan-logo-v2.png" alt="스내사 3기 대시보드" width={54} height={54} className="rounded-2xl" />
               <div>
                 <p className="text-xs font-black text-oriwan-primary">ADMIN ONLY</p>
-                <h1 className="text-2xl font-black tracking-[-0.04em] text-oriwan-text">관리자 인증</h1>
+                <h1 className="text-2xl font-black tracking-[-0.04em] text-oriwan-text">어드민 접속</h1>
               </div>
             </div>
 
             <p className="text-sm leading-6 text-oriwan-text-muted">
-              관리자 페이지에 들어오면 인증번호가 자동으로 발송됩니다. 메일함에서 받은 인증번호를 입력해주세요.
+              어드민에 들어오면 인증번호가 자동으로 발송돼요. 메일함에서 받은 번호를 입력하면 바로 관리 화면으로 이동합니다.
             </p>
 
             <div className="mt-5 space-y-3">
               <div className="rounded-2xl bg-oriwan-surface-light px-4 py-3 text-center text-xs font-black text-oriwan-text-muted">
-                {sendingCode ? "인증번호를 보내는 중..." : codeSent ? "인증번호가 발송되었습니다." : "관리자 인증을 준비하고 있어요."}
+                {sendingCode ? "인증번호 보내는 중..." : codeSent ? "인증번호를 보냈어요." : "어드민 접속을 준비하고 있어요."}
               </div>
               <input
                 value={otp}
@@ -611,11 +611,11 @@ export default function AdminPage() {
                   if (event.key === "Enter") verifyAdminCode();
                 }}
                 inputMode="numeric"
-                placeholder="이메일로 받은 인증번호"
+                placeholder="메일로 받은 인증번호"
                 className="w-full rounded-2xl border border-oriwan-border bg-white px-4 py-3 text-center text-lg font-black tracking-[0.25em] outline-none focus:border-oriwan-primary"
               />
               <button onClick={verifyAdminCode} disabled={!otp.trim() || verifyingCode} className="w-full rounded-2xl bg-lime-300 px-4 py-3 text-sm font-black text-slate-950 disabled:opacity-40">
-                {verifyingCode ? "확인 중..." : "어드민 접속"}
+                {verifyingCode ? "확인하는 중..." : "어드민으로 들어가기"}
               </button>
               <button
                 onClick={sendAdminCode}
@@ -630,7 +630,7 @@ export default function AdminPage() {
 
             <div className="mt-6 flex items-center justify-between text-xs font-bold text-oriwan-text-muted">
               <Link href="/" className="hover:text-oriwan-text">메인으로</Link>
-              <Link href="/dashboard" className="hover:text-oriwan-text">참가자 대시보드 보기</Link>
+              <Link href="/dashboard" className="hover:text-oriwan-text">팀 보드 보기</Link>
             </div>
           </div>
         </div>
@@ -647,8 +647,8 @@ export default function AdminPage() {
               <Image src="/oriwan-logo-v2.png" alt="스내사 3기 대시보드" width={36} height={36} className="object-cover" />
             </div>
             <div>
-              <h1 className="text-base sm:text-lg font-black tracking-tight leading-none">스내사 3기 관리자</h1>
-              <p className="text-[11px] text-white/55 mt-1">참가자 · 기록 운영</p>
+              <h1 className="text-base sm:text-lg font-black tracking-tight leading-none">스내사 3기 어드민</h1>
+              <p className="text-[11px] text-white/55 mt-1">멤버와 러닝 기록을 빠르게 정리해요</p>
             </div>
           </div>
           <div className="flex items-center gap-2.5">
@@ -670,8 +670,8 @@ export default function AdminPage() {
           <div className="relative flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>
               <p className="mb-2 inline-flex rounded-full bg-white/10 px-3 py-1 text-[11px] font-black text-lime-200 ring-1 ring-white/10">SNASA RUNNING CLUB · 3RD</p>
-              <h2 className="text-3xl sm:text-4xl font-black tracking-[-0.04em]">스내사 3기 대시보드</h2>
-              <p className="mt-2 max-w-2xl text-sm text-white/60">날짜를 누르거나 이미지를 한꺼번에 넣으면 참가자와 기록을 자동으로 정리합니다.</p>
+              <h2 className="text-3xl sm:text-4xl font-black tracking-[-0.04em]">오늘의 러닝을 착착 정리해요</h2>
+              <p className="mt-2 max-w-2xl text-sm text-white/60">날짜를 누르거나 이미지를 한꺼번에 넣으면 멤버와 기록을 빠르게 정리합니다.</p>
             </div>
             <div className="grid grid-cols-2 gap-2 text-right sm:grid-cols-3">
               <div className="rounded-2xl bg-white/10 px-4 py-3 ring-1 ring-white/10">
@@ -679,7 +679,7 @@ export default function AdminPage() {
                 <p className="text-sm font-black text-white">{today}</p>
               </div>
               <div className="rounded-2xl bg-lime-300 px-4 py-3 text-slate-950">
-                <p className="text-[10px] font-bold opacity-60">인증률</p>
+                <p className="text-[10px] font-bold opacity-60">완료율</p>
                 <p className="text-sm font-black">{participants.length ? Math.round((certifiedToday / participants.length) * 100) : 0}%</p>
               </div>
               <div className="col-span-2 rounded-2xl bg-white/10 px-4 py-3 ring-1 ring-white/10 sm:col-span-1">
@@ -690,8 +690,8 @@ export default function AdminPage() {
           </div>
           <div className="relative mt-4 grid gap-2 sm:grid-cols-3">
             <button type="button" onClick={() => openUploadForDate(effectiveToday)} className="rounded-2xl bg-lime-300 px-4 py-3 text-left text-sm font-black text-slate-950">
-              이미지 등록
-              <span className="mt-1 block text-[11px] font-bold opacity-65">참가자별 여러 장 등록</span>
+              이미지 올리기
+              <span className="mt-1 block text-[11px] font-bold opacity-65">멤버별 여러 장 등록</span>
             </button>
             <button
               type="button"
@@ -701,12 +701,12 @@ export default function AdminPage() {
               }}
               className="rounded-2xl bg-white/10 px-4 py-3 text-left text-sm font-black text-white ring-1 ring-white/10"
             >
-              참가자 관리
+              멤버 관리
               <span className="mt-1 block text-[11px] font-bold text-white/50">추가 · 변경 · 삭제</span>
             </button>
             <button type="button" onClick={() => setAdminModal("record")} className="rounded-2xl bg-white/10 px-4 py-3 text-left text-sm font-black text-white ring-1 ring-white/10">
-              수동 입력
-              <span className="mt-1 block text-[11px] font-bold text-white/50">OCR이 어려울 때만</span>
+              직접 입력
+              <span className="mt-1 block text-[11px] font-bold text-white/50">이미지가 흐릴 때 빠르게</span>
             </button>
           </div>
         </section>
@@ -715,14 +715,14 @@ export default function AdminPage() {
           <section className="rounded-[24px] border border-amber-200 bg-amber-50 px-5 py-4 text-sm font-bold text-amber-950">
             {setupMessage}
             <span className="mt-1 block text-xs font-semibold text-amber-800">
-              저장소의 docs/supabase-schema.sql 파일 전체를 Supabase Dashboard의 SQL Editor에서 실행하면 연결됩니다.
+              저장소의 docs/supabase-schema.sql 파일 전체를 Supabase Dashboard의 SQL Editor에서 실행하면 바로 연결됩니다.
             </span>
           </section>
         )}
 
         <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <SummaryCard title="전체 참가자" value={`${participants.length}명`} />
-          <SummaryCard title="오늘 인증" value={`${certifiedToday}/${participants.length}`} />
+          <SummaryCard title="전체 멤버" value={`${participants.length}명`} />
+          <SummaryCard title="오늘 완료" value={`${certifiedToday}/${participants.length}`} />
           <SummaryCard title="오늘 거리" value={`${totalDistance.toFixed(1)}km`} />
           <SummaryCard title="오늘 시간" value={secondsToTime(totalTime)} />
         </section>
@@ -731,16 +731,16 @@ export default function AdminPage() {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-lg font-black text-oriwan-text">러닝 인증관리</h2>
+                <h2 className="text-lg font-black text-oriwan-text">오늘의 러닝 체크</h2>
                 <div className="group relative">
                   <span className="flex h-5 w-5 items-center justify-center rounded-full bg-oriwan-surface-light text-[11px] font-black text-oriwan-text-muted">?</span>
                   <div className="pointer-events-none absolute left-0 top-7 z-10 hidden w-64 rounded-2xl bg-slate-950 p-3 text-[11px] font-bold leading-5 text-white/80 shadow-2xl group-hover:block">
-                    선택한 날짜의 인증 상태만 압축해서 보여줍니다. 참가자 카드를 누르면 해당 날짜와 참가자로 이미지 등록이 바로 열려요.
+                    선택한 날짜의 러닝 상태를 압축해서 보여줘요. 멤버 카드를 누르면 해당 날짜와 멤버로 이미지 등록이 바로 열립니다.
                   </div>
                 </div>
               </div>
               <p className="mt-1 text-xs text-oriwan-text-muted">
-                {targetDate} · 인증 {adminBoard.certified}명 · 미인증 {adminBoard.missing}명{adminBoard.review ? ` · 검수 ${adminBoard.review}명` : ""}
+                {targetDate} · 완료 {adminBoard.certified}명 · 아직 {adminBoard.missing}명{adminBoard.review ? ` · 확인 ${adminBoard.review}명` : ""}
               </p>
             </div>
             <div className="flex flex-col gap-2 sm:min-w-[280px] sm:items-end">
@@ -760,7 +760,7 @@ export default function AdminPage() {
                 onClick={() => openUploadForDate(targetDate)}
                 className="w-full rounded-xl bg-slate-950 px-3 py-2 text-xs font-black text-lime-200 sm:w-auto"
               >
-                선택일 이미지 등록
+                이 날짜 이미지 올리기
               </button>
             </div>
           </div>
@@ -786,7 +786,7 @@ export default function AdminPage() {
                 key={card.participant.id}
                 type="button"
                 onClick={() => openUploadForDate(targetDate, card.participant.id)}
-                title={`${card.participant.name} · ${targetDate} · ${adminBoardStatusLabel(card.status)} · 이미지 등록`}
+                title={`${card.participant.name} · ${targetDate} · ${adminBoardStatusLabel(card.status)} · 이미지 올리기`}
                 className={`min-h-[60px] rounded-2xl px-2 py-2 text-center ring-1 transition hover:-translate-y-0.5 hover:ring-lime-300 ${adminBoardCardClass(card.status)}`}
               >
                 <span
@@ -806,7 +806,7 @@ export default function AdminPage() {
             ))}
             {!adminBoardCards.length && !loading && (
               <p className="col-span-3 rounded-2xl bg-white px-4 py-8 text-center text-sm text-oriwan-text-muted">
-                조건에 맞는 참가자가 없습니다.
+                지금 조건에 맞는 멤버가 없어요.
               </p>
             )}
           </div>
@@ -815,9 +815,9 @@ export default function AdminPage() {
         <section className="grid lg:grid-cols-[0.9fr_1.1fr] gap-5">
           <div className="card p-4">
             <div className="mb-4">
-              <h2 className="text-lg font-black text-oriwan-text">성장 점수</h2>
+              <h2 className="text-lg font-black text-oriwan-text">러닝 에너지 점수</h2>
               <p className="mt-1 text-xs text-oriwan-text-muted">
-                인증 +{SCORE_WEIGHTS.certification}, 꾸준함 +{SCORE_WEIGHTS.consistency}, 성장 +{SCORE_WEIGHTS.growth}을 크게 반영합니다.
+                인증 +{SCORE_WEIGHTS.certification}, 꾸준함 +{SCORE_WEIGHTS.consistency}, 성장 +{SCORE_WEIGHTS.growth}을 크게 반영해요.
               </p>
             </div>
             <div className="space-y-2">
@@ -828,7 +828,7 @@ export default function AdminPage() {
                     <div className="min-w-0">
                       <p className="truncate text-sm font-bold text-oriwan-text">{row.participant.name}</p>
                       <p className="text-[11px] text-oriwan-text-muted">
-                        인증 {row.certifiedCount}회 · 연속 {row.longestStreak}일 · 성장 {row.growthDays}일
+                        완료 {row.certifiedCount}회 · 연속 {row.longestStreak}일 · 성장 {row.growthDays}일
                       </p>
                     </div>
                     <div className="flex shrink-0 flex-col items-end gap-1">
@@ -837,7 +837,7 @@ export default function AdminPage() {
                     </div>
                   </div>
                   <div className="mt-2 grid grid-cols-5 gap-1 text-center text-[10px] font-black text-oriwan-text-muted">
-                    <span className="rounded-lg bg-white px-1 py-1">인증 {row.breakdown.certification}</span>
+                    <span className="rounded-lg bg-white px-1 py-1">완료 {row.breakdown.certification}</span>
                     <span className="rounded-lg bg-white px-1 py-1">꾸준 {row.breakdown.consistency}</span>
                     <span className="rounded-lg bg-white px-1 py-1">성장 {row.breakdown.growth}</span>
                     <span className="rounded-lg bg-white px-1 py-1">시간 {row.breakdown.time}</span>
@@ -845,15 +845,15 @@ export default function AdminPage() {
                   </div>
                 </div>
               ))}
-              {!scoreRows.length && !loading && <p className="py-8 text-center text-sm text-oriwan-text-muted">아직 표시할 점수가 없습니다.</p>}
+              {!scoreRows.length && !loading && <p className="py-8 text-center text-sm text-oriwan-text-muted">기록이 쌓이면 에너지 점수가 채워져요.</p>}
             </div>
           </div>
 
           <div className="card p-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
               <div>
-                <h2 className="text-lg font-black text-oriwan-text">개인별 거리/시간 그래프</h2>
-                <p className="text-xs text-oriwan-text-muted mt-1">파란 선은 거리, 초록 선은 시간입니다.</p>
+                <h2 className="text-lg font-black text-oriwan-text">멤버별 러닝 그래프</h2>
+                <p className="text-xs text-oriwan-text-muted mt-1">파란 선은 거리, 초록 선은 시간이에요.</p>
               </div>
               <select value={selectedParticipantId} onChange={(e) => setSelectedParticipantId(e.target.value)} className="rounded-xl border border-oriwan-border px-3 py-2 text-sm bg-white">
                 {participants.map((participant) => <option key={participant.id} value={participant.id}>{participant.name}</option>)}
@@ -868,7 +868,7 @@ export default function AdminPage() {
                   {graph.distancePoints.map((point, index) => <circle key={`d${index}`} cx={point.x} cy={point.y} r="4" fill="#BFDBFE" />)}
                 </svg>
               ) : (
-                <div className="h-48 flex items-center justify-center text-sm text-white/50">기록이 생기면 그래프가 표시됩니다.</div>
+                <div className="h-48 flex items-center justify-center text-sm text-white/50">기록이 쌓이면 그래프가 살아나요.</div>
               )}
             </div>
           </div>
@@ -877,8 +877,8 @@ export default function AdminPage() {
         <details className="card overflow-hidden p-4">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
             <span>
-              <span className="block text-lg font-black text-oriwan-text">기록 수정</span>
-              <span className="mt-1 block text-xs text-oriwan-text-muted">필요할 때만 열어서 상태, 날짜, 거리, 시간을 보정합니다.</span>
+              <span className="block text-lg font-black text-oriwan-text">기록 다듬기</span>
+              <span className="mt-1 block text-xs text-oriwan-text-muted">필요할 때만 열어서 상태, 날짜, 거리, 시간을 빠르게 보정해요.</span>
             </span>
             <button type="button" onClick={(event) => { event.preventDefault(); loadData(); }} className="rounded-xl bg-oriwan-surface-light px-3 py-2 text-xs font-bold text-oriwan-text-muted">새로고침</button>
           </summary>
@@ -887,7 +887,7 @@ export default function AdminPage() {
               <thead className="text-oriwan-text-muted">
                 <tr className="border-b border-oriwan-border">
                   <th className="py-2 pr-2">상태</th>
-                  <th className="py-2 pr-2">참가자</th>
+                  <th className="py-2 pr-2">멤버</th>
                   <th className="py-2 pr-2">날짜</th>
                   <th className="py-2 pr-2">거리</th>
                   <th className="py-2 pr-2">시간</th>
@@ -905,8 +905,8 @@ export default function AdminPage() {
                     <tr key={record.id} className="border-b border-oriwan-border/60 align-top">
                       <td className="py-2 pr-2">
                         <select value={draft.status} onChange={(e) => updateDraft(record.id, { status: e.target.value as RecordStatus })} className={`rounded-lg border px-2 py-1.5 font-bold ${statusClass(draft.status)}`}>
-                          <option value="certified">인증</option>
-                          <option value="needs_review">확인 필요</option>
+                          <option value="certified">완료</option>
+                          <option value="needs_review">확인 중</option>
                           <option value="rejected">반려</option>
                         </select>
                       </td>
@@ -929,7 +929,7 @@ export default function AdminPage() {
                 })}
               </tbody>
             </table>
-            {!records.length && !loading && <p className="py-10 text-center text-sm text-oriwan-text-muted">아직 기록이 없습니다. 이미지를 업로드하거나 수동으로 입력해주세요.</p>}
+            {!records.length && !loading && <p className="py-10 text-center text-sm text-oriwan-text-muted">아직 기록이 없어요. 이미지를 올리거나 직접 입력해 첫 기록을 채워볼게요.</p>}
           </div>
         </details>
 
@@ -940,9 +940,9 @@ export default function AdminPage() {
                 <div>
                   <p className="text-[11px] font-black uppercase tracking-[0.12em] text-oriwan-primary">Bulk OCR Upload</p>
                   <h2 className="mt-1 text-xl font-black tracking-[-0.04em] text-oriwan-text">
-                    {uploadParticipant ? `${uploadParticipant.name}님 이미지 등록` : "이미지 일괄 등록"}
+                    {uploadParticipant ? `${uploadParticipant.name}님 이미지 올리기` : "이미지 한 번에 올리기"}
                   </h2>
-                  <p className="mt-1 text-xs leading-5 text-oriwan-text-muted">NRC, Garmin, Strava 캡처에서 날짜, 거리, 시간을 자동으로 읽습니다.</p>
+                  <p className="mt-1 text-xs leading-5 text-oriwan-text-muted">NRC, Garmin, Strava 캡처에서 날짜, 거리, 시간을 가볍게 읽어옵니다.</p>
                 </div>
                 <button
                   type="button"
@@ -955,7 +955,7 @@ export default function AdminPage() {
 
               <div className="grid gap-3 sm:grid-cols-[1.1fr_0.9fr]">
                 <label className="text-xs font-bold text-oriwan-text-muted">
-                  참가자
+                  멤버
                   <select
                     value={uploadParticipantId}
                     onChange={(e) => {
@@ -965,7 +965,7 @@ export default function AdminPage() {
                     }}
                     className="mt-1 block w-full rounded-2xl border border-oriwan-border bg-white px-4 py-3 text-sm font-black text-oriwan-text"
                   >
-                    <option value="">이미지에서 이름 찾기</option>
+                    <option value="">이미지에서 이름 찾아보기</option>
                     {participants.map((participant) => (
                       <option key={participant.id} value={participant.id}>{participant.name}</option>
                     ))}
@@ -973,7 +973,7 @@ export default function AdminPage() {
                 </label>
 
                 <label className="text-xs font-bold text-oriwan-text-muted">
-                  날짜가 안 보일 때만 적용
+                  날짜가 안 보일 때만 쓸 날짜
                   <input
                     type="date"
                     min={CHALLENGE_START_DATE}
@@ -993,13 +993,13 @@ export default function AdminPage() {
                   const droppedFiles = Array.from(event.dataTransfer.files).filter((file) => file.type.startsWith("image/"));
                   setFiles(droppedFiles);
                   setAnalysisResults([]);
-                  setAnalysisMessage(droppedFiles.length ? `${droppedFiles.length}장 선택됨. 자동 추출을 눌러주세요.` : "이미지 파일만 업로드할 수 있어요.");
+                  setAnalysisMessage(droppedFiles.length ? `${droppedFiles.length}장 선택됐어요. 자동 기록하기를 눌러주세요.` : "이미지 파일만 올릴 수 있어요.");
                 }}
               >
                 <p className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-950 text-lg font-black text-lime-200">{files.length || "+"}</p>
-                <p className="text-base font-black text-oriwan-text">여러 이미지를 한 번에 올리세요</p>
+                <p className="text-base font-black text-oriwan-text">러닝 이미지를 한 번에 올려주세요</p>
                 <p className="mt-1 text-xs font-semibold leading-5 text-oriwan-text-muted">
-                  참가자를 선택하면 이미지에 이름이 없어도 해당 참가자 기록으로 저장됩니다.
+                  멤버를 선택하면 이미지에 이름이 없어도 해당 멤버 기록으로 저장돼요.
                 </p>
                 <input
                   type="file"
@@ -1013,7 +1013,7 @@ export default function AdminPage() {
                   className="mx-auto mt-4 block max-w-full text-sm text-oriwan-text-muted file:mr-4 file:rounded-xl file:border-0 file:bg-slate-950 file:px-4 file:py-2 file:text-sm file:font-bold file:text-lime-200"
                 />
                 <button onClick={analyzeImages} disabled={!files.length || analyzing} className="btn-primary mt-4 w-full py-3 text-sm disabled:opacity-40">
-                  {analyzing ? "자동으로 읽는 중..." : `자동으로 기록하기${files.length ? ` (${files.length})` : ""}`}
+                  {analyzing ? "이미지 읽는 중..." : `자동으로 기록하기${files.length ? ` (${files.length})` : ""}`}
                 </button>
               </div>
 
@@ -1032,7 +1032,7 @@ export default function AdminPage() {
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
                             <p className="truncate text-sm font-black text-oriwan-text">
-                              {result.participant_name || uploadParticipant?.name || "참가자 확인 필요"}
+                              {result.participant_name || uploadParticipant?.name || "멤버 확인하기"}
                             </p>
                             <p className="mt-1 truncate text-[11px] font-semibold text-oriwan-text-muted">{result.file_name}</p>
                           </div>
@@ -1053,7 +1053,7 @@ export default function AdminPage() {
               )}
 
               <p className="mt-4 rounded-2xl bg-oriwan-surface-light px-4 py-3 text-[11px] font-bold leading-5 text-oriwan-text-muted">
-                날짜가 이미지에 있으면 자동 추출 날짜가 우선입니다. 날짜가 없으면 위 날짜로 임시 저장되고 확인 필요로 표시됩니다.
+                이미지에 날짜가 있으면 그 날짜를 우선으로 저장해요. 날짜가 없으면 위 날짜로 임시 저장하고 확인 상태로 남겨둡니다.
               </p>
             </div>
           </div>
@@ -1064,8 +1064,8 @@ export default function AdminPage() {
             <div className="card max-h-[88vh] w-full max-w-2xl overflow-y-auto p-5 sm:p-6">
               <div className="mb-4 flex items-start justify-between gap-3">
                 <div>
-                  <h2 className="text-xl font-black tracking-[-0.04em] text-oriwan-text">참가자 관리</h2>
-                  <p className="mt-1 text-xs text-oriwan-text-muted">이름을 추가하거나 기존 참가자를 수정/삭제합니다.</p>
+                  <h2 className="text-xl font-black tracking-[-0.04em] text-oriwan-text">멤버 관리</h2>
+                  <p className="mt-1 text-xs text-oriwan-text-muted">이름을 추가하고, 필요하면 빠르게 바꾸거나 정리해요.</p>
                 </div>
                 <button
                   type="button"
@@ -1080,17 +1080,17 @@ export default function AdminPage() {
               </div>
 
               <div className="rounded-3xl bg-oriwan-surface-light p-4">
-                <p className="mb-3 text-xs font-black text-oriwan-text">{editingParticipant ? "참가자 수정" : "새 참가자 추가"}</p>
+                <p className="mb-3 text-xs font-black text-oriwan-text">{editingParticipant ? "멤버 이름 수정" : "새 멤버 추가"}</p>
                 <div className="grid gap-2">
                   <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="이름" className="rounded-xl border border-oriwan-border px-3 py-2.5 text-sm" />
                 </div>
                 <div className="mt-3 flex gap-2">
                   <button type="button" onClick={saveParticipant} className="btn-primary flex-1 py-3 text-sm">
-                    {editingParticipant ? "수정 저장" : "참가자 추가"}
+                    {editingParticipant ? "수정 저장" : "멤버 추가"}
                   </button>
                   {editingParticipant && (
                     <button type="button" onClick={resetParticipantForm} className="rounded-2xl bg-white px-4 py-3 text-sm font-black text-oriwan-text">
-                      새로 입력
+                      새 이름 입력
                     </button>
                   )}
                 </div>
@@ -1112,7 +1112,7 @@ export default function AdminPage() {
                     </div>
                   </div>
                 ))}
-                {!participants.length && <p className="rounded-2xl bg-white px-4 py-6 text-center text-sm text-oriwan-text-muted">아직 참가자가 없습니다.</p>}
+                {!participants.length && <p className="rounded-2xl bg-white px-4 py-6 text-center text-sm text-oriwan-text-muted">아직 멤버가 없어요. 첫 멤버부터 추가해볼까요?</p>}
               </div>
             </div>
           </div>
@@ -1123,8 +1123,8 @@ export default function AdminPage() {
             <div className="card w-full max-w-xl p-5 sm:p-6">
               <div className="mb-4 flex items-start justify-between gap-3">
                 <div>
-                  <h2 className="text-xl font-black tracking-[-0.04em] text-oriwan-text">기록 수동 입력</h2>
-                  <p className="mt-1 text-xs text-oriwan-text-muted">참가자, 날짜, 거리, 시간을 입력하면 인증 기록으로 저장됩니다.</p>
+                  <h2 className="text-xl font-black tracking-[-0.04em] text-oriwan-text">기록 직접 입력</h2>
+                  <p className="mt-1 text-xs text-oriwan-text-muted">멤버, 날짜, 거리, 시간을 넣으면 러닝 기록으로 바로 저장돼요.</p>
                 </div>
                 <button type="button" onClick={() => setAdminModal(null)} className="rounded-full bg-oriwan-surface-light px-3 py-1.5 text-xs font-black text-oriwan-text-muted">
                   닫기
@@ -1132,7 +1132,7 @@ export default function AdminPage() {
               </div>
               <div className="grid gap-2 sm:grid-cols-2">
                 <select value={manualParticipantId} onChange={(e) => setManualParticipantId(e.target.value)} className="rounded-xl border border-oriwan-border bg-white px-3 py-2.5 text-sm">
-                  <option value="">참가자 선택</option>
+                  <option value="">멤버 선택</option>
                   {participants.map((participant) => <option key={participant.id} value={participant.id}>{participant.name}</option>)}
                 </select>
                 <input type="date" min={CHALLENGE_START_DATE} max={CHALLENGE_END_DATE} value={manualDate} onChange={(e) => setManualDate(e.target.value)} className="rounded-xl border border-oriwan-border px-3 py-2.5 text-sm" />
@@ -1140,7 +1140,7 @@ export default function AdminPage() {
                 <input value={manualDuration} onChange={(e) => setManualDuration(e.target.value)} placeholder="시간 예: 32:10" className="rounded-xl border border-oriwan-border px-3 py-2.5 text-sm" />
               </div>
               <button type="button" onClick={saveManualRecord} className="btn-primary mt-4 w-full py-3 text-sm">
-                기록 저장
+                기록 저장하기
               </button>
             </div>
           </div>

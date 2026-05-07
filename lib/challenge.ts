@@ -3,7 +3,7 @@ export const ACTUAL_CERTIFICATION_START_DATE = "2026-05-05";
 export const CHALLENGE_START_DATE = "2026-05-01";
 export const CHALLENGE_DAYS = 100;
 export const CHALLENGE_END_DATE = "2026-08-08";
-export const CHALLENGE_DATE_ERROR = `인증일은 ${CHALLENGE_START_DATE}부터 ${CHALLENGE_END_DATE}까지 입력할 수 있습니다.`;
+export const CHALLENGE_DATE_ERROR = `러닝 기록은 ${CHALLENGE_START_DATE}부터 ${CHALLENGE_END_DATE}까지만 남길 수 있어요.`;
 
 export function clampToChallengeStart(date: string) {
   return date < CHALLENGE_START_DATE ? CHALLENGE_START_DATE : date;

@@ -60,10 +60,10 @@ async function analyzeImage(image: UploadedImage, targetDate?: string | null) {
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
   const { data: { user }, error } = await supabase.auth.getUser();
-  if (error || !user) return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 });
+  if (error || !user) return NextResponse.json({ error: "이미지 기록을 올리려면 먼저 로그인해주세요." }, { status: 401 });
 
   const runnerName = typeof user.user_metadata?.runner_name === "string" ? user.user_metadata.runner_name.trim() : "";
-  if (!runnerName) return NextResponse.json({ error: "이름을 먼저 저장해야 이미지 기록을 연결할 수 있습니다." }, { status: 400 });
+  if (!runnerName) return NextResponse.json({ error: "이름을 먼저 연결하면 이미지 기록도 바로 이어져요." }, { status: 400 });
 
   try {
     const body = await request.json();
@@ -72,10 +72,10 @@ export async function POST(request: NextRequest) {
     const images = rawImages.filter(validImage).slice(0, MAX_IMAGES);
 
     if (!images.length) {
-      return NextResponse.json({ error: "NRC나 Garmin 같은 러닝 기록 이미지를 업로드해주세요." }, { status: 400 });
+      return NextResponse.json({ error: "NRC나 Garmin 같은 러닝 기록 이미지를 올려주세요." }, { status: 400 });
     }
     if (rawImages.length > MAX_IMAGES) {
-      return NextResponse.json({ error: `개인 기록 이미지는 한 번에 ${MAX_IMAGES}장까지 업로드할 수 있습니다.` }, { status: 400 });
+      return NextResponse.json({ error: `개인 기록 이미지는 한 번에 ${MAX_IMAGES}장까지 올릴 수 있어요.` }, { status: 400 });
     }
     if (images.length !== rawImages.length) {
       return NextResponse.json({ error: "지원하지 않는 이미지 형식이거나 파일 용량이 너무 큽니다." }, { status: 400 });
@@ -92,7 +92,7 @@ export async function POST(request: NextRequest) {
 
     const participant = await findParticipantByRunnerName(service, adminUserId, runnerName);
     if (!participant) {
-      return NextResponse.json({ error: "저장한 이름이 어드민 참가자명과 일치하지 않습니다." }, { status: 404 });
+      return NextResponse.json({ error: "저장한 이름이 어드민의 멤버 이름과 달라요. 띄어쓰기까지 맞춰주세요." }, { status: 404 });
     }
 
     const results = [];
@@ -127,7 +127,7 @@ export async function POST(request: NextRequest) {
         continue;
       }
       if (!distanceKm || distanceKm <= 0 || !durationSeconds || durationSeconds <= 0) {
-        failed.push({ file_name: image.name, error: "이미지에서 거리 또는 시간을 찾지 못했어요. 수동 입력으로 보완해주세요.", extracted });
+        failed.push({ file_name: image.name, error: "이미지에서 거리 또는 시간을 찾지 못했어요. 직접 입력으로 가볍게 보완해주세요.", extracted });
         continue;
       }
 

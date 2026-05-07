@@ -50,9 +50,9 @@ export async function GET(request: NextRequest) {
   if (error) {
     console.error("Records query error:", error);
     if (isMissingTableError(error)) {
-      return NextResponse.json(missingSchemaResponse("기록 테이블이 아직 없습니다."), { status: 503 });
+      return NextResponse.json(missingSchemaResponse("러닝 기록 테이블이 아직 준비되지 않았어요."), { status: 503 });
     }
-    return NextResponse.json({ error: "기록 조회 실패" }, { status: 500 });
+    return NextResponse.json({ error: "러닝 기록을 불러오지 못했어요." }, { status: 500 });
   }
 
   return NextResponse.json({ records: data || [] });
@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
   const paceSeconds = sanitizeNumber(body.pace_seconds_per_km) ?? calculatePaceSeconds(distanceKm, durationSeconds);
 
   if (!participantId || !recordDate) {
-    return NextResponse.json({ error: "참가자와 날짜가 필요합니다." }, { status: 400 });
+    return NextResponse.json({ error: "멤버와 날짜를 함께 선택해주세요." }, { status: 400 });
   }
   if (!isWithinChallengeWindow(recordDate)) {
     return NextResponse.json({ error: CHALLENGE_DATE_ERROR }, { status: 400 });
@@ -103,9 +103,9 @@ export async function POST(request: NextRequest) {
   if (error) {
     console.error("Record save error:", error);
     if (isMissingTableError(error)) {
-      return NextResponse.json(missingSchemaResponse("기록 테이블이 아직 없습니다."), { status: 503 });
+      return NextResponse.json(missingSchemaResponse("러닝 기록 테이블이 아직 준비되지 않았어요."), { status: 503 });
     }
-    return NextResponse.json({ error: "기록 저장 실패" }, { status: 500 });
+    return NextResponse.json({ error: "러닝 기록을 저장하지 못했어요." }, { status: 500 });
   }
 
   return NextResponse.json({ success: true, id: data.id });

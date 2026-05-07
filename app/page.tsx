@@ -27,18 +27,18 @@ export default async function Home() {
             스내사 3기
           </h1>
           <p className="animate-fade-up text-[13px] text-oriwan-primary font-semibold tracking-wide mb-8" style={{ animationDelay: "0.08s" }}>
-            러닝 인증 현황을 한눈에 보는 실시간 보드
+            오늘의 러닝 에너지를 함께 확인해요
           </p>
 
           <div className="animate-fade-up space-y-3" style={{ animationDelay: "0.12s" }}>
             <Link href="/dashboard" className="btn-primary w-full">
-              참가자 대시보드 보기
+              오늘 인증 보러가기
             </Link>
             <Link href="/me" className="btn-google w-full">
-              개인 기록 입력
+              내 기록 올리기
             </Link>
             <Link href="/admin" className="btn-google w-full">
-              관리자 페이지
+              어드민 접속
             </Link>
           </div>
         </div>

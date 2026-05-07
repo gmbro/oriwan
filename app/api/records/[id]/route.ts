@@ -49,7 +49,7 @@ export async function PATCH(
 
   if (error) {
     console.error("Record update error:", error);
-    return NextResponse.json({ error: "기록 수정 실패" }, { status: 500 });
+    return NextResponse.json({ error: "러닝 기록을 수정하지 못했어요." }, { status: 500 });
   }
 
   return NextResponse.json({ success: true });
@@ -72,7 +72,7 @@ export async function DELETE(
 
   if (error) {
     console.error("Record delete error:", error);
-    return NextResponse.json({ error: "기록 삭제 실패" }, { status: 500 });
+    return NextResponse.json({ error: "러닝 기록을 삭제하지 못했어요." }, { status: 500 });
   }
 
   return NextResponse.json({ success: true });

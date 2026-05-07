@@ -16,14 +16,14 @@ export async function requireAdminUser(supabase: AuthReadable) {
   if (!user) {
     return {
       user: null,
-      response: NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 }),
+      response: NextResponse.json({ error: "어드민에 들어가려면 먼저 로그인해주세요." }, { status: 401 }),
     };
   }
 
   if (!isAdminEmail(user.email)) {
     return {
       user: null,
-      response: NextResponse.json({ error: "관리자 권한이 필요합니다." }, { status: 403 }),
+      response: NextResponse.json({ error: "지정된 관리자만 들어올 수 있어요." }, { status: 403 }),
     };
   }
 

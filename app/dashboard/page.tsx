@@ -45,12 +45,12 @@ const actualCertificationEndDate = toIsoDate(addDays(new Date(`${ACTUAL_CERTIFIC
 const effectiveToday = today > actualCertificationEndDate ? actualCertificationEndDate : today;
 const boardFilterOptions: { value: BoardFilter; label: string }[] = [
   { value: "all", label: "전체" },
-  { value: "certified", label: "인증" },
-  { value: "missing", label: "미인증" },
+  { value: "certified", label: "완료" },
+  { value: "missing", label: "아직" },
 ];
 const dashboardTabOptions: { value: DashboardTab; label: string }[] = [
-  { value: "today", label: "오늘 현황" },
-  { value: "trend", label: "인증 흐름" },
+  { value: "today", label: "오늘의 팀" },
+  { value: "trend", label: "100일 리듬" },
 ];
 
 function formatLastUpdated(value?: string) {
@@ -85,7 +85,7 @@ function publicBoardStatus(record?: RunRecord): PublicBoardStatus {
 }
 
 function publicStatusLabel(status: PublicBoardStatus) {
-  return status === "certified" ? "인증" : "미인증";
+  return status === "certified" ? "완료" : "아직";
 }
 
 function publicCardClass(status: PublicBoardStatus) {
@@ -109,7 +109,7 @@ export default function DashboardPage() {
     try {
       const response = await fetch("/api/public-dashboard?days=100", { cache: "no-store" });
       const json = await response.json();
-      if (!response.ok) throw new Error(json.error || "대시보드 조회 실패");
+      if (!response.ok) throw new Error(json.error || "오늘의 보드를 불러오지 못했어요.");
       setData(json);
       setError("");
     } catch (err) {
@@ -235,13 +235,13 @@ export default function DashboardPage() {
             <Image src="/oriwan-logo-v2.png" alt="스내사 3기" width={38} height={38} className="rounded-2xl bg-lime-300" />
             <div>
               <h1 className="text-base font-black tracking-[-0.03em] sm:text-lg">스내사 3기 대시보드</h1>
-              <p className="text-[11px] font-semibold text-white/50">오늘의 러닝 인증 현황</p>
+              <p className="text-[11px] font-semibold text-white/50">함께 뛰는 오늘의 인증 보드</p>
             </div>
           </div>
           <div className="text-right">
-            <p className="text-[10px] font-black text-white/45">참가자 {dashboard.participants.length}명</p>
+            <p className="text-[10px] font-black text-white/45">함께 뛰는 멤버 {dashboard.participants.length}명</p>
             <Link href="/me" className="mt-1 inline-flex rounded-full bg-white/10 px-3 py-2 text-xs font-black text-white/80 ring-1 ring-white/10 hover:text-white">
-              내 기록 입력
+              내 기록 올리기
             </Link>
           </div>
         </div>
@@ -256,24 +256,24 @@ export default function DashboardPage() {
               <div>
                 <div className="mb-3 flex max-w-full flex-nowrap gap-1.5 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] sm:gap-2 [&::-webkit-scrollbar]:hidden">
                   <p className="inline-flex shrink-0 whitespace-nowrap rounded-full bg-white/10 px-2.5 py-1 text-[9px] font-black text-lime-200 ring-1 ring-white/10 sm:px-3 sm:text-[11px]">
-                    운영기간 · {shortDateRange(CERTIFICATION_DISPLAY_START_DATE, CHALLENGE_END_DATE)}
+                    함께 뛰는 기간 · {shortDateRange(CERTIFICATION_DISPLAY_START_DATE, CHALLENGE_END_DATE)}
                   </p>
                   <p className="inline-flex shrink-0 whitespace-nowrap rounded-full bg-lime-300 px-2.5 py-1 text-[9px] font-black text-slate-950 sm:px-3 sm:text-[11px]">
-                    인증시작 {certificationDayLabel()} · {shortDate(ACTUAL_CERTIFICATION_START_DATE)}부터
+                    인증 시작 {certificationDayLabel()} · {shortDate(ACTUAL_CERTIFICATION_START_DATE)}부터
                   </p>
                 </div>
                 <h2 className="max-w-full whitespace-nowrap text-[clamp(1.95rem,8vw,3.75rem)] font-black leading-[1.05] tracking-[-0.07em]">
-                  오늘, 얼마나 인증했을까?
+                  오늘, 얼마나 함께 뛰었을까?
                 </h2>
                 <p className="mt-3 max-w-xl text-sm leading-6 text-white/55">
-                  인증 기록은 매일 정오에 업데이트됩니다.
+                  인증 기록은 매일 정오에 산뜻하게 업데이트됩니다.
                 </p>
               </div>
 
               <div className="rounded-[28px] bg-white/10 p-4 ring-1 ring-white/10">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-xs font-black text-white/45">오늘 인증률</p>
+                    <p className="text-xs font-black text-white/45">오늘 함께한 비율</p>
                     <p className="mt-1 text-5xl font-black tracking-[-0.08em] text-lime-200">{dashboard.completionRate}%</p>
                   </div>
                   <svg viewBox="0 0 120 120" className="h-28 w-28 -rotate-90">
@@ -291,7 +291,7 @@ export default function DashboardPage() {
                   </svg>
                 </div>
                 <p className="mt-2 text-xs font-semibold text-white/50">
-                  {dashboard.todayCertifiedIds.size}/{dashboard.participants.length}명 인증 완료
+                  {dashboard.todayCertifiedIds.size}/{dashboard.participants.length}명 오늘도 완료
                 </p>
               </div>
             </div>
@@ -318,12 +318,12 @@ export default function DashboardPage() {
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <div className="flex items-center gap-2">
-                  <h3 className="text-lg font-black tracking-[-0.03em] text-oriwan-text">오늘의 인증 현황</h3>
+                  <h3 className="text-lg font-black tracking-[-0.03em] text-oriwan-text">오늘의 러닝 체크</h3>
                   <span className="rounded-full bg-lime-100 px-2.5 py-1 text-[11px] font-black text-lime-900">
                     {dashboard.todayCertifiedIds.size}/{dashboard.participants.length}
                   </span>
                 </div>
-                <p className="mt-1 text-xs font-semibold text-oriwan-text-muted">인증한 사람과 아직 남은 사람을 빠르게 나눠 볼 수 있어요.</p>
+                <p className="mt-1 text-xs font-semibold text-oriwan-text-muted">오늘 함께 달린 사람과 아직 남은 사람을 가볍게 확인해요.</p>
               </div>
               <div className="grid grid-cols-3 rounded-full bg-oriwan-surface-light p-1 ring-1 ring-slate-950/5 sm:min-w-[240px]">
                 {boardFilterOptions.map((option) => (
@@ -361,7 +361,7 @@ export default function DashboardPage() {
               ))}
               {!boardRows.length && !loading && (
                 <p className="col-span-3 py-8 text-center text-sm text-oriwan-text-muted md:col-span-5 lg:col-span-7">
-                  조건에 맞는 참가자가 없습니다.
+                  지금 조건에 맞는 멤버가 없어요.
                 </p>
               )}
             </div>
@@ -371,15 +371,15 @@ export default function DashboardPage() {
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
                   <div>
                     <p className="inline-flex rounded-full bg-slate-950 px-3 py-1 text-[11px] font-black text-lime-200">
-                      100일 인증 흐름
+                      100일 러닝 리듬
                     </p>
-                    <h3 className="mt-2 text-xl font-black tracking-[-0.04em] text-oriwan-text">우리의 인증 흐름</h3>
+                    <h3 className="mt-2 text-xl font-black tracking-[-0.04em] text-oriwan-text">우리의 러닝 리듬</h3>
                     <p className="mt-1 text-xs font-semibold text-oriwan-text-muted">
-                      {shortDate(ACTUAL_CERTIFICATION_START_DATE)}부터 100일 동안 쌓이는 인증 기록입니다. 현재 {dashboard.elapsedDays.length}/{CHALLENGE_DAYS}일째예요.
+                      {shortDate(ACTUAL_CERTIFICATION_START_DATE)}부터 100일 동안 차곡차곡 쌓는 러닝 기록이에요. 현재 {dashboard.elapsedDays.length}/{CHALLENGE_DAYS}일째입니다.
                     </p>
                   </div>
                   <p className="text-xs font-black text-oriwan-text-muted">
-                    지금까지 인증 {dashboard.totalCertifiedSlots}건
+                    지금까지 함께한 인증 {dashboard.totalCertifiedSlots}건
                   </p>
                 </div>
 
@@ -389,11 +389,11 @@ export default function DashboardPage() {
                     <p className="mt-1 text-xl font-black tracking-[-0.05em] text-oriwan-text">{dashboard.elapsedDays.length}/{CHALLENGE_DAYS}</p>
                   </div>
                   <div className="rounded-2xl bg-lime-300 px-3 py-3 text-slate-950">
-                    <p className="text-[10px] font-black opacity-60">누적 인증률</p>
+                    <p className="text-[10px] font-black opacity-60">함께한 비율</p>
                     <p className="mt-1 text-xl font-black tracking-[-0.05em]">{dashboard.cumulativeRate}%</p>
                   </div>
                   <div className="rounded-2xl bg-oriwan-surface-light px-3 py-3">
-                    <p className="text-[10px] font-black text-oriwan-text-muted">오늘 인증</p>
+                    <p className="text-[10px] font-black text-oriwan-text-muted">오늘 완료</p>
                     <p className="mt-1 text-xl font-black tracking-[-0.05em] text-oriwan-text">{dashboard.todayCertifiedIds.size}명</p>
                   </div>
                 </div>
@@ -401,8 +401,8 @@ export default function DashboardPage() {
                 <div className="mt-4 rounded-[28px] bg-slate-950 p-4 text-white">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <h4 className="text-sm font-black">주차별 인증률</h4>
-                      <p className="mt-1 text-[11px] font-semibold text-white/45">주마다 얼마나 꾸준히 인증했는지 보여줍니다.</p>
+                      <h4 className="text-sm font-black">주차별 러닝 온도</h4>
+                      <p className="mt-1 text-[11px] font-semibold text-white/45">한 주 한 주, 팀의 꾸준함이 얼마나 뜨거웠는지 보여줘요.</p>
                     </div>
                     <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-black text-lime-200 ring-1 ring-white/10">
                       평균 {dashboard.cumulativeRate}%
@@ -427,7 +427,7 @@ export default function DashboardPage() {
 
                 <div className="mt-4">
                   <div className="mb-3 flex items-center justify-between gap-3">
-                    <h4 className="text-sm font-black text-oriwan-text">참가자별 꾸준함</h4>
+                    <h4 className="text-sm font-black text-oriwan-text">멤버별 꾸준함</h4>
                     <p className="text-[10px] font-black text-oriwan-text-muted">오늘 기준</p>
                   </div>
                   <div className="grid gap-2 md:grid-cols-2">
@@ -447,7 +447,7 @@ export default function DashboardPage() {
                     ))}
                     {!dashboard.participantProgress.length && !loading && (
                       <p className="rounded-2xl bg-white px-4 py-8 text-center text-sm text-oriwan-text-muted md:col-span-2">
-                        참가자를 추가하면 인증 흐름이 표시됩니다.
+                        멤버가 추가되면 러닝 리듬이 바로 채워집니다.
                       </p>
                     )}
                   </div>
@@ -465,14 +465,14 @@ export default function DashboardPage() {
 
         {data?.setup_required && (
           <div className="mt-4 rounded-3xl bg-amber-50 px-5 py-4 text-sm font-bold text-amber-950 ring-1 ring-amber-100">
-            아직 운영 데이터 테이블이 연결되지 않았어요. 관리자가 Supabase 스키마를 적용하면 참가자 현황이 바로 표시됩니다.
+            아직 운영 데이터가 연결되지 않았어요. Supabase 스키마를 적용하면 멤버들의 러닝 보드가 바로 열립니다.
           </div>
         )}
 
         <YoutubeShortsSection />
 
         <p className="py-6 text-center text-[11px] font-semibold text-oriwan-text-muted">
-          {loading ? "데이터를 불러오는 중..." : `마지막 업데이트 ${formatLastUpdated(data?.generated_at)}`}
+          {loading ? "오늘의 기록을 데려오는 중..." : `마지막 업데이트 ${formatLastUpdated(data?.generated_at)}`}
         </p>
       </section>
     </main>

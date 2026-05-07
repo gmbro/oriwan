@@ -22,7 +22,7 @@ function loadImage(url: string) {
 }
 
 export async function imageFileToOptimizedDataUrl(file: File) {
-  if (!file.type.startsWith("image/")) throw new Error("이미지 파일만 업로드할 수 있습니다.");
+  if (!file.type.startsWith("image/")) throw new Error("이미지 파일만 올릴 수 있어요.");
 
   const objectUrl = URL.createObjectURL(file);
   try {
@@ -42,7 +42,7 @@ export async function imageFileToOptimizedDataUrl(file: File) {
       canvas.toBlob(
         (blob) => {
           if (!blob) {
-            reject(new Error("이미지를 최적화하지 못했습니다."));
+            reject(new Error("이미지를 가볍게 줄이지 못했어요."));
             return;
           }
           const optimized = new File([blob], file.name.replace(/\.[^.]+$/, ".jpg"), { type: "image/jpeg" });

@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
         generated_at: new Date().toISOString(),
         participants: [],
         records: [],
-        ...missingSchemaResponse("Supabase에 참가자/기록 테이블을 먼저 만들어야 합니다."),
+        ...missingSchemaResponse("Supabase에 멤버/기록 테이블을 먼저 준비해주세요."),
       });
     }
 
@@ -79,6 +79,6 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("Public dashboard error:", error);
-    return NextResponse.json({ error: "공개 대시보드 조회 실패" }, { status: 500 });
+    return NextResponse.json({ error: "팀 보드를 불러오지 못했어요. 잠시 후 다시 시도해주세요." }, { status: 500 });
   }
 }

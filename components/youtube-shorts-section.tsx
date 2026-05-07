@@ -65,8 +65,8 @@ export function YoutubeShortsSection() {
           <p className="inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-3 py-1 text-[11px] font-black text-rose-600 ring-1 ring-rose-100">
             <IconYoutube size={14} /> Shorts
           </p>
-          <h3 className="mt-2 text-lg font-black tracking-[-0.03em] text-oriwan-text">오늘의 러닝 팁</h3>
-          <p className="mt-1 text-xs leading-5 text-oriwan-text-muted">탭마다 쇼츠 10개를 보여주고, 새로고침하면 다른 조합으로 바뀝니다.</p>
+          <h3 className="mt-2 text-lg font-black tracking-[-0.03em] text-oriwan-text">오늘의 러닝 충전소</h3>
+          <p className="mt-1 text-xs leading-5 text-oriwan-text-muted">러닝, 스트레칭, 리커버리 쇼츠를 가볍게 넘기며 컨디션을 채워요.</p>
         </div>
         <div className="flex min-w-0 items-center gap-2">
           <div className="flex min-w-0 overflow-x-auto rounded-full bg-oriwan-surface-light p-1 ring-1 ring-slate-950/5">
@@ -91,7 +91,7 @@ export function YoutubeShortsSection() {
             onClick={() => setRefreshSeed((value) => value + 1)}
             className="shrink-0 rounded-full bg-white px-3 py-2 text-xs font-black text-oriwan-text ring-1 ring-slate-950/10 transition hover:bg-lime-100"
           >
-            {loading ? "불러오는 중" : "새로고침"}
+            {loading ? "찾는 중" : "새 팁 보기"}
           </button>
         </div>
       </div>
@@ -168,7 +168,7 @@ export function YoutubeShortsSection() {
               rel="noopener noreferrer"
               className="block px-4 py-3 text-center text-xs font-black text-lime-200 transition hover:bg-white/5"
             >
-              YouTube Shorts에서 열기
+              YouTube Shorts로 이어보기
             </a>
           </div>
         </div>

@@ -4,11 +4,11 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "스내사 3기 대시보드",
   description:
-    "러닝 인증 이미지를 업로드하면 AI가 거리, 시간, 날짜를 추출하고 스내사 3기 인증 현황과 러닝 인증보드를 실시간으로 보여줍니다.",
+    "오늘의 러닝 인증을 함께 확인하고, 이미지 기록도 가볍게 올리는 스내사 3기 러닝 보드입니다.",
   keywords: ["스내사", "러닝", "기록인증", "대시보드", "OCR", "챌린지"],
   openGraph: {
     title: "스내사 3기 대시보드",
-    description: "이미지 기반 러닝 인증을 빠르게 검수하고 스내사 3기 변화를 확인하세요",
+    description: "오늘의 인증과 100일 러닝 흐름을 친근하게 확인해요",
     type: "website",
     locale: "ko_KR",
   },

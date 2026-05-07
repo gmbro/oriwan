@@ -19,9 +19,9 @@ export async function GET() {
   if (error) {
     console.error("Participants query error:", error);
     if (isMissingTableError(error)) {
-      return NextResponse.json(missingSchemaResponse("참가자 테이블이 아직 없습니다."), { status: 503 });
+      return NextResponse.json(missingSchemaResponse("멤버 테이블이 아직 준비되지 않았어요."), { status: 503 });
     }
-    return NextResponse.json({ error: "참가자 조회 실패" }, { status: 500 });
+    return NextResponse.json({ error: "멤버 목록을 불러오지 못했어요." }, { status: 500 });
   }
 
   return NextResponse.json({ participants: data || [] });
@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
   const name = typeof body.name === "string" ? body.name.trim() : "";
 
   if (!name) {
-    return NextResponse.json({ error: "이름이 필요합니다." }, { status: 400 });
+    return NextResponse.json({ error: "멤버 이름을 입력해주세요." }, { status: 400 });
   }
 
   const { data, error } = await supabase
@@ -53,9 +53,9 @@ export async function POST(request: NextRequest) {
   if (error) {
     console.error("Participant save error:", error);
     if (isMissingTableError(error)) {
-      return NextResponse.json(missingSchemaResponse("참가자 테이블이 아직 없습니다."), { status: 503 });
+      return NextResponse.json(missingSchemaResponse("멤버 테이블이 아직 준비되지 않았어요."), { status: 503 });
     }
-    return NextResponse.json({ error: "참가자 저장 실패" }, { status: 500 });
+    return NextResponse.json({ error: "멤버를 저장하지 못했어요." }, { status: 500 });
   }
 
   return NextResponse.json({ participant: data });
