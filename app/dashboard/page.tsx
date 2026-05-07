@@ -347,7 +347,7 @@ export default function DashboardPage() {
                     <div className="flex items-center justify-between gap-2">
                       <p className="truncate text-sm font-black text-oriwan-text">{row.participant.name}</p>
                       <p className={`shrink-0 text-xs font-black ${gaugeTextClass(row.certifiedDays)}`}>
-                        {row.certifiedDays}/{CHALLENGE_DAYS}일
+                        <AnimatedNumber value={row.rate} suffix="%" />
                       </p>
                     </div>
                     <div className="mt-2 h-3 overflow-hidden rounded-full bg-oriwan-surface-light">
