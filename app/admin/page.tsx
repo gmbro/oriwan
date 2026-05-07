@@ -8,8 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 import { ADMIN_EMAIL, isAdminEmail } from "@/lib/admin";
 import { IconCheck } from "@/components/icons";
 import { CHALLENGE_END_DATE, CHALLENGE_START_DATE, clampToChallengeWindow } from "@/lib/challenge";
-import { imageFileToOptimizedDataUrl } from "@/lib/image-client";
-import { parseDurationToSeconds, secondsToTime, toIsoDate } from "@/lib/run-records";
+import { parseDurationToSeconds, toIsoDate } from "@/lib/run-records";
 
 type Participant = {
   id: string;
@@ -36,20 +35,8 @@ type RunRecord = {
   participants?: { id: string; name: string } | null;
 };
 
-type AnalysisResult = {
-  id: string | null;
-  file_name: string;
-  participant_id?: string | null;
-  participant_name?: string | null;
-  record_date?: string | null;
-  distance_km?: number | null;
-  duration_seconds?: number | null;
-  status?: RecordStatus;
-  notes?: string | null;
-};
-
 type AdminOtpType = "email" | "magiclink" | "signup";
-type AdminModal = "participant" | "record" | "upload" | null;
+type AdminModal = "participant" | "record" | null;
 type AdminBoardFilter = "all" | "certified" | "missing" | "review";
 type AdminBoardStatus = "certified" | "missing" | "review";
 
@@ -63,20 +50,6 @@ const adminBoardFilterOptions: { value: AdminBoardFilter; label: string }[] = [
   { value: "missing", label: "아직" },
   { value: "review", label: "확인" },
 ];
-
-function statusLabel(status: RecordStatus) {
-  if (status === "certified") return "완료";
-  if (status === "needs_review") return "확인 중";
-  if (status === "rejected") return "반려";
-  return "아직";
-}
-
-function statusClass(status: RecordStatus) {
-  if (status === "certified") return "bg-lime-100 text-lime-900 border-lime-200";
-  if (status === "needs_review") return "bg-orange-100 text-orange-900 border-orange-200";
-  if (status === "rejected") return "bg-rose-100 text-rose-900 border-rose-200";
-  return "bg-slate-100 text-slate-400 border-slate-200";
-}
 
 function adminBoardStatus(record?: RunRecord): AdminBoardStatus {
   if (record?.status === "certified") return "certified";
@@ -122,11 +95,6 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [newName, setNewName] = useState("");
   const [targetDate, setTargetDate] = useState(initialRecordDate);
-  const [files, setFiles] = useState<File[]>([]);
-  const [analyzing, setAnalyzing] = useState(false);
-  const [analysisMessage, setAnalysisMessage] = useState("");
-  const [analysisResults, setAnalysisResults] = useState<AnalysisResult[]>([]);
-  const [uploadParticipantId, setUploadParticipantId] = useState("");
   const [manualParticipantId, setManualParticipantId] = useState("");
   const [manualDate, setManualDate] = useState(initialRecordDate);
   const [manualDistance, setManualDistance] = useState("");
@@ -287,11 +255,6 @@ export default function AdminPage() {
     [editingParticipantId, participants]
   );
 
-  const uploadParticipant = useMemo(
-    () => participants.find((participant) => participant.id === uploadParticipantId) || null,
-    [participants, uploadParticipantId]
-  );
-
   const startEditParticipant = useCallback((participant: Participant) => {
     setEditingParticipantId(participant.id);
     setNewName(participant.name);
@@ -302,13 +265,13 @@ export default function AdminPage() {
     setNewName("");
   }, []);
 
-  const openUploadForDate = useCallback((date: string, participantId = "") => {
+  const openManualRecordForDate = useCallback((date: string, participantId = "") => {
     setTargetDate(date);
-    setUploadParticipantId(participantId);
-    setFiles([]);
-    setAnalysisResults([]);
-    setAnalysisMessage("");
-    setAdminModal("upload");
+    setManualDate(date);
+    setManualParticipantId(participantId);
+    setManualDistance("");
+    setManualDuration("");
+    setAdminModal("record");
   }, []);
 
   const saveParticipant = useCallback(async () => {
@@ -342,35 +305,6 @@ export default function AdminPage() {
       alert("멤버를 삭제하지 못했어요.");
     }
   }, [editingParticipantId, loadData, resetParticipantForm]);
-
-  const analyzeImages = useCallback(async () => {
-    if (!files.length) return;
-    setAnalyzing(true);
-    setAnalysisMessage("");
-    setAnalysisResults([]);
-    try {
-      const images = await Promise.all(files.map(async (file) => ({ name: file.name, dataUrl: await imageFileToOptimizedDataUrl(file) })));
-      const res = await fetch("/api/records/analyze", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ targetDate, participantId: uploadParticipantId || null, images }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "analysis failed");
-      setFiles([]);
-      const results = (Array.isArray(json.results) ? json.results : []) as AnalysisResult[];
-      setAnalysisResults(results);
-      const certified = results.filter((result: { status?: string }) => result.status === "certified").length;
-      const review = results.length - certified;
-      const ownerLabel = uploadParticipant ? `${uploadParticipant.name}님 ` : "";
-      setAnalysisMessage(`${ownerLabel}${results.length}장 정리 완료 · 완료 ${certified}건 · 확인 ${review}건`);
-      await loadData();
-    } catch (err) {
-      setAnalysisMessage(err instanceof Error ? err.message : "이미지를 읽지 못했어요. 흐린 이미지는 직접 입력으로 가볍게 보완해주세요.");
-    } finally {
-      setAnalyzing(false);
-    }
-  }, [files, loadData, targetDate, uploadParticipant, uploadParticipantId]);
 
   const saveManualRecord = useCallback(async () => {
     const duration = parseDurationToSeconds(manualDuration);
@@ -539,11 +473,10 @@ export default function AdminPage() {
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-2xl overflow-hidden ring-1 ring-white/20 bg-lime-300">
-              <Image src="/oriwan-logo-v2.png" alt="스내사 3기 대시보드" width={36} height={36} className="object-cover" />
+              <Image src="/oriwan-logo-v2.png" alt="어드민" width={36} height={36} className="object-cover" />
             </div>
             <div>
-              <h1 className="text-base sm:text-lg font-black tracking-tight leading-none">스내사 3기 어드민</h1>
-              <p className="text-[11px] text-white/55 mt-1">멤버와 러닝 기록을 빠르게 정리해요</p>
+              <h1 className="text-base sm:text-lg font-black tracking-tight leading-none">어드민</h1>
             </div>
           </div>
           <div className="flex items-center gap-2.5">
@@ -562,22 +495,16 @@ export default function AdminPage() {
         <section className="relative overflow-hidden rounded-[28px] bg-[#101522] p-4 text-white shadow-2xl shadow-slate-950/10">
           <div className="absolute -right-16 -top-20 h-56 w-56 rounded-full bg-lime-300/25 blur-3xl" />
           <div className="absolute bottom-0 left-1/2 h-24 w-72 -translate-x-1/2 rounded-full bg-orange-400/15 blur-3xl" />
-          <div className="relative grid gap-2 sm:grid-cols-3">
-            <button type="button" onClick={() => openUploadForDate(effectiveToday)} className="rounded-2xl bg-lime-300 px-4 py-3 text-left text-sm font-black text-slate-950">
-              이미지 올리기
-            </button>
+          <div className="relative grid gap-2">
             <button
               type="button"
               onClick={() => {
                 resetParticipantForm();
                 setAdminModal("participant");
               }}
-              className="rounded-2xl bg-white/10 px-4 py-3 text-left text-sm font-black text-white ring-1 ring-white/10"
+              className="rounded-2xl bg-lime-300 px-4 py-3 text-left text-sm font-black text-slate-950"
             >
               멤버 관리
-            </button>
-            <button type="button" onClick={() => setAdminModal("record")} className="rounded-2xl bg-white/10 px-4 py-3 text-left text-sm font-black text-white ring-1 ring-white/10">
-              직접 입력
             </button>
           </div>
         </section>
@@ -599,7 +526,7 @@ export default function AdminPage() {
                 <div className="group relative">
                   <span className="flex h-5 w-5 items-center justify-center rounded-full bg-oriwan-surface-light text-[11px] font-black text-oriwan-text-muted">?</span>
                   <div className="pointer-events-none absolute left-0 top-7 z-10 hidden w-64 rounded-2xl bg-slate-950 p-3 text-[11px] font-bold leading-5 text-white/80 shadow-2xl group-hover:block">
-                    공통 대시보드의 오늘 인증 상태를 편집하는 영역이에요. 멤버 카드를 누르면 해당 날짜와 멤버로 이미지 등록이 바로 열립니다.
+                    공통 대시보드의 인증 상태를 편집하는 영역이에요. 멤버 카드를 누르면 해당 날짜와 멤버로 수동 입력이 바로 열립니다.
                   </div>
                 </div>
               </div>
@@ -621,10 +548,10 @@ export default function AdminPage() {
               />
               <button
                 type="button"
-                onClick={() => openUploadForDate(targetDate)}
+                onClick={() => openManualRecordForDate(targetDate)}
                 className="w-full rounded-xl bg-slate-950 px-3 py-2 text-xs font-black text-lime-200 sm:w-auto"
               >
-                이 날짜 이미지 올리기
+                이 날짜 직접 입력
               </button>
             </div>
           </div>
@@ -649,8 +576,8 @@ export default function AdminPage() {
               <button
                 key={card.participant.id}
                 type="button"
-                onClick={() => openUploadForDate(targetDate, card.participant.id)}
-                title={`${card.participant.name} · ${targetDate} · ${adminBoardStatusLabel(card.status)} · 이미지 올리기`}
+                onClick={() => openManualRecordForDate(targetDate, card.participant.id)}
+                title={`${card.participant.name} · ${targetDate} · ${adminBoardStatusLabel(card.status)} · 직접 입력`}
                 className={`min-h-[60px] rounded-2xl px-2 py-2 text-center ring-1 transition hover:-translate-y-0.5 hover:ring-lime-300 ${adminBoardCardClass(card.status)}`}
               >
                 <span
@@ -675,132 +602,6 @@ export default function AdminPage() {
             )}
           </div>
         </section>
-
-        {adminModal === "upload" && (
-          <div className="fixed inset-0 z-[80] flex items-end bg-slate-950/45 px-4 py-4 backdrop-blur-sm sm:items-center sm:justify-center">
-            <div className="card max-h-[88vh] w-full max-w-2xl overflow-y-auto p-5 sm:p-6">
-              <div className="mb-4 flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-[11px] font-black uppercase tracking-[0.12em] text-oriwan-primary">Bulk OCR Upload</p>
-                  <h2 className="mt-1 text-xl font-black tracking-[-0.04em] text-oriwan-text">
-                    {uploadParticipant ? `${uploadParticipant.name}님 이미지 올리기` : "이미지 한 번에 올리기"}
-                  </h2>
-                  <p className="mt-1 text-xs leading-5 text-oriwan-text-muted">NRC, Garmin, Strava 캡처에서 날짜, 거리, 시간을 가볍게 읽어옵니다.</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setAdminModal(null)}
-                  className="rounded-full bg-oriwan-surface-light px-3 py-1.5 text-xs font-black text-oriwan-text-muted"
-                >
-                  닫기
-                </button>
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-[1.1fr_0.9fr]">
-                <label className="text-xs font-bold text-oriwan-text-muted">
-                  멤버
-                  <select
-                    value={uploadParticipantId}
-                    onChange={(e) => {
-                      setUploadParticipantId(e.target.value);
-                      setAnalysisResults([]);
-                      setAnalysisMessage("");
-                    }}
-                    className="mt-1 block w-full rounded-2xl border border-oriwan-border bg-white px-4 py-3 text-sm font-black text-oriwan-text"
-                  >
-                    <option value="">이미지에서 이름 찾아보기</option>
-                    {participants.map((participant) => (
-                      <option key={participant.id} value={participant.id}>{participant.name}</option>
-                    ))}
-                  </select>
-                </label>
-
-                <label className="text-xs font-bold text-oriwan-text-muted">
-                  날짜가 안 보일 때만 쓸 날짜
-                  <input
-                    type="date"
-                    min={CHALLENGE_START_DATE}
-                    max={CHALLENGE_END_DATE}
-                    value={targetDate}
-                    onChange={(e) => setTargetDate(e.target.value)}
-                    className="mt-1 block w-full rounded-2xl border border-oriwan-border bg-white px-4 py-3 text-sm font-black text-oriwan-text"
-                  />
-                </label>
-              </div>
-
-              <div
-                className="mt-4 rounded-[28px] border-2 border-dashed border-lime-300/80 bg-lime-50/70 p-5 text-center transition hover:bg-lime-50"
-                onDragOver={(event) => event.preventDefault()}
-                onDrop={(event) => {
-                  event.preventDefault();
-                  const droppedFiles = Array.from(event.dataTransfer.files).filter((file) => file.type.startsWith("image/"));
-                  setFiles(droppedFiles);
-                  setAnalysisResults([]);
-                  setAnalysisMessage(droppedFiles.length ? `${droppedFiles.length}장 선택됐어요. 자동 기록하기를 눌러주세요.` : "이미지 파일만 올릴 수 있어요.");
-                }}
-              >
-                <p className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-950 text-lg font-black text-lime-200">{files.length || "+"}</p>
-                <p className="text-base font-black text-oriwan-text">러닝 이미지를 한 번에 올려주세요</p>
-                <p className="mt-1 text-xs font-semibold leading-5 text-oriwan-text-muted">
-                  멤버를 선택하면 이미지에 이름이 없어도 해당 멤버 기록으로 저장돼요.
-                </p>
-                <input
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  onChange={(e) => {
-                    setFiles(Array.from(e.target.files || []));
-                    setAnalysisResults([]);
-                    setAnalysisMessage("");
-                  }}
-                  className="mx-auto mt-4 block max-w-full text-sm text-oriwan-text-muted file:mr-4 file:rounded-xl file:border-0 file:bg-slate-950 file:px-4 file:py-2 file:text-sm file:font-bold file:text-lime-200"
-                />
-                <button onClick={analyzeImages} disabled={!files.length || analyzing} className="btn-primary mt-4 w-full py-3 text-sm disabled:opacity-40">
-                  {analyzing ? "이미지 읽는 중..." : `자동으로 기록하기${files.length ? ` (${files.length})` : ""}`}
-                </button>
-              </div>
-
-              {analysisMessage && (
-                <p className="mt-4 rounded-2xl bg-white px-4 py-3 text-sm font-black text-oriwan-text ring-1 ring-slate-950/5">
-                  {analysisMessage}
-                </p>
-              )}
-
-              {analysisResults.length > 0 && (
-                <div className="mt-3 space-y-2">
-                  {analysisResults.map((result, index) => {
-                    const status = result.status || "needs_review";
-                    return (
-                      <div key={`${result.file_name}-${index}`} className="rounded-2xl bg-white px-4 py-3 ring-1 ring-slate-950/5">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <p className="truncate text-sm font-black text-oriwan-text">
-                              {result.participant_name || uploadParticipant?.name || "멤버 확인하기"}
-                            </p>
-                            <p className="mt-1 truncate text-[11px] font-semibold text-oriwan-text-muted">{result.file_name}</p>
-                          </div>
-                          <span className={`shrink-0 rounded-full border px-2 py-1 text-[10px] font-black ${statusClass(status)}`}>
-                            {statusLabel(status)}
-                          </span>
-                        </div>
-                        <div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs font-black">
-                          <span className="rounded-xl bg-oriwan-surface-light px-2 py-2 text-oriwan-text">{result.record_date || "날짜 확인"}</span>
-                          <span className="rounded-xl bg-oriwan-surface-light px-2 py-2 text-oriwan-text">{result.distance_km ? `${result.distance_km}km` : "거리 확인"}</span>
-                          <span className="rounded-xl bg-oriwan-surface-light px-2 py-2 text-oriwan-text">{result.duration_seconds ? secondsToTime(result.duration_seconds) : "시간 확인"}</span>
-                        </div>
-                        {result.notes && <p className="mt-2 text-[11px] font-semibold leading-5 text-oriwan-text-muted">{result.notes}</p>}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              <p className="mt-4 rounded-2xl bg-oriwan-surface-light px-4 py-3 text-[11px] font-bold leading-5 text-oriwan-text-muted">
-                이미지에 날짜가 있으면 그 날짜를 우선으로 저장해요. 날짜가 없으면 위 날짜로 임시 저장하고 확인 상태로 남겨둡니다.
-              </p>
-            </div>
-          </div>
-        )}
 
         {adminModal === "participant" && (
           <div className="fixed inset-0 z-[80] flex items-end bg-slate-950/45 px-4 py-4 backdrop-blur-sm sm:items-center sm:justify-center">
