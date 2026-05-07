@@ -282,29 +282,32 @@ export default function DashboardPage() {
       const rate = participants.length ? Math.round((certifiedCount / participants.length) * 100) : 0;
       return { day, certifiedCount, rate };
     });
-    const weekTrend = Array.from({ length: Math.ceil(dayTrend.length / 7) }, (_, index) => {
-      const days = dayTrend.slice(index * 7, index * 7 + 7);
-      const certifiedSlots = days.reduce((sum, day) => sum + day.certifiedCount, 0);
-      const possibleSlots = days.length * participants.length;
+    const certifiedCountByDay = new Map(dayTrend.map((day) => [day.day, day.certifiedCount]));
+    const visibleOfficialWeeks = Array.from({ length: Math.ceil(officialCertificationDays.length / 7) }, (_, index) => {
+      const weekDays = officialCertificationDays.slice(index * 7, index * 7 + 7);
+      return { index, weekDays };
+    }).filter((week) => week.weekDays[0] && week.weekDays[0] <= effectiveToday);
+    const weekTrend = visibleOfficialWeeks.map(({ index, weekDays }) => {
+      const certifiedSlots = weekDays.reduce((sum, day) => sum + (certifiedCountByDay.get(day) || 0), 0);
+      const possibleSlots = weekDays.length * participants.length;
       const averageRate = possibleSlots ? Math.round((certifiedSlots / possibleSlots) * 100) : 0;
       return {
         label: `${index + 1}주`,
-        from: days[0]?.day || "",
-        to: days.at(-1)?.day || "",
+        from: weekDays[0] || "",
+        to: weekDays.at(-1) || "",
         averageRate,
-        averageCount: days.length ? Math.round(certifiedSlots / days.length) : 0,
+        averageCount: weekDays.length ? Math.round(certifiedSlots / weekDays.length) : 0,
       };
     });
     const totalCertifiedSlots = dayTrend.reduce((sum, day) => sum + day.certifiedCount, 0);
-    const possibleCertifiedSlots = elapsedDays.length * participants.length;
+    const possibleCertifiedSlots = officialCertificationDays.length * participants.length;
     const cumulativeRate = possibleCertifiedSlots ? Math.round((totalCertifiedSlots / possibleCertifiedSlots) * 100) : 0;
     let runningCertifiedSlots = 0;
     const cumulativeTrend = dayTrend.map((day, index) => {
       runningCertifiedSlots += day.certifiedCount;
-      const possibleSlots = (index + 1) * participants.length;
       return {
         label: shortDate(day.day),
-        value: possibleSlots ? Math.round((runningCertifiedSlots / possibleSlots) * 100) : 0,
+        value: possibleCertifiedSlots ? Math.round((runningCertifiedSlots / possibleCertifiedSlots) * 100) : 0,
         caption: `${shortDate(day.day)} · 누적 ${runningCertifiedSlots}건`,
       };
     });
