@@ -7,11 +7,9 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { ADMIN_EMAIL, isAdminEmail } from "@/lib/admin";
 import { IconCheck } from "@/components/icons";
-import { ScoreBadge } from "@/components/score-badge";
 import { CHALLENGE_END_DATE, CHALLENGE_START_DATE, clampToChallengeWindow } from "@/lib/challenge";
 import { imageFileToOptimizedDataUrl } from "@/lib/image-client";
-import { parseDurationToSeconds, secondsToPace, secondsToTime, toIsoDate } from "@/lib/run-records";
-import { SCORE_WEIGHTS, buildScoreRows } from "@/lib/scoring";
+import { parseDurationToSeconds, secondsToTime, toIsoDate } from "@/lib/run-records";
 
 type Participant = {
   id: string;
@@ -36,16 +34,6 @@ type RunRecord = {
   raw_extracted_text: string | null;
   notes: string | null;
   participants?: { id: string; name: string } | null;
-};
-
-type RecordDraft = {
-  participant_id: string;
-  record_date: string;
-  distance_km: string;
-  duration: string;
-  status: RecordStatus;
-  source_app: string;
-  notes: string;
 };
 
 type AnalysisResult = {
@@ -114,22 +102,6 @@ function recordPriority(status?: RecordStatus) {
   return 1;
 }
 
-function makeDraft(record: RunRecord): RecordDraft {
-  return {
-    participant_id: record.participant_id || "",
-    record_date: record.record_date || today,
-    distance_km: record.distance_km ? String(record.distance_km) : "",
-    duration: record.duration_seconds ? secondsToTime(record.duration_seconds) : "",
-    status: record.status || "needs_review",
-    source_app: record.source_app || "",
-    notes: record.notes || "",
-  };
-}
-
-function polyline(points: { x: number; y: number }[]) {
-  return points.map((point) => `${point.x},${point.y}`).join(" ");
-}
-
 export default function AdminPage() {
   const router = useRouter();
   const autoSentRef = useRef(false);
@@ -147,7 +119,6 @@ export default function AdminPage() {
   const [userAvatar, setUserAvatar] = useState("");
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [records, setRecords] = useState<RunRecord[]>([]);
-  const [drafts, setDrafts] = useState<Record<string, RecordDraft>>({});
   const [loading, setLoading] = useState(true);
   const [newName, setNewName] = useState("");
   const [targetDate, setTargetDate] = useState(initialRecordDate);
@@ -160,7 +131,6 @@ export default function AdminPage() {
   const [manualDate, setManualDate] = useState(initialRecordDate);
   const [manualDistance, setManualDistance] = useState("");
   const [manualDuration, setManualDuration] = useState("");
-  const [selectedParticipantId, setSelectedParticipantId] = useState("");
   const [adminBoardFilter, setAdminBoardFilter] = useState<AdminBoardFilter>("all");
   const [liveStatus, setLiveStatus] = useState<"connecting" | "live" | "polling">("connecting");
   const [setupMessage, setSetupMessage] = useState("");
@@ -191,9 +161,7 @@ export default function AdminPage() {
 
       setParticipants(nextParticipants);
       setRecords(nextRecords);
-      setSelectedParticipantId((current) => current || nextParticipants[0]?.id || "");
       setManualParticipantId((current) => current || nextParticipants[0]?.id || "");
-      setDrafts(Object.fromEntries(nextRecords.map((record: RunRecord) => [record.id, makeDraft(record)])));
     } catch (err) {
       setSetupMessage(err instanceof Error ? err.message : "데이터를 불러오지 못했어요. 잠시 후 다시 확인해주세요.");
     } finally {
@@ -271,13 +239,6 @@ export default function AdminPage() {
     };
   }, [authorized, loadData, mounted, scheduleRefresh]);
 
-  const scoreRows = useMemo(() => buildScoreRows({
-    participants,
-    records,
-    challengeStartDate: CHALLENGE_START_DATE,
-    referenceDate: effectiveToday,
-  }), [participants, records]);
-
   const adminBoard = useMemo(() => {
     const selectedDateMap = new Map<string, RunRecord>();
     records.forEach((record) => {
@@ -305,29 +266,6 @@ export default function AdminPage() {
     if (adminBoardFilter === "all") return adminBoard.cards;
     return adminBoard.cards.filter((card) => card.status === adminBoardFilter);
   }, [adminBoard.cards, adminBoardFilter]);
-
-  const selectedSeries = useMemo(() => {
-    const participantRecords = records
-      .filter((record) => record.participant_id === selectedParticipantId && record.record_date)
-      .sort((a, b) => String(a.record_date).localeCompare(String(b.record_date)));
-    return participantRecords;
-  }, [records, selectedParticipantId]);
-
-  const graph = useMemo(() => {
-    const width = 320;
-    const height = 128;
-    const padding = 18;
-    const distanceMax = Math.max(1, ...selectedSeries.map((record) => record.distance_km || 0));
-    const timeMax = Math.max(1, ...selectedSeries.map((record) => (record.duration_seconds || 0) / 60));
-    const makePoints = (kind: "distance" | "time") => selectedSeries.map((record, index) => {
-      const x = selectedSeries.length <= 1 ? width / 2 : padding + (index / (selectedSeries.length - 1)) * (width - padding * 2);
-      const value = kind === "distance" ? (record.distance_km || 0) : (record.duration_seconds || 0) / 60;
-      const max = kind === "distance" ? distanceMax : timeMax;
-      const y = height - padding - (value / max) * (height - padding * 2);
-      return { x, y };
-    });
-    return { width, height, distancePoints: makePoints("distance"), timePoints: makePoints("time") };
-  }, [selectedSeries]);
 
   const addParticipant = useCallback(async () => {
     if (!newName.trim()) return;
@@ -457,38 +395,6 @@ export default function AdminPage() {
       alert("기록을 저장하지 못했어요.");
     }
   }, [loadData, manualDate, manualDistance, manualDuration, manualParticipantId]);
-
-  const updateDraft = useCallback((recordId: string, patch: Partial<RecordDraft>) => {
-    setDrafts((current) => ({ ...current, [recordId]: { ...current[recordId], ...patch } }));
-  }, []);
-
-  const saveDraft = useCallback(async (recordId: string) => {
-    const draft = drafts[recordId];
-    if (!draft) return;
-    const duration = parseDurationToSeconds(draft.duration);
-    const res = await fetch(`/api/records/${recordId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        participant_id: draft.participant_id || null,
-        record_date: draft.record_date,
-        distance_km: draft.distance_km,
-        duration_seconds: duration,
-        source_app: draft.source_app,
-        status: draft.status,
-        notes: draft.notes,
-      }),
-    });
-    if (res.ok) await loadData();
-    else alert("수정 내용을 저장하지 못했어요.");
-  }, [drafts, loadData]);
-
-  const deleteRecord = useCallback(async (recordId: string) => {
-    if (!window.confirm("이 러닝 기록을 삭제할까요?")) return;
-    const res = await fetch(`/api/records/${recordId}`, { method: "DELETE" });
-    if (res.ok) await loadData();
-    else alert("기록을 삭제하지 못했어요.");
-  }, [loadData]);
 
   const sendAdminCode = useCallback(async () => {
     setSendingCode(true);
@@ -769,127 +675,6 @@ export default function AdminPage() {
             )}
           </div>
         </section>
-
-        <section className="grid lg:grid-cols-[0.9fr_1.1fr] gap-5">
-          <div className="card p-4">
-            <div className="mb-4">
-              <h2 className="text-lg font-black text-oriwan-text">러닝 에너지 점수</h2>
-              <p className="mt-1 text-xs text-oriwan-text-muted">
-                인증 +{SCORE_WEIGHTS.certification}, 꾸준함 +{SCORE_WEIGHTS.consistency}, 성장 +{SCORE_WEIGHTS.growth}을 크게 반영해요.
-              </p>
-            </div>
-            <div className="space-y-2">
-              {scoreRows.map((row, index) => (
-                <div key={row.participant.id} className="rounded-2xl bg-oriwan-surface-light px-3 py-3">
-                  <div className="grid grid-cols-[32px_1fr_auto] items-center gap-3">
-                    <div className="text-sm font-black text-oriwan-primary">{index + 1}</div>
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-bold text-oriwan-text">{row.participant.name}</p>
-                      <p className="text-[11px] text-oriwan-text-muted">
-                        완료 {row.certifiedCount}회 · 연속 {row.longestStreak}일 · 성장 {row.growthDays}일
-                      </p>
-                    </div>
-                    <div className="flex shrink-0 flex-col items-end gap-1">
-                      <ScoreBadge kind={row.badgeKind} />
-                      <span className="text-lg font-black tracking-[-0.05em] text-oriwan-text">{row.score}점</span>
-                    </div>
-                  </div>
-                  <div className="mt-2 grid grid-cols-5 gap-1 text-center text-[10px] font-black text-oriwan-text-muted">
-                    <span className="rounded-lg bg-white px-1 py-1">완료 {row.breakdown.certification}</span>
-                    <span className="rounded-lg bg-white px-1 py-1">꾸준 {row.breakdown.consistency}</span>
-                    <span className="rounded-lg bg-white px-1 py-1">성장 {row.breakdown.growth}</span>
-                    <span className="rounded-lg bg-white px-1 py-1">시간 {row.breakdown.time}</span>
-                    <span className="rounded-lg bg-white px-1 py-1">거리 {row.breakdown.distance}</span>
-                  </div>
-                </div>
-              ))}
-              {!scoreRows.length && !loading && <p className="py-8 text-center text-sm text-oriwan-text-muted">기록이 쌓이면 에너지 점수가 채워져요.</p>}
-            </div>
-          </div>
-
-          <div className="card p-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-              <div>
-                <h2 className="text-lg font-black text-oriwan-text">멤버별 러닝 그래프</h2>
-                <p className="text-xs text-oriwan-text-muted mt-1">파란 선은 거리, 초록 선은 시간이에요.</p>
-              </div>
-              <select value={selectedParticipantId} onChange={(e) => setSelectedParticipantId(e.target.value)} className="rounded-xl border border-oriwan-border px-3 py-2 text-sm bg-white">
-                {participants.map((participant) => <option key={participant.id} value={participant.id}>{participant.name}</option>)}
-              </select>
-            </div>
-            <div className="rounded-3xl bg-slate-950 p-4 overflow-hidden ring-1 ring-white/10">
-              {selectedSeries.length ? (
-                <svg viewBox={`0 0 ${graph.width} ${graph.height}`} className="w-full h-48">
-                  <line x1="18" y1="110" x2="302" y2="110" stroke="rgba(255,255,255,.16)" />
-                  <polyline fill="none" stroke="#60A5FA" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" points={polyline(graph.distancePoints)} />
-                  <polyline fill="none" stroke="#34D399" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" points={polyline(graph.timePoints)} />
-                  {graph.distancePoints.map((point, index) => <circle key={`d${index}`} cx={point.x} cy={point.y} r="4" fill="#BFDBFE" />)}
-                </svg>
-              ) : (
-                <div className="h-48 flex items-center justify-center text-sm text-white/50">기록이 쌓이면 그래프가 살아나요.</div>
-              )}
-            </div>
-          </div>
-        </section>
-
-        <details className="card overflow-hidden p-4">
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
-            <span>
-              <span className="block text-lg font-black text-oriwan-text">기록 다듬기</span>
-              <span className="mt-1 block text-xs text-oriwan-text-muted">필요할 때만 열어서 상태, 날짜, 거리, 시간을 빠르게 보정해요.</span>
-            </span>
-            <button type="button" onClick={(event) => { event.preventDefault(); loadData(); }} className="rounded-xl bg-oriwan-surface-light px-3 py-2 text-xs font-bold text-oriwan-text-muted">새로고침</button>
-          </summary>
-          <div className="overflow-x-auto">
-            <table className="min-w-[1040px] w-full text-left text-xs">
-              <thead className="text-oriwan-text-muted">
-                <tr className="border-b border-oriwan-border">
-                  <th className="py-2 pr-2">상태</th>
-                  <th className="py-2 pr-2">멤버</th>
-                  <th className="py-2 pr-2">날짜</th>
-                  <th className="py-2 pr-2">거리</th>
-                  <th className="py-2 pr-2">시간</th>
-                  <th className="py-2 pr-2">페이스</th>
-                  <th className="py-2 pr-2">출처</th>
-                  <th className="py-2 pr-2">메모</th>
-                  <th className="py-2 pr-2">저장</th>
-                  <th className="py-2 pr-2">삭제</th>
-                </tr>
-              </thead>
-              <tbody>
-                {records.map((record) => {
-                  const draft = drafts[record.id] || makeDraft(record);
-                  return (
-                    <tr key={record.id} className="border-b border-oriwan-border/60 align-top">
-                      <td className="py-2 pr-2">
-                        <select value={draft.status} onChange={(e) => updateDraft(record.id, { status: e.target.value as RecordStatus })} className={`rounded-lg border px-2 py-1.5 font-bold ${statusClass(draft.status)}`}>
-                          <option value="certified">완료</option>
-                          <option value="needs_review">확인 중</option>
-                          <option value="rejected">반려</option>
-                        </select>
-                      </td>
-                      <td className="py-2 pr-2">
-                        <select value={draft.participant_id} onChange={(e) => updateDraft(record.id, { participant_id: e.target.value })} className="w-28 rounded-lg border border-oriwan-border px-2 py-1.5 bg-white">
-                          <option value="">미매칭</option>
-                          {participants.map((participant) => <option key={participant.id} value={participant.id}>{participant.name}</option>)}
-                        </select>
-                      </td>
-                      <td className="py-2 pr-2"><input type="date" min={CHALLENGE_START_DATE} max={CHALLENGE_END_DATE} value={draft.record_date} onChange={(e) => updateDraft(record.id, { record_date: e.target.value })} className="rounded-lg border border-oriwan-border px-2 py-1.5" /></td>
-                      <td className="py-2 pr-2"><input value={draft.distance_km} onChange={(e) => updateDraft(record.id, { distance_km: e.target.value })} className="w-20 rounded-lg border border-oriwan-border px-2 py-1.5" /></td>
-                      <td className="py-2 pr-2"><input value={draft.duration} onChange={(e) => updateDraft(record.id, { duration: e.target.value })} placeholder="32:10" className="w-20 rounded-lg border border-oriwan-border px-2 py-1.5" /></td>
-                      <td className="py-2 pr-2 font-bold text-oriwan-primary">{secondsToPace(record.pace_seconds_per_km)}</td>
-                      <td className="py-2 pr-2"><input value={draft.source_app} onChange={(e) => updateDraft(record.id, { source_app: e.target.value })} className="w-24 rounded-lg border border-oriwan-border px-2 py-1.5" /></td>
-                      <td className="py-2 pr-2"><input value={draft.notes} onChange={(e) => updateDraft(record.id, { notes: e.target.value })} className="w-56 rounded-lg border border-oriwan-border px-2 py-1.5" /></td>
-                      <td className="py-2 pr-2"><button onClick={() => saveDraft(record.id)} className="rounded-lg bg-oriwan-primary px-3 py-1.5 font-bold text-white">저장</button></td>
-                      <td className="py-2 pr-2"><button onClick={() => deleteRecord(record.id)} className="rounded-lg bg-rose-50 px-3 py-1.5 font-bold text-rose-700">삭제</button></td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-            {!records.length && !loading && <p className="py-10 text-center text-sm text-oriwan-text-muted">아직 기록이 없어요. 이미지를 올리거나 직접 입력해 첫 기록을 채워볼게요.</p>}
-          </div>
-        </details>
 
         {adminModal === "upload" && (
           <div className="fixed inset-0 z-[80] flex items-end bg-slate-950/45 px-4 py-4 backdrop-blur-sm sm:items-center sm:justify-center">
