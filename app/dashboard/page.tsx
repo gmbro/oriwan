@@ -251,8 +251,7 @@ export default function DashboardPage() {
             </div>
           </div>
           <div className="text-right">
-            <p className="text-[10px] font-black text-white/45">함께 뛰는 멤버 {dashboard.participants.length}명</p>
-            <Link href="/me" className="mt-1 inline-flex rounded-full bg-white/10 px-3 py-2 text-xs font-black text-white/80 ring-1 ring-white/10 hover:text-white">
+            <Link href="/me" className="inline-flex rounded-full bg-white/10 px-3 py-2 text-xs font-black text-white/80 ring-1 ring-white/10 hover:text-white">
               내 기록 올리기
             </Link>
           </div>
@@ -336,7 +335,12 @@ export default function DashboardPage() {
             </div>
 
             <div className="mt-5">
-              <h4 className="mb-3 text-base font-black tracking-[-0.03em] text-oriwan-text">스내사 크루별 인증게이지</h4>
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <h4 className="text-base font-black tracking-[-0.03em] text-oriwan-text">스내사 크루별 인증게이지</h4>
+                <span className="inline-flex shrink-0 rounded-full bg-lime-300 px-3 py-1 text-[11px] font-black text-slate-950 shadow-sm shadow-lime-300/30">
+                  멤버 {dashboard.participants.length}명
+                </span>
+              </div>
               <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                 {dashboard.participantProgress.map((row, index) => (
                   <div key={row.participant.id} className="rounded-2xl bg-white px-3 py-3 ring-1 ring-slate-950/5">
