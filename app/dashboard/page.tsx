@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { YoutubeShortsSection } from "@/components/youtube-shorts-section";
-import { ACTUAL_CERTIFICATION_START_DATE, CERTIFICATION_DISPLAY_START_DATE, CHALLENGE_DAYS, CHALLENGE_END_DATE } from "@/lib/challenge";
+import { ACTUAL_CERTIFICATION_START_DATE, CHALLENGE_DAYS } from "@/lib/challenge";
 import { addDays, toIsoDate } from "@/lib/run-records";
 
 type Participant = {
@@ -52,12 +52,12 @@ function certificationDayLabel() {
   return `D-${Math.max(CHALLENGE_DAYS - diffDays, 0)}`;
 }
 
-function shortDateRange(start: string, end: string) {
-  return `${start.slice(5).replace("-", ".")}-${end.slice(5).replace("-", ".")}`;
-}
-
 function shortDate(value: string) {
   return value.slice(5).replace("-", ".");
+}
+
+function todayLabel() {
+  return shortDate(effectiveToday);
 }
 
 function makeChallengeDays() {
@@ -269,10 +269,10 @@ export default function DashboardPage() {
               <div>
                 <div className="mb-3 flex max-w-full flex-nowrap gap-1.5 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] sm:gap-2 [&::-webkit-scrollbar]:hidden">
                   <p className="inline-flex shrink-0 whitespace-nowrap rounded-full bg-white/10 px-2.5 py-1 text-[9px] font-black text-lime-200 ring-1 ring-white/10 sm:px-3 sm:text-[11px]">
-                    함께 뛰는 기간 · {shortDateRange(CERTIFICATION_DISPLAY_START_DATE, CHALLENGE_END_DATE)}
+                    {todayLabel()}
                   </p>
                   <p className="inline-flex shrink-0 whitespace-nowrap rounded-full bg-lime-300 px-2.5 py-1 text-[9px] font-black text-slate-950 sm:px-3 sm:text-[11px]">
-                    인증 시작 {certificationDayLabel()} · {shortDate(ACTUAL_CERTIFICATION_START_DATE)}부터
+                    {certificationDayLabel()}
                   </p>
                 </div>
                 <h2 className="max-w-full whitespace-nowrap text-[clamp(1.95rem,8vw,3.75rem)] font-black leading-[1.05] tracking-[-0.07em]">
