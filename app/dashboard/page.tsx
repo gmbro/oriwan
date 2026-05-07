@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { IconCheck } from "@/components/icons";
 import { YoutubeShortsSection } from "@/components/youtube-shorts-section";
 import { ACTUAL_CERTIFICATION_START_DATE, CERTIFICATION_DISPLAY_START_DATE, CHALLENGE_DAYS, CHALLENGE_END_DATE } from "@/lib/challenge";
-import { toIsoDate } from "@/lib/run-records";
+import { addDays, toIsoDate } from "@/lib/run-records";
 
 type Participant = {
   id: string;
@@ -40,6 +40,7 @@ type BoardFilter = "all" | "certified" | "missing";
 type PublicBoardStatus = "certified" | "missing";
 
 const today = toIsoDate(new Date());
+const effectiveToday = today > CHALLENGE_END_DATE ? CHALLENGE_END_DATE : today;
 const boardFilterOptions: { value: BoardFilter; label: string }[] = [
   { value: "all", label: "전체" },
   { value: "certified", label: "인증" },
@@ -63,6 +64,16 @@ function shortDateRange(start: string, end: string) {
   return `${start.slice(5).replace("-", ".")}-${end.slice(5).replace("-", ".")}`;
 }
 
+function shortDate(value: string) {
+  return value.slice(5).replace("-", ".");
+}
+
+function makeChallengeDays() {
+  const start = new Date(`${CERTIFICATION_DISPLAY_START_DATE}T00:00:00`);
+  return Array.from({ length: CHALLENGE_DAYS }, (_, index) => toIsoDate(addDays(start, index)))
+    .filter((day) => day <= CHALLENGE_END_DATE);
+}
+
 function publicBoardStatus(record?: RunRecord): PublicBoardStatus {
   return record?.status === "certified" ? "certified" : "missing";
 }
@@ -75,6 +86,8 @@ function publicCardClass(status: PublicBoardStatus) {
   if (status === "certified") return "bg-lime-300 text-slate-950 ring-lime-400/70 shadow-sm shadow-lime-300/40";
   return "bg-white text-slate-500 ring-slate-950/5";
 }
+
+const challengeDays = makeChallengeDays();
 
 export default function DashboardPage() {
   const [data, setData] = useState<PublicDashboardData | null>(null);
@@ -133,6 +146,9 @@ export default function DashboardPage() {
     const completionRate = participants.length ? Math.round((todayCertifiedIds.size / participants.length) * 100) : 0;
 
     const byParticipantDate = new Map<string, RunRecord>();
+    const certifiedIdsByDay = new Map<string, Set<string>>();
+    const certifiedDaysByParticipant = new Map<string, Set<string>>();
+
     records.forEach((record) => {
       if (record.participant_id && record.record_date) {
         const key = `${record.participant_id}:${record.record_date}`;
@@ -141,17 +157,61 @@ export default function DashboardPage() {
       }
     });
 
+    certifiedRecords.forEach((record) => {
+      if (!record.participant_id || !record.record_date) return;
+      if (!certifiedIdsByDay.has(record.record_date)) certifiedIdsByDay.set(record.record_date, new Set());
+      certifiedIdsByDay.get(record.record_date)?.add(record.participant_id);
+
+      if (!certifiedDaysByParticipant.has(record.participant_id)) certifiedDaysByParticipant.set(record.participant_id, new Set());
+      certifiedDaysByParticipant.get(record.participant_id)?.add(record.record_date);
+    });
+
     const boardCards = participants.map((participant) => {
       const record = byParticipantDate.get(`${participant.id}:${today}`);
       const status = publicBoardStatus(record);
       return { participant, record, status };
     });
 
+    const elapsedDays = challengeDays.filter((day) => day <= effectiveToday);
+    const dayTrend = elapsedDays.map((day) => {
+      const certifiedCount = certifiedIdsByDay.get(day)?.size || 0;
+      const rate = participants.length ? Math.round((certifiedCount / participants.length) * 100) : 0;
+      return { day, certifiedCount, rate };
+    });
+    const weekTrend = Array.from({ length: Math.ceil(dayTrend.length / 7) }, (_, index) => {
+      const days = dayTrend.slice(index * 7, index * 7 + 7);
+      const certifiedSlots = days.reduce((sum, day) => sum + day.certifiedCount, 0);
+      const possibleSlots = days.length * participants.length;
+      const averageRate = possibleSlots ? Math.round((certifiedSlots / possibleSlots) * 100) : 0;
+      return {
+        label: `${index + 1}주`,
+        from: days[0]?.day || "",
+        to: days.at(-1)?.day || "",
+        averageRate,
+        averageCount: days.length ? Math.round(certifiedSlots / days.length) : 0,
+      };
+    });
+    const totalCertifiedSlots = dayTrend.reduce((sum, day) => sum + day.certifiedCount, 0);
+    const possibleCertifiedSlots = elapsedDays.length * participants.length;
+    const cumulativeRate = possibleCertifiedSlots ? Math.round((totalCertifiedSlots / possibleCertifiedSlots) * 100) : 0;
+    const participantProgress = participants
+      .map((participant) => {
+        const certifiedDays = certifiedDaysByParticipant.get(participant.id)?.size || 0;
+        const rate = elapsedDays.length ? Math.round((certifiedDays / elapsedDays.length) * 100) : 0;
+        return { participant, certifiedDays, rate };
+      })
+      .sort((a, b) => b.certifiedDays - a.certifiedDays || a.participant.name.localeCompare(b.participant.name, "ko"));
+
     return {
       participants,
       boardCards,
       todayCertifiedIds,
       completionRate,
+      elapsedDays,
+      weekTrend,
+      totalCertifiedSlots,
+      cumulativeRate,
+      participantProgress,
     };
   }, [data]);
 
@@ -181,53 +241,108 @@ export default function DashboardPage() {
       </header>
 
       <section className="mx-auto max-w-7xl px-4 py-4 sm:py-6">
-        <div className="relative overflow-hidden rounded-[30px] bg-[#101522] p-5 text-white shadow-2xl shadow-slate-950/10 sm:p-7">
-          <div className="absolute -right-16 -top-20 h-64 w-64 rounded-full bg-lime-300/25 blur-3xl" />
-          <div className="absolute bottom-0 left-8 h-32 w-72 rounded-full bg-orange-400/15 blur-3xl" />
-          <div className="relative grid gap-5 lg:grid-cols-[1fr_320px] lg:items-center">
-            <div>
-              <div className="mb-3 flex max-w-full flex-nowrap gap-1.5 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] sm:gap-2 [&::-webkit-scrollbar]:hidden">
-                <p className="inline-flex shrink-0 whitespace-nowrap rounded-full bg-white/10 px-2.5 py-1 text-[9px] font-black text-lime-200 ring-1 ring-white/10 sm:px-3 sm:text-[11px]">
-                  인증기간 · {shortDateRange(CERTIFICATION_DISPLAY_START_DATE, CHALLENGE_END_DATE)}
-                </p>
-                <p className="inline-flex shrink-0 whitespace-nowrap rounded-full bg-lime-300 px-2.5 py-1 text-[9px] font-black text-slate-950 sm:px-3 sm:text-[11px]">
-                  실제인증 {certificationDayLabel()} · {ACTUAL_CERTIFICATION_START_DATE.slice(5).replace("-", ".")}부터
-                </p>
-              </div>
-              <h2 className="max-w-full whitespace-nowrap text-[clamp(1.95rem,8vw,3.75rem)] font-black leading-[1.05] tracking-[-0.07em]">
-                오늘, 얼마나 인증했을까?
-              </h2>
-              <p className="mt-3 max-w-xl text-sm leading-6 text-white/55">
-                인증 기록은 매일 정오에 업데이트됩니다.
-              </p>
-            </div>
-
-            <div className="rounded-[28px] bg-white/10 p-4 ring-1 ring-white/10">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-black text-white/45">오늘 인증률</p>
-                  <p className="mt-1 text-5xl font-black tracking-[-0.08em] text-lime-200">{dashboard.completionRate}%</p>
+        <section className="overflow-hidden rounded-[32px] bg-white/85 shadow-2xl shadow-slate-950/10 ring-1 ring-slate-950/5">
+          <div className="relative overflow-hidden bg-[#101522] p-5 text-white sm:p-7">
+            <div className="absolute -right-16 -top-20 h-64 w-64 rounded-full bg-lime-300/25 blur-3xl" />
+            <div className="absolute bottom-0 left-8 h-32 w-72 rounded-full bg-orange-400/15 blur-3xl" />
+            <div className="relative grid gap-5 lg:grid-cols-[1fr_320px] lg:items-center">
+              <div>
+                <div className="mb-3 flex max-w-full flex-nowrap gap-1.5 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] sm:gap-2 [&::-webkit-scrollbar]:hidden">
+                  <p className="inline-flex shrink-0 whitespace-nowrap rounded-full bg-white/10 px-2.5 py-1 text-[9px] font-black text-lime-200 ring-1 ring-white/10 sm:px-3 sm:text-[11px]">
+                    인증기간 · {shortDateRange(CERTIFICATION_DISPLAY_START_DATE, CHALLENGE_END_DATE)}
+                  </p>
+                  <p className="inline-flex shrink-0 whitespace-nowrap rounded-full bg-lime-300 px-2.5 py-1 text-[9px] font-black text-slate-950 sm:px-3 sm:text-[11px]">
+                    실제인증 {certificationDayLabel()} · {shortDate(ACTUAL_CERTIFICATION_START_DATE)}부터
+                  </p>
                 </div>
-                <svg viewBox="0 0 120 120" className="h-28 w-28 -rotate-90">
-                  <circle cx="60" cy="60" r="48" fill="none" stroke="rgba(255,255,255,.12)" strokeWidth="14" />
-                  <circle
-                    cx="60"
-                    cy="60"
-                    r="48"
-                    fill="none"
-                    stroke="#bef264"
-                    strokeWidth="14"
-                    strokeLinecap="round"
-                    strokeDasharray={`${dashboard.completionRate * 3.02} 302`}
-                  />
-                </svg>
+                <h2 className="max-w-full whitespace-nowrap text-[clamp(1.95rem,8vw,3.75rem)] font-black leading-[1.05] tracking-[-0.07em]">
+                  오늘, 얼마나 인증했을까?
+                </h2>
+                <p className="mt-3 max-w-xl text-sm leading-6 text-white/55">
+                  인증 기록은 매일 정오에 업데이트됩니다.
+                </p>
               </div>
-              <p className="mt-2 text-xs font-semibold text-white/50">
-                {dashboard.todayCertifiedIds.size}/{dashboard.participants.length}명 인증 완료
-              </p>
+
+              <div className="rounded-[28px] bg-white/10 p-4 ring-1 ring-white/10">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-black text-white/45">오늘 인증률</p>
+                    <p className="mt-1 text-5xl font-black tracking-[-0.08em] text-lime-200">{dashboard.completionRate}%</p>
+                  </div>
+                  <svg viewBox="0 0 120 120" className="h-28 w-28 -rotate-90">
+                    <circle cx="60" cy="60" r="48" fill="none" stroke="rgba(255,255,255,.12)" strokeWidth="14" />
+                    <circle
+                      cx="60"
+                      cy="60"
+                      r="48"
+                      fill="none"
+                      stroke="#bef264"
+                      strokeWidth="14"
+                      strokeLinecap="round"
+                      strokeDasharray={`${dashboard.completionRate * 3.02} 302`}
+                    />
+                  </svg>
+                </div>
+                <p className="mt-2 text-xs font-semibold text-white/50">
+                  {dashboard.todayCertifiedIds.size}/{dashboard.participants.length}명 인증 완료
+                </p>
+              </div>
             </div>
           </div>
-        </div>
+
+          <div className="p-4 sm:p-5">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-lg font-black tracking-[-0.03em] text-oriwan-text">참가자별 오늘 인증</h3>
+                  <span className="rounded-full bg-lime-100 px-2.5 py-1 text-[11px] font-black text-lime-900">
+                    {dashboard.todayCertifiedIds.size}/{dashboard.participants.length}
+                  </span>
+                </div>
+                <p className="mt-1 text-xs font-semibold text-oriwan-text-muted">필터를 바꾸면 인증/미인증 인원을 바로 확인할 수 있어요.</p>
+              </div>
+              <div className="grid grid-cols-3 rounded-full bg-oriwan-surface-light p-1 ring-1 ring-slate-950/5 sm:min-w-[240px]">
+                {boardFilterOptions.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setBoardFilter(option.value)}
+                    className={`rounded-full px-2 py-1.5 text-[11px] font-black transition ${
+                      boardFilter === option.value ? "bg-slate-950 text-lime-200 shadow-sm" : "text-oriwan-text-muted hover:text-oriwan-text"
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7">
+              {boardRows.map((row) => (
+                <article
+                  key={row.participant.id}
+                  title={`${row.participant.name} · 오늘 ${publicStatusLabel(row.status)}`}
+                  className={`min-h-[54px] rounded-2xl px-2 py-2 text-center ring-1 transition ${publicCardClass(row.status)}`}
+                >
+                  <span
+                    className={`mx-auto flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-black ${
+                      row.status === "certified" ? "bg-slate-950 text-lime-200" : "bg-slate-100 text-slate-300"
+                    }`}
+                  >
+                    {row.status === "certified" ? <IconCheck size={12} /> : "-"}
+                  </span>
+                  <p className="mt-1 truncate text-[12px] font-black tracking-[-0.04em] sm:text-[13px]">{row.participant.name}</p>
+                  <p className="mt-0.5 text-[9px] font-black opacity-60">{publicStatusLabel(row.status)}</p>
+                </article>
+              ))}
+              {!boardRows.length && !loading && (
+                <p className="col-span-3 py-8 text-center text-sm text-oriwan-text-muted md:col-span-5 lg:col-span-7">
+                  조건에 맞는 참가자가 없습니다.
+                </p>
+              )}
+            </div>
+          </div>
+        </section>
 
         {error && (
           <div className="mt-4 rounded-3xl bg-rose-50 px-5 py-4 text-sm font-bold text-rose-900 ring-1 ring-rose-100">
@@ -241,52 +356,90 @@ export default function DashboardPage() {
           </div>
         )}
 
-        <section className="mt-4 card p-4 sm:p-5">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <section className="mt-4 card overflow-hidden p-4 sm:p-5">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-lg font-black tracking-[-0.03em] text-oriwan-text">러닝 인증보드</h3>
-                <span className="rounded-full bg-lime-100 px-2.5 py-1 text-[11px] font-black text-lime-900">
-                  {dashboard.todayCertifiedIds.size}/{dashboard.participants.length}
-                </span>
-              </div>
-              <p className="mt-1 text-xs font-semibold text-oriwan-text-muted">오늘 인증 여부만 3열 카드로 빠르게 확인합니다.</p>
+              <p className="inline-flex rounded-full bg-slate-950 px-3 py-1 text-[11px] font-black text-lime-200">
+                100일 인증 추이
+              </p>
+              <h3 className="mt-2 text-xl font-black tracking-[-0.04em] text-oriwan-text">전체 흐름을 한눈에 봅니다</h3>
+              <p className="mt-1 text-xs font-semibold text-oriwan-text-muted">
+                {shortDate(CERTIFICATION_DISPLAY_START_DATE)}부터 {shortDate(CHALLENGE_END_DATE)}까지, 현재 {dashboard.elapsedDays.length}/{CHALLENGE_DAYS}일 진행 중입니다.
+              </p>
             </div>
-            <div className="grid grid-cols-3 rounded-full bg-oriwan-surface-light p-1 ring-1 ring-slate-950/5 sm:min-w-[240px]">
-              {boardFilterOptions.map((option) => (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() => setBoardFilter(option.value)}
-                  className={`rounded-full px-2 py-1.5 text-[11px] font-black transition ${
-                    boardFilter === option.value ? "bg-slate-950 text-lime-200 shadow-sm" : "text-oriwan-text-muted hover:text-oriwan-text"
-                  }`}
-                >
-                  {option.label}
-                </button>
+            <p className="text-xs font-black text-oriwan-text-muted">
+              누적 인증 {dashboard.totalCertifiedSlots}건
+            </p>
+          </div>
+
+          <div className="mt-4 grid grid-cols-3 gap-2">
+            <div className="rounded-2xl bg-oriwan-surface-light px-3 py-3">
+              <p className="text-[10px] font-black text-oriwan-text-muted">진행일</p>
+              <p className="mt-1 text-xl font-black tracking-[-0.05em] text-oriwan-text">{dashboard.elapsedDays.length}/{CHALLENGE_DAYS}</p>
+            </div>
+            <div className="rounded-2xl bg-lime-300 px-3 py-3 text-slate-950">
+              <p className="text-[10px] font-black opacity-60">누적률</p>
+              <p className="mt-1 text-xl font-black tracking-[-0.05em]">{dashboard.cumulativeRate}%</p>
+            </div>
+            <div className="rounded-2xl bg-oriwan-surface-light px-3 py-3">
+              <p className="text-[10px] font-black text-oriwan-text-muted">오늘</p>
+              <p className="mt-1 text-xl font-black tracking-[-0.05em] text-oriwan-text">{dashboard.todayCertifiedIds.size}명</p>
+            </div>
+          </div>
+
+          <div className="mt-4 rounded-[28px] bg-slate-950 p-4 text-white">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h4 className="text-sm font-black">주차별 인증률</h4>
+                <p className="mt-1 text-[11px] font-semibold text-white/45">각 주의 평균 인증률입니다.</p>
+              </div>
+              <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-black text-lime-200 ring-1 ring-white/10">
+                평균 {dashboard.cumulativeRate}%
+              </span>
+            </div>
+
+            <div className="mt-5 flex h-36 items-end gap-1.5">
+              {dashboard.weekTrend.map((week) => (
+                <div key={`${week.from}-${week.to}`} className="flex min-w-0 flex-1 flex-col items-center gap-2">
+                  <div className="flex h-28 w-full items-end rounded-2xl bg-white/5 p-1 ring-1 ring-white/5">
+                    <div
+                      className={`w-full rounded-xl ${week.averageRate ? "bg-lime-300" : "bg-white/15"}`}
+                      style={{ height: `${Math.max(week.averageRate, week.averageRate ? 8 : 4)}%` }}
+                      title={`${week.label} · 평균 ${week.averageRate}% · ${week.averageCount}명`}
+                    />
+                  </div>
+                  <span className="text-[9px] font-black text-white/45">{week.label}</span>
+                </div>
               ))}
             </div>
           </div>
 
-          <div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7">
-            {boardRows.map((row) => (
-              <article
-                key={row.participant.id}
-                title={`${row.participant.name} · 오늘 ${publicStatusLabel(row.status)}`}
-                className={`min-h-[58px] rounded-2xl px-2 py-2 text-center ring-1 transition ${publicCardClass(row.status)}`}
-              >
-                <span
-                  className={`mx-auto flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-black ${
-                    row.status === "certified" ? "bg-slate-950 text-lime-200" : "bg-slate-100 text-slate-300"
-                  }`}
-                >
-                  {row.status === "certified" ? <IconCheck size={12} /> : "-"}
-                </span>
-                <p className="mt-1 truncate text-[12px] font-black tracking-[-0.04em] sm:text-[13px]">{row.participant.name}</p>
-                <p className="mt-0.5 text-[9px] font-black opacity-60">{publicStatusLabel(row.status)}</p>
-              </article>
-            ))}
-            {!boardRows.length && !loading && <p className="py-8 text-center text-sm text-oriwan-text-muted">조건에 맞는 참가자가 없습니다.</p>}
+          <div className="mt-4">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h4 className="text-sm font-black text-oriwan-text">참가자별 누적 인증</h4>
+              <p className="text-[10px] font-black text-oriwan-text-muted">현재까지 기준</p>
+            </div>
+            <div className="grid gap-2 md:grid-cols-2">
+              {dashboard.participantProgress.map((row) => (
+                <div key={row.participant.id} className="rounded-2xl bg-white px-3 py-2.5 ring-1 ring-slate-950/5">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="truncate text-xs font-black text-oriwan-text">{row.participant.name}</p>
+                    <p className="shrink-0 text-[10px] font-black text-oriwan-text-muted">{row.certifiedDays}일 · {row.rate}%</p>
+                  </div>
+                  <div className="mt-2 h-2 overflow-hidden rounded-full bg-oriwan-surface-light">
+                    <div
+                      className="h-full rounded-full bg-lime-300"
+                      style={{ width: `${Math.max(row.rate, row.certifiedDays ? 4 : 0)}%` }}
+                    />
+                  </div>
+                </div>
+              ))}
+              {!dashboard.participantProgress.length && !loading && (
+                <p className="rounded-2xl bg-white px-4 py-8 text-center text-sm text-oriwan-text-muted md:col-span-2">
+                  참가자를 추가하면 누적 인증 추이가 표시됩니다.
+                </p>
+              )}
+            </div>
           </div>
         </section>
 
