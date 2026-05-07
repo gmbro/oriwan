@@ -81,6 +81,20 @@ function gaugeTextClass(certifiedDays: number) {
   return "text-lime-700";
 }
 
+function crewLevelBadge(certifiedDays: number, rate: number) {
+  if (rate >= 100) return { label: "FINISHER", className: "bg-slate-950 text-lime-200" };
+  if (certifiedDays >= 51) return { label: "GREEN RUNNER", className: "bg-lime-300 text-slate-950" };
+  if (certifiedDays >= 11) return { label: "PACE UP", className: "bg-amber-200 text-amber-900" };
+  if (certifiedDays >= 1) return { label: "STARTER", className: "bg-rose-100 text-rose-700" };
+  return { label: "READY", className: "bg-slate-100 text-slate-500" };
+}
+
+function nextMissionLabel(certifiedDays: number) {
+  if (certifiedDays >= CHALLENGE_DAYS) return "공식 100일 완주";
+  const nextTarget = certifiedDays < 10 ? 10 : certifiedDays < 50 ? 50 : CHALLENGE_DAYS;
+  return `다음 미션 ${Math.max(nextTarget - certifiedDays, 1)}일`;
+}
+
 export default function AdminPage() {
   const router = useRouter();
   const loadInFlightRef = useRef(false);
@@ -244,7 +258,14 @@ export default function AdminPage() {
         const certifiedDays = certifiedDaysByParticipant.get(participant.id)?.size || 0;
         const rate = Math.min(Math.round((certifiedDays / CHALLENGE_DAYS) * 100), 100);
         const metrics = metricsByParticipant.get(participant.id) || { distanceKm: 0, durationSeconds: 0 };
-        return { participant, certifiedDays, rate, ...metrics };
+        return {
+          participant,
+          certifiedDays,
+          rate,
+          badge: crewLevelBadge(certifiedDays, rate),
+          missionLabel: nextMissionLabel(certifiedDays),
+          ...metrics,
+        };
       })
       .sort((a, b) => b.certifiedDays - a.certifiedDays || a.participant.name.localeCompare(b.participant.name, "ko"));
   }, [participants, records]);
@@ -580,8 +601,13 @@ export default function AdminPage() {
                 className={`rounded-2xl bg-white px-3 py-3 ring-1 ring-slate-950/5 ${row.rate >= 100 ? "gauge-complete-card" : "dashboard-gauge-card"}`}
               >
                 <div className="flex items-center justify-between gap-2">
-                  <p className="truncate text-sm font-black text-oriwan-text">{row.participant.name}</p>
-                  <p className={`shrink-0 text-xs font-black ${gaugeTextClass(row.certifiedDays)}`}>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-black text-oriwan-text">{row.participant.name}</p>
+                    <span className={`crew-level-badge mt-1 inline-flex rounded-full px-2 py-0.5 text-[9px] font-black ${row.badge.className}`}>
+                      {row.badge.label}
+                    </span>
+                  </div>
+                  <p className={`shrink-0 text-lg font-black tracking-[-0.06em] ${gaugeTextClass(row.certifiedDays)}`}>
                     {row.rate}%
                   </p>
                 </div>
@@ -592,13 +618,18 @@ export default function AdminPage() {
                   />
                 </div>
                 <div className="mt-2 grid grid-cols-2 gap-1.5 text-[10px] font-black">
-                  <span className="rounded-xl bg-oriwan-surface-light px-2 py-1 text-oriwan-text-muted">
-                    거리 {row.distanceKm.toFixed(1)}km
+                  <span className="crew-metric-chip rounded-xl bg-oriwan-surface-light px-2 py-1.5 text-oriwan-text-muted">
+                    <span className="block text-[9px] opacity-70">총거리</span>
+                    <span className="block text-sm leading-tight text-oriwan-text">{row.distanceKm.toFixed(1)}km</span>
                   </span>
-                  <span className="rounded-xl bg-oriwan-surface-light px-2 py-1 text-oriwan-text-muted">
-                    시간 {secondsToTime(row.durationSeconds)}
+                  <span className="crew-metric-chip rounded-xl bg-oriwan-surface-light px-2 py-1.5 text-oriwan-text-muted">
+                    <span className="block text-[9px] opacity-70">총시간</span>
+                    <span className="block text-sm leading-tight text-oriwan-text">{secondsToTime(row.durationSeconds)}</span>
                   </span>
                 </div>
+                <p className="mt-2 rounded-xl bg-white/70 px-2 py-1 text-[10px] font-black text-oriwan-text-muted ring-1 ring-slate-950/5">
+                  {row.missionLabel}
+                </p>
               </div>
             ))}
             {!participantProgress.length && !loading && (

@@ -94,6 +94,20 @@ function gaugeTextClass(certifiedDays: number) {
   return "text-lime-700";
 }
 
+function crewLevelBadge(certifiedDays: number, rate: number) {
+  if (rate >= 100) return { label: "FINISHER", className: "bg-slate-950 text-lime-200" };
+  if (certifiedDays >= 51) return { label: "GREEN RUNNER", className: "bg-lime-300 text-slate-950" };
+  if (certifiedDays >= 11) return { label: "PACE UP", className: "bg-amber-200 text-amber-900" };
+  if (certifiedDays >= 1) return { label: "STARTER", className: "bg-rose-100 text-rose-700" };
+  return { label: "READY", className: "bg-slate-100 text-slate-500" };
+}
+
+function nextMissionLabel(certifiedDays: number) {
+  if (certifiedDays >= CHALLENGE_DAYS) return "공식 100일 완주";
+  const nextTarget = certifiedDays < 10 ? 10 : certifiedDays < 50 ? 50 : CHALLENGE_DAYS;
+  return `다음 미션 ${Math.max(nextTarget - certifiedDays, 1)}일`;
+}
+
 const officialCertificationDays = makeOfficialCertificationDays();
 const RING_CIRCUMFERENCE = 302;
 
@@ -144,6 +158,42 @@ function AnimatedNumber({
   }, [duration, value]);
 
   return <span className={className}>{displayValue}{suffix}</span>;
+}
+
+function AnimatedMetricNumber({
+  value,
+  suffix = "",
+  decimals = 1,
+}: {
+  value: number;
+  suffix?: string;
+  decimals?: number;
+}) {
+  const [displayValue, setDisplayValue] = useState(0);
+
+  useEffect(() => {
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduceMotion) {
+      setDisplayValue(value);
+      return;
+    }
+
+    let animationFrame = 0;
+    const startedAt = performance.now();
+    const duration = 850;
+
+    const tick = (now: number) => {
+      const progress = Math.min((now - startedAt) / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setDisplayValue(value * eased);
+      if (progress < 1) animationFrame = requestAnimationFrame(tick);
+    };
+
+    animationFrame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(animationFrame);
+  }, [value]);
+
+  return <>{displayValue.toFixed(decimals)}{suffix}</>;
 }
 
 function FanfareBurst({ compact = false }: { compact?: boolean }) {
@@ -318,7 +368,16 @@ export default function DashboardPage() {
         const metrics = officialMetricsByParticipant.get(participant.id) || { distanceKm: 0, durationSeconds: 0 };
         const certifiedDays = certifiedDates.length;
         const rate = Math.min(Math.round((certifiedDays / CHALLENGE_DAYS) * 100), 100);
-        return { participant, certifiedDates, stampedDates, certifiedDays, rate, ...metrics };
+        return {
+          participant,
+          certifiedDates,
+          stampedDates,
+          certifiedDays,
+          rate,
+          badge: crewLevelBadge(certifiedDays, rate),
+          missionLabel: nextMissionLabel(certifiedDays),
+          ...metrics,
+        };
       })
       .sort((a, b) => b.certifiedDays - a.certifiedDays || a.participant.name.localeCompare(b.participant.name, "ko"));
 
@@ -463,14 +522,19 @@ export default function DashboardPage() {
                     key={row.participant.id}
                     type="button"
                     onClick={() => setSelectedParticipantId(row.participant.id)}
-                  className={`relative overflow-hidden rounded-2xl bg-white px-3 py-3 text-left ring-1 ring-slate-950/5 transition hover:-translate-y-0.5 hover:ring-lime-300 ${
+                    className={`relative overflow-hidden rounded-2xl bg-white px-3 py-3 text-left ring-1 ring-slate-950/5 transition hover:-translate-y-0.5 hover:ring-lime-300 ${
                     row.rate >= 100 ? "gauge-complete-card" : "dashboard-gauge-card"
-                  }`}
+                    }`}
                   >
                     {row.rate >= 100 && <FanfareBurst compact />}
                     <div className="flex items-center justify-between gap-2">
-                      <p className="truncate text-sm font-black text-oriwan-text">{row.participant.name}</p>
-                      <p className={`shrink-0 text-xs font-black ${gaugeTextClass(row.certifiedDays)}`}>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-black text-oriwan-text">{row.participant.name}</p>
+                        <span className={`crew-level-badge mt-1 inline-flex rounded-full px-2 py-0.5 text-[9px] font-black ${row.badge.className}`}>
+                          {row.badge.label}
+                        </span>
+                      </div>
+                      <p className={`shrink-0 text-lg font-black tracking-[-0.06em] ${gaugeTextClass(row.certifiedDays)}`}>
                         <AnimatedNumber value={row.rate} suffix="%" />
                       </p>
                     </div>
@@ -484,13 +548,20 @@ export default function DashboardPage() {
                       />
                     </div>
                     <div className="mt-2 grid grid-cols-2 gap-1.5 text-[10px] font-black">
-                      <span className="rounded-xl bg-oriwan-surface-light px-2 py-1 text-oriwan-text-muted">
-                        거리 {row.distanceKm.toFixed(1)}km
+                      <span className="crew-metric-chip rounded-xl bg-oriwan-surface-light px-2 py-1.5 text-oriwan-text-muted">
+                        <span className="block text-[9px] opacity-70">총거리</span>
+                        <span className="block text-sm leading-tight text-oriwan-text">
+                          <AnimatedMetricNumber value={row.distanceKm} suffix="km" />
+                        </span>
                       </span>
-                      <span className="rounded-xl bg-oriwan-surface-light px-2 py-1 text-oriwan-text-muted">
-                        시간 {secondsToTime(row.durationSeconds)}
+                      <span className="crew-metric-chip rounded-xl bg-oriwan-surface-light px-2 py-1.5 text-oriwan-text-muted">
+                        <span className="block text-[9px] opacity-70">총시간</span>
+                        <span className="block text-sm leading-tight text-oriwan-text">{secondsToTime(row.durationSeconds)}</span>
                       </span>
                     </div>
+                    <p className="mt-2 rounded-xl bg-white/70 px-2 py-1 text-[10px] font-black text-oriwan-text-muted ring-1 ring-slate-950/5">
+                      {row.missionLabel}
+                    </p>
                   </button>
                 ))}
                 {!dashboard.participantProgress.length && !loading && (
