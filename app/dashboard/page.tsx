@@ -1,7 +1,6 @@
 "use client";
 
 import Image from "next/image";
-import Link from "next/link";
 import type { CSSProperties } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { YoutubeShortsSection } from "@/components/youtube-shorts-section";
@@ -410,11 +409,6 @@ export default function DashboardPage() {
             <div className="min-w-0">
               <h1 className="truncate text-[26px] font-black leading-none tracking-[-0.06em] sm:text-[30px]">스내사 러닝보드</h1>
             </div>
-          </div>
-          <div className="text-right">
-            <Link href="/me" className="inline-flex rounded-full bg-white/10 px-3 py-2 text-xs font-black text-white/80 ring-1 ring-white/10 hover:text-white">
-              내 기록 올리기
-            </Link>
           </div>
         </div>
       </header>
