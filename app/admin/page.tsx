@@ -13,6 +13,7 @@ import { addDays, parseDurationToSeconds, secondsToTime, toIsoDate } from "@/lib
 type Participant = {
   id: string;
   name: string;
+  nickname: string | null;
   active: boolean;
   display_order: number;
 };
@@ -89,12 +90,6 @@ function crewLevelBadge(certifiedDays: number, rate: number) {
   return { label: "READY", className: "bg-slate-100 text-slate-500" };
 }
 
-function nextMissionLabel(certifiedDays: number) {
-  if (certifiedDays >= CHALLENGE_DAYS) return "공식 100일 완주";
-  const nextTarget = certifiedDays < 10 ? 10 : certifiedDays < 50 ? 50 : CHALLENGE_DAYS;
-  return `다음 미션 ${Math.max(nextTarget - certifiedDays, 1)}일`;
-}
-
 export default function AdminPage() {
   const router = useRouter();
   const loadInFlightRef = useRef(false);
@@ -113,6 +108,7 @@ export default function AdminPage() {
   const [records, setRecords] = useState<RunRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [newName, setNewName] = useState("");
+  const [newNickname, setNewNickname] = useState("");
   const [targetDate, setTargetDate] = useState(initialRecordDate);
   const [files, setFiles] = useState<File[]>([]);
   const [analyzing, setAnalyzing] = useState(false);
@@ -263,7 +259,6 @@ export default function AdminPage() {
           certifiedDays,
           rate,
           badge: crewLevelBadge(certifiedDays, rate),
-          missionLabel: nextMissionLabel(certifiedDays),
           ...metrics,
         };
       })
@@ -275,16 +270,17 @@ export default function AdminPage() {
     const res = await fetch("/api/participants", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: newName }),
+      body: JSON.stringify({ name: newName, nickname: newNickname }),
     });
     if (res.ok) {
       setNewName("");
+      setNewNickname("");
       void broadcastDashboardRefresh();
       await loadData();
     } else {
       alert("멤버를 저장하지 못했어요. 이름을 다시 확인해주세요.");
     }
-  }, [loadData, newName]);
+  }, [loadData, newName, newNickname]);
 
   const editingParticipant = useMemo(
     () => participants.find((participant) => participant.id === editingParticipantId) || null,
@@ -299,11 +295,13 @@ export default function AdminPage() {
   const startEditParticipant = useCallback((participant: Participant) => {
     setEditingParticipantId(participant.id);
     setNewName(participant.name);
+    setNewNickname(participant.nickname || "");
   }, []);
 
   const resetParticipantForm = useCallback(() => {
     setEditingParticipantId("");
     setNewName("");
+    setNewNickname("");
   }, []);
 
   const openManualRecordForDate = useCallback((date: string, participantId = "") => {
@@ -334,7 +332,7 @@ export default function AdminPage() {
     const res = await fetch(`/api/participants/${editingParticipantId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: newName }),
+      body: JSON.stringify({ name: newName, nickname: newNickname }),
     });
 
     if (res.ok) {
@@ -344,7 +342,7 @@ export default function AdminPage() {
     } else {
       alert("멤버 정보를 수정하지 못했어요.");
     }
-  }, [addParticipant, editingParticipantId, loadData, newName, resetParticipantForm]);
+  }, [addParticipant, editingParticipantId, loadData, newName, newNickname, resetParticipantForm]);
 
   const deleteParticipant = useCallback(async (participantId: string) => {
     if (!window.confirm("이 멤버를 목록에서 제외할까요? 기존 러닝 기록은 그대로 보관됩니다.")) return;
@@ -627,9 +625,6 @@ export default function AdminPage() {
                     <span className="block text-sm leading-tight text-oriwan-text">{secondsToTime(row.durationSeconds)}</span>
                   </span>
                 </div>
-                <p className="mt-2 rounded-xl bg-white/70 px-2 py-1 text-[10px] font-black text-oriwan-text-muted ring-1 ring-slate-950/5">
-                  {row.missionLabel}
-                </p>
               </div>
             ))}
             {!participantProgress.length && !loading && (
@@ -763,7 +758,7 @@ export default function AdminPage() {
               <div className="mb-4 flex items-start justify-between gap-3">
                 <div>
                   <h2 className="text-xl font-black tracking-[-0.04em] text-oriwan-text">멤버 관리</h2>
-                  <p className="mt-1 text-xs text-oriwan-text-muted">이름을 추가하고, 필요하면 빠르게 바꾸거나 정리해요.</p>
+                  <p className="mt-1 text-xs text-oriwan-text-muted">이름과 자기소개를 추가하고, 필요하면 빠르게 바꾸거나 정리해요.</p>
                 </div>
                 <button
                   type="button"
@@ -778,9 +773,16 @@ export default function AdminPage() {
               </div>
 
               <div className="rounded-3xl bg-oriwan-surface-light p-4">
-                <p className="mb-3 text-xs font-black text-oriwan-text">{editingParticipant ? "멤버 이름 수정" : "새 멤버 추가"}</p>
+                <p className="mb-3 text-xs font-black text-oriwan-text">{editingParticipant ? "멤버 정보 수정" : "새 멤버 추가"}</p>
                 <div className="grid gap-2">
                   <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="이름" className="rounded-xl border border-oriwan-border px-3 py-2.5 text-sm" />
+                  <textarea
+                    value={newNickname}
+                    onChange={(e) => setNewNickname(e.target.value)}
+                    placeholder="자기소개"
+                    rows={4}
+                    className="resize-none rounded-xl border border-oriwan-border px-3 py-2.5 text-sm leading-6"
+                  />
                 </div>
                 <div className="mt-3 flex gap-2">
                   <button type="button" onClick={saveParticipant} className="btn-primary flex-1 py-3 text-sm">
@@ -799,6 +801,11 @@ export default function AdminPage() {
                   <div key={participant.id} className="flex items-center justify-between gap-3 rounded-2xl bg-white px-4 py-3 ring-1 ring-slate-950/5">
                     <div className="min-w-0">
                       <p className="truncate text-sm font-black text-oriwan-text">{participant.name}</p>
+                      {participant.nickname && (
+                        <p className="mt-1 line-clamp-2 whitespace-pre-line text-xs font-semibold leading-5 text-oriwan-text-muted">
+                          {participant.nickname}
+                        </p>
+                      )}
                     </div>
                     <div className="flex shrink-0 gap-1.5">
                       <button type="button" onClick={() => startEditParticipant(participant)} className="rounded-xl bg-oriwan-surface-light px-3 py-2 text-xs font-black text-oriwan-text">

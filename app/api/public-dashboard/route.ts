@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
     const [participantsResult, recordsResult] = await Promise.all([
       supabase
         .from("participants")
-        .select("id, name, active, display_order, created_at")
+        .select("id, name, nickname, active, display_order, created_at")
         .eq("user_id", adminUserId)
         .eq("active", true)
         .order("display_order", { ascending: true })

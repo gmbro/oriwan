@@ -13,6 +13,7 @@ import { createClient } from "@/lib/supabase/client";
 type Participant = {
   id: string;
   name: string;
+  nickname: string | null;
 };
 
 type RunRecord = {
@@ -100,12 +101,6 @@ function crewLevelBadge(certifiedDays: number, rate: number) {
   if (certifiedDays >= 11) return { label: "PACE UP", className: "bg-amber-200 text-amber-900" };
   if (certifiedDays >= 1) return { label: "STARTER", className: "bg-rose-100 text-rose-700" };
   return { label: "READY", className: "bg-slate-100 text-slate-500" };
-}
-
-function nextMissionLabel(certifiedDays: number) {
-  if (certifiedDays >= CHALLENGE_DAYS) return "공식 100일 완주";
-  const nextTarget = certifiedDays < 10 ? 10 : certifiedDays < 50 ? 50 : CHALLENGE_DAYS;
-  return `다음 미션 ${Math.max(nextTarget - certifiedDays, 1)}일`;
 }
 
 const officialCertificationDays = makeOfficialCertificationDays();
@@ -375,7 +370,6 @@ export default function DashboardPage() {
           certifiedDays,
           rate,
           badge: crewLevelBadge(certifiedDays, rate),
-          missionLabel: nextMissionLabel(certifiedDays),
           ...metrics,
         };
       })
@@ -559,9 +553,6 @@ export default function DashboardPage() {
                         <span className="block text-sm leading-tight text-oriwan-text">{secondsToTime(row.durationSeconds)}</span>
                       </span>
                     </div>
-                    <p className="mt-2 rounded-xl bg-white/70 px-2 py-1 text-[10px] font-black text-oriwan-text-muted ring-1 ring-slate-950/5">
-                      {row.missionLabel}
-                    </p>
                   </button>
                 ))}
                 {!dashboard.participantProgress.length && !loading && (
@@ -604,9 +595,11 @@ export default function DashboardPage() {
                     {selectedParticipant.rate >= 100 ? "100% 완주!" : `${selectedParticipant.rate}%`}
                   </p>
                   <h3 className="mt-2 text-2xl font-black tracking-[-0.05em] text-oriwan-text">{selectedParticipant.participant.name}</h3>
-                  <p className="mt-1 text-xs font-bold text-oriwan-text-muted">
-                    공식 게이지 {Math.min(selectedParticipant.certifiedDays, CHALLENGE_DAYS)}/{CHALLENGE_DAYS}일 · 스탬프는 5/1부터 계속 기록
-                  </p>
+                  {selectedParticipant.participant.nickname && (
+                    <p className="mt-2 whitespace-pre-line rounded-2xl bg-oriwan-surface-light px-4 py-3 text-sm font-bold leading-6 text-oriwan-text">
+                      {selectedParticipant.participant.nickname}
+                    </p>
+                  )}
                 </div>
                 <button
                   type="button"
