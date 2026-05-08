@@ -3,6 +3,7 @@
 import Image from "next/image";
 import type { CSSProperties } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { buildMemberPictogramMap, MemberPictogram } from "@/components/member-pictogram";
 import { YoutubeShortsSection } from "@/components/youtube-shorts-section";
 import { ACTUAL_CERTIFICATION_START_DATE, CERTIFICATION_DISPLAY_START_DATE, CHALLENGE_DAYS } from "@/lib/challenge";
 import { DASHBOARD_REFRESH_CHANNEL, DASHBOARD_REFRESH_EVENT } from "@/lib/dashboard-refresh";
@@ -355,6 +356,7 @@ export default function DashboardPage() {
         caption: `${shortDate(day.day)} · 누적 ${runningCertifiedSlots}건`,
       };
     });
+    const pictogramByParticipantId = buildMemberPictogramMap(participants);
     const participantProgress = participants
       .map((participant) => {
         const certifiedDates = Array.from(certifiedDaysByParticipant.get(participant.id) || []).sort();
@@ -364,6 +366,7 @@ export default function DashboardPage() {
         const rate = Math.min(Math.round((certifiedDays / CHALLENGE_DAYS) * 100), 100);
         return {
           participant,
+          pictogramIndex: pictogramByParticipantId.get(participant.id) ?? 0,
           certifiedDates,
           stampedDates,
           certifiedDays,
@@ -516,11 +519,14 @@ export default function DashboardPage() {
                   >
                     {row.rate >= 100 && <FanfareBurst compact />}
                     <div className="flex items-center justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-black text-oriwan-text">{row.participant.name}</p>
-                        <span className={`crew-level-badge mt-1 inline-flex rounded-full px-2 py-0.5 text-[9px] font-black ${row.badge.className}`}>
-                          {row.badge.label}
-                        </span>
+                      <div className="flex min-w-0 items-center gap-2">
+                        <MemberPictogram index={row.pictogramIndex} participantName={row.participant.name} />
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-black text-oriwan-text">{row.participant.name}</p>
+                          <span className={`crew-level-badge mt-1 inline-flex rounded-full px-2 py-0.5 text-[9px] font-black ${row.badge.className}`}>
+                            {row.badge.label}
+                          </span>
+                        </div>
                       </div>
                       <p className={`shrink-0 text-lg font-black tracking-[-0.06em] ${gaugeTextClass(row.certifiedDays)}`}>
                         <AnimatedNumber value={row.rate} suffix="%" />
@@ -588,7 +594,10 @@ export default function DashboardPage() {
                   }`}>
                     {selectedParticipant.rate >= 100 ? "100% 완주!" : `${selectedParticipant.rate}%`}
                   </p>
-                  <h3 className="mt-2 text-2xl font-black tracking-[-0.05em] text-oriwan-text">{selectedParticipant.participant.name}</h3>
+                  <div className="mt-2 flex items-center gap-2">
+                    <MemberPictogram index={selectedParticipant.pictogramIndex} participantName={selectedParticipant.participant.name} size="lg" />
+                    <h3 className="text-2xl font-black tracking-[-0.05em] text-oriwan-text">{selectedParticipant.participant.name}</h3>
+                  </div>
                   {selectedParticipant.participant.nickname && (
                     <p className="mt-2 whitespace-pre-line rounded-2xl bg-oriwan-surface-light px-4 py-3 text-sm font-bold leading-6 text-oriwan-text">
                       {selectedParticipant.participant.nickname}

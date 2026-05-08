@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
+import { buildMemberPictogramMap, MemberPictogram } from "@/components/member-pictogram";
 import { ADMIN_EMAIL, isAdminEmail } from "@/lib/admin";
 import { ACTUAL_CERTIFICATION_START_DATE, CHALLENGE_DAYS, CHALLENGE_START_DATE, clampToChallengeWindow } from "@/lib/challenge";
 import { DASHBOARD_REFRESH_CHANNEL, DASHBOARD_REFRESH_EVENT, broadcastDashboardRefresh } from "@/lib/dashboard-refresh";
@@ -230,6 +231,8 @@ export default function AdminPage() {
     };
   }, [authorized, loadData, mounted, scheduleRefresh]);
 
+  const participantPictogramById = useMemo(() => buildMemberPictogramMap(participants), [participants]);
+
   const participantProgress = useMemo(() => {
     const certifiedDaysByParticipant = new Map<string, Set<string>>();
     const metricsByParticipant = new Map<string, { distanceKm: number; durationSeconds: number }>();
@@ -256,6 +259,7 @@ export default function AdminPage() {
         const metrics = metricsByParticipant.get(participant.id) || { distanceKm: 0, durationSeconds: 0 };
         return {
           participant,
+          pictogramIndex: participantPictogramById.get(participant.id) ?? 0,
           certifiedDays,
           rate,
           badge: crewLevelBadge(certifiedDays, rate),
@@ -263,7 +267,7 @@ export default function AdminPage() {
         };
       })
       .sort((a, b) => b.certifiedDays - a.certifiedDays || a.participant.name.localeCompare(b.participant.name, "ko"));
-  }, [participants, records]);
+  }, [participantPictogramById, participants, records]);
 
   const addParticipant = useCallback(async () => {
     if (!newName.trim()) return;
@@ -599,11 +603,14 @@ export default function AdminPage() {
                 className={`rounded-2xl bg-white px-3 py-3 ring-1 ring-slate-950/5 ${row.rate >= 100 ? "gauge-complete-card" : "dashboard-gauge-card"}`}
               >
                 <div className="flex items-center justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-black text-oriwan-text">{row.participant.name}</p>
-                    <span className={`crew-level-badge mt-1 inline-flex rounded-full px-2 py-0.5 text-[9px] font-black ${row.badge.className}`}>
-                      {row.badge.label}
-                    </span>
+                  <div className="flex min-w-0 items-center gap-2">
+                    <MemberPictogram index={row.pictogramIndex} participantName={row.participant.name} />
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-black text-oriwan-text">{row.participant.name}</p>
+                      <span className={`crew-level-badge mt-1 inline-flex rounded-full px-2 py-0.5 text-[9px] font-black ${row.badge.className}`}>
+                        {row.badge.label}
+                      </span>
+                    </div>
                   </div>
                   <p className={`shrink-0 text-lg font-black tracking-[-0.06em] ${gaugeTextClass(row.certifiedDays)}`}>
                     {row.rate}%
@@ -799,13 +806,16 @@ export default function AdminPage() {
               <div className="mt-4 space-y-2">
                 {participants.map((participant) => (
                   <div key={participant.id} className="flex items-center justify-between gap-3 rounded-2xl bg-white px-4 py-3 ring-1 ring-slate-950/5">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-black text-oriwan-text">{participant.name}</p>
-                      {participant.nickname && (
-                        <p className="mt-1 line-clamp-2 whitespace-pre-line text-xs font-semibold leading-5 text-oriwan-text-muted">
-                          {participant.nickname}
-                        </p>
-                      )}
+                    <div className="flex min-w-0 items-start gap-2">
+                      <MemberPictogram index={participantPictogramById.get(participant.id)} participantName={participant.name} />
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-black text-oriwan-text">{participant.name}</p>
+                        {participant.nickname && (
+                          <p className="mt-1 line-clamp-2 whitespace-pre-line text-xs font-semibold leading-5 text-oriwan-text-muted">
+                            {participant.nickname}
+                          </p>
+                        )}
+                      </div>
                     </div>
                     <div className="flex shrink-0 gap-1.5">
                       <button type="button" onClick={() => startEditParticipant(participant)} className="rounded-xl bg-oriwan-surface-light px-3 py-2 text-xs font-black text-oriwan-text">
