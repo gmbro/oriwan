@@ -26,6 +26,11 @@ type Participant = {
   name: string;
 };
 
+type AssignedUploadedImage = UploadedImage & {
+  participantId?: string | null;
+  participant_id?: string | null;
+};
+
 const MAX_IMAGES = 40;
 
 function matchParticipant(extractedName: string | null | undefined, participants: Participant[]) {
@@ -36,6 +41,12 @@ function matchParticipant(extractedName: string | null | undefined, participants
     const name = participant.name.toLowerCase().replace(/\s+/g, "");
     return normalized.includes(name) || name.includes(normalized);
   }) || null;
+}
+
+function getAssignedParticipantId(image: UploadedImage) {
+  const assignedImage = image as AssignedUploadedImage;
+  const candidate = assignedImage.participantId || assignedImage.participant_id || "";
+  return typeof candidate === "string" ? candidate : "";
 }
 
 function decideStatus(input: {
@@ -132,7 +143,7 @@ export async function POST(request: NextRequest) {
           ? body.participant_id
           : "";
     const rawImages = Array.isArray(body.images) ? body.images : [];
-    const images = rawImages.filter(validImage).slice(0, MAX_IMAGES);
+    const images = rawImages.filter(validImage).slice(0, MAX_IMAGES) as UploadedImage[];
 
     if (!images.length) {
       return NextResponse.json({ error: "러닝 이미지를 먼저 올려주세요." }, { status: 400 });
@@ -156,15 +167,21 @@ export async function POST(request: NextRequest) {
     if (participantError) throw participantError;
 
     const participants = (participantsData || []) as Participant[];
+    const participantById = new Map(participants.map((participant) => [participant.id, participant]));
     const targetParticipant = requestedParticipantId
-      ? participants.find((participant) => participant.id === requestedParticipantId) || null
+      ? participantById.get(requestedParticipantId) || null
       : null;
 
     if (requestedParticipantId && !targetParticipant) {
       return NextResponse.json({ error: "선택한 멤버를 찾지 못했어요." }, { status: 400 });
     }
 
-    const knownNames = targetParticipant ? [targetParticipant.name] : participants.map((participant) => participant.name);
+    const invalidAssignedParticipantId = images
+      .map(getAssignedParticipantId)
+      .find((participantId) => participantId && !participantById.has(participantId));
+    if (invalidAssignedParticipantId) {
+      return NextResponse.json({ error: "이미지에 연결된 멤버를 찾지 못했어요." }, { status: 400 });
+    }
 
     const { data: batch, error: batchError } = await supabase
       .from("upload_batches")
@@ -185,6 +202,11 @@ export async function POST(request: NextRequest) {
 
     for (let index = 0; index < images.length; index += 1) {
       const image = images[index];
+      const assignedParticipantId = getAssignedParticipantId(image);
+      const assignedParticipant = assignedParticipantId ? participantById.get(assignedParticipantId) || null : null;
+      const participantHint = targetParticipant || assignedParticipant;
+      const knownNames = participantHint ? [participantHint.name] : participants.map((participant) => participant.name);
+
       let analyzed: Awaited<ReturnType<typeof analyzeImage>>;
       let extracted: ExtractedRun;
       try {
@@ -200,8 +222,8 @@ export async function POST(request: NextRequest) {
         results.push({
           id: null,
           file_name: image.name,
-          participant_id: targetParticipant?.id || null,
-          participant_name: targetParticipant?.name || "",
+          participant_id: participantHint?.id || null,
+          participant_name: participantHint?.name || "",
           record_date: targetDate,
           distance_km: null,
           duration_seconds: null,
@@ -211,7 +233,7 @@ export async function POST(request: NextRequest) {
         });
         continue;
       }
-      const participant = targetParticipant || matchParticipant(extracted.participant_name, participants);
+      const participant = participantHint || matchParticipant(extracted.participant_name, participants);
       const extractedDate = normalizeRecordDate(extracted.record_date);
       const recordDate = extractedDate || targetDate;
       const dateWasFallback = !extractedDate && Boolean(targetDate);

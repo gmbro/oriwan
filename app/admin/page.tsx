@@ -49,9 +49,16 @@ type AnalysisResult = {
   notes?: string | null;
 };
 
+type PendingAnalyzeImage = {
+  name: string;
+  dataUrl: string;
+  participantId?: string;
+};
+
 type AdminOtpType = "email" | "magiclink" | "signup";
 type AdminModal = "participant" | "record" | "upload" | null;
 
+const IMAGE_UPLOAD_CHUNK_SIZE = 5;
 const today = toIsoDate(new Date());
 const effectiveToday = today;
 const officialCertificationEndDate = toIsoDate(addDays(new Date(`${ACTUAL_CERTIFICATION_START_DATE}T00:00:00`), CHALLENGE_DAYS - 1));
@@ -112,6 +119,7 @@ export default function AdminPage() {
   const [newNickname, setNewNickname] = useState("");
   const [targetDate, setTargetDate] = useState(initialRecordDate);
   const [files, setFiles] = useState<File[]>([]);
+  const [participantUploadFiles, setParticipantUploadFiles] = useState<Partial<Record<string, File>>>({});
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisMessage, setAnalysisMessage] = useState("");
   const [analysisResults, setAnalysisResults] = useState<AnalysisResult[]>([]);
@@ -296,6 +304,12 @@ export default function AdminPage() {
     [participants, uploadParticipantId]
   );
 
+  const assignedParticipantFiles = useMemo(() => {
+    return participants
+      .map((participant) => ({ participant, file: participantUploadFiles[participant.id] }))
+      .filter((entry): entry is { participant: Participant; file: File } => Boolean(entry.file));
+  }, [participantUploadFiles, participants]);
+
   const startEditParticipant = useCallback((participant: Participant) => {
     setEditingParticipantId(participant.id);
     setNewName(participant.name);
@@ -321,6 +335,7 @@ export default function AdminPage() {
     setTargetDate(date);
     setUploadParticipantId(participantId);
     setFiles([]);
+    setParticipantUploadFiles({});
     setAnalysisResults([]);
     setAnalysisMessage("");
     setAdminModal("upload");
@@ -360,6 +375,45 @@ export default function AdminPage() {
     }
   }, [editingParticipantId, loadData, resetParticipantForm]);
 
+  const postAnalyzeImages = useCallback(async (images: PendingAnalyzeImage[], participantId = "") => {
+    const results: AnalysisResult[] = [];
+
+    for (let index = 0; index < images.length; index += IMAGE_UPLOAD_CHUNK_SIZE) {
+      const chunk = images.slice(index, index + IMAGE_UPLOAD_CHUNK_SIZE);
+      setAnalysisMessage(`이미지 읽는 중... ${Math.min(index + chunk.length, images.length)}/${images.length}`);
+      const res = await fetch("/api/records/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ targetDate, participantId: participantId || null, images: chunk }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "analysis failed");
+      if (Array.isArray(json.results)) results.push(...(json.results as AnalysisResult[]));
+    }
+
+    return results;
+  }, [targetDate]);
+
+  const setParticipantFile = useCallback((participantId: string, fileList: FileList | null) => {
+    const selectedFiles = Array.from(fileList || []);
+    if (!selectedFiles.length) return;
+    const imageFile = selectedFiles.find((file) => file.type.startsWith("image/"));
+    if (!imageFile) {
+      setAnalysisMessage("이미지 파일만 올릴 수 있어요.");
+      return;
+    }
+
+    setParticipantUploadFiles((current) => ({ ...current, [participantId]: imageFile }));
+    setAnalysisResults([]);
+    setAnalysisMessage("");
+  }, []);
+
+  const clearParticipantUploadFiles = useCallback(() => {
+    setParticipantUploadFiles({});
+    setAnalysisResults([]);
+    setAnalysisMessage("");
+  }, []);
+
   const analyzeImages = useCallback(async () => {
     if (!files.length) return;
     setAnalyzing(true);
@@ -367,15 +421,8 @@ export default function AdminPage() {
     setAnalysisResults([]);
     try {
       const images = await Promise.all(files.map(async (file) => ({ name: file.name, dataUrl: await imageFileToOptimizedDataUrl(file) })));
-      const res = await fetch("/api/records/analyze", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ targetDate, participantId: uploadParticipantId || null, images }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "analysis failed");
+      const results = await postAnalyzeImages(images, uploadParticipantId || "");
       setFiles([]);
-      const results = (Array.isArray(json.results) ? json.results : []) as AnalysisResult[];
       setAnalysisResults(results);
       const certified = results.filter((result) => result.status === "certified").length;
       const review = results.length - certified;
@@ -388,7 +435,36 @@ export default function AdminPage() {
     } finally {
       setAnalyzing(false);
     }
-  }, [files, loadData, targetDate, uploadParticipant, uploadParticipantId]);
+  }, [files, loadData, postAnalyzeImages, uploadParticipant, uploadParticipantId]);
+
+  const analyzeAssignedParticipantImages = useCallback(async () => {
+    if (!assignedParticipantFiles.length) return;
+    setAnalyzing(true);
+    setAnalysisMessage("");
+    setAnalysisResults([]);
+    try {
+      const images = await Promise.all(
+        assignedParticipantFiles.map(async ({ participant, file }) => ({
+          name: `${participant.name}-${file.name}`,
+          dataUrl: await imageFileToOptimizedDataUrl(file),
+          participantId: participant.id,
+        }))
+      );
+      const results = await postAnalyzeImages(images);
+      setParticipantUploadFiles({});
+      setFiles([]);
+      setAnalysisResults(results);
+      const certified = results.filter((result) => result.status === "certified").length;
+      const review = results.length - certified;
+      setAnalysisMessage(`참가자별 ${results.length}장 정리 완료 · 완료 ${certified}건 · 확인 ${review}건`);
+      void broadcastDashboardRefresh();
+      await loadData();
+    } catch (err) {
+      setAnalysisMessage(err instanceof Error ? err.message : "참가자별 이미지를 읽지 못했어요. 흐린 이미지는 직접 입력으로 가볍게 보완해주세요.");
+    } finally {
+      setAnalyzing(false);
+    }
+  }, [assignedParticipantFiles, loadData, postAnalyzeImages]);
 
   const saveManualRecord = useCallback(async () => {
     const duration = parseDurationToSeconds(manualDuration);
@@ -644,7 +720,7 @@ export default function AdminPage() {
 
         {adminModal === "upload" && (
           <div className="fixed inset-0 z-[80] flex items-end bg-slate-950/45 px-4 py-4 backdrop-blur-sm sm:items-center sm:justify-center">
-            <div className="card max-h-[88vh] w-full max-w-2xl overflow-y-auto p-5 sm:p-6">
+            <div className="card max-h-[88vh] w-full max-w-4xl overflow-y-auto p-5 sm:p-6">
               <div className="mb-4 flex items-start justify-between gap-3">
                 <div>
                   <h2 className="text-xl font-black tracking-[-0.04em] text-oriwan-text">
@@ -692,6 +768,68 @@ export default function AdminPage() {
                 </label>
               </div>
 
+              <div className="mt-4 rounded-[28px] bg-white p-4 ring-1 ring-slate-950/5">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <p className="text-sm font-black text-oriwan-text">참가자별 리스트 업로드</p>
+                    <p className="mt-1 text-xs leading-5 text-oriwan-text-muted">이름 옆에 이미지 1장씩 넣고, 전체 멤버 기록을 버튼 한 번으로 나눠 처리해요.</p>
+                  </div>
+                  <span className="rounded-full bg-lime-300 px-3 py-1 text-[11px] font-black text-slate-950">
+                    {assignedParticipantFiles.length}/{participants.length}
+                  </span>
+                </div>
+
+                <div className="mt-3 grid max-h-[300px] gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
+                  {participants.map((participant) => {
+                    const participantFile = participantUploadFiles[participant.id];
+                    return (
+                      <label
+                        key={participant.id}
+                        className={`flex cursor-pointer items-center justify-between gap-3 rounded-2xl px-3 py-2.5 ring-1 transition hover:-translate-y-0.5 ${
+                          participantFile ? "bg-lime-50 ring-lime-300" : "bg-oriwan-surface-light ring-slate-950/5 hover:ring-lime-300"
+                        }`}
+                      >
+                        <span className="flex min-w-0 items-center gap-2">
+                          <MemberPictogram index={participantPictogramById.get(participant.id)} participantName={participant.name} />
+                          <span className="min-w-0">
+                            <span className="block truncate text-sm font-black text-oriwan-text">{participant.name}</span>
+                            <span className="block truncate text-[11px] font-semibold text-oriwan-text-muted">
+                              {participantFile ? participantFile.name : "이미지 선택"}
+                            </span>
+                          </span>
+                        </span>
+                        <input
+                          key={participantFile ? `${participant.id}-${participantFile.name}` : `${participant.id}-empty`}
+                          type="file"
+                          accept="image/*"
+                          onChange={(event) => setParticipantFile(participant.id, event.target.files)}
+                          className="sr-only"
+                        />
+                        <span className={`shrink-0 rounded-xl px-3 py-1.5 text-[11px] font-black ${participantFile ? "bg-lime-300 text-slate-950" : "bg-white text-oriwan-text"}`}>
+                          {participantFile ? "변경" : "선택"}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+
+                <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                  <button
+                    type="button"
+                    onClick={analyzeAssignedParticipantImages}
+                    disabled={!assignedParticipantFiles.length || analyzing}
+                    className="btn-primary flex-1 py-3 text-sm disabled:opacity-40"
+                  >
+                    {analyzing ? "이미지 읽는 중..." : `참가자별 한번에 업로드${assignedParticipantFiles.length ? ` (${assignedParticipantFiles.length})` : ""}`}
+                  </button>
+                  {assignedParticipantFiles.length > 0 && (
+                    <button type="button" onClick={clearParticipantUploadFiles} disabled={analyzing} className="rounded-2xl bg-oriwan-surface-light px-4 py-3 text-sm font-black text-oriwan-text disabled:opacity-40">
+                      선택 비우기
+                    </button>
+                  )}
+                </div>
+              </div>
+
               <div
                 className="mt-4 rounded-[28px] border-2 border-dashed border-lime-300/80 bg-lime-50/70 p-5 text-center transition hover:bg-lime-50"
                 onDragOver={(event) => event.preventDefault()}
@@ -704,7 +842,7 @@ export default function AdminPage() {
                 }}
               >
                 <p className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-950 text-lg font-black text-lime-200">{files.length || "+"}</p>
-                <p className="text-base font-black text-oriwan-text">러닝 이미지를 한 번에 올려주세요</p>
+                <p className="text-base font-black text-oriwan-text">이름 자동 인식으로 올리기</p>
                 <input
                   type="file"
                   accept="image/*"

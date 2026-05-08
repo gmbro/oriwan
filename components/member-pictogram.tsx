@@ -12,35 +12,35 @@ type MemberPictogramProps = {
 };
 
 type PictogramShape = "round" | "bean" | "drop" | "squircle" | "pill" | "pebble";
-type PictogramExpression = "smile" | "wink" | "laugh" | "surprise" | "calm" | "focus" | "heart" | "sleepy";
+type PictogramExpression = "smile" | "wink" | "laugh" | "surprise" | "calm" | "heart" | "sleepy" | "grin" | "tongue" | "sparkle" | "rosy";
 type PictogramPose = "wave" | "run" | "cheer" | "jump" | "stretch" | "shy";
-type PictogramAccessory = "cap" | "bow" | "crown" | "spark" | "leaf" | "flag";
+type PictogramAccessory = "cap" | "bow" | "crown" | "spark" | "leaf" | "flag" | "headband" | "wings" | "partyHat" | "beanie" | "visor" | "scarf";
 
 const MEMBER_PICTOGRAMS = [
-  { label: "햇살 러너", glyph: "☀", bg: "#fff7ed", body: "#fde68a", accent: "#f97316", shape: "round", expression: "smile", pose: "wave", accessory: "cap" },
+  { label: "햇살 캡틴", glyph: "☀", bg: "#fff7ed", body: "#fde68a", accent: "#f97316", shape: "round", expression: "smile", pose: "wave", accessory: "cap" },
   { label: "별 점퍼", glyph: "★", bg: "#eef2ff", body: "#c7d2fe", accent: "#4f46e5", shape: "bean", expression: "wink", pose: "jump", accessory: "spark" },
   { label: "하트 응원단", glyph: "♥", bg: "#fff1f2", body: "#fecdd3", accent: "#e11d48", shape: "drop", expression: "heart", pose: "cheer", accessory: "bow" },
-  { label: "번개 스프린터", glyph: "⚡", bg: "#fefce8", body: "#bef264", accent: "#65a30d", shape: "pill", expression: "focus", pose: "run", accessory: "flag" },
+  { label: "번개 메롱러", glyph: "⚡", bg: "#fefce8", body: "#bef264", accent: "#65a30d", shape: "pill", expression: "tongue", pose: "run", accessory: "headband" },
   { label: "잎 스트레처", glyph: "♣", bg: "#f0fdf4", body: "#bbf7d0", accent: "#16a34a", shape: "pebble", expression: "calm", pose: "stretch", accessory: "leaf" },
-  { label: "음표 댄서", glyph: "♪", bg: "#fdf2f8", body: "#fbcfe8", accent: "#db2777", shape: "squircle", expression: "laugh", pose: "cheer", accessory: "bow" },
-  { label: "달 휴식러", glyph: "☾", bg: "#f8fafc", body: "#dbeafe", accent: "#2563eb", shape: "drop", expression: "sleepy", pose: "shy", accessory: "cap" },
-  { label: "다이아 페이서", glyph: "◆", bg: "#ecfeff", body: "#a5f3fc", accent: "#0891b2", shape: "squircle", expression: "surprise", pose: "wave", accessory: "crown" },
-  { label: "꽃 러너", glyph: "✿", bg: "#fdf4ff", body: "#f5d0fe", accent: "#c026d3", shape: "round", expression: "smile", pose: "shy", accessory: "leaf" },
-  { label: "깃발 리더", glyph: "⚑", bg: "#f0f9ff", body: "#bae6fd", accent: "#0284c7", shape: "bean", expression: "focus", pose: "cheer", accessory: "flag" },
-  { label: "나침반 탐험가", glyph: "✦", bg: "#fafaf9", body: "#fed7aa", accent: "#ea580c", shape: "pebble", expression: "wink", pose: "run", accessory: "cap" },
-  { label: "물결 조깅러", glyph: "≈", bg: "#f0fdfa", body: "#99f6e4", accent: "#0f766e", shape: "pill", expression: "calm", pose: "stretch", accessory: "spark" },
-  { label: "스파크 점퍼", glyph: "✶", bg: "#fffbeb", body: "#fde68a", accent: "#d97706", shape: "drop", expression: "laugh", pose: "jump", accessory: "spark" },
-  { label: "구름 산책러", glyph: "☁", bg: "#f1f5f9", body: "#e0f2fe", accent: "#64748b", shape: "bean", expression: "sleepy", pose: "wave", accessory: "bow" },
-  { label: "왕관 완주러", glyph: "♛", bg: "#fef3c7", body: "#fde68a", accent: "#92400e", shape: "squircle", expression: "smile", pose: "cheer", accessory: "crown" },
-  { label: "체크 메이트", glyph: "✓", bg: "#ecfccb", body: "#d9f99d", accent: "#4d7c0f", shape: "round", expression: "focus", pose: "run", accessory: "flag" },
-  { label: "불꽃 부스터", glyph: "♨", bg: "#fff1f2", body: "#fed7aa", accent: "#dc2626", shape: "pill", expression: "surprise", pose: "jump", accessory: "spark" },
-  { label: "눈꽃 쿨다운", glyph: "✻", bg: "#eff6ff", body: "#bfdbfe", accent: "#1d4ed8", shape: "pebble", expression: "calm", pose: "shy", accessory: "crown" },
-  { label: "씨앗 스타터", glyph: "●", bg: "#f7fee7", body: "#bef264", accent: "#15803d", shape: "drop", expression: "heart", pose: "stretch", accessory: "leaf" },
-  { label: "리본 플로터", glyph: "∞", bg: "#fdf2f8", body: "#f9a8d4", accent: "#be185d", shape: "bean", expression: "wink", pose: "wave", accessory: "bow" },
+  { label: "음표 댄서", glyph: "♪", bg: "#fdf2f8", body: "#fbcfe8", accent: "#db2777", shape: "squircle", expression: "laugh", pose: "cheer", accessory: "partyHat" },
+  { label: "달 잠꾸러기", glyph: "☾", bg: "#f8fafc", body: "#dbeafe", accent: "#2563eb", shape: "drop", expression: "sleepy", pose: "shy", accessory: "beanie" },
+  { label: "다이아 날개", glyph: "◆", bg: "#ecfeff", body: "#a5f3fc", accent: "#0891b2", shape: "squircle", expression: "surprise", pose: "wave", accessory: "wings" },
+  { label: "꽃 머리띠", glyph: "✿", bg: "#fdf4ff", body: "#f5d0fe", accent: "#c026d3", shape: "round", expression: "rosy", pose: "shy", accessory: "headband" },
+  { label: "깃발 리더", glyph: "⚑", bg: "#f0f9ff", body: "#bae6fd", accent: "#0284c7", shape: "bean", expression: "grin", pose: "cheer", accessory: "flag" },
+  { label: "나침반 캡", glyph: "✦", bg: "#fafaf9", body: "#fed7aa", accent: "#ea580c", shape: "pebble", expression: "wink", pose: "run", accessory: "visor" },
+  { label: "물결 반짝이", glyph: "≈", bg: "#f0fdfa", body: "#99f6e4", accent: "#0f766e", shape: "pill", expression: "sparkle", pose: "stretch", accessory: "spark" },
+  { label: "스파크 파티", glyph: "✶", bg: "#fffbeb", body: "#fde68a", accent: "#d97706", shape: "drop", expression: "laugh", pose: "jump", accessory: "partyHat" },
+  { label: "구름 리본", glyph: "☁", bg: "#f1f5f9", body: "#e0f2fe", accent: "#64748b", shape: "bean", expression: "sleepy", pose: "wave", accessory: "bow" },
+  { label: "왕관 미소", glyph: "♛", bg: "#fef3c7", body: "#fde68a", accent: "#92400e", shape: "squircle", expression: "smile", pose: "cheer", accessory: "crown" },
+  { label: "체크 날개", glyph: "✓", bg: "#ecfccb", body: "#d9f99d", accent: "#4d7c0f", shape: "round", expression: "grin", pose: "run", accessory: "wings" },
+  { label: "불꽃 깜짝이", glyph: "♨", bg: "#fff1f2", body: "#fed7aa", accent: "#dc2626", shape: "pill", expression: "surprise", pose: "jump", accessory: "headband" },
+  { label: "눈꽃 비니", glyph: "✻", bg: "#eff6ff", body: "#bfdbfe", accent: "#1d4ed8", shape: "pebble", expression: "calm", pose: "shy", accessory: "beanie" },
+  { label: "씨앗 목도리", glyph: "●", bg: "#f7fee7", body: "#bef264", accent: "#15803d", shape: "drop", expression: "heart", pose: "stretch", accessory: "scarf" },
+  { label: "리본 윙크", glyph: "∞", bg: "#fdf2f8", body: "#f9a8d4", accent: "#be185d", shape: "bean", expression: "wink", pose: "wave", accessory: "bow" },
   { label: "미소 코치", glyph: "☺", bg: "#faf5ff", body: "#ddd6fe", accent: "#7c3aed", shape: "round", expression: "laugh", pose: "cheer", accessory: "cap" },
-  { label: "화살 페이서", glyph: "➜", bg: "#f8fafc", body: "#cbd5e1", accent: "#334155", shape: "pill", expression: "focus", pose: "run", accessory: "flag" },
-  { label: "반짝 서포터", glyph: "✧", bg: "#fefce8", body: "#fef08a", accent: "#ca8a04", shape: "squircle", expression: "surprise", pose: "jump", accessory: "spark" },
-  { label: "동글 베이스", glyph: "◎", bg: "#f5f5f4", body: "#e7e5e4", accent: "#57534e", shape: "pebble", expression: "smile", pose: "shy", accessory: "crown" },
+  { label: "화살 머리띠", glyph: "➜", bg: "#f8fafc", body: "#cbd5e1", accent: "#334155", shape: "pill", expression: "tongue", pose: "run", accessory: "headband" },
+  { label: "반짝 서포터", glyph: "✧", bg: "#fefce8", body: "#fef08a", accent: "#ca8a04", shape: "squircle", expression: "sparkle", pose: "jump", accessory: "spark" },
+  { label: "동글 목도리", glyph: "◎", bg: "#f5f5f4", body: "#e7e5e4", accent: "#57534e", shape: "pebble", expression: "rosy", pose: "shy", accessory: "scarf" },
 ] as const;
 
 function memberHash(value: string) {
@@ -119,6 +119,17 @@ function renderPose(pose: PictogramPose, accent: string) {
   );
 }
 
+function renderBackAccessory(accessory: PictogramAccessory, accent: string) {
+  if (accessory !== "wings") return null;
+  return (
+    <>
+      <path d="M13 19c-6.2.8-9.2 5.1-8.2 10.4 4.3.1 7.9-1.8 10.6-5.7" fill="#fff" opacity=".9" stroke={accent} strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" />
+      <path d="M35 19c6.2.8 9.2 5.1 8.2 10.4-4.3.1-7.9-1.8-10.6-5.7" fill="#fff" opacity=".9" stroke={accent} strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" />
+      <path d="M8 25c2.1.8 4.1.8 6 .1M40 25c-2.1.8-4.1.8-6 .1" fill="none" stroke={accent} strokeLinecap="round" strokeWidth="1.4" opacity=".7" />
+    </>
+  );
+}
+
 function renderAccessory(accessory: PictogramAccessory, accent: string) {
   if (accessory === "cap") return <path d="M15 13c3.2-4.2 12.2-4.8 17.4-.4l1.9 4.4H14.1L15 13Z" fill={accent} opacity=".9" />;
   if (accessory === "bow") {
@@ -132,6 +143,41 @@ function renderAccessory(accessory: PictogramAccessory, accent: string) {
   if (accessory === "crown") return <path d="M14 16.5 17.4 9l6.6 6.1L30.6 9l3.4 7.5H14Z" fill={accent} opacity=".9" />;
   if (accessory === "leaf") return <path d="M21 12.5c2-5.1 7.4-6.6 11.5-4-1.3 5.9-6.1 8.6-11.5 4Z" fill={accent} opacity=".82" />;
   if (accessory === "flag") return <path d="M17 9v9M17 9h12l-2.2 3L29 15H17" fill="none" stroke={accent} strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" />;
+  if (accessory === "headband") {
+    return (
+      <>
+        <path d="M13.5 18.5c5.7-4.1 15.3-4.1 21 0" fill="none" stroke={accent} strokeLinecap="round" strokeWidth="3" />
+        <circle cx="31" cy="17" r="1.8" fill="#fff" opacity=".85" />
+      </>
+    );
+  }
+  if (accessory === "partyHat") return <path d="M19 15 25.2 5.5 31.5 15H19Z" fill={accent} opacity=".9" />;
+  if (accessory === "beanie") {
+    return (
+      <>
+        <path d="M15 16c2.3-6 15.3-6 18 0H15Z" fill={accent} opacity=".88" />
+        <circle cx="24" cy="8.6" r="3" fill={accent} opacity=".8" />
+        <path d="M17.5 15.5h13" stroke="#fff" strokeLinecap="round" strokeWidth="1.8" opacity=".65" />
+      </>
+    );
+  }
+  if (accessory === "visor") {
+    return (
+      <>
+        <path d="M14 15.5c4-3.8 13.5-4.2 18.5-.5" fill="none" stroke={accent} strokeLinecap="round" strokeWidth="4" />
+        <path d="M28 15.2h8.5" stroke={accent} strokeLinecap="round" strokeWidth="3.2" />
+      </>
+    );
+  }
+  if (accessory === "scarf") {
+    return (
+      <>
+        <path d="M14.5 36c5.7 3.2 13.3 3.2 19 0" fill="none" stroke={accent} strokeLinecap="round" strokeWidth="3.2" />
+        <path d="M30.5 37.2 36 42" fill="none" stroke={accent} strokeLinecap="round" strokeWidth="3" />
+      </>
+    );
+  }
+  if (accessory === "wings") return null;
   return (
     <>
       <path d="M35 9v7M31.5 12.5h7" stroke={accent} strokeLinecap="round" strokeWidth="2.3" />
@@ -176,16 +222,6 @@ function renderExpression(expression: PictogramExpression) {
       </>
     );
   }
-  if (expression === "focus") {
-    return (
-      <>
-        <path d="M15 27.2 20 29M33 27.2 28 29" stroke="#0f172a" strokeLinecap="round" strokeWidth="1.7" />
-        <circle cx="18" cy="30" r="1.4" fill="#0f172a" />
-        <circle cx="30" cy="30" r="1.4" fill="#0f172a" />
-        <path d="M21 35h6" stroke="#0f172a" strokeLinecap="round" strokeWidth="1.8" />
-      </>
-    );
-  }
   if (expression === "heart") {
     return (
       <>
@@ -201,6 +237,42 @@ function renderExpression(expression: PictogramExpression) {
         <path d="M15.5 29h4M28.5 29h4" stroke="#0f172a" strokeLinecap="round" strokeWidth="1.8" />
         <path d="M21 35c1.5.9 4.5.9 6 0" fill="none" stroke="#0f172a" strokeLinecap="round" strokeWidth="1.7" />
         <text x="34.5" y="23" fill="#64748b" fontSize="5" fontWeight="900">Z</text>
+      </>
+    );
+  }
+  if (expression === "grin") {
+    return (
+      <>
+        <circle cx="18" cy="30" r="1.7" fill="#0f172a" />
+        <circle cx="30" cy="30" r="1.7" fill="#0f172a" />
+        <path d="M19 34.2h10c-.8 3-2.4 4.4-5 4.4s-4.2-1.4-5-4.4Z" fill="#0f172a" />
+        <path d="M20.8 35.3h6.4" stroke="#fff" strokeLinecap="round" strokeWidth="1.2" opacity=".9" />
+      </>
+    );
+  }
+  if (expression === "tongue") {
+    return (
+      <>
+        <path d="M15.5 28.8c1.1-1 2.5-1 3.6 0M28.9 28.8c1.1-1 2.5-1 3.6 0" fill="none" stroke="#0f172a" strokeLinecap="round" strokeWidth="1.8" />
+        <path d="M20.4 34c2.1 1.8 5.1 1.8 7.2 0" fill="none" stroke="#0f172a" strokeLinecap="round" strokeWidth="1.8" />
+        <path d="M24 35.4c1.8.5 2.5 1.6 1.8 3-.6 1.2-2.9 1.2-3.6 0-.6-1.4 0-2.5 1.8-3Z" fill="#fb7185" />
+      </>
+    );
+  }
+  if (expression === "sparkle") {
+    return (
+      <>
+        <text x="18" y="30" textAnchor="middle" dominantBaseline="central" fill="#0f172a" fontSize="6" fontWeight="900">✦</text>
+        <text x="30" y="30" textAnchor="middle" dominantBaseline="central" fill="#0f172a" fontSize="6" fontWeight="900">✦</text>
+        <path d="M20 35c2.2 1.8 5.8 1.8 8 0" fill="none" stroke="#0f172a" strokeLinecap="round" strokeWidth="1.8" />
+      </>
+    );
+  }
+  if (expression === "rosy") {
+    return (
+      <>
+        <path d="M15.5 29c1.1-.9 2.4-.9 3.5 0M29 29c1.1-.9 2.4-.9 3.5 0" fill="none" stroke="#0f172a" strokeLinecap="round" strokeWidth="1.8" />
+        <path d="M20.5 35c1.8 1.4 5.2 1.4 7 0" fill="none" stroke="#0f172a" strokeLinecap="round" strokeWidth="1.8" />
       </>
     );
   }
@@ -232,6 +304,7 @@ export function MemberPictogram({
       <svg viewBox="0 0 48 48" role="img" className="h-full w-full drop-shadow-sm">
         <circle cx="24" cy="24" r="22" fill={item.bg} />
         {renderPose(item.pose, item.accent)}
+        {renderBackAccessory(item.accessory, item.accent)}
         {renderBody(item.shape, item.body)}
         {renderAccessory(item.accessory, item.accent)}
         <text
