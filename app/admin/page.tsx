@@ -58,6 +58,7 @@ type AdminOtpType = "email" | "magiclink" | "signup";
 type AdminModal = "participant" | "record" | "upload" | null;
 
 const IMAGE_UPLOAD_CHUNK_SIZE = 5;
+const MAX_BATCH_IMAGE_FILES = 40;
 const today = toIsoDate(new Date());
 const effectiveToday = today;
 const officialCertificationEndDate = toIsoDate(addDays(new Date(`${ACTUAL_CERTIFICATION_START_DATE}T00:00:00`), CHALLENGE_DAYS - 1));
@@ -99,6 +100,16 @@ function crewLevelBadge(certifiedDays: number, rate: number) {
 
 function getImageFiles(fileList: FileList | File[]) {
   return Array.from(fileList).filter((file) => file.type.startsWith("image/"));
+}
+
+function getImageFileKey(file: File) {
+  return `${file.name}-${file.size}-${file.lastModified}`;
+}
+
+function formatFileSize(bytes: number) {
+  if (bytes >= 1_000_000) return `${(bytes / 1_000_000).toFixed(1)}MB`;
+  if (bytes >= 1_000) return `${Math.round(bytes / 1_000)}KB`;
+  return `${bytes}B`;
 }
 
 export default function AdminPage() {
@@ -382,13 +393,73 @@ export default function AdminPage() {
     return results;
   }, [targetDate]);
 
+  const addImageFiles = useCallback((fileList: FileList | File[]) => {
+    const selectedImages = getImageFiles(fileList);
+    setAnalysisResults([]);
+
+    if (!selectedImages.length) {
+      setAnalysisMessage("이미지 파일만 올릴 수 있어요.");
+      return;
+    }
+
+    setFiles((current) => {
+      const seen = new Set(current.map(getImageFileKey));
+      const next = [...current];
+      let added = 0;
+      let duplicateOrOverflow = 0;
+
+      selectedImages.forEach((file) => {
+        const key = getImageFileKey(file);
+        if (seen.has(key) || next.length >= MAX_BATCH_IMAGE_FILES) {
+          duplicateOrOverflow += 1;
+          return;
+        }
+        seen.add(key);
+        next.push(file);
+        added += 1;
+      });
+
+      if (added) {
+        setAnalysisMessage(`${added}장 추가됐어요. 총 ${next.length}장을 한 번에 자동 인식할 수 있어요.`);
+      } else {
+        setAnalysisMessage(
+          duplicateOrOverflow
+            ? `이미 선택한 파일이거나 최대 ${MAX_BATCH_IMAGE_FILES}장을 넘었어요.`
+            : "이미지 파일만 올릴 수 있어요."
+        );
+      }
+
+      return next;
+    });
+  }, []);
+
+  const removeImageFile = useCallback((fileKey: string) => {
+    setFiles((current) => {
+      const next = current.filter((file) => getImageFileKey(file) !== fileKey);
+      setAnalysisMessage(next.length ? `${next.length}장이 선택돼 있어요.` : "선택한 이미지가 비워졌어요.");
+      return next;
+    });
+    setAnalysisResults([]);
+  }, []);
+
+  const clearImageFiles = useCallback(() => {
+    setFiles([]);
+    setAnalysisResults([]);
+    setAnalysisMessage("선택한 이미지가 비워졌어요.");
+  }, []);
+
   const analyzeImages = useCallback(async () => {
     if (!files.length) return;
     setAnalyzing(true);
     setAnalysisMessage("");
     setAnalysisResults([]);
     try {
-      const images = await Promise.all(files.map(async (file) => ({ name: file.name, dataUrl: await imageFileToOptimizedDataUrl(file) })));
+      const images: PendingAnalyzeImage[] = [];
+      for (let index = 0; index < files.length; index += 1) {
+        const file = files[index];
+        setAnalysisMessage(`이미지 준비 중... ${index + 1}/${files.length}`);
+        images.push({ name: file.name, dataUrl: await imageFileToOptimizedDataUrl(file) });
+      }
       const results = await postAnalyzeImages(images);
       setFiles([]);
       setAnalysisResults(results);
@@ -711,28 +782,75 @@ export default function AdminPage() {
                 onDragOver={(event) => event.preventDefault()}
                 onDrop={(event) => {
                   event.preventDefault();
-                  const droppedFiles = getImageFiles(event.dataTransfer.files);
-                  setFiles(droppedFiles);
-                  setAnalysisResults([]);
-                  setAnalysisMessage(droppedFiles.length ? `${droppedFiles.length}장 선택됐어요. 자동 기록하기를 눌러주세요.` : "이미지 파일만 올릴 수 있어요.");
+                  addImageFiles(event.dataTransfer.files);
                 }}
               >
                 <p className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-950 text-lg font-black text-lime-200">{files.length || "+"}</p>
-                <p className="text-base font-black text-oriwan-text">이름 자동 인식으로 올리기</p>
+                <p className="text-base font-black text-oriwan-text">여러 이미지 한 번에 자동 인식</p>
                 <input
+                  id="admin-batch-image-input"
                   type="file"
                   accept="image/*"
                   multiple
                   onChange={(e) => {
-                    const selectedFiles = getImageFiles(e.target.files || []);
-                    setFiles(selectedFiles);
-                    setAnalysisResults([]);
-                    setAnalysisMessage(selectedFiles.length ? "" : "이미지 파일만 올릴 수 있어요.");
+                    addImageFiles(e.target.files || []);
+                    e.currentTarget.value = "";
                   }}
-                  className="mx-auto mt-4 block max-w-full text-sm text-oriwan-text-muted file:mr-4 file:rounded-xl file:border-0 file:bg-slate-950 file:px-4 file:py-2 file:text-sm file:font-bold file:text-lime-200"
+                  className="sr-only"
                 />
+                <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-center">
+                  <label
+                    htmlFor="admin-batch-image-input"
+                    className="inline-flex cursor-pointer items-center justify-center rounded-2xl bg-slate-950 px-5 py-3 text-sm font-black text-lime-200 shadow-sm shadow-slate-950/10"
+                  >
+                    여러 이미지 선택
+                  </label>
+                  {files.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={clearImageFiles}
+                      disabled={analyzing}
+                      className="rounded-2xl bg-white px-5 py-3 text-sm font-black text-oriwan-text disabled:opacity-40"
+                    >
+                      전체 비우기
+                    </button>
+                  )}
+                </div>
+
+                {files.length > 0 && (
+                  <div className="mt-4 rounded-2xl bg-white/90 p-3 text-left ring-1 ring-slate-950/5">
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <p className="text-xs font-black text-oriwan-text">선택된 이미지 {files.length}장</p>
+                      <span className="rounded-full bg-lime-300 px-2.5 py-1 text-[10px] font-black text-slate-950">
+                        최대 {MAX_BATCH_IMAGE_FILES}장
+                      </span>
+                    </div>
+                    <div className="max-h-40 space-y-1 overflow-y-auto pr-1">
+                      {files.map((file, index) => {
+                        const fileKey = getImageFileKey(file);
+                        return (
+                          <div key={fileKey} className="flex items-center justify-between gap-2 rounded-xl bg-oriwan-surface-light px-3 py-2">
+                            <div className="min-w-0">
+                              <p className="truncate text-xs font-black text-oriwan-text">{index + 1}. {file.name}</p>
+                              <p className="mt-0.5 text-[10px] font-semibold text-oriwan-text-muted">{formatFileSize(file.size)}</p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => removeImageFile(fileKey)}
+                              disabled={analyzing}
+                              className="shrink-0 rounded-lg bg-white px-2.5 py-1.5 text-[10px] font-black text-oriwan-text-muted disabled:opacity-40"
+                            >
+                              삭제
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 <button onClick={analyzeImages} disabled={!files.length || analyzing} className="btn-primary mt-4 w-full py-3 text-sm disabled:opacity-40">
-                  {analyzing ? "이미지 읽는 중..." : `자동으로 기록하기${files.length ? ` (${files.length})` : ""}`}
+                  {analyzing ? "이미지 읽는 중..." : `선택한 ${files.length || 0}장 한 번에 등록`}
                 </button>
               </div>
 
