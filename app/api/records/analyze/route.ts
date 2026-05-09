@@ -27,13 +27,22 @@ type Participant = {
 };
 
 const MAX_IMAGES = 40;
+const DEFAULT_PARTICIPANT_NAME_WHEN_OCR_NAME_MISSING = "이경민";
+
+function normalizeParticipantName(name: string) {
+  return name.toLowerCase().replace(/\s+/g, "");
+}
+
+function hasParticipantName(extractedName: string | null | undefined) {
+  return typeof extractedName === "string" && normalizeParticipantName(extractedName).length > 0;
+}
 
 function matchParticipant(extractedName: string | null | undefined, participants: Participant[]) {
-  if (!extractedName) return null;
-  const normalized = extractedName.toLowerCase().replace(/\s+/g, "");
+  if (!hasParticipantName(extractedName)) return null;
+  const normalized = normalizeParticipantName(extractedName || "");
 
   return participants.find((participant) => {
-    const name = participant.name.toLowerCase().replace(/\s+/g, "");
+    const name = normalizeParticipantName(participant.name);
     return normalized.includes(name) || name.includes(normalized);
   }) || null;
 }
@@ -151,6 +160,9 @@ export async function POST(request: NextRequest) {
 
     const participants = (participantsData || []) as Participant[];
     const knownNames = participants.map((participant) => participant.name);
+    const fallbackParticipant = participants.find(
+      (participant) => normalizeParticipantName(participant.name) === normalizeParticipantName(DEFAULT_PARTICIPANT_NAME_WHEN_OCR_NAME_MISSING)
+    ) || null;
 
     const { data: batch, error: batchError } = await supabase
       .from("upload_batches")
@@ -198,7 +210,10 @@ export async function POST(request: NextRequest) {
         });
         continue;
       }
-      const participant = matchParticipant(extracted.participant_name, participants);
+      const extractedParticipantName = typeof extracted.participant_name === "string" ? extracted.participant_name : "";
+      const participantNameMissing = !hasParticipantName(extractedParticipantName);
+      const participant = matchParticipant(extractedParticipantName, participants) || (participantNameMissing ? fallbackParticipant : null);
+      const usedFallbackParticipant = participantNameMissing && Boolean(fallbackParticipant);
       const extractedDate = normalizeRecordDate(extracted.record_date);
       const recordDate = extractedDate || targetDate;
       const dateWasFallback = !extractedDate && Boolean(targetDate);
@@ -244,6 +259,7 @@ export async function POST(request: NextRequest) {
         raw_extracted_text: extracted.raw_text || null,
         notes: [
           extracted.notes,
+          usedFallbackParticipant ? `이미지에서 이름이 보이지 않아 ${DEFAULT_PARTICIPANT_NAME_WHEN_OCR_NAME_MISSING}님으로 연결했어요.` : null,
           dateWasFallback ? "이미지에서 날짜가 보이지 않아 선택한 날짜를 임시 적용했어요." : null,
           !distanceKm ? "거리는 나중에 보완할 수 있어요." : null,
           !durationSeconds ? "시간은 나중에 보완할 수 있어요." : null,
@@ -270,7 +286,7 @@ export async function POST(request: NextRequest) {
         id: record.id,
         file_name: image.name,
         participant_id: participant?.id || null,
-        participant_name: participant?.name || extracted.participant_name || "",
+        participant_name: participant?.name || extractedParticipantName,
         record_date: recordDate,
         distance_km: distanceKm,
         duration_seconds: durationSeconds,
