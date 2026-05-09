@@ -402,6 +402,7 @@ export default function DashboardPage() {
     }))
     : dashboard.cumulativeTrend;
   const trendGraph = makeGraphPath(trendItems);
+  const isInitialDashboardLoading = loading && !data;
 
   return (
     <main className="min-h-screen bg-oriwan-bg">
@@ -444,7 +445,7 @@ export default function DashboardPage() {
                   <div>
                     <p className="text-xs font-black text-white/45">오늘 인증률</p>
                     <p className="mt-1 text-5xl font-black tracking-[-0.08em] text-lime-200">
-                      <AnimatedNumber value={dashboard.completionRate} suffix="%" />
+                      {isInitialDashboardLoading ? "--" : <AnimatedNumber value={dashboard.completionRate} suffix="%" />}
                     </p>
                   </div>
                   <svg viewBox="0 0 120 120" className="h-28 w-28 -rotate-90 dashboard-ring-pop">
@@ -464,7 +465,7 @@ export default function DashboardPage() {
                   </svg>
                 </div>
                 <p className="mt-2 text-xs font-semibold text-white/50">
-                  {dashboard.todayCertifiedIds.size}/{dashboard.participants.length}명 인증 완료
+                  {isInitialDashboardLoading ? "인증 현황 불러오는 중" : `${dashboard.todayCertifiedIds.size}/${dashboard.participants.length}명 인증 완료`}
                 </p>
               </div>
             </div>
@@ -485,7 +486,7 @@ export default function DashboardPage() {
               >
                 <p className="text-[10px] font-black text-oriwan-text-muted">주차별 인증률</p>
                 <p className="mt-1 text-2xl font-black tracking-[-0.06em] text-oriwan-text">
-                  <AnimatedNumber value={latestWeeklyRate} suffix="%" />
+                  {isInitialDashboardLoading ? "--" : <AnimatedNumber value={latestWeeklyRate} suffix="%" />}
                 </p>
               </button>
               <button
@@ -495,7 +496,7 @@ export default function DashboardPage() {
               >
                 <p className="text-[10px] font-black opacity-60">누적 인증률</p>
                 <p className="mt-1 text-2xl font-black tracking-[-0.06em]">
-                  <AnimatedNumber value={dashboard.cumulativeRate} suffix="%" />
+                  {isInitialDashboardLoading ? "--" : <AnimatedNumber value={dashboard.cumulativeRate} suffix="%" />}
                 </p>
               </button>
             </div>
@@ -504,10 +505,29 @@ export default function DashboardPage() {
               <div className="mb-3 flex items-center justify-between gap-2">
                 <h4 className="text-base font-black tracking-[-0.03em] text-oriwan-text">스내사 크루별 인증게이지</h4>
                 <span className="inline-flex shrink-0 rounded-full bg-lime-300 px-3 py-1 text-[11px] font-black text-slate-950 shadow-sm shadow-lime-300/30">
-                  멤버 {dashboard.participants.length}명
+                  {isInitialDashboardLoading ? "멤버 불러오는 중" : `멤버 ${dashboard.participants.length}명`}
                 </span>
               </div>
               <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {isInitialDashboardLoading && Array.from({ length: 6 }, (_, index) => (
+                  <div key={`dashboard-loading-${index}`} className="rounded-2xl bg-white px-3 py-3 ring-1 ring-slate-950/5">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <span className="h-7 w-7 shrink-0 animate-pulse rounded-full bg-oriwan-surface-light" />
+                        <span className="min-w-0">
+                          <span className="block h-3 w-20 animate-pulse rounded-full bg-oriwan-surface-light" />
+                          <span className="mt-2 block h-3 w-14 animate-pulse rounded-full bg-oriwan-surface-light" />
+                        </span>
+                      </div>
+                      <span className="h-4 w-9 shrink-0 animate-pulse rounded-full bg-oriwan-surface-light" />
+                    </div>
+                    <div className="mt-3 h-3 animate-pulse rounded-full bg-oriwan-surface-light" />
+                    <div className="mt-2 grid grid-cols-2 gap-1.5">
+                      <span className="h-10 animate-pulse rounded-xl bg-oriwan-surface-light" />
+                      <span className="h-10 animate-pulse rounded-xl bg-oriwan-surface-light" />
+                    </div>
+                  </div>
+                ))}
                 {dashboard.participantProgress.map((row, index) => (
                   <button
                     key={row.participant.id}

@@ -563,6 +563,8 @@ export default function AdminPage() {
     });
   }, [router]);
 
+  const isInitialAdminLoading = loading && participants.length === 0;
+
   if (!mounted || !authReady) return <div className="min-h-screen bg-oriwan-bg" />;
 
   if (!authorized) {
@@ -669,10 +671,29 @@ export default function AdminPage() {
           <div className="mb-3 flex items-center justify-between gap-2">
             <h2 className="text-lg font-black tracking-[-0.03em] text-oriwan-text">스내사 크루별 인증게이지</h2>
             <span className="inline-flex shrink-0 rounded-full bg-lime-300 px-3 py-1 text-[11px] font-black text-slate-950 shadow-sm shadow-lime-300/30">
-              멤버 {participants.length}명
+              {isInitialAdminLoading ? "멤버 불러오는 중" : `멤버 ${participants.length}명`}
             </span>
           </div>
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {isInitialAdminLoading && Array.from({ length: 6 }, (_, index) => (
+              <div key={`admin-loading-${index}`} className="rounded-2xl bg-white px-3 py-3 ring-1 ring-slate-950/5">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span className="h-7 w-7 shrink-0 animate-pulse rounded-full bg-oriwan-surface-light" />
+                    <span className="min-w-0">
+                      <span className="block h-3 w-20 animate-pulse rounded-full bg-oriwan-surface-light" />
+                      <span className="mt-2 block h-3 w-14 animate-pulse rounded-full bg-oriwan-surface-light" />
+                    </span>
+                  </div>
+                  <span className="h-4 w-9 shrink-0 animate-pulse rounded-full bg-oriwan-surface-light" />
+                </div>
+                <div className="mt-3 h-3 animate-pulse rounded-full bg-oriwan-surface-light" />
+                <div className="mt-2 grid grid-cols-2 gap-1.5">
+                  <span className="h-10 animate-pulse rounded-xl bg-oriwan-surface-light" />
+                  <span className="h-10 animate-pulse rounded-xl bg-oriwan-surface-light" />
+                </div>
+              </div>
+            ))}
             {participantProgress.map((row) => (
               <div
                 key={row.participant.id}
@@ -775,11 +796,23 @@ export default function AdminPage() {
                     <p className="mt-1 text-xs leading-5 text-oriwan-text-muted">이름 옆에 이미지 1장씩 넣고, 전체 멤버 기록을 버튼 한 번으로 나눠 처리해요.</p>
                   </div>
                   <span className="rounded-full bg-lime-300 px-3 py-1 text-[11px] font-black text-slate-950">
-                    {assignedParticipantFiles.length}/{participants.length}
+                    {isInitialAdminLoading ? "불러오는 중" : `${assignedParticipantFiles.length}/${participants.length}`}
                   </span>
                 </div>
 
                 <div className="mt-3 grid max-h-[300px] gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
+                  {isInitialAdminLoading && Array.from({ length: 6 }, (_, index) => (
+                    <div key={`participant-upload-loading-${index}`} className="flex items-center justify-between gap-3 rounded-2xl bg-oriwan-surface-light px-3 py-2.5 ring-1 ring-slate-950/5">
+                      <span className="flex min-w-0 items-center gap-2">
+                        <span className="h-7 w-7 shrink-0 animate-pulse rounded-full bg-white" />
+                        <span className="min-w-0">
+                          <span className="block h-3 w-20 animate-pulse rounded-full bg-white" />
+                          <span className="mt-2 block h-3 w-16 animate-pulse rounded-full bg-white" />
+                        </span>
+                      </span>
+                      <span className="h-7 w-12 shrink-0 animate-pulse rounded-xl bg-white" />
+                    </div>
+                  ))}
                   {participants.map((participant) => {
                     const participantFile = participantUploadFiles[participant.id];
                     return (
