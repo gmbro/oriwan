@@ -18,8 +18,8 @@
   --color-gradient-start: #101522;
   --color-gradient-end: #3F6212;
 
-  --font-sans: "IBM Plex Sans KR", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
-  --font-display: "Space Grotesk", "IBM Plex Sans KR", sans-serif;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", "Segoe UI", system-ui, sans-serif;
+  --font-display: var(--font-sans);
 }
 
 html {

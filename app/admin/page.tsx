@@ -52,7 +52,6 @@ type AnalysisResult = {
 type PendingAnalyzeImage = {
   name: string;
   dataUrl: string;
-  participantId?: string;
 };
 
 type AdminOtpType = "email" | "magiclink" | "signup";
@@ -98,6 +97,10 @@ function crewLevelBadge(certifiedDays: number, rate: number) {
   return { label: "READY", className: "bg-slate-100 text-slate-500" };
 }
 
+function getImageFiles(fileList: FileList | File[]) {
+  return Array.from(fileList).filter((file) => file.type.startsWith("image/"));
+}
+
 export default function AdminPage() {
   const router = useRouter();
   const loadInFlightRef = useRef(false);
@@ -119,11 +122,9 @@ export default function AdminPage() {
   const [newNickname, setNewNickname] = useState("");
   const [targetDate, setTargetDate] = useState(initialRecordDate);
   const [files, setFiles] = useState<File[]>([]);
-  const [participantUploadFiles, setParticipantUploadFiles] = useState<Partial<Record<string, File>>>({});
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisMessage, setAnalysisMessage] = useState("");
   const [analysisResults, setAnalysisResults] = useState<AnalysisResult[]>([]);
-  const [uploadParticipantId, setUploadParticipantId] = useState("");
   const [manualParticipantId, setManualParticipantId] = useState("");
   const [manualDate, setManualDate] = useState(initialRecordDate);
   const [manualDistance, setManualDistance] = useState("");
@@ -299,17 +300,6 @@ export default function AdminPage() {
     [editingParticipantId, participants]
   );
 
-  const uploadParticipant = useMemo(
-    () => participants.find((participant) => participant.id === uploadParticipantId) || null,
-    [participants, uploadParticipantId]
-  );
-
-  const assignedParticipantFiles = useMemo(() => {
-    return participants
-      .map((participant) => ({ participant, file: participantUploadFiles[participant.id] }))
-      .filter((entry): entry is { participant: Participant; file: File } => Boolean(entry.file));
-  }, [participantUploadFiles, participants]);
-
   const startEditParticipant = useCallback((participant: Participant) => {
     setEditingParticipantId(participant.id);
     setNewName(participant.name);
@@ -331,11 +321,9 @@ export default function AdminPage() {
     setAdminModal("record");
   }, []);
 
-  const openUploadForDate = useCallback((date: string, participantId = "") => {
+  const openUploadForDate = useCallback((date: string) => {
     setTargetDate(date);
-    setUploadParticipantId(participantId);
     setFiles([]);
-    setParticipantUploadFiles({});
     setAnalysisResults([]);
     setAnalysisMessage("");
     setAdminModal("upload");
@@ -375,7 +363,7 @@ export default function AdminPage() {
     }
   }, [editingParticipantId, loadData, resetParticipantForm]);
 
-  const postAnalyzeImages = useCallback(async (images: PendingAnalyzeImage[], participantId = "") => {
+  const postAnalyzeImages = useCallback(async (images: PendingAnalyzeImage[]) => {
     const results: AnalysisResult[] = [];
 
     for (let index = 0; index < images.length; index += IMAGE_UPLOAD_CHUNK_SIZE) {
@@ -384,7 +372,7 @@ export default function AdminPage() {
       const res = await fetch("/api/records/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ targetDate, participantId: participantId || null, images: chunk }),
+        body: JSON.stringify({ targetDate, images: chunk }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "analysis failed");
@@ -394,26 +382,6 @@ export default function AdminPage() {
     return results;
   }, [targetDate]);
 
-  const setParticipantFile = useCallback((participantId: string, fileList: FileList | null) => {
-    const selectedFiles = Array.from(fileList || []);
-    if (!selectedFiles.length) return;
-    const imageFile = selectedFiles.find((file) => file.type.startsWith("image/"));
-    if (!imageFile) {
-      setAnalysisMessage("이미지 파일만 올릴 수 있어요.");
-      return;
-    }
-
-    setParticipantUploadFiles((current) => ({ ...current, [participantId]: imageFile }));
-    setAnalysisResults([]);
-    setAnalysisMessage("");
-  }, []);
-
-  const clearParticipantUploadFiles = useCallback(() => {
-    setParticipantUploadFiles({});
-    setAnalysisResults([]);
-    setAnalysisMessage("");
-  }, []);
-
   const analyzeImages = useCallback(async () => {
     if (!files.length) return;
     setAnalyzing(true);
@@ -421,13 +389,12 @@ export default function AdminPage() {
     setAnalysisResults([]);
     try {
       const images = await Promise.all(files.map(async (file) => ({ name: file.name, dataUrl: await imageFileToOptimizedDataUrl(file) })));
-      const results = await postAnalyzeImages(images, uploadParticipantId || "");
+      const results = await postAnalyzeImages(images);
       setFiles([]);
       setAnalysisResults(results);
       const certified = results.filter((result) => result.status === "certified").length;
       const review = results.length - certified;
-      const ownerLabel = uploadParticipant ? `${uploadParticipant.name}님 ` : "";
-      setAnalysisMessage(`${ownerLabel}${results.length}장 정리 완료 · 완료 ${certified}건 · 확인 ${review}건`);
+      setAnalysisMessage(`${results.length}장 정리 완료 · 완료 ${certified}건 · 확인 ${review}건`);
       void broadcastDashboardRefresh();
       await loadData();
     } catch (err) {
@@ -435,36 +402,7 @@ export default function AdminPage() {
     } finally {
       setAnalyzing(false);
     }
-  }, [files, loadData, postAnalyzeImages, uploadParticipant, uploadParticipantId]);
-
-  const analyzeAssignedParticipantImages = useCallback(async () => {
-    if (!assignedParticipantFiles.length) return;
-    setAnalyzing(true);
-    setAnalysisMessage("");
-    setAnalysisResults([]);
-    try {
-      const images = await Promise.all(
-        assignedParticipantFiles.map(async ({ participant, file }) => ({
-          name: `${participant.name}-${file.name}`,
-          dataUrl: await imageFileToOptimizedDataUrl(file),
-          participantId: participant.id,
-        }))
-      );
-      const results = await postAnalyzeImages(images);
-      setParticipantUploadFiles({});
-      setFiles([]);
-      setAnalysisResults(results);
-      const certified = results.filter((result) => result.status === "certified").length;
-      const review = results.length - certified;
-      setAnalysisMessage(`참가자별 ${results.length}장 정리 완료 · 완료 ${certified}건 · 확인 ${review}건`);
-      void broadcastDashboardRefresh();
-      await loadData();
-    } catch (err) {
-      setAnalysisMessage(err instanceof Error ? err.message : "참가자별 이미지를 읽지 못했어요. 흐린 이미지는 직접 입력으로 가볍게 보완해주세요.");
-    } finally {
-      setAnalyzing(false);
-    }
-  }, [assignedParticipantFiles, loadData, postAnalyzeImages]);
+  }, [files, loadData, postAnalyzeImages]);
 
   const saveManualRecord = useCallback(async () => {
     const duration = parseDurationToSeconds(manualDuration);
@@ -741,12 +679,10 @@ export default function AdminPage() {
 
         {adminModal === "upload" && (
           <div className="fixed inset-0 z-[80] flex items-end bg-slate-950/45 px-4 py-4 backdrop-blur-sm sm:items-center sm:justify-center">
-            <div className="card max-h-[88vh] w-full max-w-4xl overflow-y-auto p-5 sm:p-6">
+            <div className="card max-h-[86svh] w-full max-w-2xl overflow-y-auto p-4 sm:p-6">
               <div className="mb-4 flex items-start justify-between gap-3">
                 <div>
-                  <h2 className="text-xl font-black tracking-[-0.04em] text-oriwan-text">
-                    {uploadParticipant ? `${uploadParticipant.name}님 이미지 올리기` : "이미지 올리기"}
-                  </h2>
+                  <h2 className="text-xl font-black tracking-[-0.04em] text-oriwan-text">이미지 올리기</h2>
                   <p className="mt-1 text-xs leading-5 text-oriwan-text-muted">NRC, Garmin, Strava 캡처에서 날짜, 거리, 시간을 읽어 공통 대시보드에 반영해요.</p>
                 </div>
                 <button
@@ -758,117 +694,24 @@ export default function AdminPage() {
                 </button>
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-[1.1fr_0.9fr]">
-                <label className="text-xs font-bold text-oriwan-text-muted">
-                  멤버
-                  <select
-                    value={uploadParticipantId}
-                    onChange={(e) => {
-                      setUploadParticipantId(e.target.value);
-                      setAnalysisResults([]);
-                      setAnalysisMessage("");
-                    }}
-                    className="mt-1 block w-full rounded-2xl border border-oriwan-border bg-white px-4 py-3 text-sm font-black text-oriwan-text"
-                  >
-                    <option value="">이미지에서 이름 찾아보기</option>
-                    {participants.map((participant) => (
-                      <option key={participant.id} value={participant.id}>{participant.name}</option>
-                    ))}
-                  </select>
-                </label>
-
-                <label className="text-xs font-bold text-oriwan-text-muted">
-                  날짜가 없을 때 쓸 날짜
-                  <input
-                    type="date"
-                    min={CHALLENGE_START_DATE}
-                    value={targetDate}
-                    onChange={(e) => setTargetDate(e.target.value)}
-                    className="mt-1 block w-full rounded-2xl border border-oriwan-border bg-white px-4 py-3 text-sm font-black text-oriwan-text"
-                  />
-                </label>
-              </div>
-
-              <div className="mt-4 rounded-[28px] bg-white p-4 ring-1 ring-slate-950/5">
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div>
-                    <p className="text-sm font-black text-oriwan-text">참가자별 리스트 업로드</p>
-                    <p className="mt-1 text-xs leading-5 text-oriwan-text-muted">이름 옆에 이미지 1장씩 넣고, 전체 멤버 기록을 버튼 한 번으로 나눠 처리해요.</p>
-                  </div>
-                  <span className="rounded-full bg-lime-300 px-3 py-1 text-[11px] font-black text-slate-950">
-                    {isInitialAdminLoading ? "불러오는 중" : `${assignedParticipantFiles.length}/${participants.length}`}
-                  </span>
-                </div>
-
-                <div className="mt-3 grid max-h-[300px] gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
-                  {isInitialAdminLoading && Array.from({ length: 6 }, (_, index) => (
-                    <div key={`participant-upload-loading-${index}`} className="flex items-center justify-between gap-3 rounded-2xl bg-oriwan-surface-light px-3 py-2.5 ring-1 ring-slate-950/5">
-                      <span className="flex min-w-0 items-center gap-2">
-                        <span className="h-7 w-7 shrink-0 animate-pulse rounded-full bg-white" />
-                        <span className="min-w-0">
-                          <span className="block h-3 w-20 animate-pulse rounded-full bg-white" />
-                          <span className="mt-2 block h-3 w-16 animate-pulse rounded-full bg-white" />
-                        </span>
-                      </span>
-                      <span className="h-7 w-12 shrink-0 animate-pulse rounded-xl bg-white" />
-                    </div>
-                  ))}
-                  {participants.map((participant) => {
-                    const participantFile = participantUploadFiles[participant.id];
-                    return (
-                      <label
-                        key={participant.id}
-                        className={`flex cursor-pointer items-center justify-between gap-3 rounded-2xl px-3 py-2.5 ring-1 transition hover:-translate-y-0.5 ${
-                          participantFile ? "bg-lime-50 ring-lime-300" : "bg-oriwan-surface-light ring-slate-950/5 hover:ring-lime-300"
-                        }`}
-                      >
-                        <span className="flex min-w-0 items-center gap-2">
-                          <MemberPictogram index={participantPictogramById.get(participant.id)} participantName={participant.name} />
-                          <span className="min-w-0">
-                            <span className="block truncate text-sm font-black text-oriwan-text">{participant.name}</span>
-                            <span className="block truncate text-[11px] font-semibold text-oriwan-text-muted">
-                              {participantFile ? participantFile.name : "이미지 선택"}
-                            </span>
-                          </span>
-                        </span>
-                        <input
-                          key={participantFile ? `${participant.id}-${participantFile.name}` : `${participant.id}-empty`}
-                          type="file"
-                          accept="image/*"
-                          onChange={(event) => setParticipantFile(participant.id, event.target.files)}
-                          className="sr-only"
-                        />
-                        <span className={`shrink-0 rounded-xl px-3 py-1.5 text-[11px] font-black ${participantFile ? "bg-lime-300 text-slate-950" : "bg-white text-oriwan-text"}`}>
-                          {participantFile ? "변경" : "선택"}
-                        </span>
-                      </label>
-                    );
-                  })}
-                </div>
-
-                <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-                  <button
-                    type="button"
-                    onClick={analyzeAssignedParticipantImages}
-                    disabled={!assignedParticipantFiles.length || analyzing}
-                    className="btn-primary flex-1 py-3 text-sm disabled:opacity-40"
-                  >
-                    {analyzing ? "이미지 읽는 중..." : `참가자별 한번에 업로드${assignedParticipantFiles.length ? ` (${assignedParticipantFiles.length})` : ""}`}
-                  </button>
-                  {assignedParticipantFiles.length > 0 && (
-                    <button type="button" onClick={clearParticipantUploadFiles} disabled={analyzing} className="rounded-2xl bg-oriwan-surface-light px-4 py-3 text-sm font-black text-oriwan-text disabled:opacity-40">
-                      선택 비우기
-                    </button>
-                  )}
-                </div>
-              </div>
+              <label className="block text-xs font-bold text-oriwan-text-muted">
+                날짜가 없을 때 쓸 날짜
+                <input
+                  type="date"
+                  min={CHALLENGE_START_DATE}
+                  max={officialCertificationEndDate}
+                  value={targetDate}
+                  onChange={(e) => setTargetDate(e.target.value)}
+                  className="mt-1 block w-full rounded-2xl border border-oriwan-border bg-white px-4 py-3 text-base font-black text-oriwan-text sm:text-sm"
+                />
+              </label>
 
               <div
-                className="mt-4 rounded-[28px] border-2 border-dashed border-lime-300/80 bg-lime-50/70 p-5 text-center transition hover:bg-lime-50"
+                className="mt-4 rounded-[24px] border-2 border-dashed border-lime-300/80 bg-lime-50/70 p-4 text-center transition hover:bg-lime-50 sm:p-5"
                 onDragOver={(event) => event.preventDefault()}
                 onDrop={(event) => {
                   event.preventDefault();
-                  const droppedFiles = Array.from(event.dataTransfer.files).filter((file) => file.type.startsWith("image/"));
+                  const droppedFiles = getImageFiles(event.dataTransfer.files);
                   setFiles(droppedFiles);
                   setAnalysisResults([]);
                   setAnalysisMessage(droppedFiles.length ? `${droppedFiles.length}장 선택됐어요. 자동 기록하기를 눌러주세요.` : "이미지 파일만 올릴 수 있어요.");
@@ -881,9 +724,10 @@ export default function AdminPage() {
                   accept="image/*"
                   multiple
                   onChange={(e) => {
-                    setFiles(Array.from(e.target.files || []));
+                    const selectedFiles = getImageFiles(e.target.files || []);
+                    setFiles(selectedFiles);
                     setAnalysisResults([]);
-                    setAnalysisMessage("");
+                    setAnalysisMessage(selectedFiles.length ? "" : "이미지 파일만 올릴 수 있어요.");
                   }}
                   className="mx-auto mt-4 block max-w-full text-sm text-oriwan-text-muted file:mr-4 file:rounded-xl file:border-0 file:bg-slate-950 file:px-4 file:py-2 file:text-sm file:font-bold file:text-lime-200"
                 />
@@ -907,7 +751,7 @@ export default function AdminPage() {
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
                             <p className="truncate text-sm font-black text-oriwan-text">
-                              {result.participant_name || uploadParticipant?.name || "멤버 확인하기"}
+                              {result.participant_name || "멤버 확인하기"}
                             </p>
                             <p className="mt-1 truncate text-[11px] font-semibold text-oriwan-text-muted">{result.file_name}</p>
                           </div>
@@ -1021,7 +865,7 @@ export default function AdminPage() {
                   <option value="">멤버 선택</option>
                   {participants.map((participant) => <option key={participant.id} value={participant.id}>{participant.name}</option>)}
                 </select>
-                <input type="date" min={CHALLENGE_START_DATE} value={manualDate} onChange={(e) => setManualDate(e.target.value)} className="rounded-xl border border-oriwan-border px-3 py-2.5 text-sm" />
+                <input type="date" min={CHALLENGE_START_DATE} max={officialCertificationEndDate} value={manualDate} onChange={(e) => setManualDate(e.target.value)} className="rounded-xl border border-oriwan-border px-3 py-2.5 text-sm" />
                 <input value={manualDistance} onChange={(e) => setManualDistance(e.target.value)} placeholder="거리 km" inputMode="decimal" className="rounded-xl border border-oriwan-border px-3 py-2.5 text-sm" />
                 <input value={manualDuration} onChange={(e) => setManualDuration(e.target.value)} placeholder="시간 예: 32:10" className="rounded-xl border border-oriwan-border px-3 py-2.5 text-sm" />
               </div>

@@ -4,10 +4,16 @@ import { requireAdminUser } from "@/lib/admin-server";
 import { calculatePaceSeconds } from "@/lib/run-records";
 import { CHALLENGE_DATE_ERROR, isWithinChallengeWindow } from "@/lib/challenge";
 
+const RECORD_STATUSES = new Set(["certified", "needs_review", "missing", "rejected"]);
+
 function sanitizeNumber(value: unknown) {
   if (value === null || value === undefined || value === "") return null;
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
+}
+
+function sanitizeStatus(value: unknown) {
+  return typeof value === "string" && RECORD_STATUSES.has(value) ? value : null;
 }
 
 export async function PATCH(
@@ -30,7 +36,11 @@ export async function PATCH(
   if ("distance_km" in body) patch.distance_km = sanitizeNumber(body.distance_km);
   if ("duration_seconds" in body) patch.duration_seconds = sanitizeNumber(body.duration_seconds);
   if ("source_app" in body) patch.source_app = body.source_app || null;
-  if ("status" in body) patch.status = body.status;
+  if ("status" in body) {
+    const status = sanitizeStatus(body.status);
+    if (!status) return NextResponse.json({ error: "기록 상태값을 다시 확인해주세요." }, { status: 400 });
+    patch.status = status;
+  }
   if ("notes" in body) patch.notes = body.notes || null;
 
   const distanceKm = "distance_km" in body ? sanitizeNumber(body.distance_km) : null;

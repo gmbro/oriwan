@@ -26,11 +26,6 @@ type Participant = {
   name: string;
 };
 
-type AssignedUploadedImage = UploadedImage & {
-  participantId?: string | null;
-  participant_id?: string | null;
-};
-
 const MAX_IMAGES = 40;
 
 function matchParticipant(extractedName: string | null | undefined, participants: Participant[]) {
@@ -41,12 +36,6 @@ function matchParticipant(extractedName: string | null | undefined, participants
     const name = participant.name.toLowerCase().replace(/\s+/g, "");
     return normalized.includes(name) || name.includes(normalized);
   }) || null;
-}
-
-function getAssignedParticipantId(image: UploadedImage) {
-  const assignedImage = image as AssignedUploadedImage;
-  const candidate = assignedImage.participantId || assignedImage.participant_id || "";
-  return typeof candidate === "string" ? candidate : "";
 }
 
 function decideStatus(input: {
@@ -136,12 +125,6 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const targetDate = normalizeRecordDate(body.targetDate);
-    const requestedParticipantId =
-      typeof body.participantId === "string"
-        ? body.participantId
-        : typeof body.participant_id === "string"
-          ? body.participant_id
-          : "";
     const rawImages = Array.isArray(body.images) ? body.images : [];
     const images = rawImages.filter(validImage).slice(0, MAX_IMAGES) as UploadedImage[];
 
@@ -167,21 +150,7 @@ export async function POST(request: NextRequest) {
     if (participantError) throw participantError;
 
     const participants = (participantsData || []) as Participant[];
-    const participantById = new Map(participants.map((participant) => [participant.id, participant]));
-    const targetParticipant = requestedParticipantId
-      ? participantById.get(requestedParticipantId) || null
-      : null;
-
-    if (requestedParticipantId && !targetParticipant) {
-      return NextResponse.json({ error: "선택한 멤버를 찾지 못했어요." }, { status: 400 });
-    }
-
-    const invalidAssignedParticipantId = images
-      .map(getAssignedParticipantId)
-      .find((participantId) => participantId && !participantById.has(participantId));
-    if (invalidAssignedParticipantId) {
-      return NextResponse.json({ error: "이미지에 연결된 멤버를 찾지 못했어요." }, { status: 400 });
-    }
+    const knownNames = participants.map((participant) => participant.name);
 
     const { data: batch, error: batchError } = await supabase
       .from("upload_batches")
@@ -202,10 +171,6 @@ export async function POST(request: NextRequest) {
 
     for (let index = 0; index < images.length; index += 1) {
       const image = images[index];
-      const assignedParticipantId = getAssignedParticipantId(image);
-      const assignedParticipant = assignedParticipantId ? participantById.get(assignedParticipantId) || null : null;
-      const participantHint = targetParticipant || assignedParticipant;
-      const knownNames = participantHint ? [participantHint.name] : participants.map((participant) => participant.name);
 
       let analyzed: Awaited<ReturnType<typeof analyzeImage>>;
       let extracted: ExtractedRun;
@@ -222,8 +187,8 @@ export async function POST(request: NextRequest) {
         results.push({
           id: null,
           file_name: image.name,
-          participant_id: participantHint?.id || null,
-          participant_name: participantHint?.name || "",
+          participant_id: null,
+          participant_name: "",
           record_date: targetDate,
           distance_km: null,
           duration_seconds: null,
@@ -233,7 +198,7 @@ export async function POST(request: NextRequest) {
         });
         continue;
       }
-      const participant = participantHint || matchParticipant(extracted.participant_name, participants);
+      const participant = matchParticipant(extracted.participant_name, participants);
       const extractedDate = normalizeRecordDate(extracted.record_date);
       const recordDate = extractedDate || targetDate;
       const dateWasFallback = !extractedDate && Boolean(targetDate);

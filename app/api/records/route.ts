@@ -5,10 +5,16 @@ import { calculatePaceSeconds } from "@/lib/run-records";
 import { isMissingTableError, missingSchemaResponse } from "@/lib/supabase-errors";
 import { CHALLENGE_DATE_ERROR, isWithinChallengeWindow } from "@/lib/challenge";
 
+const RECORD_STATUSES = new Set(["certified", "needs_review", "missing", "rejected"]);
+
 function sanitizeNumber(value: unknown) {
   if (value === null || value === undefined || value === "") return null;
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
+}
+
+function sanitizeStatus(value: unknown) {
+  return typeof value === "string" && RECORD_STATUSES.has(value) ? value : null;
 }
 
 function hasPositiveMetric(value: number | null) {
@@ -84,7 +90,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "거리 또는 시간 중 하나는 입력해주세요." }, { status: 400 });
   }
 
-  const status = body.status || "certified";
+  const status = sanitizeStatus(body.status) || "certified";
   const { data, error } = await supabase
     .from("daily_run_records")
     .upsert(
