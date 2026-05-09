@@ -95,14 +95,6 @@ function gaugeTextClass(certifiedDays: number) {
   return "text-lime-700";
 }
 
-function crewLevelBadge(certifiedDays: number, rate: number) {
-  if (rate >= 100) return { label: "FINISHER", className: "bg-slate-950 text-lime-200" };
-  if (certifiedDays >= 51) return { label: "GREEN RUNNER", className: "bg-lime-300 text-slate-950" };
-  if (certifiedDays >= 11) return { label: "PACE UP", className: "bg-amber-200 text-amber-900" };
-  if (certifiedDays >= 1) return { label: "STARTER", className: "bg-rose-100 text-rose-700" };
-  return { label: "READY", className: "bg-slate-100 text-slate-500" };
-}
-
 const officialCertificationDays = makeOfficialCertificationDays();
 const RING_CIRCUMFERENCE = 302;
 
@@ -371,7 +363,6 @@ export default function DashboardPage() {
           stampedDates,
           certifiedDays,
           rate,
-          badge: crewLevelBadge(certifiedDays, rate),
           ...metrics,
         };
       })
@@ -508,24 +499,21 @@ export default function DashboardPage() {
                   {isInitialDashboardLoading ? "멤버 불러오는 중" : `멤버 ${dashboard.participants.length}명`}
                 </span>
               </div>
-              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
                 {isInitialDashboardLoading && Array.from({ length: 6 }, (_, index) => (
-                  <div key={`dashboard-loading-${index}`} className="rounded-2xl bg-white px-3 py-3 ring-1 ring-slate-950/5">
+                  <div key={`dashboard-loading-${index}`} className="rounded-[18px] bg-white px-3 py-2.5 ring-1 ring-slate-950/5">
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex min-w-0 items-center gap-2">
                         <span className="h-7 w-7 shrink-0 animate-pulse rounded-full bg-oriwan-surface-light" />
-                        <span className="min-w-0">
+                        <span className="flex min-w-0 flex-wrap items-center gap-1.5">
                           <span className="block h-3 w-20 animate-pulse rounded-full bg-oriwan-surface-light" />
-                          <span className="mt-2 block h-3 w-14 animate-pulse rounded-full bg-oriwan-surface-light" />
+                          <span className="block h-5 w-16 animate-pulse rounded-full bg-oriwan-surface-light" />
+                          <span className="block h-5 w-16 animate-pulse rounded-full bg-oriwan-surface-light" />
                         </span>
                       </div>
-                      <span className="h-4 w-9 shrink-0 animate-pulse rounded-full bg-oriwan-surface-light" />
+                      <span className="h-5 w-10 shrink-0 animate-pulse rounded-full bg-oriwan-surface-light" />
                     </div>
-                    <div className="mt-3 h-3 animate-pulse rounded-full bg-oriwan-surface-light" />
-                    <div className="mt-2 grid grid-cols-2 gap-1.5">
-                      <span className="h-10 animate-pulse rounded-xl bg-oriwan-surface-light" />
-                      <span className="h-10 animate-pulse rounded-xl bg-oriwan-surface-light" />
-                    </div>
+                    <div className="mt-2 h-1.5 animate-pulse rounded-full bg-oriwan-surface-light" />
                   </div>
                 ))}
                 {dashboard.participantProgress.map((row, index) => (
@@ -533,26 +521,31 @@ export default function DashboardPage() {
                     key={row.participant.id}
                     type="button"
                     onClick={() => setSelectedParticipantId(row.participant.id)}
-                    className={`relative overflow-hidden rounded-2xl bg-white px-3 py-3 text-left ring-1 ring-slate-950/5 transition hover:-translate-y-0.5 hover:ring-lime-300 ${
+                    className={`relative overflow-hidden rounded-[18px] bg-white px-3 py-2.5 text-left ring-1 ring-slate-950/5 transition hover:-translate-y-0.5 hover:ring-lime-300 ${
                     row.rate >= 100 ? "gauge-complete-card" : "dashboard-gauge-card"
                     }`}
                   >
                     {row.rate >= 100 && <FanfareBurst compact />}
                     <div className="flex items-center justify-between gap-2">
-                      <div className="flex min-w-0 items-center gap-2">
+                      <div className="flex min-w-0 flex-1 items-center gap-2">
                         <MemberPictogram index={row.pictogramIndex} participantName={row.participant.name} />
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-black text-oriwan-text">{row.participant.name}</p>
-                          <span className={`crew-level-badge mt-1 inline-flex rounded-full px-2 py-0.5 text-[9px] font-black ${row.badge.className}`}>
-                            {row.badge.label}
+                        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                          <p className="truncate text-base font-black leading-tight text-oriwan-text">{row.participant.name}</p>
+                          <span className="inline-flex items-baseline gap-1 rounded-full bg-oriwan-surface-light px-2 py-0.5 text-[10px] font-black leading-none text-oriwan-text shadow-[inset_0_0_0_1px_rgba(16,21,34,0.05)]">
+                            <span className="text-[8px] font-extrabold text-oriwan-text-muted">총거리</span>
+                            <AnimatedMetricNumber value={row.distanceKm} suffix="km" />
+                          </span>
+                          <span className="inline-flex items-baseline gap-1 rounded-full bg-oriwan-surface-light px-2 py-0.5 text-[10px] font-black leading-none text-oriwan-text shadow-[inset_0_0_0_1px_rgba(16,21,34,0.05)]">
+                            <span className="text-[8px] font-extrabold text-oriwan-text-muted">총시간</span>
+                            {secondsToTime(row.durationSeconds)}
                           </span>
                         </div>
                       </div>
-                      <p className={`shrink-0 text-lg font-black tracking-[-0.06em] ${gaugeTextClass(row.certifiedDays)}`}>
+                      <p className={`shrink-0 text-xl font-black leading-none ${gaugeTextClass(row.certifiedDays)}`}>
                         <AnimatedNumber value={row.rate} suffix="%" />
                       </p>
                     </div>
-                    <div className="mt-2 h-3 overflow-hidden rounded-full bg-oriwan-surface-light">
+                    <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-oriwan-surface-light">
                       <div
                         className={`gauge-fill-flow h-full rounded-full transition-all duration-1000 ease-out ${gaugeColorClass(row.certifiedDays)}`}
                         style={{
@@ -560,18 +553,6 @@ export default function DashboardPage() {
                           transitionDelay: `${Math.min(index * 45, 500)}ms`,
                         }}
                       />
-                    </div>
-                    <div className="mt-2 grid grid-cols-2 gap-1.5 text-[10px] font-black">
-                      <span className="crew-metric-chip rounded-xl bg-oriwan-surface-light px-2 py-1.5 text-oriwan-text-muted">
-                        <span className="block text-[9px] opacity-70">총거리</span>
-                        <span className="block text-sm leading-tight text-oriwan-text">
-                          <AnimatedMetricNumber value={row.distanceKm} suffix="km" />
-                        </span>
-                      </span>
-                      <span className="crew-metric-chip rounded-xl bg-oriwan-surface-light px-2 py-1.5 text-oriwan-text-muted">
-                        <span className="block text-[9px] opacity-70">총시간</span>
-                        <span className="block text-sm leading-tight text-oriwan-text">{secondsToTime(row.durationSeconds)}</span>
-                      </span>
                     </div>
                   </button>
                 ))}

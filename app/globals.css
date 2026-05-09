@@ -222,16 +222,6 @@ img { -webkit-user-drag: none; user-select: none; }
   20%, 72% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
 }
 
-@keyframes crew-metric-glow {
-  0%, 100% { transform: translateY(0); box-shadow: 0 0 0 rgba(132, 204, 22, 0); }
-  50% { transform: translateY(-1px); box-shadow: 0 8px 18px rgba(132, 204, 22, 0.10); }
-}
-
-@keyframes crew-badge-pop {
-  from { opacity: 0; transform: translateY(3px) scale(0.96); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
-}
-
 .animate-fade-up { animation: fade-up 0.45s ease-out forwards; }
 .dashboard-card-reveal {
   animation: dashboard-card-reveal 0.48s cubic-bezier(0.2, 0.8, 0.2, 1) both;
@@ -313,27 +303,6 @@ img { -webkit-user-drag: none; user-select: none; }
   height: 8px;
   animation-duration: 1.15s;
 }
-.crew-level-badge {
-  animation: crew-badge-pop 0.36s ease-out both;
-}
-.crew-metric-chip {
-  position: relative;
-  overflow: hidden;
-  animation: crew-metric-glow 2.8s ease-in-out infinite;
-}
-.crew-metric-chip::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(110deg, transparent 0%, rgba(255,255,255,0.65) 46%, transparent 62%);
-  transform: translateX(-110%);
-  animation: gauge-fill-flow 3.2s ease-in-out infinite;
-}
-.crew-metric-chip > span {
-  position: relative;
-  z-index: 1;
-}
-
 @media (prefers-reduced-motion: reduce) {
   *, ::before, ::after {
     animation-duration: 0.01ms !important;
