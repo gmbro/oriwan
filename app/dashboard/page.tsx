@@ -7,7 +7,7 @@ import { buildMemberPictogramMap, MemberPictogram } from "@/components/member-pi
 import { YoutubeShortsSection } from "@/components/youtube-shorts-section";
 import { ACTUAL_CERTIFICATION_START_DATE, CERTIFICATION_DISPLAY_START_DATE, CHALLENGE_DAYS } from "@/lib/challenge";
 import { DASHBOARD_REFRESH_CHANNEL, DASHBOARD_REFRESH_EVENT } from "@/lib/dashboard-refresh";
-import { addDays, secondsToTime, toIsoDate } from "@/lib/run-records";
+import { addDays, isCertificationCountedStatus, secondsToTime, toIsoDate } from "@/lib/run-records";
 import { createClient } from "@/lib/supabase/client";
 
 type Participant = {
@@ -266,7 +266,7 @@ export default function DashboardPage() {
   const dashboard = useMemo(() => {
     const participants = data?.participants || [];
     const records = data?.records || [];
-    const certifiedRecords = records.filter((record) => record.status === "certified");
+    const certifiedRecords = records.filter((record) => isCertificationCountedStatus(record.status));
     const officialCertifiedRecords = certifiedRecords.filter(
       (record) => Boolean(record.record_date && record.record_date >= ACTUAL_CERTIFICATION_START_DATE && record.record_date <= actualCertificationEndDate)
     );

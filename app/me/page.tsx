@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { CHALLENGE_START_DATE, clampToChallengeWindow } from "@/lib/challenge";
 import { broadcastDashboardRefresh } from "@/lib/dashboard-refresh";
 import { imageFileToOptimizedDataUrl } from "@/lib/image-client";
-import { parseDurationToSeconds, secondsToPace, secondsToTime, toIsoDate } from "@/lib/run-records";
+import { isCertificationCountedStatus, parseDurationToSeconds, secondsToPace, secondsToTime, toIsoDate } from "@/lib/run-records";
 
 type Participant = {
   id: string;
@@ -104,13 +104,14 @@ export default function MyPage() {
 
   const stats = useMemo(() => {
     const records = data?.records || [];
-    const todayRecords = records.filter((record) => record.record_date === today && record.status === "certified");
+    const countedRecords = records.filter((record) => isCertificationCountedStatus(record.status));
+    const todayRecords = countedRecords.filter((record) => record.record_date === today);
     const todayDistance = todayRecords.reduce((sum, record) => sum + (record.distance_km || 0), 0);
     const todayTime = todayRecords.reduce((sum, record) => sum + (record.duration_seconds || 0), 0);
-    const totalDistance = records.reduce((sum, record) => sum + (record.distance_km || 0), 0);
-    const totalTime = records.reduce((sum, record) => sum + (record.duration_seconds || 0), 0);
+    const totalDistance = countedRecords.reduce((sum, record) => sum + (record.distance_km || 0), 0);
+    const totalTime = countedRecords.reduce((sum, record) => sum + (record.duration_seconds || 0), 0);
 
-    return { records, todayDistance, todayTime, totalDistance, totalTime };
+    return { records: countedRecords, todayDistance, todayTime, totalDistance, totalTime };
   }, [data?.records]);
 
   const handleGoogleLogin = async () => {

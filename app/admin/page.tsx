@@ -9,7 +9,7 @@ import { ADMIN_EMAIL, isAdminEmail } from "@/lib/admin";
 import { ACTUAL_CERTIFICATION_START_DATE, CHALLENGE_DAYS, CHALLENGE_START_DATE, clampToChallengeWindow } from "@/lib/challenge";
 import { DASHBOARD_REFRESH_CHANNEL, DASHBOARD_REFRESH_EVENT, broadcastDashboardRefresh } from "@/lib/dashboard-refresh";
 import { imageFileToOptimizedDataUrl } from "@/lib/image-client";
-import { addDays, parseDurationToSeconds, secondsToTime, toIsoDate } from "@/lib/run-records";
+import { addDays, isCertificationCountedStatus, parseDurationToSeconds, secondsToTime, toIsoDate } from "@/lib/run-records";
 
 type Participant = {
   id: string;
@@ -252,7 +252,7 @@ export default function AdminPage() {
     const metricsByParticipant = new Map<string, { distanceKm: number; durationSeconds: number }>();
     records.forEach((record) => {
       if (
-        record.status !== "certified" ||
+        !isCertificationCountedStatus(record.status) ||
         !record.participant_id ||
         !record.record_date ||
         record.record_date < ACTUAL_CERTIFICATION_START_DATE ||
@@ -456,9 +456,9 @@ export default function AdminPage() {
       const results = await postAnalyzeImages(images);
       setFiles([]);
       setAnalysisResults(results);
-      const certified = results.filter((result) => result.status === "certified").length;
+      const certified = results.filter((result) => isCertificationCountedStatus(result.status)).length;
       const review = results.length - certified;
-      setAnalysisMessage(`${results.length}장 정리 완료 · 완료 ${certified}건 · 확인 ${review}건`);
+      setAnalysisMessage(`${results.length}장 정리 완료 · 인증 반영 ${certified}건 · 보류 ${review}건`);
       void broadcastDashboardRefresh();
       await loadData();
     } catch (err) {

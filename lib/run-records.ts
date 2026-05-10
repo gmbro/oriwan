@@ -1,5 +1,9 @@
 export type RecordStatus = "certified" | "needs_review" | "missing" | "rejected";
 
+export function isCertificationCountedStatus(status: RecordStatus | string | null | undefined) {
+  return status === "certified" || status === "needs_review";
+}
+
 export function secondsToTime(seconds: number | null | undefined) {
   if (!seconds || seconds <= 0) return "-";
   const h = Math.floor(seconds / 3600);

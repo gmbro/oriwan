@@ -1,4 +1,4 @@
-import { addDays, toIsoDate } from "@/lib/run-records";
+import { addDays, isCertificationCountedStatus, toIsoDate } from "@/lib/run-records";
 
 export type ScoreParticipant = {
   id: string;
@@ -109,7 +109,7 @@ export function buildScoreRows({
   challengeStartDate: string;
   referenceDate: string;
 }) {
-  const certifiedRecords = records.filter((record) => record.status === "certified" && record.participant_id && record.record_date);
+  const certifiedRecords = records.filter((record) => isCertificationCountedStatus(record.status) && record.participant_id && record.record_date);
 
   const rows = participants.map((participant) => {
     const participantRecords = certifiedRecords
