@@ -154,6 +154,14 @@ export default function AdminPage() {
 
       const participantsJson = await participantsRes.json();
       const recordsJson = await recordsRes.json();
+      if ([participantsRes.status, recordsRes.status].some((status) => status === 401 || status === 403)) {
+        setAuthorized(false);
+        setParticipants([]);
+        setRecords([]);
+        setAuthMessage("관리자 이메일 인증이 필요해요.");
+        setSetupMessage("");
+        return;
+      }
       if (participantsJson.setup_required || recordsJson.setup_required) {
         setSetupMessage("데이터 저장소 연결이 아직 준비되지 않았어요. Supabase SQL Editor에서 docs/supabase-schema.sql을 먼저 실행해주세요.");
       } else {
