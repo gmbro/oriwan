@@ -8,7 +8,7 @@ import { buildMemberPictogramMap, MemberPictogram } from "@/components/member-pi
 import { ACTUAL_CERTIFICATION_START_DATE, CHALLENGE_DAYS, CHALLENGE_START_DATE, clampToChallengeWindow } from "@/lib/challenge";
 import { DASHBOARD_REFRESH_CHANNEL, DASHBOARD_REFRESH_EVENT, broadcastDashboardRefresh } from "@/lib/dashboard-refresh";
 import { imageFileToOptimizedDataUrl } from "@/lib/image-client";
-import { addDays, isCertificationCountedStatus, parseDurationToSeconds, secondsToTime, toIsoDate } from "@/lib/run-records";
+import { addDays, isCertificationCountedStatus, parseDurationToSeconds, secondsToTime, toIsoDate, toKstIsoDate } from "@/lib/run-records";
 
 type Participant = {
   id: string;
@@ -58,11 +58,11 @@ type AdminModal = "participant" | "record" | "upload" | null;
 const IMAGE_UPLOAD_CHUNK_SIZE = 5;
 const MAX_BATCH_IMAGE_FILES = 40;
 const now = new Date();
-const today = toIsoDate(now);
+const today = toKstIsoDate(now);
 const effectiveToday = today;
 const officialCertificationEndDate = toIsoDate(addDays(new Date(`${ACTUAL_CERTIFICATION_START_DATE}T00:00:00`), CHALLENGE_DAYS - 1));
 const initialRecordDate = clampToChallengeWindow(today);
-const initialUploadDate = clampToChallengeWindow(toIsoDate(addDays(now, -1)));
+const initialUploadDate = clampToChallengeWindow(today);
 const rangeStart = CHALLENGE_START_DATE;
 function statusLabel(status: RecordStatus) {
   if (status === "certified") return "완료";

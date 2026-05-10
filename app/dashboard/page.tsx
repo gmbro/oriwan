@@ -7,7 +7,7 @@ import { buildMemberPictogramMap, MemberPictogram } from "@/components/member-pi
 import { YoutubeShortsSection } from "@/components/youtube-shorts-section";
 import { ACTUAL_CERTIFICATION_START_DATE, CERTIFICATION_DISPLAY_START_DATE, CHALLENGE_DAYS } from "@/lib/challenge";
 import { DASHBOARD_REFRESH_CHANNEL, DASHBOARD_REFRESH_EVENT } from "@/lib/dashboard-refresh";
-import { addDays, isCertificationCountedStatus, secondsToTime, toIsoDate } from "@/lib/run-records";
+import { addDays, isCertificationCountedStatus, secondsToTime, toIsoDate, toKstIsoDate } from "@/lib/run-records";
 import { createClient } from "@/lib/supabase/client";
 
 type Participant = {
@@ -41,9 +41,7 @@ type PublicDashboardData = {
 
 type TrendModal = "weekly" | "cumulative" | null;
 
-const today = toIsoDate(new Date());
 const actualCertificationEndDate = toIsoDate(addDays(new Date(`${ACTUAL_CERTIFICATION_START_DATE}T00:00:00`), CHALLENGE_DAYS - 1));
-const effectiveToday = today > actualCertificationEndDate ? actualCertificationEndDate : today;
 
 function formatLastUpdated(value?: string) {
   if (!value) return "-";
@@ -193,6 +191,7 @@ export default function DashboardPage() {
   const [data, setData] = useState<PublicDashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [todayIso, setTodayIso] = useState(() => toKstIsoDate());
   const [motionReady, setMotionReady] = useState(false);
   const [selectedParticipantId, setSelectedParticipantId] = useState("");
   const [trendModal, setTrendModal] = useState<TrendModal>(null);
@@ -203,6 +202,7 @@ export default function DashboardPage() {
     if (loadingRef.current) return;
     loadingRef.current = true;
     try {
+      setTodayIso(toKstIsoDate());
       const response = await fetch("/api/public-dashboard?scope=all", { cache: "no-store" });
       const json = await response.json();
       if (!response.ok) throw new Error(json.error || "오늘의 보드를 불러오지 못했어요.");
@@ -266,15 +266,12 @@ export default function DashboardPage() {
   const dashboard = useMemo(() => {
     const participants = data?.participants || [];
     const records = data?.records || [];
+    const effectiveToday = todayIso > actualCertificationEndDate ? actualCertificationEndDate : todayIso;
     const certifiedRecords = records.filter((record) => isCertificationCountedStatus(record.status));
     const officialCertifiedRecords = certifiedRecords.filter(
       (record) => Boolean(record.record_date && record.record_date >= ACTUAL_CERTIFICATION_START_DATE && record.record_date <= actualCertificationEndDate)
     );
-    const latestOfficialRecordDate = officialCertifiedRecords.reduce((latest, record) => {
-      if (!record.record_date || record.record_date > effectiveToday) return latest;
-      return record.record_date > latest ? record.record_date : latest;
-    }, "");
-    const currentCertificationDate = latestOfficialRecordDate || effectiveToday;
+    const currentCertificationDate = effectiveToday;
     const currentDateRecords = officialCertifiedRecords.filter((record) => record.record_date === currentCertificationDate);
     const currentDateCertifiedIds = new Set(
       currentDateRecords
@@ -383,7 +380,7 @@ export default function DashboardPage() {
       participantProgress,
       stampDays: makeDaysThrough(CERTIFICATION_DISPLAY_START_DATE, latestStampDate),
     };
-  }, [data]);
+  }, [data, todayIso]);
   const latestWeeklyRate = dashboard.weekTrend.at(-1)?.averageRate || 0;
   const selectedParticipant = dashboard.participantProgress.find((row) => row.participant.id === selectedParticipantId) || null;
   const selectedStampedDates = new Set(selectedParticipant?.stampedDates || []);
@@ -429,14 +426,14 @@ export default function DashboardPage() {
                   이번 인증, 얼마나 완료됐을까?
                 </h2>
                 <p className="mt-3 max-w-xl text-sm leading-6 text-white/55">
-                  업로드된 최신 인증일 기준으로 산뜻하게 보여드려요.
+                  오늘 기준 인증 현황을 산뜻하게 보여드려요.
                 </p>
               </div>
 
               <div className="rounded-[28px] bg-white/10 p-4 ring-1 ring-white/10">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-xs font-black text-white/45">기준일 인증률</p>
+                    <p className="text-xs font-black text-white/45">오늘 인증률</p>
                     <p className="mt-1 text-5xl font-black tracking-[-0.08em] text-lime-200">
                       {isInitialDashboardLoading ? "--" : <AnimatedNumber value={dashboard.completionRate} suffix="%" />}
                     </p>
