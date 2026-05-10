@@ -50,9 +50,9 @@ function formatLastUpdated(value?: string) {
   return new Date(value).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
 }
 
-function certificationDayLabel() {
+function certificationDayLabel(referenceDate: string) {
   const start = new Date(`${ACTUAL_CERTIFICATION_START_DATE}T00:00:00`);
-  const current = new Date(`${effectiveToday}T00:00:00`);
+  const current = new Date(`${referenceDate}T00:00:00`);
   const diffDays = Math.floor((current.getTime() - start.getTime()) / 86_400_000);
   if (diffDays < 0) return `D-${CHALLENGE_DAYS}`;
   return `D-${Math.max(CHALLENGE_DAYS - diffDays, 0)}`;
@@ -60,10 +60,6 @@ function certificationDayLabel() {
 
 function shortDate(value: string) {
   return value.slice(5).replace("-", ".");
-}
-
-function todayLabel() {
-  return shortDate(today);
 }
 
 function makeDaysFrom(startDate: string, days = CHALLENGE_DAYS) {
@@ -274,14 +270,19 @@ export default function DashboardPage() {
     const officialCertifiedRecords = certifiedRecords.filter(
       (record) => Boolean(record.record_date && record.record_date >= ACTUAL_CERTIFICATION_START_DATE && record.record_date <= actualCertificationEndDate)
     );
-    const todayRecords = officialCertifiedRecords.filter((record) => record.record_date === today);
-    const todayCertifiedIds = new Set(
-      todayRecords
+    const latestOfficialRecordDate = officialCertifiedRecords.reduce((latest, record) => {
+      if (!record.record_date || record.record_date > effectiveToday) return latest;
+      return record.record_date > latest ? record.record_date : latest;
+    }, "");
+    const currentCertificationDate = latestOfficialRecordDate || effectiveToday;
+    const currentDateRecords = officialCertifiedRecords.filter((record) => record.record_date === currentCertificationDate);
+    const currentDateCertifiedIds = new Set(
+      currentDateRecords
         .filter((record) => record.participant_id)
         .map((record) => record.participant_id)
     );
 
-    const completionRate = participants.length ? Math.round((todayCertifiedIds.size / participants.length) * 100) : 0;
+    const completionRate = participants.length ? Math.round((currentDateCertifiedIds.size / participants.length) * 100) : 0;
 
     const certifiedIdsByDay = new Map<string, Set<string>>();
     const certifiedDaysByParticipant = new Map<string, Set<string>>();
@@ -305,7 +306,7 @@ export default function DashboardPage() {
     const latestStampDate = certifiedRecords.reduce((latest, record) => {
       if (!record.record_date) return latest;
       return record.record_date > latest ? record.record_date : latest;
-    }, today > CERTIFICATION_DISPLAY_START_DATE ? today : CERTIFICATION_DISPLAY_START_DATE);
+    }, currentCertificationDate > CERTIFICATION_DISPLAY_START_DATE ? currentCertificationDate : CERTIFICATION_DISPLAY_START_DATE);
 
     certifiedRecords.forEach((record) => {
       if (!record.participant_id || !record.record_date) return;
@@ -313,7 +314,7 @@ export default function DashboardPage() {
       stampDatesByParticipant.get(record.participant_id)?.add(record.record_date);
     });
 
-    const elapsedDays = officialCertificationDays.filter((day) => day <= effectiveToday);
+    const elapsedDays = officialCertificationDays.filter((day) => day <= currentCertificationDate);
     const dayTrend = elapsedDays.map((day) => {
       const certifiedCount = certifiedIdsByDay.get(day)?.size || 0;
       const rate = participants.length ? Math.round((certifiedCount / participants.length) * 100) : 0;
@@ -323,7 +324,7 @@ export default function DashboardPage() {
     const visibleOfficialWeeks = Array.from({ length: Math.ceil(officialCertificationDays.length / 7) }, (_, index) => {
       const weekDays = officialCertificationDays.slice(index * 7, index * 7 + 7);
       return { index, weekDays };
-    }).filter((week) => week.weekDays[0] && week.weekDays[0] <= effectiveToday);
+    }).filter((week) => week.weekDays[0] && week.weekDays[0] <= currentCertificationDate);
     const weekTrend = visibleOfficialWeeks.map(({ index, weekDays }) => {
       const certifiedSlots = weekDays.reduce((sum, day) => sum + (certifiedCountByDay.get(day) || 0), 0);
       const possibleSlots = weekDays.length * participants.length;
@@ -370,7 +371,8 @@ export default function DashboardPage() {
 
     return {
       participants,
-      todayCertifiedIds,
+      currentCertificationDate,
+      currentDateCertifiedIds,
       completionRate,
       elapsedDays,
       dayTrend,
@@ -417,24 +419,24 @@ export default function DashboardPage() {
               <div>
                 <div className="mb-3 flex max-w-full flex-nowrap gap-1.5 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] sm:gap-2 [&::-webkit-scrollbar]:hidden">
                   <p className="inline-flex shrink-0 whitespace-nowrap rounded-full bg-white/10 px-2.5 py-1 text-[9px] font-black text-lime-200 ring-1 ring-white/10 sm:px-3 sm:text-[11px]">
-                    {todayLabel()}
+                    {shortDate(dashboard.currentCertificationDate)}
                   </p>
                   <p className="inline-flex shrink-0 whitespace-nowrap rounded-full bg-lime-300 px-2.5 py-1 text-[9px] font-black text-slate-950 sm:px-3 sm:text-[11px]">
-                    {certificationDayLabel()}
+                    {certificationDayLabel(dashboard.currentCertificationDate)}
                   </p>
                 </div>
                 <h2 className="max-w-full whitespace-nowrap text-[clamp(1.95rem,8vw,3.75rem)] font-black leading-[1.05] tracking-[-0.07em]">
-                  오늘, 얼마나 인증했을까?
+                  이번 인증, 얼마나 완료됐을까?
                 </h2>
                 <p className="mt-3 max-w-xl text-sm leading-6 text-white/55">
-                  인증 기록은 매일 정오에 산뜻하게 업데이트됩니다.
+                  업로드된 최신 인증일 기준으로 산뜻하게 보여드려요.
                 </p>
               </div>
 
               <div className="rounded-[28px] bg-white/10 p-4 ring-1 ring-white/10">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-xs font-black text-white/45">오늘 인증률</p>
+                    <p className="text-xs font-black text-white/45">기준일 인증률</p>
                     <p className="mt-1 text-5xl font-black tracking-[-0.08em] text-lime-200">
                       {isInitialDashboardLoading ? "--" : <AnimatedNumber value={dashboard.completionRate} suffix="%" />}
                     </p>
@@ -456,7 +458,7 @@ export default function DashboardPage() {
                   </svg>
                 </div>
                 <p className="mt-2 text-xs font-semibold text-white/50">
-                  {isInitialDashboardLoading ? "인증 현황 불러오는 중" : `${dashboard.todayCertifiedIds.size}/${dashboard.participants.length}명 인증 완료`}
+                  {isInitialDashboardLoading ? "인증 현황 불러오는 중" : `${dashboard.currentDateCertifiedIds.size}/${dashboard.participants.length}명 인증 완료`}
                 </p>
               </div>
             </div>

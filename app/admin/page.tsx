@@ -59,10 +59,12 @@ type AdminModal = "participant" | "record" | "upload" | null;
 
 const IMAGE_UPLOAD_CHUNK_SIZE = 5;
 const MAX_BATCH_IMAGE_FILES = 40;
-const today = toIsoDate(new Date());
+const now = new Date();
+const today = toIsoDate(now);
 const effectiveToday = today;
 const officialCertificationEndDate = toIsoDate(addDays(new Date(`${ACTUAL_CERTIFICATION_START_DATE}T00:00:00`), CHALLENGE_DAYS - 1));
 const initialRecordDate = clampToChallengeWindow(today);
+const initialUploadDate = clampToChallengeWindow(toIsoDate(addDays(now, -1)));
 const rangeStart = CHALLENGE_START_DATE;
 function statusLabel(status: RecordStatus) {
   if (status === "certified") return "완료";
@@ -123,7 +125,7 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [newName, setNewName] = useState("");
   const [newNickname, setNewNickname] = useState("");
-  const [targetDate, setTargetDate] = useState(initialRecordDate);
+  const [targetDate, setTargetDate] = useState(initialUploadDate);
   const [files, setFiles] = useState<File[]>([]);
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisMessage, setAnalysisMessage] = useState("");
@@ -639,7 +641,7 @@ export default function AdminPage() {
           <div className="absolute -right-16 -top-20 h-56 w-56 rounded-full bg-lime-300/25 blur-3xl" />
           <div className="absolute bottom-0 left-1/2 h-24 w-72 -translate-x-1/2 rounded-full bg-orange-400/15 blur-3xl" />
           <div className="relative grid gap-2 sm:grid-cols-3">
-            <button type="button" onClick={() => openUploadForDate(effectiveToday)} className="rounded-2xl bg-lime-300 px-4 py-3 text-left text-sm font-black text-slate-950">
+            <button type="button" onClick={() => openUploadForDate(initialUploadDate)} className="rounded-2xl bg-lime-300 px-4 py-3 text-left text-sm font-black text-slate-950">
               이미지 올리기
             </button>
             <button
@@ -749,7 +751,7 @@ export default function AdminPage() {
               </div>
 
               <label className="block text-xs font-bold text-oriwan-text-muted">
-                날짜가 없을 때 쓸 날짜
+                날짜가 없거나 '오늘'로 보일 때 쓸 날짜
                 <input
                   type="date"
                   min={CHALLENGE_START_DATE}

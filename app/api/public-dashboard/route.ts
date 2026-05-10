@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { addDays, toIsoDate } from "@/lib/run-records";
+import { addDays, toIsoDate, toKstIsoDate } from "@/lib/run-records";
 import { isMissingTableError, missingSchemaResponse } from "@/lib/supabase-errors";
 import { CERTIFICATION_DISPLAY_START_DATE, CHALLENGE_END_DATE, CHALLENGE_START_DATE, clampToChallengeStart } from "@/lib/challenge";
 import { findAdminUserId, getServiceClient } from "@/lib/admin-data";
@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
   const scope = searchParams.get("scope");
   const daysParam = Number(searchParams.get("days") || 30);
   const days = Number.isFinite(daysParam) ? Math.min(Math.max(daysParam, 7), 366) : 30;
-  const today = toIsoDate(new Date());
+  const today = toKstIsoDate();
   const to = today;
   const rangeEnd = new Date(`${to}T00:00:00`);
   const from = scope === "all" ? CHALLENGE_START_DATE : clampToChallengeStart(toIsoDate(addDays(rangeEnd, -(days - 1))));
