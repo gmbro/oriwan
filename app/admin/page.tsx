@@ -129,6 +129,9 @@ export default function AdminPage() {
   const [newNickname, setNewNickname] = useState("");
   const [targetDate, setTargetDate] = useState(initialUploadDate);
   const [files, setFiles] = useState<File[]>([]);
+  const [uploadParticipantId, setUploadParticipantId] = useState("");
+  const [uploadNewName, setUploadNewName] = useState("");
+  const [addingUploadParticipant, setAddingUploadParticipant] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisMessage, setAnalysisMessage] = useState("");
   const [analysisResults, setAnalysisResults] = useState<AnalysisResult[]>([]);
@@ -333,6 +336,8 @@ export default function AdminPage() {
   const openUploadForDate = useCallback((date: string) => {
     setTargetDate(date);
     setFiles([]);
+    setUploadParticipantId("");
+    setUploadNewName("");
     setAnalysisResults([]);
     setAnalysisMessage("");
     setAdminModal("upload");
@@ -372,6 +377,47 @@ export default function AdminPage() {
     }
   }, [editingParticipantId, loadData, resetParticipantForm]);
 
+  const addUploadParticipant = useCallback(async () => {
+    const name = uploadNewName.trim();
+    if (!name) return;
+
+    const existingParticipant = participants.find((participant) => participant.name.trim() === name);
+    if (existingParticipant) {
+      setUploadParticipantId(existingParticipant.id);
+      setUploadNewName("");
+      setAnalysisMessage(`${existingParticipant.name}님을 선택했어요.`);
+      return;
+    }
+
+    setAddingUploadParticipant(true);
+    try {
+      const res = await fetch("/api/participants", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, nickname: "" }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(typeof json.error === "string" ? json.error : "멤버를 저장하지 못했어요.");
+
+      const participant = json.participant as Participant | undefined;
+      if (participant?.id) {
+        setParticipants((current) => (
+          current.some((item) => item.id === participant.id) ? current : [...current, participant]
+        ));
+        setUploadParticipantId(participant.id);
+        setManualParticipantId((current) => current || participant.id);
+        setUploadNewName("");
+        setAnalysisMessage(`${participant.name}님을 추가했어요.`);
+      }
+      void broadcastDashboardRefresh();
+      await loadData(false);
+    } catch (err) {
+      setAnalysisMessage(err instanceof Error ? err.message : "멤버를 저장하지 못했어요.");
+    } finally {
+      setAddingUploadParticipant(false);
+    }
+  }, [loadData, participants, uploadNewName]);
+
   const postAnalyzeImages = useCallback(async (images: PendingAnalyzeImage[]) => {
     const results: AnalysisResult[] = [];
 
@@ -381,7 +427,7 @@ export default function AdminPage() {
       const res = await fetch("/api/records/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ targetDate, images: chunk }),
+        body: JSON.stringify({ targetDate, fallbackParticipantId: uploadParticipantId || null, images: chunk }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "analysis failed");
@@ -389,7 +435,7 @@ export default function AdminPage() {
     }
 
     return results;
-  }, [targetDate]);
+  }, [targetDate, uploadParticipantId]);
 
   const addImageFiles = useCallback((fileList: FileList | File[]) => {
     const selectedImages = getImageFiles(fileList);
@@ -779,6 +825,41 @@ export default function AdminPage() {
                   className="mt-1 block w-full rounded-2xl border border-oriwan-border bg-white px-4 py-3 text-base font-black text-oriwan-text sm:text-sm"
                 />
               </label>
+
+              <div className="mt-3 rounded-2xl bg-white p-3 ring-1 ring-slate-950/5">
+                <label className="block text-xs font-black text-oriwan-text-muted">
+                  이름 없을 때 적용할 멤버
+                  <select
+                    value={uploadParticipantId}
+                    onChange={(event) => setUploadParticipantId(event.target.value)}
+                    className="mt-1 w-full rounded-xl border border-oriwan-border bg-white px-3 py-2.5 text-sm font-black text-oriwan-text outline-none focus:border-oriwan-primary"
+                  >
+                    <option value="">이미지에서 자동 인식</option>
+                    {participants.map((participant) => (
+                      <option key={participant.id} value={participant.id}>{participant.name}</option>
+                    ))}
+                  </select>
+                </label>
+                <div className="mt-2 flex gap-2">
+                  <input
+                    value={uploadNewName}
+                    onChange={(event) => setUploadNewName(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") addUploadParticipant();
+                    }}
+                    placeholder="새 이름"
+                    className="min-w-0 flex-1 rounded-xl border border-oriwan-border bg-white px-3 py-2.5 text-sm font-black text-oriwan-text outline-none focus:border-oriwan-primary"
+                  />
+                  <button
+                    type="button"
+                    onClick={addUploadParticipant}
+                    disabled={!uploadNewName.trim() || addingUploadParticipant}
+                    className="shrink-0 rounded-xl bg-slate-950 px-4 py-2.5 text-xs font-black text-lime-200 disabled:opacity-40"
+                  >
+                    {addingUploadParticipant ? "추가 중" : "이름 추가"}
+                  </button>
+                </div>
+              </div>
 
               <div
                 className="mt-4 rounded-[24px] border-2 border-dashed border-lime-300/80 bg-lime-50/70 p-4 text-center transition hover:bg-lime-50 sm:p-5"

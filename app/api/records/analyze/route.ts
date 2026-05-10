@@ -134,6 +134,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const targetDate = normalizeRecordDate(body.targetDate);
+    const fallbackParticipantId = typeof body.fallbackParticipantId === "string" ? body.fallbackParticipantId : null;
     const rawImages = Array.isArray(body.images) ? body.images : [];
     const images = rawImages.filter(validImage).slice(0, MAX_IMAGES) as UploadedImage[];
 
@@ -160,9 +161,22 @@ export async function POST(request: NextRequest) {
 
     const participants = (participantsData || []) as Participant[];
     const knownNames = participants.map((participant) => participant.name);
-    const fallbackParticipant = participants.find(
+    const selectedFallbackParticipant = fallbackParticipantId
+      ? participants.find((participant) => participant.id === fallbackParticipantId) || null
+      : null;
+    if (fallbackParticipantId && !selectedFallbackParticipant) {
+      return NextResponse.json({ error: "선택한 멤버를 찾지 못했어요. 멤버 목록을 새로고침해주세요." }, { status: 400 });
+    }
+    const defaultFallbackParticipant = participants.find(
       (participant) => normalizeParticipantName(participant.name) === normalizeParticipantName(DEFAULT_PARTICIPANT_NAME_WHEN_OCR_NAME_MISSING)
     ) || null;
+    const fallbackParticipant = selectedFallbackParticipant || defaultFallbackParticipant;
+
+    const fallbackParticipantNote = fallbackParticipant
+      ? selectedFallbackParticipant
+        ? `${fallbackParticipant.name}님으로 직접 지정했어요.`
+        : `이미지에서 이름이 보이지 않아 ${fallbackParticipant.name}님으로 연결했어요.`
+      : null;
 
     const { data: batch, error: batchError } = await supabase
       .from("upload_batches")
@@ -200,7 +214,7 @@ export async function POST(request: NextRequest) {
         let filePath: string | null = null;
         const fallbackNotes = [
           getGeminiErrorMessage(error),
-          fallbackParticipant ? `이미지에서 이름이 보이지 않아 ${DEFAULT_PARTICIPANT_NAME_WHEN_OCR_NAME_MISSING}님으로 연결했어요.` : null,
+          fallbackParticipantNote,
           "거리와 시간은 나중에 보완해주세요.",
           !fallbackParticipant ? "멤버 매칭을 한 번 확인해주세요." : null,
         ].filter(Boolean).join(" / ");
@@ -323,7 +337,7 @@ export async function POST(request: NextRequest) {
         raw_extracted_text: extracted.raw_text || null,
         notes: [
           extracted.notes,
-          usedFallbackParticipant ? `이미지에서 이름이 보이지 않아 ${DEFAULT_PARTICIPANT_NAME_WHEN_OCR_NAME_MISSING}님으로 연결했어요.` : null,
+          usedFallbackParticipant ? fallbackParticipantNote : null,
           dateWasFallback ? "이미지에서 날짜가 보이지 않아 선택한 날짜를 임시 적용했어요." : null,
           !distanceKm ? "거리는 나중에 보완할 수 있어요." : null,
           !durationSeconds ? "시간은 나중에 보완할 수 있어요." : null,
