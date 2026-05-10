@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 import { buildMemberPictogramMap, MemberPictogram } from "@/components/member-pictogram";
-import { ADMIN_EMAIL, isAdminEmail } from "@/lib/admin";
 import { ACTUAL_CERTIFICATION_START_DATE, CHALLENGE_DAYS, CHALLENGE_START_DATE, clampToChallengeWindow } from "@/lib/challenge";
 import { DASHBOARD_REFRESH_CHANNEL, DASHBOARD_REFRESH_EVENT, broadcastDashboardRefresh } from "@/lib/dashboard-refresh";
 import { imageFileToOptimizedDataUrl } from "@/lib/image-client";
@@ -54,7 +53,6 @@ type PendingAnalyzeImage = {
   dataUrl: string;
 };
 
-type AdminOtpType = "email" | "magiclink" | "signup";
 type AdminModal = "participant" | "record" | "upload" | null;
 
 const IMAGE_UPLOAD_CHUNK_SIZE = 5;
@@ -187,26 +185,20 @@ export default function AdminPage() {
   useEffect(() => {
     setMounted(true);
     const init = async () => {
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
+      const response = await fetch("/api/admin/session", { cache: "no-store" });
+      const json = await response.json().catch(() => ({}));
 
-      if (!user) {
-        setAuthReady(true);
-        setLoading(false);
-        return;
-      }
-
-      if (!isAdminEmail(user.email)) {
-        await supabase.auth.signOut();
-        setAuthMessage("지정된 관리자 이메일로만 들어올 수 있어요.");
+      if (!response.ok) {
+        setAuthorized(false);
+        setAuthMessage(typeof json.error === "string" ? json.error : "관리자 이메일 인증이 필요해요.");
         setAuthReady(true);
         setLoading(false);
         return;
       }
 
       setAuthorized(true);
-      setUserName(user.user_metadata?.full_name || user.email?.split("@")[0] || "운영자");
-      setUserAvatar(user.user_metadata?.avatar_url || "");
+      setUserName(json.user?.name || "운영자");
+      setUserAvatar(json.user?.avatar || "");
       await loadData();
       setAuthReady(true);
     };
@@ -538,16 +530,11 @@ export default function AdminPage() {
   const sendAdminCode = useCallback(async () => {
     setSendingCode(true);
     setAuthMessage("");
-    const supabase = createClient();
-    const { error } = await supabase.auth.signInWithOtp({
-      email: ADMIN_EMAIL,
-      options: {
-        shouldCreateUser: true,
-      },
-    });
+    const response = await fetch("/api/admin/session", { method: "PUT" });
+    const json = await response.json().catch(() => ({}));
 
-    if (error) {
-      setAuthMessage("인증번호를 보내지 못했어요. Supabase 이메일 OTP 설정을 확인해주세요.");
+    if (!response.ok) {
+      setAuthMessage(typeof json.error === "string" ? json.error : "인증번호를 보내지 못했어요. Supabase 이메일 OTP 설정을 확인해주세요.");
     } else {
       setCodeSent(true);
       setAuthMessage("관리자 이메일로 인증번호를 보냈어요. 메일함을 확인해주세요.");
@@ -560,46 +547,27 @@ export default function AdminPage() {
     if (!token) return;
     setVerifyingCode(true);
     setAuthMessage("");
-    const supabase = createClient();
-    const verifyTypes: AdminOtpType[] = ["email", "magiclink", "signup"];
-    let adminUser = null;
-    let lastErrorMessage = "";
+    const response = await fetch("/api/admin/session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token }),
+    });
+    const json = await response.json().catch(() => ({}));
 
-    for (const type of verifyTypes) {
-      const { data, error } = await supabase.auth.verifyOtp({
-        email: ADMIN_EMAIL,
-        token,
-        type,
-      });
-
-      if (!error && data.user) {
-        adminUser = data.user;
-        break;
-      }
-
-      lastErrorMessage = error?.message || lastErrorMessage;
-      if (error?.status === 429) break;
-    }
-
-    if (!adminUser || !isAdminEmail(adminUser.email)) {
-      await supabase.auth.signOut();
-      setAuthMessage(
-        lastErrorMessage.includes("rate limit") || lastErrorMessage.includes("429")
-          ? "요청이 잠시 몰렸어요. 1분 정도 뒤 새 인증번호로 다시 시도해주세요."
-          : "인증번호가 맞지 않거나 만료됐어요. 새 번호를 받아 다시 들어와주세요."
-      );
+    if (!response.ok) {
+      setAuthMessage(typeof json.error === "string" ? json.error : "인증번호가 맞지 않거나 만료됐어요. 새 번호를 받아 다시 들어와주세요.");
       setAuthorized(false);
     } else {
       setAuthorized(true);
-      setUserName(adminUser.user_metadata?.full_name || "운영자");
-      setUserAvatar(adminUser.user_metadata?.avatar_url || "");
+      setUserName(json.user?.name || "운영자");
+      setUserAvatar(json.user?.avatar || "");
       await loadData();
     }
     setVerifyingCode(false);
   }, [loadData, otp]);
 
   const handleLogout = useCallback(() => {
-    fetch("/api/auth/logout", { method: "POST" }).then(() => {
+    fetch("/api/admin/session", { method: "DELETE" }).then(() => {
       setAuthorized(false);
       setUserName("");
       setUserAvatar("");
