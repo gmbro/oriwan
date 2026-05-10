@@ -16,6 +16,10 @@ function sanitizeStatus(value: unknown) {
   return typeof value === "string" && RECORD_STATUSES.has(value) ? value : null;
 }
 
+function isUniqueConflictError(error: unknown) {
+  return typeof error === "object" && error !== null && "code" in error && (error as { code?: string }).code === "23505";
+}
+
 export async function PATCH(
   request: NextRequest,
   context: { params: Promise<{ id: string }> }
@@ -59,6 +63,9 @@ export async function PATCH(
 
   if (error) {
     console.error("Record update error:", error);
+    if (isUniqueConflictError(error)) {
+      return NextResponse.json({ error: "이미 그 멤버의 같은 날짜 기록이 있어요. 기존 기록을 먼저 확인해주세요." }, { status: 409 });
+    }
     return NextResponse.json({ error: "러닝 기록을 수정하지 못했어요." }, { status: 500 });
   }
 

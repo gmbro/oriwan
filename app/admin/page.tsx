@@ -100,6 +100,10 @@ function getImageFileKey(file: File) {
   return `${file.name}-${file.size}-${file.lastModified}`;
 }
 
+function getAnalysisResultKey(result: AnalysisResult, index: number) {
+  return result.id || `${result.file_name}-${index}`;
+}
+
 function formatFileSize(bytes: number) {
   if (bytes >= 1_000_000) return `${(bytes / 1_000_000).toFixed(1)}MB`;
   if (bytes >= 1_000) return `${Math.round(bytes / 1_000)}KB`;
@@ -130,6 +134,7 @@ export default function AdminPage() {
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisMessage, setAnalysisMessage] = useState("");
   const [analysisResults, setAnalysisResults] = useState<AnalysisResult[]>([]);
+  const [updatingAnalysisKey, setUpdatingAnalysisKey] = useState("");
   const [manualParticipantId, setManualParticipantId] = useState("");
   const [manualDate, setManualDate] = useState(initialRecordDate);
   const [manualDistance, setManualDistance] = useState("");
@@ -467,6 +472,43 @@ export default function AdminPage() {
       setAnalyzing(false);
     }
   }, [files, loadData, postAnalyzeImages]);
+
+  const updateAnalysisParticipant = useCallback(async (resultIndex: number, participantId: string) => {
+    const result = analysisResults[resultIndex];
+    const participant = participants.find((item) => item.id === participantId);
+    if (!result || !participant) return;
+
+    if (!result.id) {
+      setAnalysisMessage("저장된 기록이 없는 이미지예요. 날짜를 확인한 뒤 다시 자동 인식해주세요.");
+      return;
+    }
+
+    const resultKey = getAnalysisResultKey(result, resultIndex);
+    setUpdatingAnalysisKey(resultKey);
+
+    try {
+      const res = await fetch(`/api/records/${result.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ participant_id: participant.id }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(typeof json.error === "string" ? json.error : "멤버를 저장하지 못했어요.");
+
+      setAnalysisResults((current) => current.map((item, index) => (
+        index === resultIndex
+          ? { ...item, participant_id: participant.id, participant_name: participant.name }
+          : item
+      )));
+      setAnalysisMessage(`${participant.name}님으로 연결했어요.`);
+      void broadcastDashboardRefresh();
+      await loadData(false);
+    } catch (err) {
+      setAnalysisMessage(err instanceof Error ? err.message : "멤버를 저장하지 못했어요.");
+    } finally {
+      setUpdatingAnalysisKey("");
+    }
+  }, [analysisResults, loadData, participants]);
 
   const saveManualRecord = useCallback(async () => {
     const duration = parseDurationToSeconds(manualDuration);
@@ -849,12 +891,14 @@ export default function AdminPage() {
                 <div className="mt-3 space-y-2">
                   {analysisResults.map((result, index) => {
                     const status = result.status || "needs_review";
+                    const resultKey = getAnalysisResultKey(result, index);
+                    const isUpdatingParticipant = updatingAnalysisKey === resultKey;
                     return (
-                      <div key={`${result.file_name}-${index}`} className="rounded-2xl bg-white px-4 py-3 ring-1 ring-slate-950/5">
+                      <div key={resultKey} className="rounded-2xl bg-white px-4 py-3 ring-1 ring-slate-950/5">
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
                             <p className="truncate text-sm font-black text-oriwan-text">
-                              {result.participant_name || "멤버 확인하기"}
+                              {result.participant_name || "멤버 선택"}
                             </p>
                             <p className="mt-1 truncate text-[11px] font-semibold text-oriwan-text-muted">{result.file_name}</p>
                           </div>
@@ -862,6 +906,20 @@ export default function AdminPage() {
                             {statusLabel(status)}
                           </span>
                         </div>
+                        <label className="mt-3 block text-[10px] font-black text-oriwan-text-muted">
+                          멤버
+                          <select
+                            value={result.participant_id || ""}
+                            onChange={(event) => updateAnalysisParticipant(index, event.target.value)}
+                            disabled={!result.id || isUpdatingParticipant}
+                            className="mt-1 w-full rounded-xl border border-oriwan-border bg-white px-3 py-2 text-sm font-black text-oriwan-text outline-none focus:border-oriwan-primary disabled:opacity-50"
+                          >
+                            <option value="">{result.id ? "멤버 선택" : "저장된 기록 없음"}</option>
+                            {participants.map((participant) => (
+                              <option key={participant.id} value={participant.id}>{participant.name}</option>
+                            ))}
+                          </select>
+                        </label>
                         <div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs font-black">
                           <span className="rounded-xl bg-oriwan-surface-light px-2 py-2 text-oriwan-text">{result.record_date || "날짜 확인"}</span>
                           <span className="rounded-xl bg-oriwan-surface-light px-2 py-2 text-oriwan-text">{result.distance_km ? `${result.distance_km}km` : "거리 확인"}</span>
