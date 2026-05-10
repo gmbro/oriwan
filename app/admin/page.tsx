@@ -456,7 +456,7 @@ export default function AdminPage() {
       const results = await postAnalyzeImages(images);
       setFiles([]);
       setAnalysisResults(results);
-      const certified = results.filter((result) => isCertificationCountedStatus(result.status)).length;
+      const certified = results.filter((result) => result.participant_id && result.record_date && isCertificationCountedStatus(result.status)).length;
       const review = results.length - certified;
       setAnalysisMessage(`${results.length}장 정리 완료 · 인증 반영 ${certified}건 · 보류 ${review}건`);
       void broadcastDashboardRefresh();

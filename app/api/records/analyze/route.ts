@@ -196,17 +196,81 @@ export async function POST(request: NextRequest) {
           error: getGeminiErrorDebug(error),
         });
         needsReviewCount += 1;
+        let recordId: string | null = null;
+        let filePath: string | null = null;
+        const fallbackNotes = [
+          getGeminiErrorMessage(error),
+          fallbackParticipant ? `이미지에서 이름이 보이지 않아 ${DEFAULT_PARTICIPANT_NAME_WHEN_OCR_NAME_MISSING}님으로 연결했어요.` : null,
+          "거리와 시간은 나중에 보완해주세요.",
+          !fallbackParticipant ? "멤버 매칭을 한 번 확인해주세요." : null,
+        ].filter(Boolean).join(" / ");
+
+        if (fallbackParticipant?.id && targetDate) {
+          try {
+            const parsed = parseDataUrl(image.dataUrl);
+            filePath = await uploadImageToStorage({
+              userId: user.id,
+              batchId: batch.id,
+              imageIndex: index + 1,
+              mimeType: parsed.mimeType,
+              base64: parsed.base64,
+            });
+          } catch (storageError) {
+            console.warn("Fallback image storage upload skipped", {
+              file: image.name,
+              error: storageError instanceof Error ? storageError.message : storageError,
+            });
+          }
+
+          const { data: existingRecord, error: existingRecordError } = await supabase
+            .from("daily_run_records")
+            .select("id")
+            .eq("user_id", user.id)
+            .eq("participant_id", fallbackParticipant.id)
+            .eq("record_date", targetDate)
+            .maybeSingle();
+
+          if (existingRecordError) throw existingRecordError;
+
+          if (existingRecord?.id) {
+            recordId = existingRecord.id;
+          } else {
+            const { data: fallbackRecord, error: fallbackRecordError } = await supabase
+              .from("daily_run_records")
+              .insert({
+                user_id: user.id,
+                participant_id: fallbackParticipant.id,
+                upload_batch_id: batch.id,
+                record_date: targetDate,
+                distance_km: null,
+                duration_seconds: null,
+                pace_seconds_per_km: null,
+                source_app: null,
+                status: "needs_review",
+                confidence_score: null,
+                image_url: filePath,
+                raw_extracted_text: null,
+                notes: fallbackNotes,
+              })
+              .select("id")
+              .single();
+
+            if (fallbackRecordError) throw fallbackRecordError;
+            recordId = fallbackRecord.id;
+          }
+        }
+
         results.push({
-          id: null,
+          id: recordId,
           file_name: image.name,
-          participant_id: null,
-          participant_name: "",
+          participant_id: fallbackParticipant?.id || null,
+          participant_name: fallbackParticipant?.name || "",
           record_date: targetDate,
           distance_km: null,
           duration_seconds: null,
           status: "needs_review",
           confidence_score: null,
-          notes: getGeminiErrorMessage(error),
+          notes: fallbackNotes,
         });
         continue;
       }
