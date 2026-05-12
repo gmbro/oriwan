@@ -47,11 +47,13 @@ export async function PATCH(
   }
   if ("notes" in body) patch.notes = body.notes || null;
 
-  const distanceKm = "distance_km" in body ? sanitizeNumber(body.distance_km) : null;
-  const durationSeconds = "duration_seconds" in body ? sanitizeNumber(body.duration_seconds) : null;
+  const distanceProvided = "distance_km" in body;
+  const durationProvided = "duration_seconds" in body;
+  const distanceKm = distanceProvided ? sanitizeNumber(body.distance_km) : null;
+  const durationSeconds = durationProvided ? sanitizeNumber(body.duration_seconds) : null;
   if ("pace_seconds_per_km" in body) {
     patch.pace_seconds_per_km = sanitizeNumber(body.pace_seconds_per_km);
-  } else if (distanceKm && durationSeconds) {
+  } else if (distanceProvided || durationProvided) {
     patch.pace_seconds_per_km = calculatePaceSeconds(distanceKm, durationSeconds);
   }
 

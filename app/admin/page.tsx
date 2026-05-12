@@ -46,6 +46,8 @@ type AnalysisResult = {
   duration_seconds?: number | null;
   status?: RecordStatus;
   notes?: string | null;
+  edit_distance?: string;
+  edit_duration?: string;
 };
 
 type PendingAnalyzeImage = {
@@ -53,7 +55,7 @@ type PendingAnalyzeImage = {
   dataUrl: string;
 };
 
-type AdminModal = "participant" | "record" | "upload" | null;
+type AdminModal = "participant" | "record" | "upload" | "participantRecords" | null;
 
 const IMAGE_UPLOAD_CHUNK_SIZE = 5;
 const MAX_BATCH_IMAGE_FILES = 40;
@@ -108,6 +110,22 @@ function formatFileSize(bytes: number) {
   return `${bytes}B`;
 }
 
+function formatDistanceInput(value: number | null | undefined) {
+  return value ? String(value) : "";
+}
+
+function formatDurationInput(value: number | null | undefined) {
+  return value ? secondsToTime(value) : "";
+}
+
+function hydrateAnalysisResult(result: AnalysisResult): AnalysisResult {
+  return {
+    ...result,
+    edit_distance: result.edit_distance ?? formatDistanceInput(result.distance_km),
+    edit_duration: result.edit_duration ?? formatDurationInput(result.duration_seconds),
+  };
+}
+
 export default function AdminPage() {
   const router = useRouter();
   const loadInFlightRef = useRef(false);
@@ -136,10 +154,13 @@ export default function AdminPage() {
   const [analysisMessage, setAnalysisMessage] = useState("");
   const [analysisResults, setAnalysisResults] = useState<AnalysisResult[]>([]);
   const [updatingAnalysisKey, setUpdatingAnalysisKey] = useState("");
+  const [updatingRecordId, setUpdatingRecordId] = useState("");
   const [manualParticipantId, setManualParticipantId] = useState("");
   const [manualDate, setManualDate] = useState(initialRecordDate);
   const [manualDistance, setManualDistance] = useState("");
   const [manualDuration, setManualDuration] = useState("");
+  const [selectedRecordsParticipantId, setSelectedRecordsParticipantId] = useState("");
+  const [recordDrafts, setRecordDrafts] = useState<Record<string, { distance: string; duration: string }>>({});
   const [liveStatus, setLiveStatus] = useState<"connecting" | "live" | "polling">("connecting");
   const [setupMessage, setSetupMessage] = useState("");
   const [adminModal, setAdminModal] = useState<AdminModal>(null);
@@ -194,10 +215,11 @@ export default function AdminPage() {
   }, [loadData]);
 
   useEffect(() => {
-    setMounted(true);
+    let cancelled = false;
     const init = async () => {
       const response = await fetch("/api/admin/session", { cache: "no-store" });
       const json = await response.json().catch(() => ({}));
+      if (cancelled) return;
 
       if (!response.ok) {
         setAuthorized(false);
@@ -213,7 +235,13 @@ export default function AdminPage() {
       await loadData();
       setAuthReady(true);
     };
-    init();
+    queueMicrotask(() => {
+      if (!cancelled) setMounted(true);
+      void init();
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [loadData]);
 
   useEffect(() => {
@@ -289,6 +317,17 @@ export default function AdminPage() {
       })
       .sort((a, b) => b.certifiedDays - a.certifiedDays || a.participant.name.localeCompare(b.participant.name, "ko"));
   }, [participantPictogramById, participants, records]);
+
+  const selectedRecordsParticipant = useMemo(
+    () => participants.find((participant) => participant.id === selectedRecordsParticipantId) || null,
+    [participants, selectedRecordsParticipantId]
+  );
+
+  const selectedParticipantRecords = useMemo(() => (
+    records
+      .filter((record) => record.participant_id === selectedRecordsParticipantId && record.record_date)
+      .sort((a, b) => (b.record_date || "").localeCompare(a.record_date || "") || b.id.localeCompare(a.id))
+  ), [records, selectedRecordsParticipantId]);
 
   const addParticipant = useCallback(async () => {
     if (!newName.trim()) return;
@@ -431,7 +470,7 @@ export default function AdminPage() {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "analysis failed");
-      if (Array.isArray(json.results)) results.push(...(json.results as AnalysisResult[]));
+      if (Array.isArray(json.results)) results.push(...(json.results as AnalysisResult[]).map(hydrateAnalysisResult));
     }
 
     return results;
@@ -555,6 +594,118 @@ export default function AdminPage() {
       setUpdatingAnalysisKey("");
     }
   }, [analysisResults, loadData, participants]);
+
+  const updateAnalysisDraft = useCallback((resultIndex: number, field: "edit_distance" | "edit_duration", value: string) => {
+    setAnalysisResults((current) => current.map((item, index) => (
+      index === resultIndex ? { ...item, [field]: value } : item
+    )));
+  }, []);
+
+  const saveAnalysisRecord = useCallback(async (resultIndex: number) => {
+    const result = analysisResults[resultIndex];
+    if (!result?.id) {
+      setAnalysisMessage("저장된 기록이 없는 이미지예요. 날짜를 확인한 뒤 다시 자동 인식해주세요.");
+      return;
+    }
+
+    const durationSeconds = parseDurationToSeconds(result.edit_duration || "");
+    const hasMetric = Boolean((result.edit_distance || "").trim() || durationSeconds);
+    const nextStatus: RecordStatus = result.participant_id && result.record_date && hasMetric ? "certified" : "needs_review";
+    const resultKey = getAnalysisResultKey(result, resultIndex);
+    setUpdatingAnalysisKey(resultKey);
+
+    try {
+      const res = await fetch(`/api/records/${result.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          distance_km: result.edit_distance || null,
+          duration_seconds: durationSeconds,
+          status: nextStatus,
+        }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(typeof json.error === "string" ? json.error : "기록을 수정하지 못했어요.");
+
+      setAnalysisResults((current) => current.map((item, index) => (
+        index === resultIndex
+          ? {
+              ...item,
+              distance_km: result.edit_distance ? Number(result.edit_distance) : null,
+              duration_seconds: durationSeconds,
+              status: nextStatus,
+              edit_distance: result.edit_distance || "",
+              edit_duration: result.edit_duration || "",
+            }
+          : item
+      )));
+      setAnalysisMessage("거리와 시간을 저장했어요.");
+      void broadcastDashboardRefresh();
+      await loadData(false);
+    } catch (err) {
+      setAnalysisMessage(err instanceof Error ? err.message : "기록을 수정하지 못했어요.");
+    } finally {
+      setUpdatingAnalysisKey("");
+    }
+  }, [analysisResults, loadData]);
+
+  const openParticipantRecords = useCallback((participantId: string) => {
+    const drafts = records
+      .filter((record) => record.participant_id === participantId && record.id)
+      .reduce<Record<string, { distance: string; duration: string }>>((acc, record) => {
+        acc[record.id] = {
+          distance: formatDistanceInput(record.distance_km),
+          duration: formatDurationInput(record.duration_seconds),
+        };
+        return acc;
+      }, {});
+    setSelectedRecordsParticipantId(participantId);
+    setRecordDrafts(drafts);
+    setAdminModal("participantRecords");
+  }, [records]);
+
+  const updateRecordDraft = useCallback((recordId: string, field: "distance" | "duration", value: string) => {
+    setRecordDrafts((current) => ({
+      ...current,
+      [recordId]: {
+        distance: current[recordId]?.distance || "",
+        duration: current[recordId]?.duration || "",
+        [field]: value,
+      },
+    }));
+  }, []);
+
+  const saveExistingRecord = useCallback(async (record: RunRecord) => {
+    const draft = recordDrafts[record.id] || {
+      distance: formatDistanceInput(record.distance_km),
+      duration: formatDurationInput(record.duration_seconds),
+    };
+    const durationSeconds = parseDurationToSeconds(draft.duration);
+    const hasMetric = Boolean(draft.distance.trim() || durationSeconds);
+    const nextStatus: RecordStatus = record.participant_id && record.record_date && hasMetric ? "certified" : "needs_review";
+    setUpdatingRecordId(record.id);
+
+    try {
+      const res = await fetch(`/api/records/${record.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          distance_km: draft.distance || null,
+          duration_seconds: durationSeconds,
+          status: nextStatus,
+        }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(typeof json.error === "string" ? json.error : "기록을 수정하지 못했어요.");
+
+      void broadcastDashboardRefresh();
+      await loadData(false);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "기록을 수정하지 못했어요.");
+    } finally {
+      setUpdatingRecordId("");
+    }
+  }, [loadData, recordDrafts]);
 
   const saveManualRecord = useCallback(async () => {
     const duration = parseDurationToSeconds(manualDuration);
@@ -758,9 +909,11 @@ export default function AdminPage() {
               </div>
             ))}
             {participantProgress.map((row) => (
-              <div
+              <button
                 key={row.participant.id}
-                className={`rounded-[18px] bg-white px-3 py-2.5 ring-1 ring-slate-950/5 ${row.rate >= 100 ? "gauge-complete-card" : "dashboard-gauge-card"}`}
+                type="button"
+                onClick={() => openParticipantRecords(row.participant.id)}
+                className={`rounded-[18px] bg-white px-3 py-2.5 text-left ring-1 ring-slate-950/5 transition hover:-translate-y-0.5 hover:ring-lime-300 ${row.rate >= 100 ? "gauge-complete-card" : "dashboard-gauge-card"}`}
               >
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex min-w-0 flex-1 items-center gap-2">
@@ -787,7 +940,7 @@ export default function AdminPage() {
                     style={{ width: `${Math.max(row.rate, row.certifiedDays ? 3 : 0)}%` }}
                   />
                 </div>
-              </div>
+              </button>
             ))}
             {!participantProgress.length && !loading && (
               <p className="rounded-2xl bg-white px-4 py-8 text-center text-sm text-oriwan-text-muted sm:col-span-2 lg:col-span-3">
@@ -815,11 +968,10 @@ export default function AdminPage() {
               </div>
 
               <label className="block text-xs font-bold text-oriwan-text-muted">
-                날짜가 없거나 '오늘'로 보일 때 쓸 날짜
+                날짜가 없거나 &apos;오늘&apos;로 보일 때 쓸 날짜
                 <input
                   type="date"
                   min={CHALLENGE_START_DATE}
-                  max={officialCertificationEndDate}
                   value={targetDate}
                   onChange={(e) => setTargetDate(e.target.value)}
                   className="mt-1 block w-full rounded-2xl border border-oriwan-border bg-white px-4 py-3 text-base font-black text-oriwan-text sm:text-sm"
@@ -949,7 +1101,7 @@ export default function AdminPage() {
                   {analysisResults.map((result, index) => {
                     const status = result.status || "needs_review";
                     const resultKey = getAnalysisResultKey(result, index);
-                    const isUpdatingParticipant = updatingAnalysisKey === resultKey;
+                    const isUpdatingResult = updatingAnalysisKey === resultKey;
                     return (
                       <div key={resultKey} className="rounded-2xl bg-white px-4 py-3 ring-1 ring-slate-950/5">
                         <div className="flex items-start justify-between gap-3">
@@ -968,7 +1120,7 @@ export default function AdminPage() {
                           <select
                             value={result.participant_id || ""}
                             onChange={(event) => updateAnalysisParticipant(index, event.target.value)}
-                            disabled={!result.id || isUpdatingParticipant}
+                            disabled={!result.id || isUpdatingResult}
                             className="mt-1 w-full rounded-xl border border-oriwan-border bg-white px-3 py-2 text-sm font-black text-oriwan-text outline-none focus:border-oriwan-primary disabled:opacity-50"
                           >
                             <option value="">{result.id ? "멤버 선택" : "저장된 기록 없음"}</option>
@@ -977,10 +1129,31 @@ export default function AdminPage() {
                             ))}
                           </select>
                         </label>
-                        <div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs font-black">
-                          <span className="rounded-xl bg-oriwan-surface-light px-2 py-2 text-oriwan-text">{result.record_date || "날짜 확인"}</span>
-                          <span className="rounded-xl bg-oriwan-surface-light px-2 py-2 text-oriwan-text">{result.distance_km ? `${result.distance_km}km` : "거리 확인"}</span>
-                          <span className="rounded-xl bg-oriwan-surface-light px-2 py-2 text-oriwan-text">{result.duration_seconds ? secondsToTime(result.duration_seconds) : "시간 확인"}</span>
+                        <div className="mt-3 rounded-xl bg-oriwan-surface-light px-3 py-2 text-xs font-black text-oriwan-text">
+                          날짜 {result.record_date || "확인 필요"}
+                        </div>
+                        <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
+                          <input
+                            value={result.edit_distance ?? ""}
+                            onChange={(event) => updateAnalysisDraft(index, "edit_distance", event.target.value)}
+                            inputMode="decimal"
+                            placeholder="거리 km"
+                            className="rounded-xl border border-oriwan-border bg-white px-3 py-2.5 text-sm font-black text-oriwan-text outline-none focus:border-oriwan-primary"
+                          />
+                          <input
+                            value={result.edit_duration ?? ""}
+                            onChange={(event) => updateAnalysisDraft(index, "edit_duration", event.target.value)}
+                            placeholder="시간 예: 32:10"
+                            className="rounded-xl border border-oriwan-border bg-white px-3 py-2.5 text-sm font-black text-oriwan-text outline-none focus:border-oriwan-primary"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => saveAnalysisRecord(index)}
+                            disabled={!result.id || isUpdatingResult}
+                            className="rounded-xl bg-slate-950 px-4 py-2.5 text-xs font-black text-lime-200 disabled:opacity-40"
+                          >
+                            {isUpdatingResult ? "저장 중" : "수정 저장"}
+                          </button>
                         </div>
                         {result.notes && <p className="mt-2 text-[11px] font-semibold leading-5 text-oriwan-text-muted">{result.notes}</p>}
                       </div>
@@ -988,6 +1161,88 @@ export default function AdminPage() {
                   })}
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {adminModal === "participantRecords" && selectedRecordsParticipant && (
+          <div className="fixed inset-0 z-[80] flex items-end bg-slate-950/45 px-4 py-4 backdrop-blur-sm sm:items-center sm:justify-center">
+            <div className="card max-h-[88vh] w-full max-w-2xl overflow-y-auto p-5 sm:p-6">
+              <div className="mb-4 flex items-start justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-2">
+                  <MemberPictogram
+                    index={participantPictogramById.get(selectedRecordsParticipant.id)}
+                    participantName={selectedRecordsParticipant.name}
+                    size="lg"
+                  />
+                  <div className="min-w-0">
+                    <p className="text-xs font-black text-oriwan-text-muted">날짜별 기록 수정</p>
+                    <h2 className="truncate text-2xl font-black tracking-[-0.05em] text-oriwan-text">
+                      {selectedRecordsParticipant.name}
+                    </h2>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAdminModal(null);
+                    setSelectedRecordsParticipantId("");
+                  }}
+                  className="rounded-full bg-oriwan-surface-light px-3 py-1.5 text-xs font-black text-oriwan-text-muted"
+                >
+                  닫기
+                </button>
+              </div>
+
+              <div className="space-y-2">
+                {selectedParticipantRecords.map((record) => {
+                  const draft = recordDrafts[record.id] || {
+                    distance: formatDistanceInput(record.distance_km),
+                    duration: formatDurationInput(record.duration_seconds),
+                  };
+                  const isSaving = updatingRecordId === record.id;
+
+                  return (
+                    <div key={record.id} className="rounded-[22px] bg-white p-3 ring-1 ring-slate-950/5">
+                      <div className="mb-2 flex items-center justify-between gap-2">
+                        <p className="text-sm font-black text-oriwan-text">{record.record_date}</p>
+                        <span className={`rounded-full border px-2 py-1 text-[10px] font-black ${statusClass(record.status)}`}>
+                          {statusLabel(record.status)}
+                        </span>
+                      </div>
+                      <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
+                        <input
+                          value={draft.distance}
+                          onChange={(event) => updateRecordDraft(record.id, "distance", event.target.value)}
+                          inputMode="decimal"
+                          placeholder="거리 km"
+                          className="rounded-xl border border-oriwan-border bg-white px-3 py-2.5 text-sm font-black text-oriwan-text outline-none focus:border-oriwan-primary"
+                        />
+                        <input
+                          value={draft.duration}
+                          onChange={(event) => updateRecordDraft(record.id, "duration", event.target.value)}
+                          placeholder="시간 예: 32:10"
+                          className="rounded-xl border border-oriwan-border bg-white px-3 py-2.5 text-sm font-black text-oriwan-text outline-none focus:border-oriwan-primary"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => saveExistingRecord(record)}
+                          disabled={isSaving}
+                          className="rounded-xl bg-slate-950 px-4 py-2.5 text-xs font-black text-lime-200 disabled:opacity-40"
+                        >
+                          {isSaving ? "저장 중" : "저장"}
+                        </button>
+                      </div>
+                      {record.notes && <p className="mt-2 text-[11px] font-semibold leading-5 text-oriwan-text-muted">{record.notes}</p>}
+                    </div>
+                  );
+                })}
+                {!selectedParticipantRecords.length && (
+                  <p className="rounded-2xl bg-white px-4 py-8 text-center text-sm font-bold text-oriwan-text-muted ring-1 ring-slate-950/5">
+                    아직 등록된 기록이 없어요. 이미지 올리기나 직접 입력으로 첫 기록을 넣어주세요.
+                  </p>
+                )}
+              </div>
             </div>
           </div>
         )}
@@ -1083,7 +1338,7 @@ export default function AdminPage() {
                   <option value="">멤버 선택</option>
                   {participants.map((participant) => <option key={participant.id} value={participant.id}>{participant.name}</option>)}
                 </select>
-                <input type="date" min={CHALLENGE_START_DATE} max={officialCertificationEndDate} value={manualDate} onChange={(e) => setManualDate(e.target.value)} className="rounded-xl border border-oriwan-border px-3 py-2.5 text-sm" />
+                <input type="date" min={CHALLENGE_START_DATE} value={manualDate} onChange={(e) => setManualDate(e.target.value)} className="rounded-xl border border-oriwan-border px-3 py-2.5 text-sm" />
                 <input value={manualDistance} onChange={(e) => setManualDistance(e.target.value)} placeholder="거리 km" inputMode="decimal" className="rounded-xl border border-oriwan-border px-3 py-2.5 text-sm" />
                 <input value={manualDuration} onChange={(e) => setManualDuration(e.target.value)} placeholder="시간 예: 32:10" className="rounded-xl border border-oriwan-border px-3 py-2.5 text-sm" />
               </div>

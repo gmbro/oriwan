@@ -99,7 +99,9 @@ export default function MyPage() {
   }, []);
 
   useEffect(() => {
-    loadMe();
+    queueMicrotask(() => {
+      void loadMe();
+    });
   }, [loadMe]);
 
   const stats = useMemo(() => {

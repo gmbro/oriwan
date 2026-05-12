@@ -120,8 +120,8 @@ function AnimatedNumber({
   useEffect(() => {
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (reduceMotion) {
-      setDisplayValue(value);
-      return;
+      const frame = requestAnimationFrame(() => setDisplayValue(value));
+      return () => cancelAnimationFrame(frame);
     }
 
     let animationFrame = 0;
@@ -155,8 +155,8 @@ function AnimatedMetricNumber({
   useEffect(() => {
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (reduceMotion) {
-      setDisplayValue(value);
-      return;
+      const frame = requestAnimationFrame(() => setDisplayValue(value));
+      return () => cancelAnimationFrame(frame);
     }
 
     let animationFrame = 0;
@@ -194,6 +194,7 @@ export default function DashboardPage() {
   const [todayIso, setTodayIso] = useState(() => toKstIsoDate());
   const [motionReady, setMotionReady] = useState(false);
   const [selectedParticipantId, setSelectedParticipantId] = useState("");
+  const [selectedDailyRecordDate, setSelectedDailyRecordDate] = useState("");
   const [trendModal, setTrendModal] = useState<TrendModal>(null);
   const loadingRef = useRef(false);
   const refreshTimerRef = useRef<number | null>(null);
@@ -224,7 +225,9 @@ export default function DashboardPage() {
   }, [load]);
 
   useEffect(() => {
-    load();
+    queueMicrotask(() => {
+      void load();
+    });
     const supabase = createClient();
     const channel = supabase
       .channel(DASHBOARD_REFRESH_CHANNEL)
@@ -254,12 +257,8 @@ export default function DashboardPage() {
 
   useEffect(() => {
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (reduceMotion) {
-      setMotionReady(true);
-      return;
-    }
-
     const frame = requestAnimationFrame(() => setMotionReady(true));
+    if (reduceMotion) return () => cancelAnimationFrame(frame);
     return () => cancelAnimationFrame(frame);
   }, []);
 
@@ -300,6 +299,7 @@ export default function DashboardPage() {
     });
 
     const stampDatesByParticipant = new Map<string, Set<string>>();
+    const stampRecordsByParticipant = new Map<string, Map<string, RunRecord>>();
     const latestStampDate = certifiedRecords.reduce((latest, record) => {
       if (!record.record_date) return latest;
       return record.record_date > latest ? record.record_date : latest;
@@ -309,6 +309,8 @@ export default function DashboardPage() {
       if (!record.participant_id || !record.record_date) return;
       if (!stampDatesByParticipant.has(record.participant_id)) stampDatesByParticipant.set(record.participant_id, new Set());
       stampDatesByParticipant.get(record.participant_id)?.add(record.record_date);
+      if (!stampRecordsByParticipant.has(record.participant_id)) stampRecordsByParticipant.set(record.participant_id, new Map());
+      stampRecordsByParticipant.get(record.participant_id)?.set(record.record_date, record);
     });
 
     const elapsedDays = officialCertificationDays.filter((day) => day <= currentCertificationDate);
@@ -337,20 +339,30 @@ export default function DashboardPage() {
     const totalCertifiedSlots = dayTrend.reduce((sum, day) => sum + day.certifiedCount, 0);
     const possibleCertifiedSlots = officialCertificationDays.length * participants.length;
     const cumulativeRate = possibleCertifiedSlots ? Math.round((totalCertifiedSlots / possibleCertifiedSlots) * 100) : 0;
-    let runningCertifiedSlots = 0;
-    const cumulativeTrend = dayTrend.map((day, index) => {
-      runningCertifiedSlots += day.certifiedCount;
+    const cumulativeTrend = dayTrend.reduce<{
+      items: { label: string; value: number; caption: string }[];
+      runningCertifiedSlots: number;
+    }>((acc, day) => {
+      const runningCertifiedSlots = acc.runningCertifiedSlots + day.certifiedCount;
       return {
-        label: shortDate(day.day),
-        value: possibleCertifiedSlots ? Math.round((runningCertifiedSlots / possibleCertifiedSlots) * 100) : 0,
-        caption: `${shortDate(day.day)} · 누적 ${runningCertifiedSlots}건`,
+        runningCertifiedSlots,
+        items: [
+          ...acc.items,
+          {
+            label: shortDate(day.day),
+            value: possibleCertifiedSlots ? Math.round((runningCertifiedSlots / possibleCertifiedSlots) * 100) : 0,
+            caption: `${shortDate(day.day)} · 누적 ${runningCertifiedSlots}건`,
+          },
+        ],
       };
-    });
+    }, { items: [], runningCertifiedSlots: 0 }).items;
     const pictogramByParticipantId = buildMemberPictogramMap(participants);
     const participantProgress = participants
       .map((participant) => {
         const certifiedDates = Array.from(certifiedDaysByParticipant.get(participant.id) || []).sort();
         const stampedDates = Array.from(stampDatesByParticipant.get(participant.id) || []).sort();
+        const stampedRecords = Array.from(stampRecordsByParticipant.get(participant.id)?.values() || [])
+          .sort((a, b) => (a.record_date || "").localeCompare(b.record_date || ""));
         const metrics = officialMetricsByParticipant.get(participant.id) || { distanceKm: 0, durationSeconds: 0 };
         const certifiedDays = certifiedDates.length;
         const rate = Math.min(Math.round((certifiedDays / CHALLENGE_DAYS) * 100), 100);
@@ -359,6 +371,7 @@ export default function DashboardPage() {
           pictogramIndex: pictogramByParticipantId.get(participant.id) ?? 0,
           certifiedDates,
           stampedDates,
+          stampedRecords,
           certifiedDays,
           rate,
           ...metrics,
@@ -384,6 +397,12 @@ export default function DashboardPage() {
   const latestWeeklyRate = dashboard.weekTrend.at(-1)?.averageRate || 0;
   const selectedParticipant = dashboard.participantProgress.find((row) => row.participant.id === selectedParticipantId) || null;
   const selectedStampedDates = new Set(selectedParticipant?.stampedDates || []);
+  const selectedRecordByDate = new Map<string, RunRecord>(
+    (selectedParticipant?.stampedRecords || [])
+      .filter((record) => Boolean(record.record_date))
+      .map((record) => [record.record_date as string, record])
+  );
+  const selectedDailyRecord = selectedDailyRecordDate ? selectedRecordByDate.get(selectedDailyRecordDate) : null;
   const trendItems = trendModal === "weekly"
     ? dashboard.weekTrend.map((week) => ({
       label: week.label,
@@ -519,7 +538,10 @@ export default function DashboardPage() {
                   <button
                     key={row.participant.id}
                     type="button"
-                    onClick={() => setSelectedParticipantId(row.participant.id)}
+                    onClick={() => {
+                      setSelectedParticipantId(row.participant.id);
+                      setSelectedDailyRecordDate("");
+                    }}
                     className={`relative overflow-hidden rounded-[18px] bg-white px-3 py-2.5 text-left ring-1 ring-slate-950/5 transition hover:-translate-y-0.5 hover:ring-lime-300 ${
                     row.rate >= 100 ? "gauge-complete-card" : "dashboard-gauge-card"
                     }`}
@@ -606,7 +628,10 @@ export default function DashboardPage() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => setSelectedParticipantId("")}
+                  onClick={() => {
+                    setSelectedParticipantId("");
+                    setSelectedDailyRecordDate("");
+                  }}
                   className="rounded-full bg-oriwan-surface-light px-3 py-1.5 text-xs font-black text-oriwan-text-muted"
                 >
                   닫기
@@ -615,21 +640,58 @@ export default function DashboardPage() {
               <div className="grid grid-cols-7 gap-1.5">
                 {dashboard.stampDays.map((day) => {
                   const stamped = selectedStampedDates.has(day);
+                  const dayRecord = selectedRecordByDate.get(day);
+                  const isSelected = selectedDailyRecordDate === day;
                   return (
-                    <div
+                    <button
                       key={day}
+                      type="button"
+                      disabled={!stamped}
+                      onClick={() => {
+                        if (stamped) setSelectedDailyRecordDate(day);
+                      }}
                       title={day}
-                      className={`stamp-cell flex aspect-square flex-col items-center justify-center rounded-2xl border text-[10px] font-black ${
+                      className={`stamp-cell flex aspect-square flex-col items-center justify-center rounded-2xl border text-[10px] font-black transition ${
                         stamped
                           ? "stamp-cell-hit border-lime-300 bg-lime-300 text-slate-950 shadow-sm shadow-lime-300/40"
                           : "border-slate-950/5 bg-white text-oriwan-text-muted/45"
-                      }`}
+                      } ${isSelected ? "scale-105 ring-2 ring-slate-950" : ""}`}
                     >
                       <span>{shortDate(day)}</span>
-                      <span className="mt-0.5 text-xs">{stamped ? "✓" : "·"}</span>
-                    </div>
+                      <span className="mt-0.5 text-xs">{dayRecord ? "✓" : "·"}</span>
+                    </button>
                   );
                 })}
+              </div>
+              <div className="mt-4 rounded-[24px] bg-oriwan-surface-light p-4 ring-1 ring-slate-950/5">
+                {selectedDailyRecord ? (
+                  <>
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-sm font-black text-oriwan-text">{selectedDailyRecordDate} 러닝 기록</p>
+                      <span className="rounded-full bg-white px-3 py-1 text-[10px] font-black text-oriwan-text-muted">
+                        {selectedDailyRecord.status === "certified" ? "인증" : "확인 중"}
+                      </span>
+                    </div>
+                    <div className="mt-3 grid grid-cols-2 gap-2">
+                      <div className="rounded-2xl bg-white px-4 py-3">
+                        <p className="text-[10px] font-black text-oriwan-text-muted">거리</p>
+                        <p className="mt-1 text-2xl font-black tracking-[-0.05em] text-oriwan-text">
+                          {selectedDailyRecord.distance_km ? `${selectedDailyRecord.distance_km.toFixed(2)}km` : "-"}
+                        </p>
+                      </div>
+                      <div className="rounded-2xl bg-white px-4 py-3">
+                        <p className="text-[10px] font-black text-oriwan-text-muted">시간</p>
+                        <p className="mt-1 text-2xl font-black tracking-[-0.05em] text-oriwan-text">
+                          {secondsToTime(selectedDailyRecord.duration_seconds)}
+                        </p>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-sm font-bold leading-6 text-oriwan-text-muted">
+                    인증된 날짜를 누르면 그날 몇 km, 얼마나 뛰었는지 바로 볼 수 있어요.
+                  </p>
+                )}
               </div>
             </div>
           </div>
