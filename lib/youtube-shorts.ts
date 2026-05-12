@@ -7,6 +7,7 @@ export type YoutubeShortTip = {
   category: TipCategory;
   tag: string;
   thumbnailUrl?: string;
+  publishedAt?: string;
 };
 
 export const tipCategoryLabels: Record<TipCategory, string> = {

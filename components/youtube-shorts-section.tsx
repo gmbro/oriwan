@@ -1,23 +1,91 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { IconYoutube } from "@/components/icons";
 import { getCuratedYoutubeShortTips, tipCategoryLabels, youtubeEmbedUrl, youtubeThumbnailUrl, youtubeWatchUrl } from "@/lib/youtube-shorts";
 import type { TipCategory, YoutubeShortTip } from "@/lib/youtube-shorts";
 
 const categoryOptions: TipCategory[] = ["running", "stretching", "recovery"];
 const TIP_LIMIT = 10;
+const SHORTS_SEEN_STORAGE_KEY = "oriwan-youtube-shorts-seen-v2";
 
 type TipsResponse = {
   tips?: YoutubeShortTip[];
+  nextCursor?: string;
+  updatedAt?: string;
+  source?: "youtube" | "curated";
 };
 
+type SeenStore = {
+  dayKey: string;
+  seenIdsByCategory: Record<TipCategory, string[]>;
+};
+
+function makeEmptySeenIds(): Record<TipCategory, string[]> {
+  return { running: [], stretching: [], recovery: [] };
+}
+
+function makeEmptyCursors(): Record<TipCategory, string> {
+  return { running: "", stretching: "", recovery: "" };
+}
+
+function getKstDateKey() {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
+
+function dateSeed(dayKey: string) {
+  return Number(dayKey.replace(/\D/g, "")) || 0;
+}
+
+function loadSeenStore(dayKey: string): Record<TipCategory, string[]> {
+  if (typeof window === "undefined") return makeEmptySeenIds();
+
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(SHORTS_SEEN_STORAGE_KEY) || "{}") as Partial<SeenStore>;
+    if (parsed.dayKey !== dayKey || !parsed.seenIdsByCategory) return makeEmptySeenIds();
+    return {
+      running: parsed.seenIdsByCategory.running || [],
+      stretching: parsed.seenIdsByCategory.stretching || [],
+      recovery: parsed.seenIdsByCategory.recovery || [],
+    };
+  } catch {
+    return makeEmptySeenIds();
+  }
+}
+
+function saveSeenStore(dayKey: string, seenIdsByCategory: Record<TipCategory, string[]>) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(SHORTS_SEEN_STORAGE_KEY, JSON.stringify({ dayKey, seenIdsByCategory }));
+}
+
+function appendUniqueIds(current: string[], nextTips: YoutubeShortTip[]) {
+  return Array.from(new Set([...current, ...nextTips.map((tip) => tip.id)])).slice(-1000);
+}
+
+function countSeenIds(seenIdsByCategory: Record<TipCategory, string[]>) {
+  return categoryOptions.reduce<Record<TipCategory, number>>((acc, option) => {
+    acc[option] = seenIdsByCategory[option]?.length || 0;
+    return acc;
+  }, { running: 0, stretching: 0, recovery: 0 });
+}
+
 export function YoutubeShortsSection() {
+  const initialDayKey = getKstDateKey();
+  const seenIdsRef = useRef<Record<TipCategory, string[]>>(loadSeenStore(initialDayKey));
+  const cursorRef = useRef<Record<TipCategory, string>>(makeEmptyCursors());
   const [category, setCategory] = useState<TipCategory>("running");
   const [refreshSeed, setRefreshSeed] = useState(0);
+  const [dayKey, setDayKey] = useState(initialDayKey);
   const [selectedTip, setSelectedTip] = useState<YoutubeShortTip | null>(null);
-  const [tips, setTips] = useState<YoutubeShortTip[]>(() => getCuratedYoutubeShortTips("running", 0, TIP_LIMIT));
+  const [tips, setTips] = useState<YoutubeShortTip[]>(() => getCuratedYoutubeShortTips("running", dateSeed(initialDayKey), TIP_LIMIT));
   const [loading, setLoading] = useState(false);
+  const [updatedAt, setUpdatedAt] = useState("");
+  const [seenCounts, setSeenCounts] = useState<Record<TipCategory, number>>({ running: 0, stretching: 0, recovery: 0 });
 
   useEffect(() => {
     if (!selectedTip) return;
@@ -29,6 +97,30 @@ export function YoutubeShortsSection() {
   }, [selectedTip]);
 
   useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      const nextSeenIds = loadSeenStore(dayKey);
+      seenIdsRef.current = nextSeenIds;
+      cursorRef.current = makeEmptyCursors();
+      setSeenCounts(countSeenIds(nextSeenIds));
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [dayKey]);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      const nextDayKey = getKstDateKey();
+      if (nextDayKey === dayKey) return;
+      seenIdsRef.current = makeEmptySeenIds();
+      cursorRef.current = makeEmptyCursors();
+      saveSeenStore(nextDayKey, seenIdsRef.current);
+      setDayKey(nextDayKey);
+      setRefreshSeed((value) => value + 1);
+    }, 60_000);
+
+    return () => window.clearInterval(interval);
+  }, [dayKey]);
+
+  useEffect(() => {
     const controller = new AbortController();
 
     async function loadTips() {
@@ -38,17 +130,36 @@ export function YoutubeShortsSection() {
           category,
           seed: String(refreshSeed),
           limit: String(TIP_LIMIT),
+          day: dayKey,
         });
+        const seenIds = seenIdsRef.current[category] || [];
+        const cursor = cursorRef.current[category] || "";
+        if (cursor) params.set("cursor", cursor);
+        if (seenIds.length) params.set("seen", seenIds.slice(-240).join(","));
         const response = await fetch(`/api/youtube-shorts?${params.toString()}`, {
           cache: "no-store",
           signal: controller.signal,
         });
         const json = (await response.json()) as TipsResponse;
         if (!response.ok || !json.tips?.length) throw new Error("shorts_fetch_failed");
-        setTips(json.tips.slice(0, TIP_LIMIT));
+        const nextTips = json.tips.slice(0, TIP_LIMIT);
+        seenIdsRef.current = {
+          ...seenIdsRef.current,
+          [category]: appendUniqueIds(seenIdsRef.current[category] || [], nextTips),
+        };
+        cursorRef.current = {
+          ...cursorRef.current,
+          [category]: json.nextCursor || "",
+        };
+        saveSeenStore(dayKey, seenIdsRef.current);
+        setSeenCounts(countSeenIds(seenIdsRef.current));
+        setTips(nextTips);
+        setUpdatedAt(json.updatedAt || new Date().toISOString());
       } catch (error) {
         if ((error as Error).name === "AbortError") return;
-        setTips(getCuratedYoutubeShortTips(category, refreshSeed, TIP_LIMIT));
+        const fallbackTips = getCuratedYoutubeShortTips(category, dateSeed(dayKey) + refreshSeed, TIP_LIMIT)
+          .filter((tip) => !(seenIdsRef.current[category] || []).includes(tip.id));
+        setTips(fallbackTips.length ? fallbackTips : getCuratedYoutubeShortTips(category, refreshSeed, TIP_LIMIT));
       } finally {
         if (!controller.signal.aborted) setLoading(false);
       }
@@ -56,7 +167,7 @@ export function YoutubeShortsSection() {
 
     loadTips();
     return () => controller.abort();
-  }, [category, refreshSeed]);
+  }, [category, dayKey, refreshSeed]);
 
   return (
     <section className="mt-4 card overflow-hidden p-4 sm:p-5">
@@ -66,7 +177,9 @@ export function YoutubeShortsSection() {
             <IconYoutube size={14} /> Shorts
           </p>
           <h3 className="mt-2 text-lg font-black tracking-[-0.03em] text-oriwan-text">오늘의 러닝 충전소</h3>
-          <p className="mt-1 text-xs leading-5 text-oriwan-text-muted">러닝, 스트레칭, 리커버리 쇼츠를 가볍게 넘기며 컨디션을 채워요.</p>
+          <p className="mt-1 text-xs leading-5 text-oriwan-text-muted">
+            매일 자정 최신순으로 다시 시작하고, 새로고침할수록 본 쇼츠는 건너뛰어요.
+          </p>
         </div>
         <div className="flex min-w-0 items-center gap-2">
           <div className="flex min-w-0 overflow-x-auto rounded-full bg-oriwan-surface-light p-1 ring-1 ring-slate-950/5">
@@ -91,9 +204,15 @@ export function YoutubeShortsSection() {
             onClick={() => setRefreshSeed((value) => value + 1)}
             className="shrink-0 rounded-full bg-white px-3 py-2 text-xs font-black text-oriwan-text ring-1 ring-slate-950/10 transition hover:bg-lime-100"
           >
-            {loading ? "찾는 중" : "새 팁 보기"}
+            {loading ? "찾는 중" : "다음 쇼츠"}
           </button>
         </div>
+      </div>
+
+      <div className="mb-3 flex flex-wrap items-center gap-2 text-[10px] font-black text-oriwan-text-muted">
+        <span className="rounded-full bg-oriwan-surface-light px-2.5 py-1">기준일 {dayKey}</span>
+        <span className="rounded-full bg-oriwan-surface-light px-2.5 py-1">오늘 본 {seenCounts[category] || 0}개 제외</span>
+        {updatedAt && <span className="rounded-full bg-oriwan-surface-light px-2.5 py-1">업데이트 {new Date(updatedAt).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })}</span>}
       </div>
 
       <div className="-mx-1 flex snap-x gap-3 overflow-x-auto px-1 pb-2">

@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   getCuratedYoutubeShortTips,
   isTipCategory,
-  seededShuffle,
   tipCategoryLabels,
   youtubeThumbnailUrl,
 } from "@/lib/youtube-shorts";
@@ -12,7 +11,8 @@ export const dynamic = "force-dynamic";
 
 const DEFAULT_LIMIT = 10;
 const MAX_LIMIT = 12;
-const SEARCH_SIZE = 25;
+const SEARCH_SIZE = 50;
+const MAX_SEEN_IDS = 240;
 
 const categoryQueries: Record<TipCategory, string> = {
   running: "러닝 자세 초보 러너 팁 shorts",
@@ -25,6 +25,7 @@ type YoutubeSearchItem = {
   snippet?: {
     title?: string;
     channelTitle?: string;
+    publishedAt?: string;
     thumbnails?: {
       high?: { url?: string };
       medium?: { url?: string };
@@ -51,6 +52,17 @@ function parseSeed(value: string | null) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function parseSeenIds(value: string | null) {
+  if (!value) return new Set<string>();
+  return new Set(
+    value
+      .split(",")
+      .map((id) => id.trim())
+      .filter((id) => /^[a-zA-Z0-9_-]{6,20}$/.test(id))
+      .slice(0, MAX_SEEN_IDS)
+  );
+}
+
 function parseIsoDurationSeconds(duration?: string) {
   if (!duration) return Number.POSITIVE_INFINITY;
   const matched = duration.match(/^PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$/);
@@ -68,42 +80,46 @@ function sanitizeText(value?: string) {
     .trim();
 }
 
-async function fetchYoutubeShorts(category: TipCategory, seed: number, limit: number) {
+async function fetchYoutubeShorts(category: TipCategory, limit: number, pageToken: string | null, seenIds: Set<string>) {
   const apiKey = process.env.YOUTUBE_API_KEY || process.env.GOOGLE_YOUTUBE_API_KEY;
-  if (!apiKey) return [];
+  if (!apiKey) return { tips: [] as YoutubeShortTip[], nextPageToken: "" };
 
   const searchUrl = new URL("https://www.googleapis.com/youtube/v3/search");
   searchUrl.searchParams.set("part", "snippet");
   searchUrl.searchParams.set("q", categoryQueries[category]);
   searchUrl.searchParams.set("type", "video");
+  searchUrl.searchParams.set("order", "date");
   searchUrl.searchParams.set("videoDuration", "short");
   searchUrl.searchParams.set("maxResults", String(SEARCH_SIZE));
   searchUrl.searchParams.set("regionCode", "KR");
   searchUrl.searchParams.set("relevanceLanguage", "ko");
   searchUrl.searchParams.set("safeSearch", "strict");
   searchUrl.searchParams.set("key", apiKey);
+  if (pageToken) searchUrl.searchParams.set("pageToken", pageToken);
 
-  const searchResponse = await fetch(searchUrl, { next: { revalidate: 60 * 60 * 6 } });
-  if (!searchResponse.ok) return [];
+  const searchResponse = await fetch(searchUrl, { cache: "no-store" });
+  if (!searchResponse.ok) return { tips: [] as YoutubeShortTip[], nextPageToken: "" };
 
-  const searchJson = (await searchResponse.json()) as { items?: YoutubeSearchItem[] };
+  const searchJson = (await searchResponse.json()) as { items?: YoutubeSearchItem[]; nextPageToken?: string };
   const ids = Array.from(
-    new Set((searchJson.items || []).map((item) => item.id?.videoId).filter((id): id is string => Boolean(id)))
+    new Set((searchJson.items || []).map((item) => item.id?.videoId).filter((id): id is string => Boolean(id && !seenIds.has(id))))
   );
-  if (!ids.length) return [];
+  if (!ids.length) return { tips: [] as YoutubeShortTip[], nextPageToken: searchJson.nextPageToken || "" };
 
   const videosUrl = new URL("https://www.googleapis.com/youtube/v3/videos");
   videosUrl.searchParams.set("part", "snippet,contentDetails,status");
   videosUrl.searchParams.set("id", ids.join(","));
   videosUrl.searchParams.set("key", apiKey);
 
-  const videosResponse = await fetch(videosUrl, { next: { revalidate: 60 * 60 * 6 } });
-  if (!videosResponse.ok) return [];
+  const videosResponse = await fetch(videosUrl, { cache: "no-store" });
+  if (!videosResponse.ok) return { tips: [] as YoutubeShortTip[], nextPageToken: searchJson.nextPageToken || "" };
 
   const videosJson = (await videosResponse.json()) as { items?: YoutubeVideoItem[] };
+  const videosById = new Map((videosJson.items || []).map((item) => [item.id, item]));
 
-  return seededShuffle(
-    (videosJson.items || [])
+  const tips = ids
+    .map((id) => videosById.get(id))
+    .filter((item): item is YoutubeVideoItem => Boolean(item?.id))
       .filter((item) => item.id)
       .filter((item) => item.status?.embeddable !== false)
       .filter((item) => parseIsoDurationSeconds(item.contentDetails?.duration) <= 120)
@@ -115,15 +131,20 @@ async function fetchYoutubeShorts(category: TipCategory, seed: number, limit: nu
           channel: sanitizeText(item.snippet?.channelTitle) || "YouTube Shorts",
           category,
           tag: tipCategoryLabels[category],
+          publishedAt: item.snippet?.publishedAt,
           thumbnailUrl:
             item.snippet?.thumbnails?.high?.url ||
             item.snippet?.thumbnails?.medium?.url ||
             item.snippet?.thumbnails?.default?.url ||
             youtubeThumbnailUrl(id),
         };
-      }),
-    seed
-  ).slice(0, limit);
+      })
+      .slice(0, limit);
+
+  return {
+    tips,
+    nextPageToken: searchJson.nextPageToken || "",
+  };
 }
 
 export async function GET(request: NextRequest) {
@@ -132,21 +153,41 @@ export async function GET(request: NextRequest) {
   const category: TipCategory = isTipCategory(requestedCategory) ? requestedCategory : "running";
   const seed = parseSeed(params.get("seed"));
   const limit = parseLimit(params.get("limit"));
-  const fallbackTips = getCuratedYoutubeShortTips(category, seed, MAX_LIMIT);
+  const pageToken = params.get("cursor");
+  const seenIds = parseSeenIds(params.get("seen"));
+  const fallbackTips = getCuratedYoutubeShortTips(category, seed, MAX_LIMIT + seenIds.size)
+    .filter((tip) => !seenIds.has(tip.id));
 
   try {
-    const youtubeTips = await fetchYoutubeShorts(category, seed, limit);
+    let youtubeTips: YoutubeShortTip[] = [];
+    let nextPageToken = pageToken || "";
+    const searchSeenIds = new Set(seenIds);
+
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const result = await fetchYoutubeShorts(category, limit - youtubeTips.length, nextPageToken || null, searchSeenIds);
+      youtubeTips = [...youtubeTips, ...result.tips];
+      result.tips.forEach((tip) => searchSeenIds.add(tip.id));
+      nextPageToken = result.nextPageToken;
+      if (youtubeTips.length >= limit || !nextPageToken) break;
+    }
+
     const existingIds = new Set(youtubeTips.map((tip) => tip.id));
     const tips = [...youtubeTips, ...fallbackTips.filter((tip) => !existingIds.has(tip.id))].slice(0, limit);
 
     return NextResponse.json({
       tips,
+      nextCursor: nextPageToken,
       source: youtubeTips.length ? "youtube" : "curated",
+      sort: "latest",
+      updatedAt: new Date().toISOString(),
     });
   } catch {
     return NextResponse.json({
       tips: fallbackTips.slice(0, limit),
+      nextCursor: "",
       source: "curated",
+      sort: "latest",
+      updatedAt: new Date().toISOString(),
     });
   }
 }

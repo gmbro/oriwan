@@ -951,8 +951,11 @@ export default function AdminPage() {
         </section>
 
         {adminModal === "upload" && (
-          <div className="fixed inset-0 z-[80] flex items-end bg-slate-950/45 px-4 py-4 backdrop-blur-sm sm:items-center sm:justify-center">
-            <div className="card max-h-[86svh] w-full max-w-2xl overflow-y-auto p-4 sm:p-6">
+          <div
+            className="fixed inset-0 z-[80] flex items-end bg-slate-950/45 px-4 py-4 backdrop-blur-sm sm:items-center sm:justify-center"
+            onClick={() => setAdminModal(null)}
+          >
+            <div className="card max-h-[86svh] w-full max-w-2xl overflow-y-auto p-4 sm:p-6" onClick={(event) => event.stopPropagation()}>
               <div className="mb-4 flex items-start justify-between gap-3">
                 <div>
                   <h2 className="text-xl font-black tracking-[-0.04em] text-oriwan-text">이미지 올리기</h2>
@@ -1166,8 +1169,14 @@ export default function AdminPage() {
         )}
 
         {adminModal === "participantRecords" && selectedRecordsParticipant && (
-          <div className="fixed inset-0 z-[80] flex items-end bg-slate-950/45 px-4 py-4 backdrop-blur-sm sm:items-center sm:justify-center">
-            <div className="card max-h-[88vh] w-full max-w-2xl overflow-y-auto p-5 sm:p-6">
+          <div
+            className="fixed inset-0 z-[80] flex items-end bg-slate-950/45 px-4 py-4 backdrop-blur-sm sm:items-center sm:justify-center"
+            onClick={() => {
+              setAdminModal(null);
+              setSelectedRecordsParticipantId("");
+            }}
+          >
+            <div className="card max-h-[88vh] w-full max-w-2xl overflow-y-auto p-5 sm:p-6" onClick={(event) => event.stopPropagation()}>
               <div className="mb-4 flex items-start justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-2">
                   <MemberPictogram
@@ -1248,8 +1257,14 @@ export default function AdminPage() {
         )}
 
         {adminModal === "participant" && (
-          <div className="fixed inset-0 z-[80] flex items-end bg-slate-950/45 px-4 py-4 backdrop-blur-sm sm:items-center sm:justify-center">
-            <div className="card max-h-[88vh] w-full max-w-2xl overflow-y-auto p-5 sm:p-6">
+          <div
+            className="fixed inset-0 z-[80] flex items-end bg-slate-950/45 px-4 py-4 backdrop-blur-sm sm:items-center sm:justify-center"
+            onClick={() => {
+              setAdminModal(null);
+              resetParticipantForm();
+            }}
+          >
+            <div className="card max-h-[88vh] w-full max-w-2xl overflow-y-auto p-5 sm:p-6" onClick={(event) => event.stopPropagation()}>
               <div className="mb-4 flex items-start justify-between gap-3">
                 <div>
                   <h2 className="text-xl font-black tracking-[-0.04em] text-oriwan-text">멤버 관리</h2>
@@ -1322,8 +1337,11 @@ export default function AdminPage() {
         )}
 
         {adminModal === "record" && (
-          <div className="fixed inset-0 z-[80] flex items-end bg-slate-950/45 px-4 py-4 backdrop-blur-sm sm:items-center sm:justify-center">
-            <div className="card w-full max-w-xl p-5 sm:p-6">
+          <div
+            className="fixed inset-0 z-[80] flex items-end bg-slate-950/45 px-4 py-4 backdrop-blur-sm sm:items-center sm:justify-center"
+            onClick={() => setAdminModal(null)}
+          >
+            <div className="card w-full max-w-xl p-5 sm:p-6" onClick={(event) => event.stopPropagation()}>
               <div className="mb-4 flex items-start justify-between gap-3">
                 <div>
                   <h2 className="text-xl font-black tracking-[-0.04em] text-oriwan-text">기록 직접 입력</h2>

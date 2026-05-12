@@ -39,7 +39,7 @@ type PublicDashboardData = {
   error?: string;
 };
 
-type TrendModal = "weekly" | "cumulative" | null;
+type TrendModal = "weekly" | "daily" | null;
 
 const actualCertificationEndDate = toIsoDate(addDays(new Date(`${ACTUAL_CERTIFICATION_START_DATE}T00:00:00`), CHALLENGE_DAYS - 1));
 
@@ -336,26 +336,6 @@ export default function DashboardPage() {
         averageCount: weekDays.length ? Math.round(certifiedSlots / weekDays.length) : 0,
       };
     });
-    const totalCertifiedSlots = dayTrend.reduce((sum, day) => sum + day.certifiedCount, 0);
-    const possibleCertifiedSlots = officialCertificationDays.length * participants.length;
-    const cumulativeRate = possibleCertifiedSlots ? Math.round((totalCertifiedSlots / possibleCertifiedSlots) * 100) : 0;
-    const cumulativeTrend = dayTrend.reduce<{
-      items: { label: string; value: number; caption: string }[];
-      runningCertifiedSlots: number;
-    }>((acc, day) => {
-      const runningCertifiedSlots = acc.runningCertifiedSlots + day.certifiedCount;
-      return {
-        runningCertifiedSlots,
-        items: [
-          ...acc.items,
-          {
-            label: shortDate(day.day),
-            value: possibleCertifiedSlots ? Math.round((runningCertifiedSlots / possibleCertifiedSlots) * 100) : 0,
-            caption: `${shortDate(day.day)} · 누적 ${runningCertifiedSlots}건`,
-          },
-        ],
-      };
-    }, { items: [], runningCertifiedSlots: 0 }).items;
     const pictogramByParticipantId = buildMemberPictogramMap(participants);
     const participantProgress = participants
       .map((participant) => {
@@ -387,14 +367,12 @@ export default function DashboardPage() {
       elapsedDays,
       dayTrend,
       weekTrend,
-      cumulativeTrend,
-      totalCertifiedSlots,
-      cumulativeRate,
       participantProgress,
       stampDays: makeDaysThrough(CERTIFICATION_DISPLAY_START_DATE, latestStampDate),
     };
   }, [data, todayIso]);
   const latestWeeklyRate = dashboard.weekTrend.at(-1)?.averageRate || 0;
+  const latestDailyRate = dashboard.dayTrend.at(-1)?.rate || 0;
   const selectedParticipant = dashboard.participantProgress.find((row) => row.participant.id === selectedParticipantId) || null;
   const selectedStampedDates = new Set(selectedParticipant?.stampedDates || []);
   const selectedRecordByDate = new Map<string, RunRecord>(
@@ -409,8 +387,12 @@ export default function DashboardPage() {
       value: week.averageRate,
       caption: week.to ? `${week.label} · ${shortDate(week.from)}-${shortDate(week.to)}` : week.label,
     }))
-    : dashboard.cumulativeTrend;
-  const trendGraph = makeGraphPath(trendItems);
+    : dashboard.dayTrend.map((day) => ({
+      label: shortDate(day.day),
+      value: day.rate,
+      caption: `${shortDate(day.day)} · ${day.certifiedCount}/${dashboard.participants.length}명`,
+    }));
+  const trendGraph = makeGraphPath(trendItems, 680, 260, 36);
   const isInitialDashboardLoading = loading && !data;
 
   return (
@@ -500,12 +482,12 @@ export default function DashboardPage() {
               </button>
               <button
                 type="button"
-                onClick={() => setTrendModal("cumulative")}
+                onClick={() => setTrendModal("daily")}
                 className="dashboard-card-reveal rounded-3xl bg-lime-300 px-3 py-4 text-center text-slate-950 shadow-sm shadow-lime-300/30 transition hover:-translate-y-0.5 hover:ring-2 hover:ring-lime-400 [animation-delay:180ms]"
               >
-                <p className="text-[10px] font-black opacity-60">누적 인증률</p>
+                <p className="text-[10px] font-black opacity-60">매일 인증률</p>
                 <p className="mt-1 text-2xl font-black tracking-[-0.06em]">
-                  {isInitialDashboardLoading ? "--" : <AnimatedNumber value={dashboard.cumulativeRate} suffix="%" />}
+                  {isInitialDashboardLoading ? "--" : <AnimatedNumber value={latestDailyRate} suffix="%" />}
                 </p>
               </button>
             </div>
@@ -606,8 +588,14 @@ export default function DashboardPage() {
         </p>
 
         {selectedParticipant && (
-          <div className="fixed inset-0 z-[80] flex items-end bg-slate-950/45 px-4 py-4 backdrop-blur-sm sm:items-center sm:justify-center">
-            <div className="card modal-rise max-h-[88vh] w-full max-w-2xl overflow-y-auto p-5 sm:p-6">
+          <div
+            className="fixed inset-0 z-[80] flex items-end bg-slate-950/45 px-4 py-4 backdrop-blur-sm sm:items-center sm:justify-center"
+            onClick={() => {
+              setSelectedParticipantId("");
+              setSelectedDailyRecordDate("");
+            }}
+          >
+            <div className="card modal-rise max-h-[88vh] w-full max-w-2xl overflow-y-auto p-5 sm:p-6" onClick={(event) => event.stopPropagation()}>
               {selectedParticipant.rate >= 100 && <FanfareBurst />}
               <div className="mb-4 flex items-start justify-between gap-3">
                 <div>
@@ -698,15 +686,18 @@ export default function DashboardPage() {
         )}
 
         {trendModal && (
-          <div className="fixed inset-0 z-[80] flex items-end bg-slate-950/45 px-4 py-4 backdrop-blur-sm sm:items-center sm:justify-center">
-            <div className="card w-full max-w-2xl p-5 sm:p-6">
+          <div
+            className="fixed inset-0 z-[80] flex items-end bg-slate-950/45 px-4 py-4 backdrop-blur-sm sm:items-center sm:justify-center"
+            onClick={() => setTrendModal(null)}
+          >
+            <div className="card w-full max-w-5xl p-5 sm:p-6" onClick={(event) => event.stopPropagation()}>
               <div className="mb-4 flex items-start justify-between gap-3">
                 <div>
                   <p className="inline-flex rounded-full bg-slate-950 px-3 py-1 text-[11px] font-black text-lime-200">
-                    {trendModal === "weekly" ? "주차별 인증률" : "누적 인증률"}
+                    {trendModal === "weekly" ? "주차별 인증률" : "매일 인증률"}
                   </p>
                   <h3 className="mt-2 text-2xl font-black tracking-[-0.05em] text-oriwan-text">
-                    {trendModal === "weekly" ? "주차별 흐름" : "누적 흐름"}
+                    {trendModal === "weekly" ? "주차별 인증 흐름" : "매일 인증 흐름"}
                   </h3>
                 </div>
                 <button
@@ -718,7 +709,7 @@ export default function DashboardPage() {
                 </button>
               </div>
               <div className="rounded-[28px] bg-slate-950 p-4 text-white">
-                <svg viewBox={`0 0 ${trendGraph.width} ${trendGraph.height}`} className="h-52 w-full overflow-visible">
+                <svg viewBox={`0 0 ${trendGraph.width} ${trendGraph.height}`} className="h-[280px] w-full overflow-visible">
                   <line x1={trendGraph.padding} y1={trendGraph.height - trendGraph.padding} x2={trendGraph.width - trendGraph.padding} y2={trendGraph.height - trendGraph.padding} stroke="rgba(255,255,255,.16)" strokeWidth="2" />
                   <line x1={trendGraph.padding} y1={trendGraph.padding} x2={trendGraph.padding} y2={trendGraph.height - trendGraph.padding} stroke="rgba(255,255,255,.12)" strokeWidth="2" />
                   <path key={trendModal} d={trendGraph.path} fill="none" stroke="#bef264" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" pathLength={1} className="dashboard-line-draw" />
