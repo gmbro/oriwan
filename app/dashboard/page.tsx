@@ -650,24 +650,24 @@ export default function DashboardPage() {
   const isInitialDashboardLoading = loading && !data;
 
   return (
-    <main className="min-h-screen bg-oriwan-bg">
-      <header className="sticky top-0 z-50 border-b border-slate-950/10 bg-[#101522]/95 px-4 py-3 text-white backdrop-blur-2xl">
+    <main className="min-h-screen w-full overflow-x-hidden bg-oriwan-bg">
+      <header className="sticky top-0 z-50 border-b border-slate-950/10 bg-[#101522]/95 px-4 py-3 text-white backdrop-blur-2xl sm:px-4">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
             <Image src="/oriwan-logo-v2.png" alt="스내사 러닝보드" width={38} height={38} className="rounded-2xl bg-lime-300" />
             <div className="min-w-0">
-              <h1 className="truncate text-[26px] font-black leading-none tracking-[-0.06em] sm:text-[30px]">스내사 러닝보드</h1>
+              <h1 className="truncate text-[24px] font-black leading-none tracking-[-0.05em] sm:text-[30px]">스내사 러닝보드</h1>
             </div>
           </div>
         </div>
       </header>
 
-      <section className="mx-auto max-w-7xl px-4 py-4 sm:py-6">
-        <section className="overflow-hidden rounded-[32px] bg-white/85 shadow-2xl shadow-slate-950/10 ring-1 ring-slate-950/5">
-          <div className="relative overflow-hidden bg-[#101522] p-5 text-white sm:p-7">
+      <section className="mx-auto w-full max-w-7xl px-0 py-0 sm:px-4 sm:py-6">
+        <section className="overflow-hidden bg-white/85 sm:rounded-[32px] sm:shadow-2xl sm:shadow-slate-950/10 sm:ring-1 sm:ring-slate-950/5">
+          <div className="relative overflow-hidden bg-[#101522] p-4 text-white sm:p-7">
             <div className="absolute -right-16 -top-20 h-64 w-64 rounded-full bg-lime-300/25 blur-3xl" />
             <div className="absolute bottom-0 left-8 h-32 w-72 rounded-full bg-orange-400/15 blur-3xl" />
-            <div className="relative grid gap-5 lg:grid-cols-[1fr_320px] lg:items-center">
+            <div className="relative grid gap-4 sm:gap-5 lg:grid-cols-[1fr_320px] lg:items-center">
               <div>
                 <div className="mb-3 flex max-w-full flex-nowrap gap-1.5 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] sm:gap-2 [&::-webkit-scrollbar]:hidden">
                   <p className="inline-flex shrink-0 whitespace-nowrap rounded-full bg-white/10 px-2.5 py-1 text-[9px] font-black text-lime-200 ring-1 ring-white/10 sm:px-3 sm:text-[11px]">
@@ -677,7 +677,7 @@ export default function DashboardPage() {
                     {certificationDayLabel(dashboard.currentCertificationDate)}
                   </p>
                 </div>
-                <h2 className="max-w-full whitespace-nowrap text-[clamp(1.95rem,8vw,3.75rem)] font-black leading-[1.05] tracking-[-0.07em]">
+                <h2 className="max-w-full break-keep text-[clamp(2rem,8.8vw,2.65rem)] font-black leading-[1.08] tracking-[-0.055em] sm:whitespace-nowrap sm:text-[clamp(1.95rem,8vw,3.75rem)] sm:leading-[1.05] sm:tracking-[-0.07em]">
                   이번 인증, 얼마나 완료됐을까?
                 </h2>
                 <p className="mt-3 max-w-xl text-sm leading-6 text-white/55">
@@ -685,15 +685,15 @@ export default function DashboardPage() {
                 </p>
               </div>
 
-              <div className="rounded-[28px] bg-white/10 p-4 ring-1 ring-white/10">
+              <div className="rounded-[24px] bg-white/10 p-4 ring-1 ring-white/10 sm:rounded-[28px]">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-xs font-black text-white/45">오늘 인증률</p>
-                    <p className="mt-1 text-5xl font-black tracking-[-0.08em] text-lime-200">
+                    <p className="mt-1 text-[clamp(2.7rem,13vw,3rem)] font-black tracking-[-0.08em] text-lime-200 sm:text-5xl">
                       {isInitialDashboardLoading ? "--" : <AnimatedNumber value={dashboard.completionRate} suffix="%" />}
                     </p>
                   </div>
-                  <svg viewBox="0 0 120 120" className="h-28 w-28 -rotate-90 dashboard-ring-pop">
+                  <svg viewBox="0 0 120 120" className="h-[clamp(5.6rem,25vw,7rem)] w-[clamp(5.6rem,25vw,7rem)] shrink-0 -rotate-90 dashboard-ring-pop">
                     <circle cx="60" cy="60" r="48" fill="none" stroke="rgba(255,255,255,.12)" strokeWidth="14" />
                     <circle
                       cx="60"
@@ -716,35 +716,35 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <div className="p-4 sm:p-5">
-            <div className="grid grid-cols-3 gap-2">
+          <div className="p-3 sm:p-5">
+            <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
               <button
                 type="button"
                 onClick={() => setShowSeasonReportModal(true)}
-                className="dashboard-card-reveal rounded-3xl bg-white px-3 py-4 text-center ring-1 ring-slate-950/5 transition hover:-translate-y-0.5 hover:ring-lime-300 [animation-delay:0ms]"
+                className="dashboard-card-reveal rounded-2xl bg-white px-2 py-3 text-center ring-1 ring-slate-950/5 transition hover:-translate-y-0.5 hover:ring-lime-300 sm:rounded-3xl sm:px-3 sm:py-4 [animation-delay:0ms]"
               >
                 <p className="text-[10px] font-black text-oriwan-text-muted">진행일</p>
-                <p className="mt-1 text-2xl font-black tracking-[-0.06em] text-oriwan-text">
+                <p className="mt-1 text-[clamp(1.35rem,6.2vw,1.5rem)] font-black tracking-[-0.06em] text-oriwan-text sm:text-2xl">
                   <AnimatedNumber value={dashboard.elapsedDays.length} />/{CHALLENGE_DAYS}
                 </p>
               </button>
               <button
                 type="button"
                 onClick={() => setTrendModal("weekly")}
-                className="dashboard-card-reveal rounded-3xl bg-white px-3 py-4 text-center ring-1 ring-slate-950/5 transition hover:-translate-y-0.5 hover:ring-lime-300 [animation-delay:90ms]"
+                className="dashboard-card-reveal rounded-2xl bg-white px-2 py-3 text-center ring-1 ring-slate-950/5 transition hover:-translate-y-0.5 hover:ring-lime-300 sm:rounded-3xl sm:px-3 sm:py-4 [animation-delay:90ms]"
               >
                 <p className="text-[10px] font-black text-oriwan-text-muted">주차별 인증률</p>
-                <p className="mt-1 text-2xl font-black tracking-[-0.06em] text-oriwan-text">
+                <p className="mt-1 text-[clamp(1.35rem,6.2vw,1.5rem)] font-black tracking-[-0.06em] text-oriwan-text sm:text-2xl">
                   {isInitialDashboardLoading ? "--" : <AnimatedNumber value={latestWeeklyRate} suffix="%" />}
                 </p>
               </button>
               <button
                 type="button"
                 onClick={() => setTrendModal("daily")}
-                className="dashboard-card-reveal rounded-3xl bg-lime-300 px-3 py-4 text-center text-slate-950 shadow-sm shadow-lime-300/30 transition hover:-translate-y-0.5 hover:ring-2 hover:ring-lime-400 [animation-delay:180ms]"
+                className="dashboard-card-reveal rounded-2xl bg-lime-300 px-2 py-3 text-center text-slate-950 shadow-sm shadow-lime-300/30 transition hover:-translate-y-0.5 hover:ring-2 hover:ring-lime-400 sm:rounded-3xl sm:px-3 sm:py-4 [animation-delay:180ms]"
               >
                 <p className="text-[10px] font-black opacity-60">매일 인증률</p>
-                <p className="mt-1 text-2xl font-black tracking-[-0.06em]">
+                <p className="mt-1 text-[clamp(1.35rem,6.2vw,1.5rem)] font-black tracking-[-0.06em] sm:text-2xl">
                   {isInitialDashboardLoading ? "--" : <AnimatedNumber value={latestDailyRate} suffix="%" />}
                 </p>
               </button>
