@@ -26,6 +26,13 @@ type Participant = {
   name: string;
 };
 
+type ExistingRunRecord = {
+  id: string;
+  distance_km: number | null;
+  duration_seconds: number | null;
+  status: "certified" | "needs_review" | "missing" | "rejected";
+};
+
 const MAX_IMAGES = 40;
 const DEFAULT_PARTICIPANT_NAME_WHEN_OCR_NAME_MISSING = "이경민";
 
@@ -126,6 +133,45 @@ async function uploadImageToStorage(input: {
   return filePath;
 }
 
+async function findExistingRecord(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+  participantId: string,
+  recordDate: string
+) {
+  const { data, error } = await supabase
+    .from("daily_run_records")
+    .select("id, distance_km, duration_seconds, status")
+    .eq("user_id", userId)
+    .eq("participant_id", participantId)
+    .eq("record_date", recordDate)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data as ExistingRunRecord | null;
+}
+
+function duplicateResult(input: {
+  record: ExistingRunRecord;
+  fileName: string;
+  participant: Participant;
+  recordDate: string;
+}) {
+  return {
+    id: input.record.id,
+    file_name: input.fileName,
+    participant_id: input.participant.id,
+    participant_name: input.participant.name,
+    record_date: input.recordDate,
+    distance_km: input.record.distance_km,
+    duration_seconds: input.record.duration_seconds,
+    status: "duplicate",
+    duplicate: true,
+    confidence_score: null,
+    notes: `${input.participant.name}님은 ${input.recordDate}에 이미 인증되어 있어요. 중복 이미지는 저장하지 않았습니다.`,
+  };
+}
+
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
   const { user, response } = await requireAdminUser(supabase);
@@ -209,7 +255,6 @@ export async function POST(request: NextRequest) {
           file: image.name,
           error: getGeminiErrorDebug(error),
         });
-        needsReviewCount += 1;
         let recordId: string | null = null;
         let filePath: string | null = null;
         const fallbackNotes = [
@@ -220,6 +265,17 @@ export async function POST(request: NextRequest) {
         ].filter(Boolean).join(" / ");
 
         if (fallbackParticipant?.id && targetDate) {
+          const existingRecord = await findExistingRecord(supabase, user.id, fallbackParticipant.id, targetDate);
+          if (existingRecord?.id) {
+            results.push(duplicateResult({
+              record: existingRecord,
+              fileName: image.name,
+              participant: fallbackParticipant,
+              recordDate: targetDate,
+            }));
+            continue;
+          }
+
           try {
             const parsed = parseDataUrl(image.dataUrl);
             filePath = await uploadImageToStorage({
@@ -236,44 +292,31 @@ export async function POST(request: NextRequest) {
             });
           }
 
-          const { data: existingRecord, error: existingRecordError } = await supabase
+          const { data: fallbackRecord, error: fallbackRecordError } = await supabase
             .from("daily_run_records")
+            .insert({
+              user_id: user.id,
+              participant_id: fallbackParticipant.id,
+              upload_batch_id: batch.id,
+              record_date: targetDate,
+              distance_km: null,
+              duration_seconds: null,
+              pace_seconds_per_km: null,
+              source_app: null,
+              status: "needs_review",
+              confidence_score: null,
+              image_url: filePath,
+              raw_extracted_text: null,
+              notes: fallbackNotes,
+            })
             .select("id")
-            .eq("user_id", user.id)
-            .eq("participant_id", fallbackParticipant.id)
-            .eq("record_date", targetDate)
-            .maybeSingle();
-
-          if (existingRecordError) throw existingRecordError;
-
-          if (existingRecord?.id) {
-            recordId = existingRecord.id;
-          } else {
-            const { data: fallbackRecord, error: fallbackRecordError } = await supabase
-              .from("daily_run_records")
-              .insert({
-                user_id: user.id,
-                participant_id: fallbackParticipant.id,
-                upload_batch_id: batch.id,
-                record_date: targetDate,
-                distance_km: null,
-                duration_seconds: null,
-                pace_seconds_per_km: null,
-                source_app: null,
-                status: "needs_review",
-                confidence_score: null,
-                image_url: filePath,
-                raw_extracted_text: null,
-                notes: fallbackNotes,
-              })
-              .select("id")
-              .single();
+            .single();
 
             if (fallbackRecordError) throw fallbackRecordError;
             recordId = fallbackRecord.id;
-          }
         }
 
+        needsReviewCount += 1;
         results.push({
           id: recordId,
           file_name: image.name,
@@ -300,6 +343,19 @@ export async function POST(request: NextRequest) {
 
       if (recordDate && !isWithinChallengeWindow(recordDate)) {
         return NextResponse.json({ error: CHALLENGE_DATE_ERROR }, { status: 400 });
+      }
+
+      if (participant?.id && recordDate) {
+        const existingRecord = await findExistingRecord(supabase, user.id, participant.id, recordDate);
+        if (existingRecord?.id) {
+          results.push(duplicateResult({
+            record: existingRecord,
+            fileName: image.name,
+            participant,
+            recordDate,
+          }));
+          continue;
+        }
       }
 
       const paceSeconds = calculatePaceSeconds(distanceKm, durationSeconds);
@@ -346,15 +402,9 @@ export async function POST(request: NextRequest) {
         ].filter(Boolean).join(" / ") || null,
       };
 
-      const recordQuery = participant?.id && recordDate
-        ? supabase
-            .from("daily_run_records")
-            .upsert(recordPayload, { onConflict: "user_id,participant_id,record_date" })
-        : supabase
-            .from("daily_run_records")
-            .insert(recordPayload);
-
-      const { data: record, error: recordError } = await recordQuery
+      const { data: record, error: recordError } = await supabase
+        .from("daily_run_records")
+        .insert(recordPayload)
         .select("id")
         .single();
 

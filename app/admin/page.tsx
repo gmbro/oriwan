@@ -19,6 +19,7 @@ type Participant = {
 };
 
 type RecordStatus = "certified" | "needs_review" | "missing" | "rejected";
+type AnalysisStatus = RecordStatus | "duplicate";
 
 type RunRecord = {
   id: string;
@@ -44,10 +45,11 @@ type AnalysisResult = {
   record_date?: string | null;
   distance_km?: number | null;
   duration_seconds?: number | null;
-  status?: RecordStatus;
+  status?: AnalysisStatus;
   notes?: string | null;
   edit_distance?: string;
   edit_duration?: string;
+  duplicate?: boolean;
 };
 
 type PendingAnalyzeImage = {
@@ -66,14 +68,16 @@ const officialCertificationEndDate = toIsoDate(addDays(new Date(`${ACTUAL_CERTIF
 const initialRecordDate = clampToChallengeWindow(today);
 const initialUploadDate = clampToChallengeWindow(today);
 const rangeStart = CHALLENGE_START_DATE;
-function statusLabel(status: RecordStatus) {
+function statusLabel(status: AnalysisStatus) {
+  if (status === "duplicate") return "이미 인증됨";
   if (status === "certified") return "완료";
   if (status === "needs_review") return "확인 중";
   if (status === "rejected") return "반려";
   return "아직";
 }
 
-function statusClass(status: RecordStatus) {
+function statusClass(status: AnalysisStatus) {
+  if (status === "duplicate") return "bg-sky-100 text-sky-900 border-sky-200";
   if (status === "certified") return "bg-lime-100 text-lime-900 border-lime-200";
   if (status === "needs_review") return "bg-orange-100 text-orange-900 border-orange-200";
   if (status === "rejected") return "bg-rose-100 text-rose-900 border-rose-200";
@@ -547,8 +551,9 @@ export default function AdminPage() {
       setFiles([]);
       setAnalysisResults(results);
       const certified = results.filter((result) => result.participant_id && result.record_date && isCertificationCountedStatus(result.status)).length;
-      const review = results.length - certified;
-      setAnalysisMessage(`${results.length}장 정리 완료 · 인증 반영 ${certified}건 · 보류 ${review}건`);
+      const duplicate = results.filter((result) => result.duplicate || result.status === "duplicate").length;
+      const review = results.length - certified - duplicate;
+      setAnalysisMessage(`${results.length}장 정리 완료 · 인증 반영 ${certified}건 · 이미 인증 ${duplicate}건 · 보류 ${review}건`);
       void broadcastDashboardRefresh();
       await loadData();
     } catch (err) {
@@ -562,6 +567,11 @@ export default function AdminPage() {
     const result = analysisResults[resultIndex];
     const participant = participants.find((item) => item.id === participantId);
     if (!result || !participant) return;
+
+    if (result.duplicate || result.status === "duplicate") {
+      setAnalysisMessage("이미 인증된 기록은 중복 저장하지 않았어요. 수정은 멤버 카드의 날짜별 기록에서 진행해주세요.");
+      return;
+    }
 
     if (!result.id) {
       setAnalysisMessage("저장된 기록이 없는 이미지예요. 날짜를 확인한 뒤 다시 자동 인식해주세요.");
@@ -605,6 +615,10 @@ export default function AdminPage() {
     const result = analysisResults[resultIndex];
     if (!result?.id) {
       setAnalysisMessage("저장된 기록이 없는 이미지예요. 날짜를 확인한 뒤 다시 자동 인식해주세요.");
+      return;
+    }
+    if (result.duplicate || result.status === "duplicate") {
+      setAnalysisMessage("이미 인증된 기록은 중복 저장하지 않았어요. 수정은 멤버 카드의 날짜별 기록에서 진행해주세요.");
       return;
     }
 
@@ -1105,6 +1119,7 @@ export default function AdminPage() {
                     const status = result.status || "needs_review";
                     const resultKey = getAnalysisResultKey(result, index);
                     const isUpdatingResult = updatingAnalysisKey === resultKey;
+                    const isDuplicate = result.duplicate || status === "duplicate";
                     return (
                       <div key={resultKey} className="rounded-2xl bg-white px-4 py-3 ring-1 ring-slate-950/5">
                         <div className="flex items-start justify-between gap-3">
@@ -1123,7 +1138,7 @@ export default function AdminPage() {
                           <select
                             value={result.participant_id || ""}
                             onChange={(event) => updateAnalysisParticipant(index, event.target.value)}
-                            disabled={!result.id || isUpdatingResult}
+                            disabled={!result.id || isUpdatingResult || isDuplicate}
                             className="mt-1 w-full rounded-xl border border-oriwan-border bg-white px-3 py-2 text-sm font-black text-oriwan-text outline-none focus:border-oriwan-primary disabled:opacity-50"
                           >
                             <option value="">{result.id ? "멤버 선택" : "저장된 기록 없음"}</option>
@@ -1141,21 +1156,23 @@ export default function AdminPage() {
                             onChange={(event) => updateAnalysisDraft(index, "edit_distance", event.target.value)}
                             inputMode="decimal"
                             placeholder="거리 km"
+                            disabled={isDuplicate}
                             className="rounded-xl border border-oriwan-border bg-white px-3 py-2.5 text-sm font-black text-oriwan-text outline-none focus:border-oriwan-primary"
                           />
                           <input
                             value={result.edit_duration ?? ""}
                             onChange={(event) => updateAnalysisDraft(index, "edit_duration", event.target.value)}
                             placeholder="시간 예: 32:10"
+                            disabled={isDuplicate}
                             className="rounded-xl border border-oriwan-border bg-white px-3 py-2.5 text-sm font-black text-oriwan-text outline-none focus:border-oriwan-primary"
                           />
                           <button
                             type="button"
                             onClick={() => saveAnalysisRecord(index)}
-                            disabled={!result.id || isUpdatingResult}
+                            disabled={!result.id || isUpdatingResult || isDuplicate}
                             className="rounded-xl bg-slate-950 px-4 py-2.5 text-xs font-black text-lime-200 disabled:opacity-40"
                           >
-                            {isUpdatingResult ? "저장 중" : "수정 저장"}
+                            {isDuplicate ? "저장 안 함" : isUpdatingResult ? "저장 중" : "수정 저장"}
                           </button>
                         </div>
                         {result.notes && <p className="mt-2 text-[11px] font-semibold leading-5 text-oriwan-text-muted">{result.notes}</p>}
