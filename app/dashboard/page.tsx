@@ -91,6 +91,15 @@ function gaugeTextClass(certifiedDays: number) {
 
 const officialCertificationDays = makeOfficialCertificationDays();
 const RING_CIRCUMFERENCE = 302;
+const TOP_RUNNER_BADGE_EXCLUDED_NAMES = new Set(["이경민"]);
+
+function normalizeParticipantName(name: string) {
+  return name.normalize("NFKC").replace(/[\s\u200B-\u200D\uFEFF]/g, "");
+}
+
+function canShowTopRunnerBadge(participant: Participant, topRunnerId: string) {
+  return topRunnerId === participant.id && !TOP_RUNNER_BADGE_EXCLUDED_NAMES.has(normalizeParticipantName(participant.name));
+}
 
 function makeGraphPath(items: { value: number }[], width = 320, height = 150, padding = 24) {
   if (!items.length) return { path: "", points: [] as { x: number; y: number }[], width, height, padding };
@@ -530,7 +539,7 @@ export default function DashboardPage() {
                   </div>
                 ))}
                 {dashboard.participantProgress.map((row, index) => {
-                  const isTopRunner = topRunnerId === row.participant.id;
+                  const isTopRunner = canShowTopRunnerBadge(row.participant, topRunnerId);
                   return (
                   <button
                     key={row.participant.id}

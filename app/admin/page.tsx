@@ -68,6 +68,16 @@ const officialCertificationEndDate = toIsoDate(addDays(new Date(`${ACTUAL_CERTIF
 const initialRecordDate = clampToChallengeWindow(today);
 const initialUploadDate = clampToChallengeWindow(today);
 const rangeStart = CHALLENGE_START_DATE;
+const TOP_RUNNER_BADGE_EXCLUDED_NAMES = new Set(["이경민"]);
+
+function normalizeParticipantName(name: string) {
+  return name.normalize("NFKC").replace(/[\s\u200B-\u200D\uFEFF]/g, "");
+}
+
+function canShowTopRunnerBadge(participant: Participant, topRunnerId: string) {
+  return topRunnerId === participant.id && !TOP_RUNNER_BADGE_EXCLUDED_NAMES.has(normalizeParticipantName(participant.name));
+}
+
 function statusLabel(status: AnalysisStatus) {
   if (status === "duplicate") return "이미 인증됨";
   if (status === "certified") return "완료";
@@ -937,7 +947,7 @@ export default function AdminPage() {
               </div>
             ))}
             {participantProgress.map((row) => {
-              const isTopRunner = topRunnerId === row.participant.id;
+              const isTopRunner = canShowTopRunnerBadge(row.participant, topRunnerId);
               return (
               <button
                 key={row.participant.id}
