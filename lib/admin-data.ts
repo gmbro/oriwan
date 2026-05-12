@@ -16,6 +16,17 @@ type ParticipantRow = {
   created_at: string;
 };
 
+type AdminUserIdCache = {
+  email: string;
+  value: string | null;
+  expiresAt: number;
+  promise?: Promise<string | null>;
+};
+
+const ADMIN_USER_ID_CACHE_TTL_MS = 10 * 60 * 1000;
+const ADMIN_USER_ID_MISS_TTL_MS = 60 * 1000;
+let adminUserIdCache: AdminUserIdCache | null = null;
+
 export function getServiceClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -29,7 +40,7 @@ export function getServiceClient() {
   });
 }
 
-export async function findAdminUserId(supabase: SupabaseClient) {
+async function findAdminUserIdUncached(supabase: SupabaseClient) {
   let page = 1;
 
   while (page <= 20) {
@@ -45,6 +56,33 @@ export async function findAdminUserId(supabase: SupabaseClient) {
   }
 
   return null;
+}
+
+export async function findAdminUserId(supabase: SupabaseClient) {
+  const email = ADMIN_EMAIL.toLowerCase();
+  const now = Date.now();
+
+  if (adminUserIdCache?.email === email) {
+    if (adminUserIdCache.expiresAt > now) return adminUserIdCache.value;
+    if (adminUserIdCache.promise) return adminUserIdCache.promise;
+  }
+
+  const promise = findAdminUserIdUncached(supabase)
+    .then((value) => {
+      adminUserIdCache = {
+        email,
+        value,
+        expiresAt: Date.now() + (value ? ADMIN_USER_ID_CACHE_TTL_MS : ADMIN_USER_ID_MISS_TTL_MS),
+      };
+      return value;
+    })
+    .catch((error) => {
+      adminUserIdCache = null;
+      throw error;
+    });
+
+  adminUserIdCache = { email, value: null, expiresAt: 0, promise };
+  return promise;
 }
 
 export async function getAdminParticipants(supabase: SupabaseClient, adminUserId: string) {

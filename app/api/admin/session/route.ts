@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ADMIN_EMAIL, isAdminEmail } from "@/lib/admin";
 import { clearAdminSessionCookie, hasValidAdminSession, setAdminSessionCookie } from "@/lib/admin-server";
+import { guardMutationRequest } from "@/lib/request-security";
 import { createClient } from "@/lib/supabase/server";
 
 const VERIFY_TYPES = ["email", "magiclink", "signup"] as const;
@@ -37,7 +38,18 @@ export async function GET() {
   return NextResponse.json(adminUserResponse(user));
 }
 
-export async function PUT() {
+export async function PUT(request: NextRequest) {
+  const guardResponse = guardMutationRequest(request, {
+    maxBodyBytes: 1024,
+    rateLimit: {
+      key: "admin-session-otp",
+      limit: 3,
+      windowMs: 60_000,
+      message: "인증번호 요청이 잠시 몰렸어요. 1분 뒤 다시 시도해주세요.",
+    },
+  });
+  if (guardResponse) return guardResponse;
+
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithOtp({
     email: ADMIN_EMAIL,
@@ -54,6 +66,17 @@ export async function PUT() {
 }
 
 export async function POST(request: NextRequest) {
+  const guardResponse = guardMutationRequest(request, {
+    maxBodyBytes: 4 * 1024,
+    rateLimit: {
+      key: "admin-session-verify",
+      limit: 8,
+      windowMs: 60_000,
+      message: "인증번호 확인 요청이 잠시 몰렸어요. 1분 뒤 다시 시도해주세요.",
+    },
+  });
+  if (guardResponse) return guardResponse;
+
   const body = await request.json().catch(() => ({}));
   const token = typeof body.token === "string" ? body.token.replace(/\D/g, "") : "";
   if (!token) {
@@ -90,7 +113,10 @@ export async function POST(request: NextRequest) {
   return response;
 }
 
-export async function DELETE() {
+export async function DELETE(request: NextRequest) {
+  const guardResponse = guardMutationRequest(request, { maxBodyBytes: 1024 });
+  if (guardResponse) return guardResponse;
+
   const supabase = await createClient();
   await supabase.auth.signOut();
 

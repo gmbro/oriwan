@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdminUser } from "@/lib/admin-server";
+import { guardMutationRequest } from "@/lib/request-security";
 
 export async function PATCH(
   request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
+  const guardResponse = guardMutationRequest(request);
+  if (guardResponse) return guardResponse;
+
   const supabase = await createClient();
   const { user, response } = await requireAdminUser(supabase);
   if (response) return response;
@@ -36,9 +40,12 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
+  const guardResponse = guardMutationRequest(request);
+  if (guardResponse) return guardResponse;
+
   const supabase = await createClient();
   const { user, response } = await requireAdminUser(supabase);
   if (response) return response;

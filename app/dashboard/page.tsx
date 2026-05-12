@@ -425,12 +425,15 @@ export default function DashboardPage() {
   const loadingRef = useRef(false);
   const refreshTimerRef = useRef<number | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (options?: { fresh?: boolean }) => {
     if (loadingRef.current) return;
     loadingRef.current = true;
     try {
       setTodayIso(toKstIsoDate());
-      const response = await fetch("/api/public-dashboard?scope=all", { cache: "no-store" });
+      const cacheBuster = options?.fresh ? `&t=${Date.now()}` : "";
+      const response = await fetch(`/api/public-dashboard?scope=all${cacheBuster}`, {
+        cache: options?.fresh ? "no-store" : "default",
+      });
       const json = await response.json();
       if (!response.ok) throw new Error(json.error || "오늘의 보드를 불러오지 못했어요.");
       setData(json);
@@ -446,8 +449,8 @@ export default function DashboardPage() {
   const scheduleRefresh = useCallback(() => {
     if (refreshTimerRef.current) window.clearTimeout(refreshTimerRef.current);
     refreshTimerRef.current = window.setTimeout(() => {
-      if (document.visibilityState === "visible") load();
-    }, 350);
+      if (document.visibilityState === "visible") load({ fresh: true });
+    }, 650);
   }, [load]);
 
   useEffect(() => {
@@ -464,10 +467,10 @@ export default function DashboardPage() {
 
     const interval = window.setInterval(() => {
       if (document.visibilityState === "visible") load();
-    }, 10000);
-    const onFocus = () => load();
+    }, 60000);
+    const onFocus = () => load({ fresh: true });
     const onVisible = () => {
-      if (document.visibilityState === "visible") load();
+      if (document.visibilityState === "visible") load({ fresh: true });
     };
     window.addEventListener("focus", onFocus);
     document.addEventListener("visibilitychange", onVisible);

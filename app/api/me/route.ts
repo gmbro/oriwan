@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { CERTIFICATION_DISPLAY_START_DATE, CHALLENGE_END_DATE, CHALLENGE_START_DATE } from "@/lib/challenge";
 import { findAdminUserId, findParticipantByRunnerName, getServiceClient } from "@/lib/admin-data";
+import { guardMutationRequest } from "@/lib/request-security";
 
 function getRunnerName(userMetadata: Record<string, unknown> | null | undefined) {
   const value = userMetadata?.runner_name;
@@ -54,6 +55,9 @@ export async function GET() {
 }
 
 export async function PATCH(request: NextRequest) {
+  const guardResponse = guardMutationRequest(request);
+  if (guardResponse) return guardResponse;
+
   const supabase = await createClient();
   const { data: { user }, error } = await supabase.auth.getUser();
   if (error || !user) return NextResponse.json({ error: "이름을 연결하려면 먼저 로그인해주세요." }, { status: 401 });

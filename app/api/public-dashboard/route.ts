@@ -4,6 +4,14 @@ import { isMissingTableError, missingSchemaResponse } from "@/lib/supabase-error
 import { CERTIFICATION_DISPLAY_START_DATE, CHALLENGE_END_DATE, CHALLENGE_START_DATE, clampToChallengeStart } from "@/lib/challenge";
 import { findAdminUserId, getServiceClient } from "@/lib/admin-data";
 
+const PUBLIC_DASHBOARD_CACHE_CONTROL = "public, max-age=0, s-maxage=5, stale-while-revalidate=30";
+
+function publicDashboardResponse(payload: unknown) {
+  const response = NextResponse.json(payload);
+  response.headers.set("Cache-Control", PUBLIC_DASHBOARD_CACHE_CONTROL);
+  return response;
+}
+
 export async function GET(request: NextRequest) {
   const supabase = getServiceClient();
   if (!supabase) {
@@ -68,7 +76,7 @@ export async function GET(request: NextRequest) {
     if (participantsResult.error) throw participantsResult.error;
     if (recordsResult.error) throw recordsResult.error;
 
-    return NextResponse.json({
+    return publicDashboardResponse({
       from,
       to,
       certification_display_start_date: CERTIFICATION_DISPLAY_START_DATE,

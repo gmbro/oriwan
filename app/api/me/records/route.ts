@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { calculatePaceSeconds } from "@/lib/run-records";
 import { CHALLENGE_DATE_ERROR, isWithinChallengeWindow } from "@/lib/challenge";
 import { findAdminUserId, findParticipantByRunnerName, getServiceClient } from "@/lib/admin-data";
+import { guardMutationRequest } from "@/lib/request-security";
 
 function sanitizeNumber(value: unknown) {
   if (value === null || value === undefined || value === "") return null;
@@ -15,6 +16,9 @@ function hasPositiveMetric(value: number | null) {
 }
 
 export async function POST(request: NextRequest) {
+  const guardResponse = guardMutationRequest(request);
+  if (guardResponse) return guardResponse;
+
   const supabase = await createClient();
   const { data: { user }, error } = await supabase.auth.getUser();
   if (error || !user) return NextResponse.json({ error: "내 기록을 올리려면 먼저 로그인해주세요." }, { status: 401 });

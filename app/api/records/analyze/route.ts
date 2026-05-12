@@ -16,6 +16,7 @@ import {
   parseJsonObject,
   validImage,
 } from "@/lib/run-image-extraction";
+import { guardMutationRequest } from "@/lib/request-security";
 
 type ExtractedRun = ExtractedRunBase & {
   participant_name?: string | null;
@@ -34,6 +35,7 @@ type ExistingRunRecord = {
 };
 
 const MAX_IMAGES = 40;
+const MAX_BODY_BYTES = MAX_IMAGES * 4 * 1024 * 1024 + 2 * 1024 * 1024;
 const DEFAULT_PARTICIPANT_NAME_WHEN_OCR_NAME_MISSING = "이경민";
 
 function normalizeParticipantName(name: string) {
@@ -173,6 +175,9 @@ function duplicateResult(input: {
 }
 
 export async function POST(request: NextRequest) {
+  const guardResponse = guardMutationRequest(request, { maxBodyBytes: MAX_BODY_BYTES });
+  if (guardResponse) return guardResponse;
+
   const supabase = await createClient();
   const { user, response } = await requireAdminUser(supabase);
   if (response) return response;

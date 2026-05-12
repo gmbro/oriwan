@@ -112,4 +112,4 @@ CREATE INDEX IF NOT EXISTS idx_daily_run_records_status
 -- 5. 실시간 대시보드
 -- Supabase Dashboard > Database > Replication 또는 Realtime 설정에서
 -- participants, daily_run_records 테이블의 Realtime을 켜면 입력/수정 즉시 화면이 갱신됩니다.
--- Realtime이 꺼져 있어도 웹 대시보드는 10초마다 자동으로 최신 데이터를 다시 가져옵니다.
+-- Realtime이 꺼져 있어도 웹 대시보드는 60초마다 자동으로 최신 데이터를 다시 가져옵니다.

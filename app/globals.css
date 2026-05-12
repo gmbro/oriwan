@@ -55,6 +55,15 @@ button, a, [role="button"] {
   touch-action: manipulation;
 }
 
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid rgba(37, 99, 235, 0.32);
+  outline-offset: 3px;
+}
+
 body :where(h1, h2, h3, h4, p, span, button, a, input, select, textarea, label, li) {
   letter-spacing: 0 !important;
 }
@@ -153,6 +162,17 @@ img { -webkit-user-drag: none; user-select: none; }
 }
 
 .btn-google:hover { background: var(--color-oriwan-surface-light); box-shadow: 0 4px 12px rgba(0,0,0,0.06); transform: translateY(-1px); }
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
 
 /* ===== 달력 ===== */
 .stamp-complete {

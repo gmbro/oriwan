@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdminUser } from "@/lib/admin-server";
 import { isMissingTableError, missingSchemaResponse } from "@/lib/supabase-errors";
+import { guardMutationRequest } from "@/lib/request-security";
 
 export async function GET() {
   const supabase = await createClient();
@@ -28,6 +29,9 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  const guardResponse = guardMutationRequest(request);
+  if (guardResponse) return guardResponse;
+
   const supabase = await createClient();
   const { user, response } = await requireAdminUser(supabase);
   if (response) return response;

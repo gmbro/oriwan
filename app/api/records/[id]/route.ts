@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireAdminUser } from "@/lib/admin-server";
 import { calculatePaceSeconds } from "@/lib/run-records";
 import { CHALLENGE_DATE_ERROR, isWithinChallengeWindow } from "@/lib/challenge";
+import { guardMutationRequest } from "@/lib/request-security";
 
 const RECORD_STATUSES = new Set(["certified", "needs_review", "missing", "rejected"]);
 
@@ -24,6 +25,9 @@ export async function PATCH(
   request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
+  const guardResponse = guardMutationRequest(request);
+  if (guardResponse) return guardResponse;
+
   const supabase = await createClient();
   const { user, response } = await requireAdminUser(supabase);
   if (response) return response;
@@ -75,9 +79,12 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
+  const guardResponse = guardMutationRequest(request);
+  if (guardResponse) return guardResponse;
+
   const supabase = await createClient();
   const { user, response } = await requireAdminUser(supabase);
   if (response) return response;

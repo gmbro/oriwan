@@ -61,6 +61,42 @@ const today = toIsoDate(new Date());
 const initialRecordDate = clampToChallengeWindow(today);
 const IMAGE_UPLOAD_CHUNK_SIZE = 5;
 
+function MyPageLoading() {
+  return (
+    <main className="min-h-screen overflow-x-hidden bg-oriwan-bg">
+      <header className="sticky top-0 z-50 border-b border-slate-950/10 bg-[#101522]/95 px-4 py-3 text-white">
+        <div className="mx-auto flex max-w-5xl items-center gap-3">
+          <div className="h-[38px] w-[38px] rounded-2xl bg-white/15" />
+          <div className="min-w-0 flex-1">
+            <div className="h-4 w-28 rounded-full bg-white/20" />
+            <div className="mt-2 h-3 w-40 rounded-full bg-white/10" />
+          </div>
+        </div>
+      </header>
+      <section className="mx-auto w-full max-w-5xl px-3 py-4 sm:px-4 sm:py-6">
+        <div className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
+          {Array.from({ length: 2 }, (_, index) => (
+            <div key={index} className="card mobile-page-card p-4 sm:p-5">
+              <div className="h-5 w-32 rounded-full bg-slate-100" />
+              <div className="mt-3 h-3 w-3/4 rounded-full bg-slate-100" />
+              <div className="mt-6 h-12 rounded-2xl bg-slate-100" />
+              <div className="mt-3 h-12 rounded-2xl bg-slate-100" />
+            </div>
+          ))}
+        </div>
+        <div className="card mobile-page-card mt-4 p-4 sm:p-5">
+          <div className="h-5 w-36 rounded-full bg-slate-100" />
+          <div className="mt-5 grid gap-3 sm:grid-cols-3">
+            {Array.from({ length: 6 }, (_, index) => (
+              <div key={index} className="h-20 rounded-3xl bg-slate-100" />
+            ))}
+          </div>
+        </div>
+      </section>
+    </main>
+  );
+}
+
 export default function MyPage() {
   const [data, setData] = useState<MeData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -239,7 +275,7 @@ export default function MyPage() {
     }
   };
 
-  if (loading) return <main className="min-h-screen bg-oriwan-bg" />;
+  if (loading) return <MyPageLoading />;
 
   if (!data) {
     return (

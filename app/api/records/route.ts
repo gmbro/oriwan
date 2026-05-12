@@ -4,6 +4,7 @@ import { requireAdminUser } from "@/lib/admin-server";
 import { calculatePaceSeconds } from "@/lib/run-records";
 import { isMissingTableError, missingSchemaResponse } from "@/lib/supabase-errors";
 import { CHALLENGE_DATE_ERROR, isWithinChallengeWindow } from "@/lib/challenge";
+import { guardMutationRequest } from "@/lib/request-security";
 
 const RECORD_STATUSES = new Set(["certified", "needs_review", "missing", "rejected"]);
 
@@ -69,6 +70,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const guardResponse = guardMutationRequest(request);
+  if (guardResponse) return guardResponse;
+
   const supabase = await createClient();
   const { user, response } = await requireAdminUser(supabase);
   if (response) return response;

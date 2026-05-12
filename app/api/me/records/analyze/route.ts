@@ -15,10 +15,12 @@ import {
 } from "@/lib/run-image-extraction";
 import { calculatePaceSeconds } from "@/lib/run-records";
 import { createClient } from "@/lib/supabase/server";
+import { guardMutationRequest } from "@/lib/request-security";
 
 type ExtractedRun = ExtractedRunBase;
 
 const MAX_IMAGES = 5;
+const MAX_BODY_BYTES = MAX_IMAGES * 4 * 1024 * 1024 + 512 * 1024;
 
 type AnalyzeFailure = {
   file_name: string;
@@ -58,6 +60,16 @@ async function analyzeImage(image: UploadedImage, targetDate?: string | null) {
 }
 
 export async function POST(request: NextRequest) {
+  const guardResponse = guardMutationRequest(request, {
+    maxBodyBytes: MAX_BODY_BYTES,
+    rateLimit: {
+      key: "personal-image-analysis",
+      limit: 12,
+      windowMs: 60_000,
+    },
+  });
+  if (guardResponse) return guardResponse;
+
   const supabase = await createClient();
   const { data: { user }, error } = await supabase.auth.getUser();
   if (error || !user) return NextResponse.json({ error: "이미지 기록을 올리려면 먼저 로그인해주세요." }, { status: 401 });

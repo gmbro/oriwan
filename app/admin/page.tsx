@@ -226,7 +226,7 @@ export default function AdminPage() {
     if (refreshTimerRef.current) window.clearTimeout(refreshTimerRef.current);
     refreshTimerRef.current = window.setTimeout(() => {
       if (document.visibilityState === "visible") loadData(false);
-    }, 400);
+    }, 650);
   }, [loadData]);
 
   useEffect(() => {
@@ -287,7 +287,7 @@ export default function AdminPage() {
         setLiveStatus((current) => current === "live" ? "live" : "polling");
         loadData(false);
       }
-    }, 10000);
+    }, 60000);
 
     return () => {
       window.clearInterval(interval);
