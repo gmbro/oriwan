@@ -136,11 +136,6 @@ function getCurrentDateStreak(dates: string[], referenceDate: string) {
   return streak;
 }
 
-function hasReturnAfterMiss(dates: string[], elapsedDays: string[]) {
-  const dateSet = new Set(dates);
-  return elapsedDays.some((day, index) => index > 0 && dateSet.has(day) && !dateSet.has(elapsedDays[index - 1]));
-}
-
 function getWeekdayMorningProgress(dates: string[], referenceDate: string) {
   const dateSet = new Set(dates);
   const reference = new Date(`${referenceDate}T00:00:00`);
@@ -175,21 +170,21 @@ function makePersonalGrowthBadges({
   certifiedDates,
   currentStreak,
   longestStreak,
-  hasComeback,
   weekdayMorningCount,
   elapsedDayCount,
   distanceKm,
   durationSeconds,
+  maxSingleDistanceKm,
 }: {
   certifiedDays: number;
   certifiedDates: string[];
   currentStreak: number;
   longestStreak: number;
-  hasComeback: boolean;
   weekdayMorningCount: number;
   elapsedDayCount: number;
   distanceKm: number;
   durationSeconds: number;
+  maxSingleDistanceKm: number;
 }): PersonalGrowthBadge[] {
   const durationHours = durationSeconds / 3600;
   return [
@@ -221,15 +216,6 @@ function makePersonalGrowthBadges({
       colorClassName: "bg-sky-300 text-slate-950",
     },
     {
-      key: "fourteen-day-build",
-      label: "14일 빌드업",
-      description: "2주 연속 인증",
-      progress: `${Math.min(longestStreak, 14)}/14`,
-      unlocked: longestStreak >= 14,
-      icon: "mountain",
-      colorClassName: "bg-emerald-300 text-slate-950",
-    },
-    {
       key: "weekday-morning",
       label: "평일 모닝 5",
       description: "이번 주 평일 오전 루틴",
@@ -237,15 +223,6 @@ function makePersonalGrowthBadges({
       unlocked: weekdayMorningCount >= 5,
       icon: "calendar",
       colorClassName: "bg-amber-300 text-slate-950",
-    },
-    {
-      key: "comeback-checkin",
-      label: "복귀 체크인",
-      description: "쉬고 다시 인증",
-      progress: hasComeback ? "완료" : "대기",
-      unlocked: hasComeback,
-      icon: "sprout",
-      colorClassName: "bg-green-300 text-slate-950",
     },
     {
       key: "season-pacer",
@@ -282,6 +259,24 @@ function makePersonalGrowthBadges({
       unlocked: longestStreak >= 70,
       icon: "mountain",
       colorClassName: "bg-indigo-300 text-slate-950",
+    },
+    {
+      key: "five-k-finisher",
+      label: "5K 완주",
+      description: "하루 5km 이상 러닝",
+      progress: badgeProgress(maxSingleDistanceKm, 5, "km"),
+      unlocked: maxSingleDistanceKm >= 5,
+      icon: "sprout",
+      colorClassName: "bg-green-300 text-slate-950",
+    },
+    {
+      key: "ten-k-finisher",
+      label: "10K 완주",
+      description: "하루 10km 이상 러닝",
+      progress: badgeProgress(maxSingleDistanceKm, 10, "km"),
+      unlocked: maxSingleDistanceKm >= 10,
+      icon: "mountain",
+      colorClassName: "bg-emerald-300 text-slate-950",
     },
     {
       key: "distance-fifty",
@@ -513,7 +508,7 @@ export default function DashboardPage() {
 
     const certifiedIdsByDay = new Map<string, Set<string>>();
     const certifiedDaysByParticipant = new Map<string, Set<string>>();
-    const officialMetricsByParticipant = new Map<string, { distanceKm: number; durationSeconds: number }>();
+    const officialMetricsByParticipant = new Map<string, { distanceKm: number; durationSeconds: number; maxSingleDistanceKm: number }>();
 
     officialCertifiedRecords.forEach((record) => {
       if (!record.participant_id || !record.record_date) return;
@@ -523,9 +518,10 @@ export default function DashboardPage() {
       if (!certifiedDaysByParticipant.has(record.participant_id)) certifiedDaysByParticipant.set(record.participant_id, new Set());
       certifiedDaysByParticipant.get(record.participant_id)?.add(record.record_date);
 
-      const metrics = officialMetricsByParticipant.get(record.participant_id) || { distanceKm: 0, durationSeconds: 0 };
+      const metrics = officialMetricsByParticipant.get(record.participant_id) || { distanceKm: 0, durationSeconds: 0, maxSingleDistanceKm: 0 };
       metrics.distanceKm += record.distance_km || 0;
       metrics.durationSeconds += record.duration_seconds || 0;
+      metrics.maxSingleDistanceKm = Math.max(metrics.maxSingleDistanceKm, record.distance_km || 0);
       officialMetricsByParticipant.set(record.participant_id, metrics);
     });
 
@@ -574,12 +570,11 @@ export default function DashboardPage() {
         const stampedDates = Array.from(stampDatesByParticipant.get(participant.id) || []).sort();
         const stampedRecords = Array.from(stampRecordsByParticipant.get(participant.id)?.values() || [])
           .sort((a, b) => (a.record_date || "").localeCompare(b.record_date || ""));
-        const metrics = officialMetricsByParticipant.get(participant.id) || { distanceKm: 0, durationSeconds: 0 };
+        const metrics = officialMetricsByParticipant.get(participant.id) || { distanceKm: 0, durationSeconds: 0, maxSingleDistanceKm: 0 };
         const certifiedDays = certifiedDates.length;
         const rate = Math.min(Math.round((certifiedDays / CHALLENGE_DAYS) * 100), 100);
         const currentStreak = getCurrentDateStreak(certifiedDates, currentCertificationDate);
         const longestStreak = getLongestDateStreak(certifiedDates);
-        const hasComeback = hasReturnAfterMiss(certifiedDates, elapsedDays);
         const weekdayMorningCount = getWeekdayMorningProgress(certifiedDates, currentCertificationDate);
         return {
           participant,
@@ -590,7 +585,6 @@ export default function DashboardPage() {
           certifiedDays,
           currentStreak,
           longestStreak,
-          hasComeback,
           weekdayMorningCount,
           rate,
           ...metrics,
@@ -633,11 +627,11 @@ export default function DashboardPage() {
     certifiedDates: selectedParticipant.certifiedDates,
     currentStreak: selectedParticipant.currentStreak,
     longestStreak: selectedParticipant.longestStreak,
-    hasComeback: selectedParticipant.hasComeback,
     weekdayMorningCount: selectedParticipant.weekdayMorningCount,
     elapsedDayCount: dashboard.elapsedDays.length,
     distanceKm: selectedParticipant.distanceKm,
     durationSeconds: selectedParticipant.durationSeconds,
+    maxSingleDistanceKm: selectedParticipant.maxSingleDistanceKm,
   }) : [];
   const unlockedSelectedBadgeCount = selectedPersonalGrowthBadges.filter((badge) => badge.unlocked).length;
   const remainingSeasonDays = Math.max(CHALLENGE_DAYS - dashboard.elapsedDays.length, 0);
