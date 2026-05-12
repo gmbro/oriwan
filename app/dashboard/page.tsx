@@ -357,7 +357,12 @@ export default function DashboardPage() {
           ...metrics,
         };
       })
-      .sort((a, b) => b.certifiedDays - a.certifiedDays || a.participant.name.localeCompare(b.participant.name, "ko"));
+      .sort((a, b) => (
+        b.certifiedDays - a.certifiedDays ||
+        b.distanceKm - a.distanceKm ||
+        b.durationSeconds - a.durationSeconds ||
+        a.participant.name.localeCompare(b.participant.name, "ko")
+      ));
 
     return {
       participants,
@@ -374,6 +379,9 @@ export default function DashboardPage() {
   const latestWeeklyRate = dashboard.weekTrend.at(-1)?.averageRate || 0;
   const latestDailyRate = dashboard.dayTrend.at(-1)?.rate || 0;
   const selectedParticipant = dashboard.participantProgress.find((row) => row.participant.id === selectedParticipantId) || null;
+  const topRunnerId = dashboard.participantProgress.find((row) => (
+    row.certifiedDays > 0 || row.distanceKm > 0 || row.durationSeconds > 0
+  ))?.participant.id || "";
   const selectedStampedDates = new Set(selectedParticipant?.stampedDates || []);
   const selectedRecordByDate = new Map<string, RunRecord>(
     (selectedParticipant?.stampedRecords || [])
@@ -493,8 +501,13 @@ export default function DashboardPage() {
             </div>
 
             <div className="mt-5">
-              <div className="mb-3 flex items-center justify-between gap-2">
-                <h4 className="text-base font-black tracking-[-0.03em] text-oriwan-text">스내사 크루별 인증게이지</h4>
+              <div className="mb-3 flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <h4 className="text-base font-black tracking-[-0.03em] text-oriwan-text">스내사 크루별 인증게이지</h4>
+                  <p className="mt-1 text-[11px] font-bold leading-tight text-oriwan-text-muted">
+                    파란 뱃지는 인증일, 총거리, 총시간 기준 1등에게만 표시돼요.
+                  </p>
+                </div>
                 <span className="inline-flex shrink-0 rounded-full bg-lime-300 px-3 py-1 text-[11px] font-black text-slate-950 shadow-sm shadow-lime-300/30">
                   {isInitialDashboardLoading ? "멤버 불러오는 중" : `멤버 ${dashboard.participants.length}명`}
                 </span>
@@ -516,7 +529,9 @@ export default function DashboardPage() {
                     <div className="mt-2 h-1.5 animate-pulse rounded-full bg-oriwan-surface-light" />
                   </div>
                 ))}
-                {dashboard.participantProgress.map((row, index) => (
+                {dashboard.participantProgress.map((row, index) => {
+                  const isTopRunner = topRunnerId === row.participant.id;
+                  return (
                   <button
                     key={row.participant.id}
                     type="button"
@@ -529,6 +544,24 @@ export default function DashboardPage() {
                     }`}
                   >
                     {row.rate >= 100 && <FanfareBurst compact />}
+                    {isTopRunner && (
+                      <span
+                        className="absolute bottom-2 right-2 z-10 inline-flex h-7 w-7 items-center justify-center rounded-full bg-sky-500 text-white shadow-lg shadow-sky-500/35 ring-2 ring-white"
+                        title="1등 기준: 인증일 > 총거리 > 총시간"
+                        aria-label={`${row.participant.name} 1등 파란 뱃지`}
+                      >
+                        <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
+                          <path
+                            fill="none"
+                            stroke="currentColor"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth="3"
+                            d="M6.5 12.2 10.2 16 17.8 8"
+                          />
+                        </svg>
+                      </span>
+                    )}
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex min-w-0 flex-1 items-center gap-2">
                         <MemberPictogram index={row.pictogramIndex} participantName={row.participant.name} />
@@ -548,7 +581,7 @@ export default function DashboardPage() {
                         <AnimatedNumber value={row.rate} suffix="%" />
                       </p>
                     </div>
-                    <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-oriwan-surface-light">
+                    <div className={`mt-2 h-1.5 overflow-hidden rounded-full bg-oriwan-surface-light ${isTopRunner ? "mr-9" : ""}`}>
                       <div
                         className={`gauge-fill-flow h-full rounded-full transition-all duration-1000 ease-out ${gaugeColorClass(row.certifiedDays)}`}
                         style={{
@@ -558,7 +591,8 @@ export default function DashboardPage() {
                       />
                     </div>
                   </button>
-                ))}
+                  );
+                })}
                 {!dashboard.participantProgress.length && !loading && (
                   <p className="rounded-2xl bg-white px-4 py-8 text-center text-sm text-oriwan-text-muted sm:col-span-2 lg:col-span-3">
                     멤버가 추가되면 인증게이지가 바로 채워집니다.
