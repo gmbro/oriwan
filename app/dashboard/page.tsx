@@ -873,44 +873,44 @@ export default function DashboardPage() {
 
         {selectedParticipant && (
           <div
-            className="fixed inset-0 z-[80] flex items-end bg-slate-950/45 px-4 py-4 backdrop-blur-sm sm:items-center sm:justify-center"
+            className="fixed inset-0 z-[80] flex items-end bg-slate-950/45 px-0 py-0 backdrop-blur-sm sm:items-center sm:justify-center sm:px-4 sm:py-4"
             onClick={() => {
               setSelectedParticipantId("");
               setSelectedDailyRecordDate("");
             }}
           >
-            <div className="card modal-rise max-h-[88vh] w-full max-w-2xl overflow-y-auto p-5 sm:p-6" onClick={(event) => event.stopPropagation()}>
+            <div className="card mobile-sheet modal-rise w-full max-w-2xl overflow-y-auto p-4 sm:max-h-[88vh] sm:p-6" onClick={(event) => event.stopPropagation()}>
               {selectedParticipant.rate >= 100 && <FanfareBurst />}
-              <div className="mb-4 flex items-start justify-between gap-3">
-                <div>
+              <div className="mb-4">
+                <div className="flex items-start justify-between gap-3">
                   <p className={`inline-flex rounded-full px-3 py-1 text-[11px] font-black ${
                     selectedParticipant.rate >= 100 ? "bg-slate-950 text-lime-200" : "bg-lime-300 text-slate-950"
                   }`}>
                     {selectedParticipant.rate >= 100 ? "100% 완주!" : `${selectedParticipant.rate}%`}
                   </p>
-                  <div className="mt-2 flex items-center gap-2">
-                    <MemberPictogram index={selectedParticipant.pictogramIndex} participantName={selectedParticipant.participant.name} size="lg" />
-                    <h3 className="text-2xl font-black tracking-[-0.05em] text-oriwan-text">{selectedParticipant.participant.name}</h3>
-                  </div>
-                  {selectedParticipant.participant.nickname && (
-                    <p className="mt-2 whitespace-pre-line rounded-2xl bg-oriwan-surface-light px-4 py-3 text-sm font-bold leading-6 text-oriwan-text">
-                      {selectedParticipant.participant.nickname}
-                    </p>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedParticipantId("");
+                      setSelectedDailyRecordDate("");
+                    }}
+                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-oriwan-surface-light text-oriwan-text-muted transition hover:bg-slate-950 hover:text-lime-200"
+                    aria-label="닫기"
+                  >
+                    <IconX size={18} />
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedParticipantId("");
-                    setSelectedDailyRecordDate("");
-                  }}
-                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-oriwan-surface-light text-oriwan-text-muted transition hover:bg-slate-950 hover:text-lime-200"
-                  aria-label="닫기"
-                >
-                  <IconX size={18} />
-                </button>
+                <div className="mt-2 flex min-w-0 items-center gap-2">
+                  <MemberPictogram index={selectedParticipant.pictogramIndex} participantName={selectedParticipant.participant.name} size="lg" />
+                  <h3 className="min-w-0 truncate text-2xl font-black tracking-[-0.05em] text-oriwan-text">{selectedParticipant.participant.name}</h3>
+                </div>
+                {selectedParticipant.participant.nickname && (
+                  <p className="mt-3 w-full whitespace-pre-line break-keep rounded-2xl bg-oriwan-surface-light px-4 py-3 text-sm font-bold leading-6 text-oriwan-text">
+                    {selectedParticipant.participant.nickname}
+                  </p>
+                )}
               </div>
-              <div className="grid grid-cols-7 gap-1.5">
+              <div className="grid grid-cols-7 gap-1.5 sm:gap-1.5">
                 {dashboard.stampDays.map((day) => {
                   const stamped = selectedStampedDates.has(day);
                   const dayRecord = selectedRecordByDate.get(day);
@@ -924,7 +924,7 @@ export default function DashboardPage() {
                         if (stamped) setSelectedDailyRecordDate(day);
                       }}
                       title={day}
-                      className={`stamp-cell flex aspect-square flex-col items-center justify-center rounded-2xl border text-[10px] font-black transition ${
+                      className={`stamp-cell flex aspect-square flex-col items-center justify-center rounded-xl border text-[10px] font-black transition sm:rounded-2xl ${
                         stamped
                           ? "stamp-cell-hit border-lime-300 bg-lime-300 text-slate-950 shadow-sm shadow-lime-300/40"
                           : "border-slate-950/5 bg-white text-oriwan-text-muted/45"
@@ -936,7 +936,7 @@ export default function DashboardPage() {
                   );
                 })}
               </div>
-              <div className="mt-4 rounded-[24px] bg-oriwan-surface-light p-4 ring-1 ring-slate-950/5">
+              <div className="mt-4 rounded-[22px] bg-oriwan-surface-light p-3 ring-1 ring-slate-950/5 sm:rounded-[24px] sm:p-4">
                 {selectedDailyRecord ? (
                   <>
                     <div className="flex items-center justify-between gap-2">
@@ -1003,10 +1003,10 @@ export default function DashboardPage() {
 
         {showSeasonReportModal && (
           <div
-            className="fixed inset-0 z-[80] flex items-end bg-slate-950/45 px-4 py-4 backdrop-blur-sm sm:items-center sm:justify-center"
+            className="fixed inset-0 z-[80] flex items-end bg-slate-950/45 px-0 py-0 backdrop-blur-sm sm:items-center sm:justify-center sm:px-4 sm:py-4"
             onClick={() => setShowSeasonReportModal(false)}
           >
-            <div className="card modal-rise w-full max-w-2xl p-5 sm:p-6" onClick={(event) => event.stopPropagation()}>
+            <div className="card mobile-sheet modal-rise w-full max-w-2xl overflow-y-auto p-4 sm:max-h-[88vh] sm:p-6" onClick={(event) => event.stopPropagation()}>
               <div className="mb-4 flex items-start justify-between gap-3">
                 <div>
                   <p className="inline-flex rounded-full bg-lime-300 px-3 py-1 text-[11px] font-black text-slate-950">
@@ -1051,10 +1051,10 @@ export default function DashboardPage() {
 
         {trendModal && (
           <div
-            className="fixed inset-0 z-[80] flex items-end bg-slate-950/45 px-4 py-4 backdrop-blur-sm sm:items-center sm:justify-center"
+            className="fixed inset-0 z-[80] flex items-end bg-slate-950/45 px-0 py-0 backdrop-blur-sm sm:items-center sm:justify-center sm:px-4 sm:py-4"
             onClick={() => setTrendModal(null)}
           >
-            <div className="card w-full max-w-5xl p-5 sm:p-6" onClick={(event) => event.stopPropagation()}>
+            <div className="card mobile-sheet w-full max-w-5xl overflow-y-auto p-4 sm:max-h-[88vh] sm:p-6" onClick={(event) => event.stopPropagation()}>
               <div className="mb-4 flex items-start justify-between gap-3">
                 <div>
                   <p className="inline-flex rounded-full bg-slate-950 px-3 py-1 text-[11px] font-black text-lime-200">

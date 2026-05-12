@@ -3,12 +3,12 @@ import Link from "next/link";
 
 export default async function Home() {
   return (
-    <main className="min-h-screen flex items-center justify-center px-5 py-10">
+    <main className="flex min-h-screen items-center justify-center overflow-x-hidden px-3 py-6 sm:px-5 sm:py-10">
       <div className="fixed top-[-20%] right-[-15%] w-[400px] h-[400px] rounded-full bg-oriwan-accent/8 blur-[120px] pointer-events-none" />
       <div className="fixed bottom-[-15%] left-[-10%] w-[350px] h-[350px] rounded-full bg-oriwan-primary/6 blur-[100px] pointer-events-none" />
 
-      <div className="relative w-full max-w-[400px] mx-auto">
-        <div className="card p-8 sm:p-10 text-center">
+      <div className="relative mx-auto w-full max-w-[400px]">
+        <div className="card mobile-page-card p-6 text-center sm:p-10">
           {/* 오리 로고 */}
           <div className="animate-fade-up mb-4">
             <div className="w-28 h-28 mx-auto relative rounded-3xl overflow-hidden">
@@ -23,7 +23,7 @@ export default async function Home() {
             </div>
           </div>
 
-          <h1 className="animate-fade-up text-3xl font-black tracking-tight mb-1" style={{ animationDelay: "0.05s" }}>
+          <h1 className="animate-fade-up mb-1 text-[clamp(1.75rem,8vw,1.875rem)] font-black tracking-tight" style={{ animationDelay: "0.05s" }}>
             스내사 러닝보드
           </h1>
           <p className="animate-fade-up text-[13px] text-oriwan-primary font-semibold tracking-wide mb-8" style={{ animationDelay: "0.08s" }}>

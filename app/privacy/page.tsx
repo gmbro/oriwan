@@ -6,17 +6,17 @@ export const metadata = {
 
 export default function PrivacyPage() {
   return (
-    <main className="min-h-screen pb-20">
-      <header className="sticky top-0 z-50 px-5 py-3.5 bg-oriwan-bg/90 backdrop-blur-md border-b border-oriwan-border">
-        <div className="max-w-lg mx-auto flex items-center justify-between">
+    <main className="min-h-screen overflow-x-hidden pb-20">
+      <header className="sticky top-0 z-50 border-b border-oriwan-border bg-oriwan-bg/90 px-3 py-3.5 backdrop-blur-md sm:px-5">
+        <div className="mx-auto flex max-w-lg items-center justify-between">
           <Link href="/" className="text-oriwan-text-muted text-sm hover:text-oriwan-text transition-colors">← 돌아가기</Link>
-          <h1 className="text-lg font-black gradient-text">개인정보처리방침</h1>
+          <h1 className="gradient-text text-base font-black sm:text-lg">개인정보처리방침</h1>
           <div className="w-16" />
         </div>
       </header>
 
-      <div className="max-w-lg mx-auto px-5 py-8">
-        <div className="card p-6 space-y-6 text-sm leading-relaxed text-oriwan-text-muted">
+      <div className="mx-auto max-w-lg px-3 py-4 sm:px-5 sm:py-8">
+        <div className="card mobile-page-card space-y-6 p-4 text-sm leading-relaxed text-oriwan-text-muted sm:p-6">
           <section>
             <h2 className="text-base font-bold text-oriwan-text mb-2">1. 처리 주체</h2>
             <p>스내사 3기 대시보드는 (주)아키랩이 운영하며, 관리자 이경민이 참가자 및 러닝 인증 기록을 관리합니다.</p>

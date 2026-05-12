@@ -820,10 +820,10 @@ export default function AdminPage() {
 
   if (!authorized) {
     return (
-      <main className="min-h-screen bg-oriwan-bg px-5 py-8 flex items-center justify-center">
+      <main className="flex min-h-screen items-center justify-center overflow-x-hidden bg-oriwan-bg px-3 py-6 sm:px-5 sm:py-8">
         <div className="fixed top-[-20%] right-[-15%] w-[420px] h-[420px] rounded-full bg-oriwan-primary/15 blur-[130px] pointer-events-none" />
         <div className="relative w-full max-w-[430px]">
-          <div className="card p-7 sm:p-9">
+          <div className="card mobile-page-card p-6 sm:p-9">
             <div className="mb-7 flex items-center gap-3">
               <Image src="/oriwan-logo-v2.png" alt="어드민" width={54} height={54} className="rounded-2xl" />
               <div>
@@ -862,7 +862,7 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="min-h-screen bg-oriwan-bg">
+    <div className="min-h-screen overflow-x-hidden bg-oriwan-bg">
       <header className="sticky top-0 z-50 px-4 py-3 bg-[#101522]/92 backdrop-blur-2xl border-b border-white/10 text-white">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -885,8 +885,8 @@ export default function AdminPage() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 py-4 space-y-4 pb-10">
-        <section className="relative overflow-hidden rounded-[28px] bg-[#101522] p-4 text-white shadow-2xl shadow-slate-950/10">
+      <main className="mx-auto max-w-7xl space-y-4 px-3 py-4 pb-10 sm:px-4">
+        <section className="relative overflow-hidden rounded-[24px] bg-[#101522] p-4 text-white shadow-2xl shadow-slate-950/10 sm:rounded-[28px]">
           <div className="absolute -right-16 -top-20 h-56 w-56 rounded-full bg-lime-300/25 blur-3xl" />
           <div className="absolute bottom-0 left-1/2 h-24 w-72 -translate-x-1/2 rounded-full bg-orange-400/15 blur-3xl" />
           <div className="relative grid gap-2 sm:grid-cols-3">
@@ -918,7 +918,7 @@ export default function AdminPage() {
           </section>
         )}
 
-        <section className="card p-4">
+        <section className="card mobile-page-card p-4">
           <div className="mb-3 flex items-start justify-between gap-2">
             <div className="min-w-0">
               <h2 className="text-lg font-black tracking-[-0.03em] text-oriwan-text">스내사 크루별 인증게이지</h2>
@@ -1012,10 +1012,10 @@ export default function AdminPage() {
 
         {adminModal === "upload" && (
           <div
-            className="fixed inset-0 z-[80] flex items-end bg-slate-950/45 px-4 py-4 backdrop-blur-sm sm:items-center sm:justify-center"
+            className="fixed inset-0 z-[80] flex items-end bg-slate-950/45 px-0 py-0 backdrop-blur-sm sm:items-center sm:justify-center sm:px-4 sm:py-4"
             onClick={() => setAdminModal(null)}
           >
-            <div className="card max-h-[86svh] w-full max-w-2xl overflow-y-auto p-4 sm:p-6" onClick={(event) => event.stopPropagation()}>
+            <div className="card mobile-sheet w-full max-w-2xl overflow-y-auto p-4 sm:max-h-[86svh] sm:p-6" onClick={(event) => event.stopPropagation()}>
               <div className="mb-4 flex items-start justify-between gap-3">
                 <div>
                   <h2 className="text-xl font-black tracking-[-0.04em] text-oriwan-text">이미지 올리기</h2>
@@ -1234,13 +1234,13 @@ export default function AdminPage() {
 
         {adminModal === "participantRecords" && selectedRecordsParticipant && (
           <div
-            className="fixed inset-0 z-[80] flex items-end bg-slate-950/45 px-4 py-4 backdrop-blur-sm sm:items-center sm:justify-center"
+            className="fixed inset-0 z-[80] flex items-end bg-slate-950/45 px-0 py-0 backdrop-blur-sm sm:items-center sm:justify-center sm:px-4 sm:py-4"
             onClick={() => {
               setAdminModal(null);
               setSelectedRecordsParticipantId("");
             }}
           >
-            <div className="card max-h-[88vh] w-full max-w-2xl overflow-y-auto p-5 sm:p-6" onClick={(event) => event.stopPropagation()}>
+            <div className="card mobile-sheet w-full max-w-2xl overflow-y-auto p-4 sm:max-h-[88vh] sm:p-6" onClick={(event) => event.stopPropagation()}>
               <div className="mb-4 flex items-start justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-2">
                   <MemberPictogram
@@ -1323,13 +1323,13 @@ export default function AdminPage() {
 
         {adminModal === "participant" && (
           <div
-            className="fixed inset-0 z-[80] flex items-end bg-slate-950/45 px-4 py-4 backdrop-blur-sm sm:items-center sm:justify-center"
+            className="fixed inset-0 z-[80] flex items-end bg-slate-950/45 px-0 py-0 backdrop-blur-sm sm:items-center sm:justify-center sm:px-4 sm:py-4"
             onClick={() => {
               setAdminModal(null);
               resetParticipantForm();
             }}
           >
-            <div className="card max-h-[88vh] w-full max-w-2xl overflow-y-auto p-5 sm:p-6" onClick={(event) => event.stopPropagation()}>
+            <div className="card mobile-sheet w-full max-w-2xl overflow-y-auto p-4 sm:max-h-[88vh] sm:p-6" onClick={(event) => event.stopPropagation()}>
               <div className="mb-4 flex items-start justify-between gap-3">
                 <div>
                   <h2 className="text-xl font-black tracking-[-0.04em] text-oriwan-text">멤버 관리</h2>
@@ -1374,7 +1374,7 @@ export default function AdminPage() {
 
               <div className="mt-4 space-y-2">
                 {participants.map((participant) => (
-                  <div key={participant.id} className="flex items-center justify-between gap-3 rounded-2xl bg-white px-4 py-3 ring-1 ring-slate-950/5">
+                  <div key={participant.id} className="flex flex-col gap-3 rounded-2xl bg-white px-4 py-3 ring-1 ring-slate-950/5 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex min-w-0 items-start gap-2">
                       <MemberPictogram index={participantPictogramById.get(participant.id)} participantName={participant.name} />
                       <div className="min-w-0">
@@ -1386,7 +1386,7 @@ export default function AdminPage() {
                         )}
                       </div>
                     </div>
-                    <div className="flex shrink-0 gap-1.5">
+                    <div className="grid shrink-0 grid-cols-2 gap-1.5 sm:flex">
                       <button type="button" onClick={() => startEditParticipant(participant)} className="rounded-xl bg-oriwan-surface-light px-3 py-2 text-xs font-black text-oriwan-text">
                         변경
                       </button>
@@ -1404,10 +1404,10 @@ export default function AdminPage() {
 
         {adminModal === "record" && (
           <div
-            className="fixed inset-0 z-[80] flex items-end bg-slate-950/45 px-4 py-4 backdrop-blur-sm sm:items-center sm:justify-center"
+            className="fixed inset-0 z-[80] flex items-end bg-slate-950/45 px-0 py-0 backdrop-blur-sm sm:items-center sm:justify-center sm:px-4 sm:py-4"
             onClick={() => setAdminModal(null)}
           >
-            <div className="card w-full max-w-xl p-5 sm:p-6" onClick={(event) => event.stopPropagation()}>
+            <div className="card mobile-sheet w-full max-w-xl overflow-y-auto p-4 sm:max-h-[88vh] sm:p-6" onClick={(event) => event.stopPropagation()}>
               <div className="mb-4 flex items-start justify-between gap-3">
                 <div>
                   <h2 className="text-xl font-black tracking-[-0.04em] text-oriwan-text">기록 직접 입력</h2>

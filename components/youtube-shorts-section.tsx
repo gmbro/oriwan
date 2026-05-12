@@ -170,7 +170,7 @@ export function YoutubeShortsSection() {
   }, [category, dayKey, refreshSeed]);
 
   return (
-    <section className="mt-4 card overflow-hidden p-4 sm:p-5">
+    <section className="card mobile-page-card mt-4 overflow-hidden p-4 sm:p-5">
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-3 py-1 text-[11px] font-black text-rose-600 ring-1 ring-rose-100">
@@ -249,13 +249,13 @@ export function YoutubeShortsSection() {
 
       {selectedTip && (
         <div
-          className="fixed inset-0 z-[90] flex items-end bg-slate-950/70 px-4 py-4 backdrop-blur-sm sm:items-center sm:justify-center"
+          className="fixed inset-0 z-[90] flex items-end bg-slate-950/70 px-0 py-0 backdrop-blur-sm sm:items-center sm:justify-center sm:px-4 sm:py-4"
           role="dialog"
           aria-modal="true"
           aria-label={`${selectedTip.title} 영상 보기`}
           onClick={() => setSelectedTip(null)}
         >
-          <div className="w-full max-w-[420px] overflow-hidden rounded-[28px] bg-[#101522] shadow-2xl" onClick={(event) => event.stopPropagation()}>
+          <div className="mobile-sheet w-full max-w-[420px] overflow-hidden bg-[#101522] shadow-2xl sm:rounded-[28px]" onClick={(event) => event.stopPropagation()}>
             <div className="flex items-center justify-between gap-3 px-4 py-3 text-white">
               <div className="min-w-0">
                 <p className="truncate text-sm font-black">{selectedTip.title}</p>

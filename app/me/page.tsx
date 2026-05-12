@@ -243,8 +243,8 @@ export default function MyPage() {
 
   if (!data) {
     return (
-      <main className="min-h-screen bg-oriwan-bg px-5 py-8 flex items-center justify-center">
-        <div className="card w-full max-w-[430px] p-7 text-center sm:p-9">
+      <main className="flex min-h-screen items-center justify-center overflow-x-hidden bg-oriwan-bg px-3 py-6 sm:px-5 sm:py-8">
+        <div className="card mobile-page-card w-full max-w-[430px] p-6 text-center sm:p-9">
           <Image src="/oriwan-logo-v2.png" alt="스내사 3기" width={72} height={72} className="mx-auto rounded-3xl" />
           <p className="mt-5 text-xs font-black text-oriwan-primary">MY RUNNING BOARD</p>
           <h1 className="mt-1 text-3xl font-black tracking-[-0.05em] text-oriwan-text">내 러닝 기록 올리기</h1>
@@ -278,7 +278,7 @@ export default function MyPage() {
         {message && <p className="rounded-3xl bg-white px-5 py-4 text-sm font-bold text-oriwan-text-muted ring-1 ring-slate-950/5">{message}</p>}
 
         <section className="mt-4 grid min-w-0 gap-4 lg:grid-cols-[0.9fr_1.1fr]">
-          <div className="card min-w-0 overflow-hidden p-4 sm:p-5">
+          <div className="card mobile-page-card min-w-0 overflow-hidden p-4 sm:p-5">
             <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0">
                 <h3 className="text-lg font-black text-oriwan-text">이름 연결하기</h3>
@@ -299,7 +299,7 @@ export default function MyPage() {
             )}
           </div>
 
-          <div className="card min-w-0 overflow-hidden p-4 sm:p-5">
+          <div className="card mobile-page-card min-w-0 overflow-hidden p-4 sm:p-5">
             <h3 className="text-lg font-black text-oriwan-text">오늘의 러닝 남기기</h3>
             <p className="mt-1 text-xs text-oriwan-text-muted">{CHALLENGE_START_DATE}부터 쭉 러닝 기록을 남길 수 있어요.</p>
             <div className="mt-4 grid min-w-0 gap-2 sm:grid-cols-3">
@@ -376,7 +376,7 @@ export default function MyPage() {
         </section>
 
         {(imageResults.length > 0 || imageFailures.length > 0) && (
-          <section className="mt-4 card min-w-0 overflow-hidden p-4 sm:p-5">
+          <section className="card mobile-page-card mt-4 min-w-0 overflow-hidden p-4 sm:p-5">
             <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">
                 <h3 className="text-lg font-black text-oriwan-text">이미지 등록 결과</h3>
@@ -411,7 +411,7 @@ export default function MyPage() {
           <Metric title="누적 시간" value={secondsToTime(stats.totalTime)} />
         </div>
 
-        <section className="mt-4 card min-w-0 overflow-hidden p-4 sm:p-5">
+        <section className="card mobile-page-card mt-4 min-w-0 overflow-hidden p-4 sm:p-5">
           <h3 className="text-lg font-black text-oriwan-text">내가 쌓은 러닝</h3>
           <div className="mt-4 space-y-2">
             {stats.records.map((record) => (
@@ -433,7 +433,7 @@ export default function MyPage() {
 
 function Metric({ title, value }: { title: string; value: string }) {
   return (
-    <div className="card min-w-0 p-4">
+    <div className="card mobile-page-card min-w-0 p-4">
       <p className="text-[11px] font-black uppercase tracking-[0.12em] text-oriwan-text-muted">{title}</p>
       <p className="mt-2 truncate text-2xl font-black tracking-[-0.05em] text-oriwan-text sm:text-3xl">{value}</p>
     </div>
