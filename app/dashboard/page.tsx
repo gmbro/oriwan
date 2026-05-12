@@ -656,17 +656,15 @@ export default function DashboardPage() {
           <div className="flex min-w-0 items-center gap-3">
             <Image src="/oriwan-logo-v2.png" alt="스내사 러닝보드" width={38} height={38} className="rounded-2xl bg-lime-300" />
             <div className="min-w-0">
-              <h1 className="truncate text-[24px] font-black leading-none tracking-[-0.05em] sm:text-[30px]">스내사 러닝보드</h1>
+              <h1 className="truncate text-[24px] font-black leading-none sm:text-[30px]">스내사 러닝보드</h1>
             </div>
           </div>
         </div>
       </header>
 
       <section className="mx-auto w-full max-w-7xl px-0 py-0 sm:px-4 sm:py-6">
-        <section className="overflow-hidden bg-white/85 sm:rounded-[32px] sm:shadow-2xl sm:shadow-slate-950/10 sm:ring-1 sm:ring-slate-950/5">
+        <section className="overflow-hidden bg-white sm:rounded-[32px] sm:shadow-2xl sm:shadow-slate-950/10 sm:ring-1 sm:ring-slate-950/5">
           <div className="relative overflow-hidden bg-[#101522] p-4 text-white sm:p-7">
-            <div className="absolute -right-16 -top-20 h-64 w-64 rounded-full bg-lime-300/25 blur-3xl" />
-            <div className="absolute bottom-0 left-8 h-32 w-72 rounded-full bg-orange-400/15 blur-3xl" />
             <div className="relative grid gap-4 sm:gap-5 lg:grid-cols-[1fr_320px] lg:items-center">
               <div>
                 <div className="mb-3 flex max-w-full flex-nowrap gap-1.5 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] sm:gap-2 [&::-webkit-scrollbar]:hidden">
@@ -677,7 +675,7 @@ export default function DashboardPage() {
                     {certificationDayLabel(dashboard.currentCertificationDate)}
                   </p>
                 </div>
-                <h2 className="max-w-full break-keep text-[clamp(2rem,8.8vw,2.65rem)] font-black leading-[1.08] tracking-[-0.055em] sm:whitespace-nowrap sm:text-[clamp(1.95rem,8vw,3.75rem)] sm:leading-[1.05] sm:tracking-[-0.07em]">
+                <h2 className="max-w-full break-keep text-[2rem] font-black leading-tight sm:whitespace-nowrap sm:text-[3.75rem] sm:leading-tight">
                   이번 인증, 얼마나 완료됐을까?
                 </h2>
                 <p className="mt-3 max-w-xl text-sm leading-6 text-white/55">
@@ -689,7 +687,7 @@ export default function DashboardPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-xs font-black text-white/45">오늘 인증률</p>
-                    <p className="mt-1 text-[clamp(2.7rem,13vw,3rem)] font-black tracking-[-0.08em] text-lime-200 sm:text-5xl">
+                    <p className="mt-1 text-[2.75rem] font-black leading-none text-lime-200 sm:text-5xl">
                       {isInitialDashboardLoading ? "--" : <AnimatedNumber value={dashboard.completionRate} suffix="%" />}
                     </p>
                   </div>
@@ -724,7 +722,7 @@ export default function DashboardPage() {
                 className="dashboard-card-reveal rounded-2xl bg-white px-2 py-3 text-center ring-1 ring-slate-950/5 transition hover:-translate-y-0.5 hover:ring-lime-300 sm:rounded-3xl sm:px-3 sm:py-4 [animation-delay:0ms]"
               >
                 <p className="text-[10px] font-black text-oriwan-text-muted">진행일</p>
-                <p className="mt-1 text-[clamp(1.35rem,6.2vw,1.5rem)] font-black tracking-[-0.06em] text-oriwan-text sm:text-2xl">
+                <p className="mt-1 text-[1.35rem] font-black leading-tight text-oriwan-text sm:text-2xl">
                   <AnimatedNumber value={dashboard.elapsedDays.length} />/{CHALLENGE_DAYS}
                 </p>
               </button>
@@ -734,7 +732,7 @@ export default function DashboardPage() {
                 className="dashboard-card-reveal rounded-2xl bg-white px-2 py-3 text-center ring-1 ring-slate-950/5 transition hover:-translate-y-0.5 hover:ring-lime-300 sm:rounded-3xl sm:px-3 sm:py-4 [animation-delay:90ms]"
               >
                 <p className="text-[10px] font-black text-oriwan-text-muted">주차별 인증률</p>
-                <p className="mt-1 text-[clamp(1.35rem,6.2vw,1.5rem)] font-black tracking-[-0.06em] text-oriwan-text sm:text-2xl">
+                <p className="mt-1 text-[1.35rem] font-black leading-tight text-oriwan-text sm:text-2xl">
                   {isInitialDashboardLoading ? "--" : <AnimatedNumber value={latestWeeklyRate} suffix="%" />}
                 </p>
               </button>
@@ -744,7 +742,7 @@ export default function DashboardPage() {
                 className="dashboard-card-reveal rounded-2xl bg-lime-300 px-2 py-3 text-center text-slate-950 shadow-sm shadow-lime-300/30 transition hover:-translate-y-0.5 hover:ring-2 hover:ring-lime-400 sm:rounded-3xl sm:px-3 sm:py-4 [animation-delay:180ms]"
               >
                 <p className="text-[10px] font-black opacity-60">매일 인증률</p>
-                <p className="mt-1 text-[clamp(1.35rem,6.2vw,1.5rem)] font-black tracking-[-0.06em] sm:text-2xl">
+                <p className="mt-1 text-[1.35rem] font-black leading-tight sm:text-2xl">
                   {isInitialDashboardLoading ? "--" : <AnimatedNumber value={latestDailyRate} suffix="%" />}
                 </p>
               </button>
@@ -753,10 +751,7 @@ export default function DashboardPage() {
             <div className="mt-5">
               <div className="mb-3 flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <h4 className="text-base font-black tracking-[-0.03em] text-oriwan-text">스내사 크루별 인증게이지</h4>
-                  <p className="mt-1 text-[11px] font-bold leading-tight text-oriwan-text-muted">
-                    파란 뱃지는 인증일, 총거리, 총시간 기준 1등에게만 표시돼요.
-                  </p>
+                  <h4 className="text-base font-black leading-tight text-oriwan-text">스내사 크루별 인증게이지</h4>
                 </div>
                 <span className="inline-flex shrink-0 rounded-full bg-lime-300 px-3 py-1 text-[11px] font-black text-slate-950 shadow-sm shadow-lime-300/30">
                   {isInitialDashboardLoading ? "멤버 불러오는 중" : `멤버 ${dashboard.participants.length}명`}
@@ -902,7 +897,7 @@ export default function DashboardPage() {
                 </div>
                 <div className="mt-2 flex min-w-0 items-center gap-2">
                   <MemberPictogram index={selectedParticipant.pictogramIndex} participantName={selectedParticipant.participant.name} size="lg" />
-                  <h3 className="min-w-0 truncate text-2xl font-black tracking-[-0.05em] text-oriwan-text">{selectedParticipant.participant.name}</h3>
+                  <h3 className="min-w-0 truncate text-2xl font-black leading-tight text-oriwan-text">{selectedParticipant.participant.name}</h3>
                 </div>
                 {selectedParticipant.participant.nickname && (
                   <p className="mt-3 w-full whitespace-pre-line break-keep rounded-2xl bg-oriwan-surface-light px-4 py-3 text-sm font-bold leading-6 text-oriwan-text">
@@ -948,13 +943,13 @@ export default function DashboardPage() {
                     <div className="mt-3 grid grid-cols-2 gap-2">
                       <div className="rounded-2xl bg-white px-4 py-3">
                         <p className="text-[10px] font-black text-oriwan-text-muted">거리</p>
-                        <p className="mt-1 text-2xl font-black tracking-[-0.05em] text-oriwan-text">
+                        <p className="mt-1 text-2xl font-black leading-tight text-oriwan-text">
                           {selectedDailyRecord.distance_km ? `${selectedDailyRecord.distance_km.toFixed(2)}km` : "-"}
                         </p>
                       </div>
                       <div className="rounded-2xl bg-white px-4 py-3">
                         <p className="text-[10px] font-black text-oriwan-text-muted">시간</p>
-                        <p className="mt-1 text-2xl font-black tracking-[-0.05em] text-oriwan-text">
+                        <p className="mt-1 text-2xl font-black leading-tight text-oriwan-text">
                           {secondsToTime(selectedDailyRecord.duration_seconds)}
                         </p>
                       </div>
@@ -1012,7 +1007,7 @@ export default function DashboardPage() {
                   <p className="inline-flex rounded-full bg-lime-300 px-3 py-1 text-[11px] font-black text-slate-950">
                     시즌 리포트
                   </p>
-                  <h3 className="mt-2 text-2xl font-black tracking-[-0.05em] text-oriwan-text">
+                  <h3 className="mt-2 text-2xl font-black leading-tight text-oriwan-text">
                     {remainingSeasonDays > 0
                       ? `${remainingSeasonDays}일 후에 시즌 종료 리포트가 공개됩니다!`
                       : "시즌 종료 리포트가 공개됐어요!"}
@@ -1060,7 +1055,7 @@ export default function DashboardPage() {
                   <p className="inline-flex rounded-full bg-slate-950 px-3 py-1 text-[11px] font-black text-lime-200">
                     {trendModal === "weekly" ? "주차별 인증률" : "매일 인증률"}
                   </p>
-                  <h3 className="mt-2 text-2xl font-black tracking-[-0.05em] text-oriwan-text">
+                  <h3 className="mt-2 text-2xl font-black leading-tight text-oriwan-text">
                     {trendModal === "weekly" ? "주차별 인증 흐름" : "매일 인증 흐름"}
                   </h3>
                 </div>

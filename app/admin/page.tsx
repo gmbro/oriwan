@@ -821,13 +821,12 @@ export default function AdminPage() {
   if (!authorized) {
     return (
       <main className="flex min-h-screen items-center justify-center overflow-x-hidden bg-oriwan-bg px-3 py-6 sm:px-5 sm:py-8">
-        <div className="fixed top-[-20%] right-[-15%] w-[420px] h-[420px] rounded-full bg-oriwan-primary/15 blur-[130px] pointer-events-none" />
         <div className="relative w-full max-w-[430px]">
           <div className="card mobile-page-card p-6 sm:p-9">
             <div className="mb-7 flex items-center gap-3">
               <Image src="/oriwan-logo-v2.png" alt="어드민" width={54} height={54} className="rounded-2xl" />
               <div>
-                <h1 className="text-2xl font-black tracking-[-0.04em] text-oriwan-text">어드민 접속</h1>
+                <h1 className="text-2xl font-black leading-tight text-oriwan-text">어드민 접속</h1>
               </div>
             </div>
 
@@ -847,7 +846,7 @@ export default function AdminPage() {
                 }}
                 inputMode="numeric"
                 placeholder="메일로 받은 인증번호"
-                className="w-full rounded-2xl border border-oriwan-border bg-white px-4 py-3 text-center text-lg font-black tracking-[0.25em] outline-none focus:border-oriwan-primary"
+                className="w-full rounded-2xl border border-oriwan-border bg-white px-4 py-3 text-center text-lg font-black outline-none focus:border-oriwan-primary"
               />
               <button onClick={verifyAdminCode} disabled={!otp.trim() || verifyingCode} className="w-full rounded-2xl bg-lime-300 px-4 py-3 text-sm font-black text-slate-950 disabled:opacity-40">
                 {verifyingCode ? "확인하는 중..." : "어드민으로 들어가기"}
@@ -870,7 +869,7 @@ export default function AdminPage() {
               <Image src="/oriwan-logo-v2.png" alt="어드민" width={36} height={36} className="object-cover" />
             </div>
             <div>
-              <h1 className="text-base sm:text-lg font-black tracking-tight leading-none">어드민</h1>
+              <h1 className="text-base font-black leading-none sm:text-lg">어드민</h1>
             </div>
           </div>
           <div className="flex items-center gap-2.5">
@@ -887,8 +886,6 @@ export default function AdminPage() {
 
       <main className="mx-auto max-w-7xl space-y-4 px-3 py-4 pb-10 sm:px-4">
         <section className="relative overflow-hidden rounded-[24px] bg-[#101522] p-4 text-white shadow-2xl shadow-slate-950/10 sm:rounded-[28px]">
-          <div className="absolute -right-16 -top-20 h-56 w-56 rounded-full bg-lime-300/25 blur-3xl" />
-          <div className="absolute bottom-0 left-1/2 h-24 w-72 -translate-x-1/2 rounded-full bg-orange-400/15 blur-3xl" />
           <div className="relative grid gap-2 sm:grid-cols-3">
             <button type="button" onClick={() => openUploadForDate(initialUploadDate)} className="rounded-2xl bg-lime-300 px-4 py-3 text-left text-sm font-black text-slate-950">
               이미지 올리기
@@ -921,10 +918,7 @@ export default function AdminPage() {
         <section className="card mobile-page-card p-4">
           <div className="mb-3 flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <h2 className="text-lg font-black tracking-[-0.03em] text-oriwan-text">스내사 크루별 인증게이지</h2>
-              <p className="mt-1 text-[11px] font-bold leading-tight text-oriwan-text-muted">
-                파란 뱃지는 인증일, 총거리, 총시간 기준 1등에게만 표시돼요.
-              </p>
+              <h2 className="text-lg font-black leading-tight text-oriwan-text">스내사 크루별 인증게이지</h2>
             </div>
             <span className="inline-flex shrink-0 rounded-full bg-lime-300 px-3 py-1 text-[11px] font-black text-slate-950 shadow-sm shadow-lime-300/30">
               {isInitialAdminLoading ? "멤버 불러오는 중" : `멤버 ${participants.length}명`}
@@ -1018,7 +1012,7 @@ export default function AdminPage() {
             <div className="card mobile-sheet w-full max-w-2xl overflow-y-auto p-4 sm:max-h-[86svh] sm:p-6" onClick={(event) => event.stopPropagation()}>
               <div className="mb-4 flex items-start justify-between gap-3">
                 <div>
-                  <h2 className="text-xl font-black tracking-[-0.04em] text-oriwan-text">이미지 올리기</h2>
+                  <h2 className="text-xl font-black leading-tight text-oriwan-text">이미지 올리기</h2>
                   <p className="mt-1 text-xs leading-5 text-oriwan-text-muted">NRC, Garmin, Strava 캡처에서 날짜, 거리, 시간을 읽어 공통 대시보드에 반영해요.</p>
                 </div>
                 <button
@@ -1250,7 +1244,7 @@ export default function AdminPage() {
                   />
                   <div className="min-w-0">
                     <p className="text-xs font-black text-oriwan-text-muted">날짜별 기록 수정</p>
-                    <h2 className="truncate text-2xl font-black tracking-[-0.05em] text-oriwan-text">
+                    <h2 className="truncate text-2xl font-black leading-tight text-oriwan-text">
                       {selectedRecordsParticipant.name}
                     </h2>
                   </div>
@@ -1332,7 +1326,7 @@ export default function AdminPage() {
             <div className="card mobile-sheet w-full max-w-2xl overflow-y-auto p-4 sm:max-h-[88vh] sm:p-6" onClick={(event) => event.stopPropagation()}>
               <div className="mb-4 flex items-start justify-between gap-3">
                 <div>
-                  <h2 className="text-xl font-black tracking-[-0.04em] text-oriwan-text">멤버 관리</h2>
+                  <h2 className="text-xl font-black leading-tight text-oriwan-text">멤버 관리</h2>
                   <p className="mt-1 text-xs text-oriwan-text-muted">이름과 자기소개를 추가하고, 필요하면 빠르게 바꾸거나 정리해요.</p>
                 </div>
                 <button
@@ -1410,7 +1404,7 @@ export default function AdminPage() {
             <div className="card mobile-sheet w-full max-w-xl overflow-y-auto p-4 sm:max-h-[88vh] sm:p-6" onClick={(event) => event.stopPropagation()}>
               <div className="mb-4 flex items-start justify-between gap-3">
                 <div>
-                  <h2 className="text-xl font-black tracking-[-0.04em] text-oriwan-text">기록 직접 입력</h2>
+                  <h2 className="text-xl font-black leading-tight text-oriwan-text">기록 직접 입력</h2>
                   <p className="mt-1 text-xs text-oriwan-text-muted">멤버, 날짜, 거리 또는 시간만 있어도 인증으로 저장돼요.</p>
                 </div>
                 <button

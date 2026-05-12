@@ -247,7 +247,7 @@ export default function MyPage() {
         <div className="card mobile-page-card w-full max-w-[430px] p-6 text-center sm:p-9">
           <Image src="/oriwan-logo-v2.png" alt="스내사 3기" width={72} height={72} className="mx-auto rounded-3xl" />
           <p className="mt-5 text-xs font-black text-oriwan-primary">MY RUNNING BOARD</p>
-          <h1 className="mt-1 text-3xl font-black tracking-[-0.05em] text-oriwan-text">내 러닝 기록 올리기</h1>
+          <h1 className="mt-1 text-3xl font-black leading-tight text-oriwan-text">내 러닝 기록 올리기</h1>
           <p className="mt-3 text-sm leading-6 text-oriwan-text-muted">
             Google로 로그인하고, 어드민에 등록된 이름과 똑같이 입력해주세요. 이름이 맞으면 내 러닝 기록이 자동으로 이어집니다.
           </p>
@@ -266,7 +266,7 @@ export default function MyPage() {
           <div className="flex min-w-0 items-center gap-3">
             <Image src="/oriwan-logo-v2.png" alt="스내사 3기" width={38} height={38} className="rounded-2xl bg-lime-300" />
             <div className="min-w-0">
-              <h1 className="truncate text-base font-black tracking-[-0.03em] sm:text-lg">내 러닝 보드</h1>
+              <h1 className="truncate text-base font-black leading-tight sm:text-lg">내 러닝 보드</h1>
               <p className="truncate text-[11px] font-semibold text-white/50">{data.user.email}</p>
             </div>
           </div>
@@ -434,8 +434,8 @@ export default function MyPage() {
 function Metric({ title, value }: { title: string; value: string }) {
   return (
     <div className="card mobile-page-card min-w-0 p-4">
-      <p className="text-[11px] font-black uppercase tracking-[0.12em] text-oriwan-text-muted">{title}</p>
-      <p className="mt-2 truncate text-2xl font-black tracking-[-0.05em] text-oriwan-text sm:text-3xl">{value}</p>
+      <p className="text-[11px] font-black uppercase text-oriwan-text-muted">{title}</p>
+      <p className="mt-2 truncate text-2xl font-black leading-tight text-oriwan-text sm:text-3xl">{value}</p>
     </div>
   );
 }

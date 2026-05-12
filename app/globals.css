@@ -2,16 +2,16 @@
 
 /* ===== 스내사 3기 디자인 시스템 — Studio Dashboard ===== */
 @theme {
-  --color-oriwan-primary: #84CC16;
-  --color-oriwan-primary-light: #D9F99D;
-  --color-oriwan-primary-dark: #3F6212;
-  --color-oriwan-accent: #F97316;
-  --color-oriwan-bg: #EEF0E8;
-  --color-oriwan-surface: #FFFCF4;
-  --color-oriwan-surface-light: #F5F1E7;
-  --color-oriwan-text: #101522;
-  --color-oriwan-text-muted: #6B7280;
-  --color-oriwan-border: #DDD6C7;
+  --color-oriwan-primary: #A3E635;
+  --color-oriwan-primary-light: #ECFCCB;
+  --color-oriwan-primary-dark: #4D7C0F;
+  --color-oriwan-accent: #2563EB;
+  --color-oriwan-bg: #F4F7FB;
+  --color-oriwan-surface: #FFFFFF;
+  --color-oriwan-surface-light: #F1F5F9;
+  --color-oriwan-text: #0F172A;
+  --color-oriwan-text-muted: #64748B;
+  --color-oriwan-border: #D8E0EA;
   --color-oriwan-success: #65A30D;
   --color-oriwan-danger: #E11D48;
 
@@ -36,15 +36,13 @@ html {
 body {
   width: 100%;
   margin: 0;
-  background:
-    radial-gradient(circle at top left, rgba(132, 204, 22, 0.20), transparent 34rem),
-    radial-gradient(circle at bottom right, rgba(249, 115, 22, 0.13), transparent 30rem),
-    var(--color-oriwan-bg);
+  background: linear-gradient(180deg, #FFFFFF 0%, var(--color-oriwan-bg) 42%, #EEF3F8 100%);
   color: var(--color-oriwan-text);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   min-width: 0;
   overflow-x: hidden;
+  line-height: 1.55;
 }
 
 main {
@@ -57,6 +55,10 @@ button, a, [role="button"] {
   touch-action: manipulation;
 }
 
+body :where(h1, h2, h3, h4, p, span, button, a, input, select, textarea, label, li) {
+  letter-spacing: 0 !important;
+}
+
 input, select, textarea {
   font-size: 16px;
 }
@@ -65,10 +67,10 @@ img { -webkit-user-drag: none; user-select: none; }
 
 /* ===== 카드 ===== */
 .card {
-  background: rgba(255, 252, 244, 0.88);
-  border: 1px solid rgba(16, 21, 34, 0.08);
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(15, 23, 42, 0.08);
   border-radius: 24px;
-  box-shadow: 0 18px 50px rgba(16, 21, 34, 0.08), 0 1px 0 rgba(255,255,255,0.7) inset;
+  box-shadow: 0 18px 46px rgba(15, 23, 42, 0.08), 0 1px 0 rgba(255,255,255,0.9) inset;
   backdrop-filter: blur(18px);
 }
 
@@ -88,12 +90,12 @@ img { -webkit-user-drag: none; user-select: none; }
 
   .mobile-page-card {
     border-radius: 22px;
-    box-shadow: 0 10px 28px rgba(16, 21, 34, 0.07), 0 1px 0 rgba(255,255,255,0.7) inset;
+    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.07), 0 1px 0 rgba(255,255,255,0.9) inset;
   }
 }
 
 .card-quote {
-  background: linear-gradient(145deg, #EFF6FF, #F0F4F8);
+  background: linear-gradient(145deg, #FFFFFF, #F8FAFC);
   border: 1px solid rgba(59, 130, 246, 0.12);
   border-radius: 20px;
   box-shadow: 0 4px 20px rgba(59, 130, 246, 0.06);

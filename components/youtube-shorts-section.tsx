@@ -176,7 +176,7 @@ export function YoutubeShortsSection() {
           <p className="inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-3 py-1 text-[11px] font-black text-rose-600 ring-1 ring-rose-100">
             <IconYoutube size={14} /> Shorts
           </p>
-          <h3 className="mt-2 text-lg font-black tracking-[-0.03em] text-oriwan-text">오늘의 러닝 충전소</h3>
+          <h3 className="mt-2 text-lg font-black leading-tight text-oriwan-text">오늘의 러닝 충전소</h3>
           <p className="mt-1 text-xs leading-5 text-oriwan-text-muted">
             매일 자정 최신순으로 다시 시작하고, 새로고침할수록 본 쇼츠는 건너뛰어요.
           </p>
@@ -235,8 +235,8 @@ export function YoutubeShortsSection() {
                 {tip.tag}
               </div>
               <div className="absolute inset-x-4 bottom-4">
-                <p className="text-[11px] font-black uppercase tracking-[0.12em] text-white/45">{tipCategoryLabels[tip.category]}</p>
-                <p className="mt-1 text-2xl font-black leading-tight tracking-[-0.05em]">{tip.title}</p>
+                <p className="text-[11px] font-black uppercase text-white/45">{tipCategoryLabels[tip.category]}</p>
+                <p className="mt-1 text-2xl font-black leading-tight">{tip.title}</p>
                 <p className="mt-3 text-xs font-bold text-white/50">{tip.channel}</p>
               </div>
               <div className="absolute left-4 top-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-rose-500 shadow-lg">

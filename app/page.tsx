@@ -4,9 +4,6 @@ import Link from "next/link";
 export default async function Home() {
   return (
     <main className="flex min-h-screen items-center justify-center overflow-x-hidden px-3 py-6 sm:px-5 sm:py-10">
-      <div className="fixed top-[-20%] right-[-15%] w-[400px] h-[400px] rounded-full bg-oriwan-accent/8 blur-[120px] pointer-events-none" />
-      <div className="fixed bottom-[-15%] left-[-10%] w-[350px] h-[350px] rounded-full bg-oriwan-primary/6 blur-[100px] pointer-events-none" />
-
       <div className="relative mx-auto w-full max-w-[400px]">
         <div className="card mobile-page-card p-6 text-center sm:p-10">
           {/* 오리 로고 */}
@@ -23,10 +20,10 @@ export default async function Home() {
             </div>
           </div>
 
-          <h1 className="animate-fade-up mb-1 text-[clamp(1.75rem,8vw,1.875rem)] font-black tracking-tight" style={{ animationDelay: "0.05s" }}>
+          <h1 className="animate-fade-up mb-1 text-3xl font-black leading-tight" style={{ animationDelay: "0.05s" }}>
             스내사 러닝보드
           </h1>
-          <p className="animate-fade-up text-[13px] text-oriwan-primary font-semibold tracking-wide mb-8" style={{ animationDelay: "0.08s" }}>
+          <p className="animate-fade-up mb-8 text-[13px] font-semibold text-oriwan-primary" style={{ animationDelay: "0.08s" }}>
             오늘의 러닝 에너지를 함께 확인해요
           </p>
 
