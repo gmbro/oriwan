@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
+import { IconX } from "@/components/icons";
 import { createClient } from "@/lib/supabase/client";
 import { buildMemberPictogramMap, MemberPictogram } from "@/components/member-pictogram";
 import { ACTUAL_CERTIFICATION_START_DATE, CHALLENGE_DAYS, CHALLENGE_START_DATE, clampToChallengeWindow } from "@/lib/challenge";
@@ -1023,9 +1024,10 @@ export default function AdminPage() {
                 <button
                   type="button"
                   onClick={() => setAdminModal(null)}
-                  className="rounded-full bg-oriwan-surface-light px-3 py-1.5 text-xs font-black text-oriwan-text-muted"
+                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-oriwan-surface-light text-oriwan-text-muted transition hover:bg-slate-950 hover:text-lime-200"
+                  aria-label="닫기"
                 >
-                  닫기
+                  <IconX size={18} />
                 </button>
               </div>
 
@@ -1259,9 +1261,10 @@ export default function AdminPage() {
                     setAdminModal(null);
                     setSelectedRecordsParticipantId("");
                   }}
-                  className="rounded-full bg-oriwan-surface-light px-3 py-1.5 text-xs font-black text-oriwan-text-muted"
+                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-oriwan-surface-light text-oriwan-text-muted transition hover:bg-slate-950 hover:text-lime-200"
+                  aria-label="닫기"
                 >
-                  닫기
+                  <IconX size={18} />
                 </button>
               </div>
 
@@ -1338,9 +1341,10 @@ export default function AdminPage() {
                     setAdminModal(null);
                     resetParticipantForm();
                   }}
-                  className="rounded-full bg-oriwan-surface-light px-3 py-1.5 text-xs font-black text-oriwan-text-muted"
+                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-oriwan-surface-light text-oriwan-text-muted transition hover:bg-slate-950 hover:text-lime-200"
+                  aria-label="닫기"
                 >
-                  닫기
+                  <IconX size={18} />
                 </button>
               </div>
 
@@ -1409,8 +1413,13 @@ export default function AdminPage() {
                   <h2 className="text-xl font-black tracking-[-0.04em] text-oriwan-text">기록 직접 입력</h2>
                   <p className="mt-1 text-xs text-oriwan-text-muted">멤버, 날짜, 거리 또는 시간만 있어도 인증으로 저장돼요.</p>
                 </div>
-                <button type="button" onClick={() => setAdminModal(null)} className="rounded-full bg-oriwan-surface-light px-3 py-1.5 text-xs font-black text-oriwan-text-muted">
-                  닫기
+                <button
+                  type="button"
+                  onClick={() => setAdminModal(null)}
+                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-oriwan-surface-light text-oriwan-text-muted transition hover:bg-slate-950 hover:text-lime-200"
+                  aria-label="닫기"
+                >
+                  <IconX size={18} />
                 </button>
               </div>
               <div className="grid gap-2 sm:grid-cols-2">

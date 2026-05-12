@@ -3,6 +3,7 @@
 import Image from "next/image";
 import type { CSSProperties } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { IconCalendar, IconCheck, IconFlame, IconHeart, IconMountain, IconRun, IconSprout, IconTarget, IconX } from "@/components/icons";
 import { buildMemberPictogramMap, MemberPictogram } from "@/components/member-pictogram";
 import { YoutubeShortsSection } from "@/components/youtube-shorts-section";
 import { ACTUAL_CERTIFICATION_START_DATE, CERTIFICATION_DISPLAY_START_DATE, CHALLENGE_DAYS } from "@/lib/challenge";
@@ -40,6 +41,14 @@ type PublicDashboardData = {
 };
 
 type TrendModal = "weekly" | "daily" | null;
+type PersonalGrowthBadge = {
+  key: string;
+  label: string;
+  description: string;
+  progress: string;
+  unlocked: boolean;
+  icon: "run" | "flame" | "target" | "calendar" | "sprout" | "heart" | "mountain";
+};
 
 const actualCertificationEndDate = toIsoDate(addDays(new Date(`${ACTUAL_CERTIFICATION_START_DATE}T00:00:00`), CHALLENGE_DAYS - 1));
 
@@ -99,6 +108,134 @@ function normalizeParticipantName(name: string) {
 
 function canShowTopRunnerBadge(participant: Participant, topRunnerId: string) {
   return topRunnerId === participant.id && !TOP_RUNNER_BADGE_EXCLUDED_NAMES.has(normalizeParticipantName(participant.name));
+}
+
+function getLongestDateStreak(dates: string[]) {
+  const dateSet = new Set(dates);
+  return dates.reduce((longest, day) => {
+    if (dateSet.has(toIsoDate(addDays(new Date(`${day}T00:00:00`), -1)))) return longest;
+    let streak = 0;
+    let cursor = day;
+    while (dateSet.has(cursor)) {
+      streak += 1;
+      cursor = toIsoDate(addDays(new Date(`${cursor}T00:00:00`), 1));
+    }
+    return Math.max(longest, streak);
+  }, 0);
+}
+
+function getCurrentDateStreak(dates: string[], referenceDate: string) {
+  const dateSet = new Set(dates);
+  let streak = 0;
+  let cursor = referenceDate;
+  while (dateSet.has(cursor)) {
+    streak += 1;
+    cursor = toIsoDate(addDays(new Date(`${cursor}T00:00:00`), -1));
+  }
+  return streak;
+}
+
+function hasReturnAfterMiss(dates: string[], elapsedDays: string[]) {
+  const dateSet = new Set(dates);
+  return elapsedDays.some((day, index) => index > 0 && dateSet.has(day) && !dateSet.has(elapsedDays[index - 1]));
+}
+
+function getWeekdayMorningProgress(dates: string[], referenceDate: string) {
+  const dateSet = new Set(dates);
+  const reference = new Date(`${referenceDate}T00:00:00`);
+  const day = reference.getDay();
+  const mondayOffset = day === 0 ? -6 : 1 - day;
+  const monday = addDays(reference, mondayOffset);
+  const weekdays = Array.from({ length: 5 }, (_, index) => toIsoDate(addDays(monday, index)));
+  return weekdays.filter((weekday) => dateSet.has(weekday)).length;
+}
+
+function GrowthBadgeIcon({ icon }: { icon: PersonalGrowthBadge["icon"] }) {
+  const iconClassName = "h-4 w-4";
+  if (icon === "flame") return <IconFlame size={16} className={iconClassName} />;
+  if (icon === "target") return <IconTarget size={16} className={iconClassName} />;
+  if (icon === "calendar") return <IconCalendar size={16} className={iconClassName} />;
+  if (icon === "sprout") return <IconSprout size={16} className={iconClassName} />;
+  if (icon === "heart") return <IconHeart size={16} className={iconClassName} />;
+  if (icon === "mountain") return <IconMountain size={16} className={iconClassName} />;
+  return <IconRun size={16} className={iconClassName} />;
+}
+
+function makePersonalGrowthBadges({
+  certifiedDays,
+  certifiedDates,
+  currentStreak,
+  longestStreak,
+  hasComeback,
+  weekdayMorningCount,
+  elapsedDayCount,
+}: {
+  certifiedDays: number;
+  certifiedDates: string[];
+  currentStreak: number;
+  longestStreak: number;
+  hasComeback: boolean;
+  weekdayMorningCount: number;
+  elapsedDayCount: number;
+}): PersonalGrowthBadge[] {
+  return [
+    {
+      key: "morning-start",
+      label: "모닝 스타터",
+      description: "오전 러닝 첫 인증",
+      progress: `${Math.min(certifiedDays, 1)}/1`,
+      unlocked: certifiedDays >= 1,
+      icon: "run",
+    },
+    {
+      key: "three-day-rhythm",
+      label: "3일 리듬",
+      description: "현재 3일 연속 인증",
+      progress: `${Math.min(currentStreak, 3)}/3`,
+      unlocked: currentStreak >= 3,
+      icon: "flame",
+    },
+    {
+      key: "seven-day-routine",
+      label: "7일 루틴",
+      description: "7일 연속 인증",
+      progress: `${Math.min(longestStreak, 7)}/7`,
+      unlocked: longestStreak >= 7,
+      icon: "target",
+    },
+    {
+      key: "fourteen-day-build",
+      label: "14일 빌드업",
+      description: "2주 연속 인증",
+      progress: `${Math.min(longestStreak, 14)}/14`,
+      unlocked: longestStreak >= 14,
+      icon: "mountain",
+    },
+    {
+      key: "weekday-morning",
+      label: "평일 모닝 5",
+      description: "이번 주 평일 오전 루틴",
+      progress: `${Math.min(weekdayMorningCount, 5)}/5`,
+      unlocked: weekdayMorningCount >= 5,
+      icon: "calendar",
+    },
+    {
+      key: "comeback-checkin",
+      label: "복귀 체크인",
+      description: "쉬고 다시 인증",
+      progress: hasComeback ? "완료" : "대기",
+      unlocked: hasComeback,
+      icon: "sprout",
+    },
+    {
+      key: "season-pacer",
+      label: "시즌 페이서",
+      description: "오늘까지 빠짐없이 인증",
+      progress: `${certifiedDates.length}/${Math.max(elapsedDayCount, 1)}`,
+      unlocked: elapsedDayCount > 0 && certifiedDays >= elapsedDayCount,
+      icon: "heart",
+    },
+  ];
 }
 
 function makeGraphPath(items: { value: number }[], width = 320, height = 150, padding = 24) {
@@ -205,6 +342,7 @@ export default function DashboardPage() {
   const [selectedParticipantId, setSelectedParticipantId] = useState("");
   const [selectedDailyRecordDate, setSelectedDailyRecordDate] = useState("");
   const [trendModal, setTrendModal] = useState<TrendModal>(null);
+  const [showSeasonReportModal, setShowSeasonReportModal] = useState(false);
   const loadingRef = useRef(false);
   const refreshTimerRef = useRef<number | null>(null);
 
@@ -355,6 +493,10 @@ export default function DashboardPage() {
         const metrics = officialMetricsByParticipant.get(participant.id) || { distanceKm: 0, durationSeconds: 0 };
         const certifiedDays = certifiedDates.length;
         const rate = Math.min(Math.round((certifiedDays / CHALLENGE_DAYS) * 100), 100);
+        const currentStreak = getCurrentDateStreak(certifiedDates, currentCertificationDate);
+        const longestStreak = getLongestDateStreak(certifiedDates);
+        const hasComeback = hasReturnAfterMiss(certifiedDates, elapsedDays);
+        const weekdayMorningCount = getWeekdayMorningProgress(certifiedDates, currentCertificationDate);
         return {
           participant,
           pictogramIndex: pictogramByParticipantId.get(participant.id) ?? 0,
@@ -362,6 +504,10 @@ export default function DashboardPage() {
           stampedDates,
           stampedRecords,
           certifiedDays,
+          currentStreak,
+          longestStreak,
+          hasComeback,
+          weekdayMorningCount,
           rate,
           ...metrics,
         };
@@ -398,6 +544,17 @@ export default function DashboardPage() {
       .map((record) => [record.record_date as string, record])
   );
   const selectedDailyRecord = selectedDailyRecordDate ? selectedRecordByDate.get(selectedDailyRecordDate) : null;
+  const selectedPersonalGrowthBadges = selectedParticipant ? makePersonalGrowthBadges({
+    certifiedDays: selectedParticipant.certifiedDays,
+    certifiedDates: selectedParticipant.certifiedDates,
+    currentStreak: selectedParticipant.currentStreak,
+    longestStreak: selectedParticipant.longestStreak,
+    hasComeback: selectedParticipant.hasComeback,
+    weekdayMorningCount: selectedParticipant.weekdayMorningCount,
+    elapsedDayCount: dashboard.elapsedDays.length,
+  }) : [];
+  const unlockedSelectedBadgeCount = selectedPersonalGrowthBadges.filter((badge) => badge.unlocked).length;
+  const remainingSeasonDays = Math.max(CHALLENGE_DAYS - dashboard.elapsedDays.length, 0);
   const trendItems = trendModal === "weekly"
     ? dashboard.weekTrend.map((week) => ({
       label: week.label,
@@ -481,12 +638,16 @@ export default function DashboardPage() {
 
           <div className="p-4 sm:p-5">
             <div className="grid grid-cols-3 gap-2">
-              <div className="dashboard-card-reveal rounded-3xl bg-white px-3 py-4 text-center ring-1 ring-slate-950/5 [animation-delay:0ms]">
+              <button
+                type="button"
+                onClick={() => setShowSeasonReportModal(true)}
+                className="dashboard-card-reveal rounded-3xl bg-white px-3 py-4 text-center ring-1 ring-slate-950/5 transition hover:-translate-y-0.5 hover:ring-lime-300 [animation-delay:0ms]"
+              >
                 <p className="text-[10px] font-black text-oriwan-text-muted">진행일</p>
                 <p className="mt-1 text-2xl font-black tracking-[-0.06em] text-oriwan-text">
                   <AnimatedNumber value={dashboard.elapsedDays.length} />/{CHALLENGE_DAYS}
                 </p>
-              </div>
+              </button>
               <button
                 type="button"
                 onClick={() => setTrendModal("weekly")}
@@ -663,9 +824,10 @@ export default function DashboardPage() {
                     setSelectedParticipantId("");
                     setSelectedDailyRecordDate("");
                   }}
-                  className="rounded-full bg-oriwan-surface-light px-3 py-1.5 text-xs font-black text-oriwan-text-muted"
+                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-oriwan-surface-light text-oriwan-text-muted transition hover:bg-slate-950 hover:text-lime-200"
+                  aria-label="닫기"
                 >
-                  닫기
+                  <IconX size={18} />
                 </button>
               </div>
               <div className="grid grid-cols-7 gap-1.5">
@@ -719,10 +881,89 @@ export default function DashboardPage() {
                     </div>
                   </>
                 ) : (
-                  <p className="text-sm font-bold leading-6 text-oriwan-text-muted">
-                    인증된 날짜를 누르면 그날 몇 km, 얼마나 뛰었는지 바로 볼 수 있어요.
-                  </p>
+                  <>
+                    <div className="mb-3 flex items-center justify-between gap-2">
+                      <div>
+                        <p className="text-sm font-black text-oriwan-text">개인 성장 뱃지</p>
+                        <p className="mt-0.5 text-[11px] font-bold text-oriwan-text-muted">오전 러닝과 꾸준한 인증을 기준으로 열려요.</p>
+                      </div>
+                      <span className="shrink-0 rounded-full bg-white px-3 py-1 text-[10px] font-black text-oriwan-text-muted">
+                        {unlockedSelectedBadgeCount}/7
+                      </span>
+                    </div>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {selectedPersonalGrowthBadges.map((badge) => (
+                        <div
+                          key={badge.key}
+                          className={`flex items-center gap-3 rounded-2xl px-3 py-2.5 ring-1 ring-slate-950/5 ${
+                            badge.unlocked ? "bg-white text-oriwan-text" : "bg-white/60 text-oriwan-text-muted"
+                          }`}
+                        >
+                          <span className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl ${
+                            badge.unlocked ? "bg-lime-300 text-slate-950" : "bg-oriwan-surface-light text-oriwan-text-muted"
+                          }`}>
+                            {badge.unlocked ? <IconCheck size={16} /> : <GrowthBadgeIcon icon={badge.icon} />}
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-xs font-black">{badge.label}</span>
+                            <span className="mt-0.5 block truncate text-[10px] font-bold opacity-70">{badge.description}</span>
+                          </span>
+                          <span className="shrink-0 rounded-full bg-oriwan-surface-light px-2 py-1 text-[10px] font-black text-oriwan-text-muted">
+                            {badge.progress}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </>
                 )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showSeasonReportModal && (
+          <div
+            className="fixed inset-0 z-[80] flex items-end bg-slate-950/45 px-4 py-4 backdrop-blur-sm sm:items-center sm:justify-center"
+            onClick={() => setShowSeasonReportModal(false)}
+          >
+            <div className="card modal-rise w-full max-w-2xl p-5 sm:p-6" onClick={(event) => event.stopPropagation()}>
+              <div className="mb-4 flex items-start justify-between gap-3">
+                <div>
+                  <p className="inline-flex rounded-full bg-lime-300 px-3 py-1 text-[11px] font-black text-slate-950">
+                    시즌 리포트
+                  </p>
+                  <h3 className="mt-2 text-2xl font-black tracking-[-0.05em] text-oriwan-text">
+                    {remainingSeasonDays > 0
+                      ? `${remainingSeasonDays}일 후에 시즌 종료 리포트가 공개됩니다!`
+                      : "시즌 종료 리포트가 공개됐어요!"}
+                  </h3>
+                  <p className="mt-2 text-sm font-bold leading-6 text-oriwan-text-muted">
+                    현재 진행일은 {dashboard.elapsedDays.length}/{CHALLENGE_DAYS}입니다. 시즌이 끝나면 각자의 오전 러닝 여정을 한눈에 볼 수 있어요.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowSeasonReportModal(false)}
+                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-oriwan-surface-light text-oriwan-text-muted transition hover:bg-slate-950 hover:text-lime-200"
+                  aria-label="닫기"
+                >
+                  <IconX size={18} />
+                </button>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {[
+                  ["총 인증일", "시즌 동안 인증한 날짜 수를 정리해요."],
+                  ["총 거리", "누적 러닝 거리와 대표 구간을 보여줘요."],
+                  ["총 시간", "함께 쌓은 러닝 시간을 보기 쉽게 합산해요."],
+                  ["최장 연속 인증", "가장 오래 이어간 오전 루틴을 기록해요."],
+                  ["받은 뱃지", "모닝 스타터, 7일 루틴 같은 성장 뱃지를 모아 보여줘요."],
+                  ["나의 러닝 타입", "꾸준한 페이서, 복귀형 러너처럼 시즌 성향을 요약해요."],
+                ].map(([title, description]) => (
+                  <div key={title} className="rounded-2xl bg-oriwan-surface-light px-4 py-3 ring-1 ring-slate-950/5">
+                    <p className="text-sm font-black text-oriwan-text">{title}</p>
+                    <p className="mt-1 text-xs font-bold leading-5 text-oriwan-text-muted">{description}</p>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
@@ -746,9 +987,10 @@ export default function DashboardPage() {
                 <button
                   type="button"
                   onClick={() => setTrendModal(null)}
-                  className="rounded-full bg-oriwan-surface-light px-3 py-1.5 text-xs font-black text-oriwan-text-muted"
+                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-oriwan-surface-light text-oriwan-text-muted transition hover:bg-slate-950 hover:text-lime-200"
+                  aria-label="닫기"
                 >
-                  닫기
+                  <IconX size={18} />
                 </button>
               </div>
               <div className="rounded-[28px] bg-slate-950 p-4 text-white">

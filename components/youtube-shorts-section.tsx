@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { IconYoutube } from "@/components/icons";
+import { IconX, IconYoutube } from "@/components/icons";
 import { getCuratedYoutubeShortTips, tipCategoryLabels, youtubeEmbedUrl, youtubeThumbnailUrl, youtubeWatchUrl } from "@/lib/youtube-shorts";
 import type { TipCategory, YoutubeShortTip } from "@/lib/youtube-shorts";
 
@@ -264,9 +264,10 @@ export function YoutubeShortsSection() {
               <button
                 type="button"
                 onClick={() => setSelectedTip(null)}
-                className="rounded-full bg-white/10 px-3 py-1.5 text-xs font-black text-white/70 transition hover:text-white"
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 text-white/70 transition hover:text-white"
+                aria-label="닫기"
               >
-                닫기
+                <IconX size={17} />
               </button>
             </div>
             <div className="aspect-[9/16] bg-black">
