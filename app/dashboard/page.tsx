@@ -3,7 +3,7 @@
 import Image from "next/image";
 import type { CSSProperties } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { IconCalendar, IconCheck, IconFlame, IconHeart, IconMountain, IconRun, IconSprout, IconTarget, IconX } from "@/components/icons";
+import { IconCalendar, IconDna, IconDroplet, IconFlame, IconHeart, IconMountain, IconMuscle, IconRun, IconSprout, IconSync, IconTarget, IconX } from "@/components/icons";
 import { buildMemberPictogramMap, MemberPictogram } from "@/components/member-pictogram";
 import { YoutubeShortsSection } from "@/components/youtube-shorts-section";
 import { ACTUAL_CERTIFICATION_START_DATE, CERTIFICATION_DISPLAY_START_DATE, CHALLENGE_DAYS } from "@/lib/challenge";
@@ -47,7 +47,8 @@ type PersonalGrowthBadge = {
   description: string;
   progress: string;
   unlocked: boolean;
-  icon: "run" | "flame" | "target" | "calendar" | "sprout" | "heart" | "mountain";
+  icon: "run" | "flame" | "target" | "calendar" | "sprout" | "heart" | "mountain" | "muscle" | "droplet" | "sync" | "dna";
+  colorClassName: string;
 };
 
 const actualCertificationEndDate = toIsoDate(addDays(new Date(`${ACTUAL_CERTIFICATION_START_DATE}T00:00:00`), CHALLENGE_DAYS - 1));
@@ -158,7 +159,15 @@ function GrowthBadgeIcon({ icon }: { icon: PersonalGrowthBadge["icon"] }) {
   if (icon === "sprout") return <IconSprout size={16} className={iconClassName} />;
   if (icon === "heart") return <IconHeart size={16} className={iconClassName} />;
   if (icon === "mountain") return <IconMountain size={16} className={iconClassName} />;
+  if (icon === "muscle") return <IconMuscle size={16} className={iconClassName} />;
+  if (icon === "droplet") return <IconDroplet size={16} className={iconClassName} />;
+  if (icon === "sync") return <IconSync size={16} className={iconClassName} />;
+  if (icon === "dna") return <IconDna size={16} className={iconClassName} />;
   return <IconRun size={16} className={iconClassName} />;
+}
+
+function badgeProgress(current: number, target: number, suffix = "") {
+  return `${Math.min(Math.floor(current), target)}${suffix}/${target}${suffix}`;
 }
 
 function makePersonalGrowthBadges({
@@ -169,6 +178,8 @@ function makePersonalGrowthBadges({
   hasComeback,
   weekdayMorningCount,
   elapsedDayCount,
+  distanceKm,
+  durationSeconds,
 }: {
   certifiedDays: number;
   certifiedDates: string[];
@@ -177,7 +188,10 @@ function makePersonalGrowthBadges({
   hasComeback: boolean;
   weekdayMorningCount: number;
   elapsedDayCount: number;
+  distanceKm: number;
+  durationSeconds: number;
 }): PersonalGrowthBadge[] {
+  const durationHours = durationSeconds / 3600;
   return [
     {
       key: "morning-start",
@@ -186,6 +200,7 @@ function makePersonalGrowthBadges({
       progress: `${Math.min(certifiedDays, 1)}/1`,
       unlocked: certifiedDays >= 1,
       icon: "run",
+      colorClassName: "bg-lime-300 text-slate-950",
     },
     {
       key: "three-day-rhythm",
@@ -194,6 +209,7 @@ function makePersonalGrowthBadges({
       progress: `${Math.min(currentStreak, 3)}/3`,
       unlocked: currentStreak >= 3,
       icon: "flame",
+      colorClassName: "bg-orange-300 text-slate-950",
     },
     {
       key: "seven-day-routine",
@@ -202,6 +218,7 @@ function makePersonalGrowthBadges({
       progress: `${Math.min(longestStreak, 7)}/7`,
       unlocked: longestStreak >= 7,
       icon: "target",
+      colorClassName: "bg-sky-300 text-slate-950",
     },
     {
       key: "fourteen-day-build",
@@ -210,6 +227,7 @@ function makePersonalGrowthBadges({
       progress: `${Math.min(longestStreak, 14)}/14`,
       unlocked: longestStreak >= 14,
       icon: "mountain",
+      colorClassName: "bg-emerald-300 text-slate-950",
     },
     {
       key: "weekday-morning",
@@ -218,6 +236,7 @@ function makePersonalGrowthBadges({
       progress: `${Math.min(weekdayMorningCount, 5)}/5`,
       unlocked: weekdayMorningCount >= 5,
       icon: "calendar",
+      colorClassName: "bg-amber-300 text-slate-950",
     },
     {
       key: "comeback-checkin",
@@ -226,6 +245,7 @@ function makePersonalGrowthBadges({
       progress: hasComeback ? "완료" : "대기",
       unlocked: hasComeback,
       icon: "sprout",
+      colorClassName: "bg-green-300 text-slate-950",
     },
     {
       key: "season-pacer",
@@ -234,6 +254,70 @@ function makePersonalGrowthBadges({
       progress: `${certifiedDates.length}/${Math.max(elapsedDayCount, 1)}`,
       unlocked: elapsedDayCount > 0 && certifiedDays >= elapsedDayCount,
       icon: "heart",
+      colorClassName: "bg-rose-300 text-slate-950",
+    },
+    {
+      key: "thirty-day-root",
+      label: "30일 뿌리",
+      description: "30일 연속 인증",
+      progress: badgeProgress(longestStreak, 30),
+      unlocked: longestStreak >= 30,
+      icon: "dna",
+      colorClassName: "bg-teal-300 text-slate-950",
+    },
+    {
+      key: "fifty-day-core",
+      label: "50일 코어",
+      description: "50일 연속 인증",
+      progress: badgeProgress(longestStreak, 50),
+      unlocked: longestStreak >= 50,
+      icon: "muscle",
+      colorClassName: "bg-violet-300 text-slate-950",
+    },
+    {
+      key: "seventy-day-arc",
+      label: "70일 아치",
+      description: "70일 연속 인증",
+      progress: badgeProgress(longestStreak, 70),
+      unlocked: longestStreak >= 70,
+      icon: "mountain",
+      colorClassName: "bg-indigo-300 text-slate-950",
+    },
+    {
+      key: "distance-fifty",
+      label: "거리 50K",
+      description: "누적 50km 달성",
+      progress: badgeProgress(distanceKm, 50, "km"),
+      unlocked: distanceKm >= 50,
+      icon: "run",
+      colorClassName: "bg-cyan-300 text-slate-950",
+    },
+    {
+      key: "distance-hundred",
+      label: "거리 100K",
+      description: "누적 100km 달성",
+      progress: badgeProgress(distanceKm, 100, "km"),
+      unlocked: distanceKm >= 100,
+      icon: "target",
+      colorClassName: "bg-fuchsia-300 text-slate-950",
+    },
+    {
+      key: "time-ten-hours",
+      label: "시간 10H",
+      description: "누적 러닝 10시간",
+      progress: badgeProgress(durationHours, 10, "h"),
+      unlocked: durationHours >= 10,
+      icon: "droplet",
+      colorClassName: "bg-blue-300 text-slate-950",
+    },
+    {
+      key: "steady-fifty",
+      label: "인증 50회",
+      description: "총 인증일 50일 달성",
+      progress: badgeProgress(certifiedDays, 50),
+      unlocked: certifiedDays >= 50,
+      icon: "sync",
+      colorClassName: "bg-lime-400 text-slate-950",
     },
   ];
 }
@@ -552,6 +636,8 @@ export default function DashboardPage() {
     hasComeback: selectedParticipant.hasComeback,
     weekdayMorningCount: selectedParticipant.weekdayMorningCount,
     elapsedDayCount: dashboard.elapsedDays.length,
+    distanceKm: selectedParticipant.distanceKm,
+    durationSeconds: selectedParticipant.durationSeconds,
   }) : [];
   const unlockedSelectedBadgeCount = selectedPersonalGrowthBadges.filter((badge) => badge.unlocked).length;
   const remainingSeasonDays = Math.max(CHALLENGE_DAYS - dashboard.elapsedDays.length, 0);
@@ -888,7 +974,7 @@ export default function DashboardPage() {
                         <p className="mt-0.5 text-[11px] font-bold text-oriwan-text-muted">오전 러닝과 꾸준한 인증을 기준으로 열려요.</p>
                       </div>
                       <span className="shrink-0 rounded-full bg-white px-3 py-1 text-[10px] font-black text-oriwan-text-muted">
-                        {unlockedSelectedBadgeCount}/7
+                        {unlockedSelectedBadgeCount}/{selectedPersonalGrowthBadges.length}
                       </span>
                     </div>
                     <div className="grid gap-2 sm:grid-cols-2">
@@ -900,9 +986,9 @@ export default function DashboardPage() {
                           }`}
                         >
                           <span className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl ${
-                            badge.unlocked ? "bg-lime-300 text-slate-950" : "bg-oriwan-surface-light text-oriwan-text-muted"
+                            badge.unlocked ? badge.colorClassName : "bg-white text-oriwan-text-muted ring-1 ring-slate-950/5"
                           }`}>
-                            {badge.unlocked ? <IconCheck size={16} /> : <GrowthBadgeIcon icon={badge.icon} />}
+                            <GrowthBadgeIcon icon={badge.icon} />
                           </span>
                           <span className="min-w-0 flex-1">
                             <span className="block truncate text-xs font-black">{badge.label}</span>
