@@ -3,12 +3,11 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "스내사 러닝보드",
-  description:
-    "오늘의 러닝 인증을 함께 확인하고, 이미지 기록도 가볍게 올리는 스내사 러닝보드입니다.",
+  description: "100일동안 함께 잘 뻐팅기기!",
   keywords: ["스내사", "러닝", "기록인증", "대시보드", "OCR", "챌린지"],
   openGraph: {
     title: "스내사 러닝보드",
-    description: "오늘의 인증과 100일 러닝 흐름을 친근하게 확인해요",
+    description: "100일동안 함께 잘 뻐팅기기!",
     type: "website",
     locale: "ko_KR",
   },
