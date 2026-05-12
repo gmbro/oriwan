@@ -12,7 +12,6 @@ const SHORTS_SEEN_STORAGE_KEY = "oriwan-youtube-shorts-seen-v2";
 type TipsResponse = {
   tips?: YoutubeShortTip[];
   nextCursor?: string;
-  updatedAt?: string;
   source?: "youtube" | "curated";
 };
 
@@ -67,13 +66,6 @@ function appendUniqueIds(current: string[], nextTips: YoutubeShortTip[]) {
   return Array.from(new Set([...current, ...nextTips.map((tip) => tip.id)])).slice(-1000);
 }
 
-function countSeenIds(seenIdsByCategory: Record<TipCategory, string[]>) {
-  return categoryOptions.reduce<Record<TipCategory, number>>((acc, option) => {
-    acc[option] = seenIdsByCategory[option]?.length || 0;
-    return acc;
-  }, { running: 0, stretching: 0, recovery: 0 });
-}
-
 export function YoutubeShortsSection() {
   const initialDayKey = getKstDateKey();
   const seenIdsRef = useRef<Record<TipCategory, string[]>>(loadSeenStore(initialDayKey));
@@ -84,8 +76,6 @@ export function YoutubeShortsSection() {
   const [selectedTip, setSelectedTip] = useState<YoutubeShortTip | null>(null);
   const [tips, setTips] = useState<YoutubeShortTip[]>(() => getCuratedYoutubeShortTips("running", dateSeed(initialDayKey), TIP_LIMIT));
   const [loading, setLoading] = useState(false);
-  const [updatedAt, setUpdatedAt] = useState("");
-  const [seenCounts, setSeenCounts] = useState<Record<TipCategory, number>>({ running: 0, stretching: 0, recovery: 0 });
 
   useEffect(() => {
     if (!selectedTip) return;
@@ -101,7 +91,6 @@ export function YoutubeShortsSection() {
       const nextSeenIds = loadSeenStore(dayKey);
       seenIdsRef.current = nextSeenIds;
       cursorRef.current = makeEmptyCursors();
-      setSeenCounts(countSeenIds(nextSeenIds));
     });
     return () => cancelAnimationFrame(frame);
   }, [dayKey]);
@@ -152,9 +141,7 @@ export function YoutubeShortsSection() {
           [category]: json.nextCursor || "",
         };
         saveSeenStore(dayKey, seenIdsRef.current);
-        setSeenCounts(countSeenIds(seenIdsRef.current));
         setTips(nextTips);
-        setUpdatedAt(json.updatedAt || new Date().toISOString());
       } catch (error) {
         if ((error as Error).name === "AbortError") return;
         const fallbackTips = getCuratedYoutubeShortTips(category, dateSeed(dayKey) + refreshSeed, TIP_LIMIT)
@@ -173,13 +160,7 @@ export function YoutubeShortsSection() {
     <section className="card mobile-page-card mt-4 overflow-hidden p-4 sm:p-5">
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-3 py-1 text-[11px] font-black text-rose-600 ring-1 ring-rose-100">
-            <IconYoutube size={14} /> Shorts
-          </p>
-          <h3 className="mt-2 text-lg font-black leading-tight text-oriwan-text">오늘의 러닝 충전소</h3>
-          <p className="mt-1 text-xs leading-5 text-oriwan-text-muted">
-            매일 자정 최신순으로 다시 시작하고, 새로고침할수록 본 쇼츠는 건너뛰어요.
-          </p>
+          <h3 className="text-lg font-black leading-tight text-oriwan-text">오늘의 러닝상식</h3>
         </div>
         <div className="flex min-w-0 items-center gap-2">
           <div className="flex min-w-0 overflow-x-auto rounded-full bg-oriwan-surface-light p-1 ring-1 ring-slate-950/5">
@@ -207,12 +188,6 @@ export function YoutubeShortsSection() {
             {loading ? "찾는 중" : "다음 쇼츠"}
           </button>
         </div>
-      </div>
-
-      <div className="mb-3 flex flex-wrap items-center gap-2 text-[10px] font-black text-oriwan-text-muted">
-        <span className="rounded-full bg-oriwan-surface-light px-2.5 py-1">기준일 {dayKey}</span>
-        <span className="rounded-full bg-oriwan-surface-light px-2.5 py-1">오늘 본 {seenCounts[category] || 0}개 제외</span>
-        {updatedAt && <span className="rounded-full bg-oriwan-surface-light px-2.5 py-1">업데이트 {new Date(updatedAt).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })}</span>}
       </div>
 
       <div className="-mx-1 flex snap-x gap-3 overflow-x-auto px-1 pb-2">
