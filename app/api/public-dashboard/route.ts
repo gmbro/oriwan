@@ -113,16 +113,32 @@ async function getPublicDashboardPayload(cacheKey: string, from: string, to: str
     publicDashboardCache = { key: cacheKey, expiresAt: 0, payload: publicDashboardCache?.payload, promise };
   }
 
-  const payload = await promise;
-  if (!bypassCache) {
-    publicDashboardCache = {
-      key: cacheKey,
-      expiresAt: Date.now() + PUBLIC_DASHBOARD_MEMORY_CACHE_TTL_MS,
-      payload,
-    };
-  }
+  try {
+    const payload = await promise;
+    if (!bypassCache) {
+      publicDashboardCache = {
+        key: cacheKey,
+        expiresAt: Date.now() + PUBLIC_DASHBOARD_MEMORY_CACHE_TTL_MS,
+        payload,
+      };
+    }
 
-  return { payload, cacheStatus: bypassCache ? "BYPASS" : "MISS" };
+    return { payload, cacheStatus: bypassCache ? "BYPASS" : "MISS" };
+  } catch (error) {
+    if (!bypassCache && publicDashboardCache?.key === cacheKey && publicDashboardCache.payload) {
+      publicDashboardCache = {
+        key: cacheKey,
+        expiresAt: Date.now() + PUBLIC_DASHBOARD_MEMORY_CACHE_TTL_MS,
+        payload: publicDashboardCache.payload,
+      };
+      return { payload: publicDashboardCache.payload, cacheStatus: "STALE" };
+    }
+
+    if (!bypassCache && publicDashboardCache?.key === cacheKey) {
+      publicDashboardCache = null;
+    }
+    throw error;
+  }
 }
 
 export async function GET(request: NextRequest) {
