@@ -9,6 +9,7 @@ import { buildMemberPictogramMap, MemberPictogram } from "@/components/member-pi
 import { ACTUAL_CERTIFICATION_START_DATE, CHALLENGE_DAYS, CHALLENGE_START_DATE, clampToChallengeWindow } from "@/lib/challenge";
 import { DASHBOARD_REFRESH_CHANNEL, DASHBOARD_REFRESH_EVENT, broadcastDashboardRefresh } from "@/lib/dashboard-refresh";
 import { imageFileToOptimizedDataUrl } from "@/lib/image-client";
+import { PARTICIPANT_RANK_SORT_OPTIONS, type ParticipantRankSortMode, sortParticipantRanks } from "@/lib/participant-ranking";
 import { addDays, isCertificationCountedStatus, parseDurationToSeconds, secondsToTime, toIsoDate, toKstIsoDate } from "@/lib/run-records";
 
 type Participant = {
@@ -181,6 +182,7 @@ export default function AdminPage() {
   const [adminModal, setAdminModal] = useState<AdminModal>(null);
   const [editingParticipantId, setEditingParticipantId] = useState("");
   const [deletingRecordId, setDeletingRecordId] = useState("");
+  const [participantSortMode, setParticipantSortMode] = useState<ParticipantRankSortMode>("certification");
 
   const loadData = useCallback(async (showLoading = true) => {
     if (loadInFlightRef.current) return;
@@ -339,7 +341,11 @@ export default function AdminPage() {
       ));
   }, [participantPictogramById, participants, records]);
 
-  const topRunnerId = participantProgress.find((row) => (
+  const sortedParticipantProgress = useMemo(
+    () => sortParticipantRanks(participantProgress, participantSortMode),
+    [participantProgress, participantSortMode]
+  );
+  const topRunnerId = sortedParticipantProgress.find((row) => (
     row.certifiedDays > 0 || row.distanceKm > 0 || row.durationSeconds > 0
   ))?.participant.id || "";
 
@@ -942,13 +948,32 @@ export default function AdminPage() {
         )}
 
         <section className="card mobile-page-card p-4">
-          <div className="mb-3 flex items-start justify-between gap-2">
+          <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0">
               <h2 className="text-lg font-black leading-tight text-oriwan-text">스내사 크루별 인증게이지</h2>
             </div>
-            <span className="inline-flex shrink-0 rounded-full bg-lime-300 px-3 py-1 text-[11px] font-black text-slate-950 shadow-sm shadow-lime-300/30">
-              {isInitialAdminLoading ? "멤버 불러오는 중" : `멤버 ${participants.length}명`}
-            </span>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex rounded-full bg-oriwan-surface-light p-1 ring-1 ring-slate-950/5">
+                {PARTICIPANT_RANK_SORT_OPTIONS.map((option) => (
+                  <button
+                    key={option.key}
+                    type="button"
+                    onClick={() => setParticipantSortMode(option.key)}
+                    aria-pressed={participantSortMode === option.key}
+                    className={`rounded-full px-3 py-1.5 text-[11px] font-black transition ${
+                      participantSortMode === option.key
+                        ? "bg-slate-950 text-lime-200 shadow-sm"
+                        : "text-oriwan-text-muted hover:text-oriwan-text"
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+              <span className="inline-flex shrink-0 rounded-full bg-lime-300 px-3 py-1 text-[11px] font-black text-slate-950 shadow-sm shadow-lime-300/30">
+                {isInitialAdminLoading ? "멤버 불러오는 중" : `멤버 ${participants.length}명`}
+              </span>
+            </div>
           </div>
           <div className="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
             {isInitialAdminLoading && Array.from({ length: 6 }, (_, index) => (
@@ -967,7 +992,7 @@ export default function AdminPage() {
                 <div className="mt-2 h-1.5 animate-pulse rounded-full bg-oriwan-surface-light" />
               </div>
             ))}
-            {participantProgress.map((row) => {
+            {sortedParticipantProgress.map((row) => {
               const isTopRunner = canShowTopRunnerBadge(row.participant, topRunnerId);
               return (
               <button

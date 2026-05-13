@@ -8,6 +8,7 @@ import { buildMemberPictogramMap, MemberPictogram } from "@/components/member-pi
 import { YoutubeShortsSection } from "@/components/youtube-shorts-section";
 import { ACTUAL_CERTIFICATION_START_DATE, CERTIFICATION_DISPLAY_START_DATE, CHALLENGE_DAYS } from "@/lib/challenge";
 import { DASHBOARD_REFRESH_CHANNEL, DASHBOARD_REFRESH_EVENT } from "@/lib/dashboard-refresh";
+import { PARTICIPANT_RANK_SORT_OPTIONS, type ParticipantRankSortMode, sortParticipantRanks } from "@/lib/participant-ranking";
 import { addDays, isCertificationCountedStatus, secondsToTime, toIsoDate, toKstIsoDate } from "@/lib/run-records";
 import { createClient } from "@/lib/supabase/client";
 
@@ -453,6 +454,7 @@ export default function DashboardPage() {
   const [selectedDailyRecordDate, setSelectedDailyRecordDate] = useState("");
   const [trendModal, setTrendModal] = useState<TrendModal>(null);
   const [showSeasonReportModal, setShowSeasonReportModal] = useState(false);
+  const [participantSortMode, setParticipantSortMode] = useState<ParticipantRankSortMode>("certification");
   const loadingRef = useRef(false);
   const refreshTimerRef = useRef<number | null>(null);
   const lastLoadedAtRef = useRef(0);
@@ -659,10 +661,14 @@ export default function DashboardPage() {
       stampDays: makeDaysThrough(CERTIFICATION_DISPLAY_START_DATE, latestStampDate),
     };
   }, [data, todayIso]);
+  const sortedParticipantProgress = useMemo(
+    () => sortParticipantRanks(dashboard.participantProgress, participantSortMode),
+    [dashboard.participantProgress, participantSortMode]
+  );
   const latestWeeklyRate = dashboard.weekTrend.at(-1)?.averageRate || 0;
   const latestDailyRate = dashboard.dayTrend.at(-1)?.rate || 0;
   const selectedParticipant = dashboard.participantProgress.find((row) => row.participant.id === selectedParticipantId) || null;
-  const topRunnerId = dashboard.participantProgress.find((row) => (
+  const topRunnerId = sortedParticipantProgress.find((row) => (
     row.certifiedDays > 0 || row.distanceKm > 0 || row.durationSeconds > 0
   ))?.participant.id || "";
   const selectedStampedDates = new Set(selectedParticipant?.stampedDates || []);
@@ -791,13 +797,32 @@ export default function DashboardPage() {
             </div>
 
             <div className="mt-4 sm:mt-5">
-              <div className="mb-3 flex items-start justify-between gap-2">
+              <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div className="min-w-0">
                   <h4 className="text-base font-black leading-tight text-oriwan-text">스내사 크루별 인증게이지</h4>
                 </div>
-                <span className="inline-flex shrink-0 rounded-full bg-lime-300 px-3 py-1 text-[11px] font-black text-slate-950 shadow-sm shadow-lime-300/30">
-                  {isInitialDashboardLoading ? "멤버 불러오는 중" : `멤버 ${dashboard.participants.length}명`}
-                </span>
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex rounded-full bg-oriwan-surface-light p-1 ring-1 ring-slate-950/5">
+                    {PARTICIPANT_RANK_SORT_OPTIONS.map((option) => (
+                      <button
+                        key={option.key}
+                        type="button"
+                        onClick={() => setParticipantSortMode(option.key)}
+                        aria-pressed={participantSortMode === option.key}
+                        className={`rounded-full px-3 py-1.5 text-[11px] font-black transition ${
+                          participantSortMode === option.key
+                            ? "bg-slate-950 text-lime-200 shadow-sm"
+                            : "text-oriwan-text-muted hover:text-oriwan-text"
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                  <span className="inline-flex shrink-0 rounded-full bg-lime-300 px-3 py-1 text-[11px] font-black text-slate-950 shadow-sm shadow-lime-300/30">
+                    {isInitialDashboardLoading ? "멤버 불러오는 중" : `멤버 ${dashboard.participants.length}명`}
+                  </span>
+                </div>
               </div>
               <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
                 {isInitialDashboardLoading && Array.from({ length: 6 }, (_, index) => (
@@ -816,7 +841,7 @@ export default function DashboardPage() {
                     <div className="mt-2 h-1.5 animate-pulse rounded-full bg-oriwan-surface-light" />
                   </div>
                 ))}
-                {dashboard.participantProgress.map((row, index) => {
+                {sortedParticipantProgress.map((row, index) => {
                   const isTopRunner = canShowTopRunnerBadge(row.participant, topRunnerId);
                   return (
                   <button
