@@ -76,6 +76,7 @@ export function YoutubeShortsSection() {
   const [selectedTip, setSelectedTip] = useState<YoutubeShortTip | null>(null);
   const [tips, setTips] = useState<YoutubeShortTip[]>(() => getCuratedYoutubeShortTips("running", dateSeed(initialDayKey), TIP_LIMIT));
   const [loading, setLoading] = useState(false);
+  const [brokenThumbnailIds, setBrokenThumbnailIds] = useState<string[]>([]);
 
   useEffect(() => {
     if (!selectedTip) return;
@@ -191,7 +192,9 @@ export function YoutubeShortsSection() {
       </div>
 
       <div className="-mx-1 flex snap-x gap-3 overflow-x-auto px-1 pb-2">
-        {tips.map((tip) => (
+        {tips.map((tip) => {
+          const thumbnailBroken = brokenThumbnailIds.includes(tip.id);
+          return (
           <button
             key={tip.id}
             type="button"
@@ -199,13 +202,25 @@ export function YoutubeShortsSection() {
             className="group min-w-[210px] max-w-[210px] snap-start overflow-hidden rounded-[24px] bg-slate-950 text-left text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-xl hover:shadow-slate-950/10 sm:min-w-[240px] sm:max-w-[240px]"
           >
             <div className="relative aspect-[9/12] overflow-hidden bg-gradient-to-br from-slate-900 via-[#26351d] to-slate-950 p-4">
-              <img
-                src={tip.thumbnailUrl || youtubeThumbnailUrl(tip.id)}
-                alt=""
-                className="absolute inset-0 h-full w-full object-cover opacity-70 transition duration-500 group-hover:scale-105"
-                loading="lazy"
-              />
+              {!thumbnailBroken && (
+                <img
+                  src={tip.thumbnailUrl || youtubeThumbnailUrl(tip.id)}
+                  alt=""
+                  className="absolute inset-0 h-full w-full object-cover opacity-70 transition duration-500 group-hover:scale-105"
+                  loading="lazy"
+                  onError={() => {
+                    setBrokenThumbnailIds((current) => (
+                      current.includes(tip.id) ? current : [...current, tip.id]
+                    ));
+                  }}
+                />
+              )}
               <div className="absolute inset-0 bg-gradient-to-b from-slate-950/15 via-slate-950/20 to-slate-950/90" />
+              {thumbnailBroken && (
+                <div className="absolute inset-0 grid place-items-center bg-[radial-gradient(circle_at_30%_20%,rgba(190,242,100,0.28),transparent_34%),linear-gradient(145deg,#101522,#314322_52%,#0f172a)]">
+                  <IconYoutube size={54} />
+                </div>
+              )}
               <div className="absolute right-3 top-3 rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-black text-lime-200 ring-1 ring-white/10">
                 {tip.tag}
               </div>
@@ -219,7 +234,8 @@ export function YoutubeShortsSection() {
               </div>
             </div>
           </button>
-        ))}
+          );
+        })}
       </div>
 
       {selectedTip && (

@@ -20,7 +20,7 @@ export default async function Home() {
             </div>
           </div>
 
-          <h1 className="animate-fade-up mb-1 text-3xl font-black leading-tight" style={{ animationDelay: "0.05s" }}>
+          <h1 className="font-rounded-title animate-fade-up mb-1 text-[2rem] leading-tight sm:text-[2.35rem]" style={{ animationDelay: "0.05s" }}>
             스내사 러닝보드
           </h1>
           <p className="animate-fade-up mb-8 text-[13px] font-semibold text-oriwan-primary" style={{ animationDelay: "0.08s" }}>

@@ -706,7 +706,7 @@ export default function DashboardPage() {
           <div className="flex min-w-0 items-center gap-3">
             <Image src="/oriwan-logo-v2.png" alt="스내사 러닝보드" width={38} height={38} className="rounded-2xl bg-lime-300" />
             <div className="min-w-0">
-              <h1 className="truncate text-[22px] font-black leading-none sm:text-[30px]">스내사 러닝보드</h1>
+              <h1 className="font-rounded-title truncate text-[24px] leading-none sm:text-[32px]">스내사 러닝보드</h1>
             </div>
           </div>
         </div>

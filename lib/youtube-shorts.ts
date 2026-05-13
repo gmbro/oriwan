@@ -272,6 +272,10 @@ export const youtubeShortTips: YoutubeShortTip[] = [
 ];
 
 const tipCategories: TipCategory[] = ["running", "recovery", "stretching"];
+const blockedYoutubeShortIds = new Set([
+  // Removed from YouTube thumbnails; keeping it out prevents repeated 404s.
+  "MtTo3e06K3I",
+]);
 
 export function isTipCategory(value: string | null): value is TipCategory {
   return Boolean(value && tipCategories.includes(value as TipCategory));
@@ -304,6 +308,7 @@ export function getCuratedYoutubeShortTips(category: TipCategory, seed = 0, limi
   return seededShuffle(
     youtubeShortTips
       .filter((tip) => tip.category === category)
+      .filter((tip) => !blockedYoutubeShortIds.has(tip.id))
       .map((tip) => ({ ...tip, thumbnailUrl: tip.thumbnailUrl || youtubeThumbnailUrl(tip.id) })),
     seed
   ).slice(0, limit);
