@@ -23,7 +23,6 @@ type RunRecord = {
   record_date: string | null;
   distance_km: number | null;
   duration_seconds: number | null;
-  pace_seconds_per_km: number | null;
   status: "certified" | "needs_review" | "missing" | "rejected";
 };
 
@@ -102,6 +101,38 @@ function gaugeTextClass(certifiedDays: number) {
 const officialCertificationDays = makeOfficialCertificationDays();
 const RING_CIRCUMFERENCE = 302;
 const TOP_RUNNER_BADGE_EXCLUDED_NAMES = new Set(["이경민"]);
+const PUBLIC_DASHBOARD_STORAGE_KEY = "oriwan-public-dashboard-cache-v1";
+const PUBLIC_DASHBOARD_STORAGE_TTL_MS = 5 * 60 * 1000;
+const PUBLIC_DASHBOARD_FOCUS_REFRESH_MS = 30 * 1000;
+
+function readCachedDashboardData() {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const raw = window.localStorage.getItem(PUBLIC_DASHBOARD_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { savedAt?: number; data?: PublicDashboardData };
+    if (!parsed.savedAt || !parsed.data) return null;
+    if (Date.now() - parsed.savedAt > PUBLIC_DASHBOARD_STORAGE_TTL_MS) return null;
+    if (parsed.data.to !== toKstIsoDate()) return null;
+    return parsed.data;
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedDashboardData(data: PublicDashboardData) {
+  if (typeof window === "undefined") return;
+
+  try {
+    window.localStorage.setItem(PUBLIC_DASHBOARD_STORAGE_KEY, JSON.stringify({
+      savedAt: Date.now(),
+      data,
+    }));
+  } catch {
+    // Storage can fail in private mode. Network refresh still keeps the dashboard usable.
+  }
+}
 
 function normalizeParticipantName(name: string) {
   return name.normalize("NFKC").replace(/[\s\u200B-\u200D\uFEFF]/g, "");
@@ -424,6 +455,7 @@ export default function DashboardPage() {
   const [showSeasonReportModal, setShowSeasonReportModal] = useState(false);
   const loadingRef = useRef(false);
   const refreshTimerRef = useRef<number | null>(null);
+  const lastLoadedAtRef = useRef(0);
 
   const load = useCallback(async (options?: { fresh?: boolean }) => {
     if (loadingRef.current) return;
@@ -434,9 +466,11 @@ export default function DashboardPage() {
       const response = await fetch(`/api/public-dashboard?scope=all${cacheBuster}`, {
         cache: options?.fresh ? "no-store" : "default",
       });
-      const json = await response.json();
+      const json = await response.json() as PublicDashboardData;
       if (!response.ok) throw new Error(json.error || "오늘의 보드를 불러오지 못했어요.");
       setData(json);
+      writeCachedDashboardData(json);
+      lastLoadedAtRef.current = Date.now();
       setError("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "대시보드를 불러오지 못했어요.");
@@ -455,6 +489,13 @@ export default function DashboardPage() {
 
   useEffect(() => {
     queueMicrotask(() => {
+      const cachedData = readCachedDashboardData();
+      if (cachedData) {
+        setData(cachedData);
+        setError("");
+        setLoading(false);
+        lastLoadedAtRef.current = Date.now();
+      }
       void load();
     });
     const supabase = createClient();
@@ -465,12 +506,18 @@ export default function DashboardPage() {
       .on("postgres_changes", { event: "*", schema: "public", table: "daily_run_records" }, scheduleRefresh)
       .subscribe();
 
+    const shouldRefresh = (minimumAgeMs = PUBLIC_DASHBOARD_FOCUS_REFRESH_MS) => (
+      Date.now() - lastLoadedAtRef.current > minimumAgeMs
+    );
+
     const interval = window.setInterval(() => {
-      if (document.visibilityState === "visible") load();
+      if (document.visibilityState === "visible" && shouldRefresh(45_000)) load();
     }, 60000);
-    const onFocus = () => load({ fresh: true });
+    const onFocus = () => {
+      if (shouldRefresh()) load({ fresh: true });
+    };
     const onVisible = () => {
-      if (document.visibilityState === "visible") load({ fresh: true });
+      if (document.visibilityState === "visible" && shouldRefresh()) load({ fresh: true });
     };
     window.addEventListener("focus", onFocus);
     document.addEventListener("visibilitychange", onVisible);

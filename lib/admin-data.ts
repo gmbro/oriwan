@@ -27,6 +27,20 @@ const ADMIN_USER_ID_CACHE_TTL_MS = 10 * 60 * 1000;
 const ADMIN_USER_ID_MISS_TTL_MS = 60 * 1000;
 let adminUserIdCache: AdminUserIdCache | null = null;
 
+function getConfiguredAdminUserId() {
+  const configuredId = process.env.ADMIN_USER_ID || process.env.SUPABASE_ADMIN_USER_ID;
+  const trimmedId = configuredId?.trim();
+  if (!trimmedId) return null;
+
+  // Server-only env var. Never expose this value through NEXT_PUBLIC_*.
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (!uuidPattern.test(trimmedId)) {
+    console.warn("ADMIN_USER_ID is configured but ignored because it is not a valid UUID.");
+    return null;
+  }
+  return trimmedId;
+}
+
 export function getServiceClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -59,6 +73,9 @@ async function findAdminUserIdUncached(supabase: SupabaseClient) {
 }
 
 export async function findAdminUserId(supabase: SupabaseClient) {
+  const configuredAdminUserId = getConfiguredAdminUserId();
+  if (configuredAdminUserId) return configuredAdminUserId;
+
   const email = ADMIN_EMAIL.toLowerCase();
   const now = Date.now();
 
