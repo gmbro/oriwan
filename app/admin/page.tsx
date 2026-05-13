@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { IconX } from "@/components/icons";
+import { IconTrash, IconX } from "@/components/icons";
 import { createClient } from "@/lib/supabase/client";
 import { buildMemberPictogramMap, MemberPictogram } from "@/components/member-pictogram";
 import { ACTUAL_CERTIFICATION_START_DATE, CHALLENGE_DAYS, CHALLENGE_START_DATE, clampToChallengeWindow } from "@/lib/challenge";
@@ -180,6 +180,7 @@ export default function AdminPage() {
   const [setupMessage, setSetupMessage] = useState("");
   const [adminModal, setAdminModal] = useState<AdminModal>(null);
   const [editingParticipantId, setEditingParticipantId] = useState("");
+  const [deletingRecordId, setDeletingRecordId] = useState("");
 
   const loadData = useCallback(async (showLoading = true) => {
     if (loadInFlightRef.current) return;
@@ -741,6 +742,31 @@ export default function AdminPage() {
     }
   }, [loadData, recordDrafts]);
 
+  const deleteExistingRecord = useCallback(async (record: RunRecord) => {
+    if (!record.record_date) return;
+    const participantName = selectedRecordsParticipant?.name || "선택한 멤버";
+    if (!window.confirm(`${participantName}님의 ${record.record_date} 인증을 삭제할까요? 삭제하면 인증률과 누적 거리/시간에서도 빠집니다.`)) return;
+
+    setDeletingRecordId(record.id);
+    try {
+      const res = await fetch(`/api/records/${record.id}`, { method: "DELETE" });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(typeof json.error === "string" ? json.error : "기록을 삭제하지 못했어요.");
+
+      setRecordDrafts((current) => {
+        const next = { ...current };
+        delete next[record.id];
+        return next;
+      });
+      void broadcastDashboardRefresh();
+      await loadData(false);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "기록을 삭제하지 못했어요.");
+    } finally {
+      setDeletingRecordId("");
+    }
+  }, [loadData, selectedRecordsParticipant?.name]);
+
   const saveManualRecord = useCallback(async () => {
     const duration = parseDurationToSeconds(manualDuration);
     const res = await fetch("/api/records", {
@@ -1269,6 +1295,7 @@ export default function AdminPage() {
                     duration: formatDurationInput(record.duration_seconds),
                   };
                   const isSaving = updatingRecordId === record.id;
+                  const isDeleting = deletingRecordId === record.id;
 
                   return (
                     <div key={record.id} className="rounded-[22px] bg-white p-3 ring-1 ring-slate-950/5">
@@ -1278,7 +1305,7 @@ export default function AdminPage() {
                           {statusLabel(record.status)}
                         </span>
                       </div>
-                      <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
+                      <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto_auto]">
                         <input
                           value={draft.distance}
                           onChange={(event) => updateRecordDraft(record.id, "distance", event.target.value)}
@@ -1295,10 +1322,19 @@ export default function AdminPage() {
                         <button
                           type="button"
                           onClick={() => saveExistingRecord(record)}
-                          disabled={isSaving}
+                          disabled={isSaving || isDeleting}
                           className="rounded-xl bg-slate-950 px-4 py-2.5 text-xs font-black text-lime-200 disabled:opacity-40"
                         >
                           {isSaving ? "저장 중" : "저장"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => deleteExistingRecord(record)}
+                          disabled={isSaving || isDeleting}
+                          className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-rose-50 px-4 py-2.5 text-xs font-black text-rose-700 ring-1 ring-rose-100 transition hover:bg-rose-100 disabled:opacity-40"
+                        >
+                          <IconTrash size={14} />
+                          {isDeleting ? "삭제 중" : "삭제"}
                         </button>
                       </div>
                       {record.notes && <p className="mt-2 text-[11px] font-semibold leading-5 text-oriwan-text-muted">{record.notes}</p>}
