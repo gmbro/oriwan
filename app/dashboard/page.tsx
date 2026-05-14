@@ -101,7 +101,6 @@ function gaugeTextClass(certifiedDays: number) {
 
 const officialCertificationDays = makeOfficialCertificationDays();
 const RING_CIRCUMFERENCE = 302;
-const TOP_RUNNER_BADGE_EXCLUDED_NAMES = new Set(["이경민"]);
 const PUBLIC_DASHBOARD_STORAGE_KEY = "oriwan-public-dashboard-cache-v1";
 const PUBLIC_DASHBOARD_STORAGE_TTL_MS = 5 * 60 * 1000;
 const PUBLIC_DASHBOARD_FOCUS_REFRESH_MS = 30 * 1000;
@@ -133,14 +132,6 @@ function writeCachedDashboardData(data: PublicDashboardData) {
   } catch {
     // Storage can fail in private mode. Network refresh still keeps the dashboard usable.
   }
-}
-
-function normalizeParticipantName(name: string) {
-  return name.normalize("NFKC").replace(/[\s\u200B-\u200D\uFEFF]/g, "");
-}
-
-function canShowTopRunnerBadge(participant: Participant, topRunnerId: string) {
-  return topRunnerId === participant.id && !TOP_RUNNER_BADGE_EXCLUDED_NAMES.has(normalizeParticipantName(participant.name));
 }
 
 function getLongestDateStreak(dates: string[]) {
@@ -236,7 +227,7 @@ function makePersonalGrowthBadges({
       progress: `${Math.min(currentStreak, 3)}/3`,
       unlocked: currentStreak >= 3,
       icon: "flame",
-      colorClassName: "bg-orange-300 text-slate-950",
+      colorClassName: "bg-amber-50 text-slate-950",
     },
     {
       key: "seven-day-routine",
@@ -245,7 +236,7 @@ function makePersonalGrowthBadges({
       progress: `${Math.min(longestStreak, 7)}/7`,
       unlocked: longestStreak >= 7,
       icon: "target",
-      colorClassName: "bg-sky-300 text-slate-950",
+      colorClassName: "bg-[#101522] text-white",
     },
     {
       key: "weekday-morning",
@@ -254,7 +245,7 @@ function makePersonalGrowthBadges({
       progress: `${Math.min(weekdayMorningCount, 5)}/5`,
       unlocked: weekdayMorningCount >= 5,
       icon: "calendar",
-      colorClassName: "bg-amber-300 text-slate-950",
+      colorClassName: "bg-lime-300 text-slate-950",
     },
     {
       key: "season-pacer",
@@ -263,7 +254,7 @@ function makePersonalGrowthBadges({
       progress: `${certifiedDates.length}/${Math.max(elapsedDayCount, 1)}`,
       unlocked: elapsedDayCount > 0 && certifiedDays >= elapsedDayCount,
       icon: "heart",
-      colorClassName: "bg-rose-300 text-slate-950",
+      colorClassName: "bg-rose-400 text-white",
     },
     {
       key: "thirty-day-root",
@@ -272,7 +263,7 @@ function makePersonalGrowthBadges({
       progress: badgeProgress(longestStreak, 30),
       unlocked: longestStreak >= 30,
       icon: "dna",
-      colorClassName: "bg-teal-300 text-slate-950",
+      colorClassName: "bg-[#101522] text-white",
     },
     {
       key: "fifty-day-core",
@@ -281,7 +272,7 @@ function makePersonalGrowthBadges({
       progress: badgeProgress(longestStreak, 50),
       unlocked: longestStreak >= 50,
       icon: "muscle",
-      colorClassName: "bg-violet-300 text-slate-950",
+      colorClassName: "bg-amber-50 text-slate-950",
     },
     {
       key: "seventy-day-arc",
@@ -290,7 +281,7 @@ function makePersonalGrowthBadges({
       progress: badgeProgress(longestStreak, 70),
       unlocked: longestStreak >= 70,
       icon: "mountain",
-      colorClassName: "bg-indigo-300 text-slate-950",
+      colorClassName: "bg-slate-950 text-lime-200",
     },
     {
       key: "five-k-finisher",
@@ -299,7 +290,7 @@ function makePersonalGrowthBadges({
       progress: badgeProgress(maxSingleDistanceKm, 5, "km"),
       unlocked: maxSingleDistanceKm >= 5,
       icon: "sprout",
-      colorClassName: "bg-green-300 text-slate-950",
+      colorClassName: "bg-[#101522] text-white",
     },
     {
       key: "ten-k-finisher",
@@ -308,7 +299,7 @@ function makePersonalGrowthBadges({
       progress: badgeProgress(maxSingleDistanceKm, 10, "km"),
       unlocked: maxSingleDistanceKm >= 10,
       icon: "mountain",
-      colorClassName: "bg-emerald-300 text-slate-950",
+      colorClassName: "bg-lime-300 text-slate-950",
     },
     {
       key: "distance-fifty",
@@ -317,7 +308,7 @@ function makePersonalGrowthBadges({
       progress: badgeProgress(distanceKm, 50, "km"),
       unlocked: distanceKm >= 50,
       icon: "run",
-      colorClassName: "bg-cyan-300 text-slate-950",
+      colorClassName: "bg-amber-50 text-slate-950",
     },
     {
       key: "distance-hundred",
@@ -326,7 +317,7 @@ function makePersonalGrowthBadges({
       progress: badgeProgress(distanceKm, 100, "km"),
       unlocked: distanceKm >= 100,
       icon: "target",
-      colorClassName: "bg-fuchsia-300 text-slate-950",
+      colorClassName: "bg-rose-400 text-white",
     },
     {
       key: "time-ten-hours",
@@ -335,7 +326,7 @@ function makePersonalGrowthBadges({
       progress: badgeProgress(durationHours, 10, "h"),
       unlocked: durationHours >= 10,
       icon: "droplet",
-      colorClassName: "bg-blue-300 text-slate-950",
+      colorClassName: "bg-slate-950 text-lime-200",
     },
     {
       key: "time-twenty-hours",
@@ -344,13 +335,13 @@ function makePersonalGrowthBadges({
       progress: badgeProgress(durationHours, 20, "h"),
       unlocked: durationHours >= 20,
       icon: "sync",
-      colorClassName: "bg-lime-400 text-slate-950",
+      colorClassName: "bg-lime-300 text-slate-950",
     },
   ];
 }
 
 function makeGraphPath(items: { value: number }[], width = 320, height = 150, padding = 24) {
-  if (!items.length) return { path: "", points: [] as { x: number; y: number }[], width, height, padding };
+  if (!items.length) return { path: "", areaPath: "", points: [] as { x: number; y: number }[], width, height, padding };
 
   const points = items.map((item, index) => {
     const x = items.length === 1 ? width / 2 : padding + (index / (items.length - 1)) * (width - padding * 2);
@@ -358,7 +349,11 @@ function makeGraphPath(items: { value: number }[], width = 320, height = 150, pa
     return { x, y };
   });
   const path = points.map((point, index) => `${index ? "L" : "M"} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`).join(" ");
-  return { path, points, width, height, padding };
+  const baseline = height - padding;
+  const areaPath = points.length
+    ? `${path} L ${points.at(-1)?.x.toFixed(1)} ${baseline.toFixed(1)} L ${points[0]?.x.toFixed(1)} ${baseline.toFixed(1)} Z`
+    : "";
+  return { path, areaPath, points, width, height, padding };
 }
 
 function AnimatedNumber({
@@ -395,7 +390,7 @@ function AnimatedNumber({
     return () => cancelAnimationFrame(animationFrame);
   }, [duration, value]);
 
-  return <span className={className}>{displayValue}{suffix}</span>;
+  return <span className={`dashboard-number-pop ${className}`.trim()}>{displayValue}{suffix}</span>;
 }
 
 function AnimatedMetricNumber({
@@ -431,7 +426,7 @@ function AnimatedMetricNumber({
     return () => cancelAnimationFrame(animationFrame);
   }, [value]);
 
-  return <>{displayValue.toFixed(decimals)}{suffix}</>;
+  return <span className="dashboard-number-pop">{displayValue.toFixed(decimals)}{suffix}</span>;
 }
 
 function FanfareBurst({ compact = false }: { compact?: boolean }) {
@@ -668,9 +663,6 @@ export default function DashboardPage() {
   const latestWeeklyRate = dashboard.weekTrend.at(-1)?.averageRate || 0;
   const latestDailyRate = dashboard.dayTrend.at(-1)?.rate || 0;
   const selectedParticipant = dashboard.participantProgress.find((row) => row.participant.id === selectedParticipantId) || null;
-  const topRunnerId = sortedParticipantProgress.find((row) => (
-    row.certifiedDays > 0 || row.distanceKm > 0 || row.durationSeconds > 0
-  ))?.participant.id || "";
   const selectedStampedDates = new Set(selectedParticipant?.stampedDates || []);
   const selectedRecordByDate = new Map<string, RunRecord>(
     (selectedParticipant?.stampedRecords || [])
@@ -833,25 +825,22 @@ export default function DashboardPage() {
                   </span>
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="grid gap-2">
                 {isInitialDashboardLoading && Array.from({ length: 6 }, (_, index) => (
-                  <div key={`dashboard-loading-${index}`} className="rounded-[16px] bg-white px-2 py-2 ring-1 ring-slate-950/5 sm:rounded-[18px] sm:px-3 sm:py-2.5">
-                    <div className="flex flex-col items-center gap-1.5 sm:flex-row sm:items-center sm:justify-between sm:gap-2">
-                      <div className="flex min-w-0 flex-col items-center gap-1.5 sm:flex-row sm:items-center sm:gap-2">
-                        <span className="h-7 w-7 shrink-0 animate-pulse rounded-full bg-oriwan-surface-light" />
-                        <span className="flex min-w-0 flex-col items-center gap-1 sm:flex-row sm:flex-wrap sm:gap-1.5">
-                          <span className="block h-3 w-14 animate-pulse rounded-full bg-oriwan-surface-light sm:w-20" />
-                          <span className="hidden h-5 w-16 animate-pulse rounded-full bg-oriwan-surface-light sm:block" />
-                          <span className="hidden h-5 w-16 animate-pulse rounded-full bg-oriwan-surface-light sm:block" />
+                  <div key={`dashboard-loading-${index}`} className="rounded-[18px] bg-white px-3 py-3 ring-1 ring-slate-950/5">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex min-w-0 flex-1 items-center gap-2.5">
+                        <span className="h-9 w-9 shrink-0 animate-pulse rounded-full bg-oriwan-surface-light" />
+                        <span className="grid min-w-0 flex-1 gap-1.5">
+                          <span className="block h-3 w-24 animate-pulse rounded-full bg-oriwan-surface-light" />
+                          <span className="block h-2 w-full animate-pulse rounded-full bg-oriwan-surface-light" />
                         </span>
                       </div>
-                      <span className="h-5 w-10 shrink-0 animate-pulse rounded-full bg-oriwan-surface-light sm:block" />
+                      <span className="h-6 w-12 shrink-0 animate-pulse rounded-full bg-oriwan-surface-light" />
                     </div>
-                    <div className="mt-2 h-1.5 animate-pulse rounded-full bg-oriwan-surface-light" />
                   </div>
                 ))}
                 {sortedParticipantProgress.map((row, index) => {
-                  const isTopRunner = canShowTopRunnerBadge(row.participant, topRunnerId);
                   return (
                   <button
                     key={row.participant.id}
@@ -860,56 +849,16 @@ export default function DashboardPage() {
                       setSelectedParticipantId(row.participant.id);
                       setSelectedDailyRecordDate("");
                     }}
-                    className={`relative overflow-hidden rounded-[16px] bg-white px-2 py-2 text-center ring-1 ring-slate-950/5 transition hover:-translate-y-0.5 hover:ring-lime-300 sm:rounded-[18px] sm:px-3 sm:py-2.5 sm:text-left ${
+                    className={`relative overflow-hidden rounded-[18px] bg-white px-3 py-3 text-left ring-1 ring-slate-950/5 transition hover:-translate-y-0.5 hover:ring-lime-300 sm:px-4 ${
                     row.rate >= 100 ? "gauge-complete-card" : "dashboard-gauge-card"
                     }`}
                   >
                     {row.rate >= 100 && <FanfareBurst compact />}
-                    {isTopRunner && (
-                      <span
-                        className="absolute bottom-1.5 right-1.5 z-10 inline-flex h-5 w-5 items-center justify-center rounded-full bg-sky-500 text-white shadow-lg shadow-sky-500/35 ring-2 ring-white sm:bottom-2 sm:right-2 sm:h-7 sm:w-7"
-                        title="1등 기준: 인증일 > 총거리 > 총시간"
-                        aria-label={`${row.participant.name} 1등 파란 뱃지`}
-                      >
-                        <svg viewBox="0 0 24 24" className="h-3 w-3 sm:h-4 sm:w-4" aria-hidden="true">
-                          <path
-                            fill="none"
-                            stroke="currentColor"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth="3"
-                            d="M6.5 12.2 10.2 16 17.8 8"
-                          />
-                        </svg>
-                      </span>
-                    )}
-                    <div className="sm:hidden">
-                      <div className="mx-auto mb-1 flex justify-center">
-                        <MemberPictogram index={row.pictogramIndex} participantName={row.participant.name} className="!h-6 !w-6" />
-                      </div>
-                      <p className="truncate text-[12px] font-black leading-tight text-oriwan-text">{row.participant.name}</p>
-                      <p className={`mt-0.5 text-lg font-black leading-none ${gaugeTextClass(row.certifiedDays)}`}>
-                        <AnimatedNumber value={row.rate} suffix="%" />
-                      </p>
-                      <div className="mt-1 flex min-w-0 items-center justify-center gap-1 text-[8px] font-black leading-none text-oriwan-text-muted">
-                        <span className="truncate">{row.distanceKm.toFixed(1)}km</span>
-                        <span className="truncate">{secondsToTime(row.durationSeconds)}</span>
-                      </div>
-                      <div className={`mt-1.5 h-1.5 overflow-hidden rounded-full bg-oriwan-surface-light ${isTopRunner ? "mr-5" : ""}`}>
-                        <div
-                          className={`gauge-fill-flow h-full rounded-full transition-all duration-1000 ease-out ${gaugeColorClass(row.certifiedDays)}`}
-                          style={{
-                            width: `${motionReady ? Math.max(row.rate, row.certifiedDays ? 3 : 0) : 0}%`,
-                            transitionDelay: `${Math.min(index * 45, 500)}ms`,
-                          }}
-                        />
-                      </div>
-                    </div>
-                    <div className="hidden items-center justify-between gap-2 sm:flex">
-                      <div className="flex min-w-0 flex-1 items-center gap-2">
-                        <MemberPictogram index={row.pictogramIndex} participantName={row.participant.name} />
+                    <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2.5 sm:gap-3">
+                      <MemberPictogram index={row.pictogramIndex} participantName={row.participant.name} className="!h-9 !w-9 sm:!h-10 sm:!w-10" />
+                      <div className="min-w-0">
                         <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-                          <p className="truncate text-base font-black leading-tight text-oriwan-text">{row.participant.name}</p>
+                          <p className="truncate text-sm font-black leading-tight text-oriwan-text sm:text-base">{row.participant.name}</p>
                           <span className="inline-flex items-baseline gap-1 rounded-full bg-oriwan-surface-light px-2 py-0.5 text-[10px] font-black leading-none text-oriwan-text shadow-[inset_0_0_0_1px_rgba(16,21,34,0.05)]">
                             <span className="text-[8px] font-extrabold text-oriwan-text-muted">총거리</span>
                             <AnimatedMetricNumber value={row.distanceKm} suffix="km" />
@@ -919,25 +868,25 @@ export default function DashboardPage() {
                             {secondsToTime(row.durationSeconds)}
                           </span>
                         </div>
+                        <div className="mt-2 h-2 overflow-hidden rounded-full bg-oriwan-surface-light">
+                          <div
+                            className={`gauge-fill-flow h-full rounded-full transition-all duration-1000 ease-out ${gaugeColorClass(row.certifiedDays)}`}
+                            style={{
+                              width: `${motionReady ? Math.max(row.rate, row.certifiedDays ? 3 : 0) : 0}%`,
+                              transitionDelay: `${Math.min(index * 45, 500)}ms`,
+                            }}
+                          />
+                        </div>
                       </div>
-                      <p className={`shrink-0 text-xl font-black leading-none ${gaugeTextClass(row.certifiedDays)}`}>
+                      <p className={`shrink-0 text-xl font-black leading-none sm:text-2xl ${gaugeTextClass(row.certifiedDays)}`}>
                         <AnimatedNumber value={row.rate} suffix="%" />
                       </p>
-                    </div>
-                    <div className={`mt-2 hidden h-1.5 overflow-hidden rounded-full bg-oriwan-surface-light sm:block ${isTopRunner ? "mr-9" : ""}`}>
-                      <div
-                        className={`gauge-fill-flow h-full rounded-full transition-all duration-1000 ease-out ${gaugeColorClass(row.certifiedDays)}`}
-                        style={{
-                          width: `${motionReady ? Math.max(row.rate, row.certifiedDays ? 3 : 0) : 0}%`,
-                          transitionDelay: `${Math.min(index * 45, 500)}ms`,
-                        }}
-                      />
                     </div>
                   </button>
                   );
                 })}
                 {!dashboard.participantProgress.length && !loading && (
-                  <p className="rounded-2xl bg-white px-4 py-8 text-center text-sm text-oriwan-text-muted sm:col-span-2 lg:col-span-3">
+                  <p className="rounded-2xl bg-white px-4 py-8 text-center text-sm text-oriwan-text-muted">
                     멤버가 추가되면 인증게이지가 바로 채워집니다.
                   </p>
                 )}
@@ -947,7 +896,7 @@ export default function DashboardPage() {
         </section>
 
         {error && (
-          <div className="mt-4 rounded-3xl bg-rose-50 px-5 py-4 text-sm font-bold text-rose-900 ring-1 ring-rose-100">
+          <div className="mt-4 rounded-3xl bg-rose-50 px-5 py-4 text-sm font-bold text-rose-700 ring-1 ring-rose-100">
             {error}
           </div>
         )}
@@ -1020,7 +969,7 @@ export default function DashboardPage() {
                       className={`stamp-cell flex aspect-square flex-col items-center justify-center rounded-xl border text-[10px] font-black transition sm:rounded-2xl ${
                         stamped
                           ? "stamp-cell-hit border-lime-300 bg-lime-300 text-slate-950 shadow-sm shadow-lime-300/40"
-                          : "border-slate-950/5 bg-white text-oriwan-text-muted/45"
+                          : "border-slate-950/10 bg-white text-oriwan-text-muted/45"
                       } ${isSelected ? "scale-105 ring-2 ring-slate-950" : ""}`}
                     >
                       <span>{shortDate(day)}</span>
@@ -1168,13 +1117,37 @@ export default function DashboardPage() {
               </div>
               <div className="rounded-[28px] bg-slate-950 p-4 text-white">
                 <svg viewBox={`0 0 ${trendGraph.width} ${trendGraph.height}`} className="h-[280px] w-full overflow-visible">
-                  <line x1={trendGraph.padding} y1={trendGraph.height - trendGraph.padding} x2={trendGraph.width - trendGraph.padding} y2={trendGraph.height - trendGraph.padding} stroke="rgba(255,255,255,.16)" strokeWidth="2" />
-                  <line x1={trendGraph.padding} y1={trendGraph.padding} x2={trendGraph.padding} y2={trendGraph.height - trendGraph.padding} stroke="rgba(255,255,255,.12)" strokeWidth="2" />
+                  <line x1={trendGraph.padding} y1={trendGraph.height - trendGraph.padding} x2={trendGraph.width - trendGraph.padding} y2={trendGraph.height - trendGraph.padding} stroke="rgba(255,255,255,.16)" strokeWidth="2" className="dashboard-axis-draw" />
+                  <line x1={trendGraph.padding} y1={trendGraph.padding} x2={trendGraph.padding} y2={trendGraph.height - trendGraph.padding} stroke="rgba(255,255,255,.12)" strokeWidth="2" className="dashboard-axis-draw" />
+                  {[25, 50, 75].map((guide) => {
+                    const y = trendGraph.height - trendGraph.padding - (guide / 100) * (trendGraph.height - trendGraph.padding * 2);
+                    return (
+                      <line
+                        key={`guide-${guide}`}
+                        x1={trendGraph.padding}
+                        y1={y}
+                        x2={trendGraph.width - trendGraph.padding}
+                        y2={y}
+                        stroke="rgba(255,255,255,.08)"
+                        strokeWidth="1"
+                        strokeDasharray="5 8"
+                        className="dashboard-axis-draw"
+                      />
+                    );
+                  })}
+                  <path key={`${trendModal}-area`} d={trendGraph.areaPath} fill="url(#trend-area-gradient)" className="dashboard-area-rise" />
+                  <defs>
+                    <linearGradient id="trend-area-gradient" x1="0" x2="0" y1="0" y2="1">
+                      <stop offset="0%" stopColor="#bef264" stopOpacity="0.32" />
+                      <stop offset="100%" stopColor="#bef264" stopOpacity="0" />
+                    </linearGradient>
+                  </defs>
                   <path key={trendModal} d={trendGraph.path} fill="none" stroke="#bef264" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" pathLength={1} className="dashboard-line-draw" />
                   {trendGraph.points.map((point, index) => (
                     <g key={`${trendModal}-${index}`} className="dashboard-dot-pop" style={{ animationDelay: `${Math.min(index * 70, 700)}ms` }}>
                       <circle cx={point.x} cy={point.y} r="5" fill="#bef264" />
-                      <text x={point.x} y={Math.max(14, point.y - 10)} textAnchor="middle" className="fill-white text-[10px] font-black">{trendItems[index]?.value || 0}%</text>
+                      <circle cx={point.x} cy={point.y} r="10" fill="#bef264" opacity=".16" className="dashboard-dot-halo" />
+                      <text x={point.x} y={Math.max(14, point.y - 10)} textAnchor="middle" className="dashboard-chart-label fill-white text-[10px] font-black">{trendItems[index]?.value || 0}%</text>
                     </g>
                   ))}
                 </svg>
