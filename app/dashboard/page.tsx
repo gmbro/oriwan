@@ -443,6 +443,7 @@ export default function DashboardPage() {
   const [error, setError] = useState("");
   const [todayIso, setTodayIso] = useState(() => toKstIsoDate());
   const [motionReady, setMotionReady] = useState(false);
+  const [animationRun, setAnimationRun] = useState(0);
   const [selectedParticipantId, setSelectedParticipantId] = useState("");
   const [selectedDailyRecordDate, setSelectedDailyRecordDate] = useState("");
   const [trendModal, setTrendModal] = useState<TrendModal>(null);
@@ -450,6 +451,24 @@ export default function DashboardPage() {
   const [participantSortMode, setParticipantSortMode] = useState<ParticipantRankSortMode>("certification");
   const loadingRef = useRef(false);
   const lastLoadedAtRef = useRef(0);
+  const motionFrameRef = useRef<number | null>(null);
+
+  const restartMotion = useCallback(() => {
+    if (motionFrameRef.current) window.cancelAnimationFrame(motionFrameRef.current);
+
+    setAnimationRun((current) => current + 1);
+    setMotionReady(false);
+
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduceMotion) {
+      motionFrameRef.current = window.requestAnimationFrame(() => setMotionReady(true));
+      return;
+    }
+
+    motionFrameRef.current = window.requestAnimationFrame(() => {
+      motionFrameRef.current = window.requestAnimationFrame(() => setMotionReady(true));
+    });
+  }, []);
 
   const load = useCallback(async (options?: { fresh?: boolean }) => {
     if (loadingRef.current) return;
@@ -464,6 +483,7 @@ export default function DashboardPage() {
       setData(json);
       writeCachedDashboardData(json);
       lastLoadedAtRef.current = Date.now();
+      restartMotion();
       setError("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "대시보드를 불러오지 못했어요.");
@@ -471,7 +491,7 @@ export default function DashboardPage() {
       loadingRef.current = false;
       setLoading(false);
     }
-  }, []);
+  }, [restartMotion]);
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -481,6 +501,7 @@ export default function DashboardPage() {
         setError("");
         setLoading(false);
         lastLoadedAtRef.current = Date.now();
+        restartMotion();
       }
       void load();
     });
@@ -505,13 +526,12 @@ export default function DashboardPage() {
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [load]);
+  }, [load, restartMotion]);
 
   useEffect(() => {
-    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const frame = requestAnimationFrame(() => setMotionReady(true));
-    if (reduceMotion) return () => cancelAnimationFrame(frame);
-    return () => cancelAnimationFrame(frame);
+    return () => {
+      if (motionFrameRef.current) window.cancelAnimationFrame(motionFrameRef.current);
+    };
   }, []);
 
   const dashboard = useMemo(() => {
@@ -691,33 +711,33 @@ export default function DashboardPage() {
 
       <section className="mx-auto w-full max-w-7xl px-0 py-0 sm:px-4 sm:py-6">
         <section className="overflow-hidden bg-white sm:rounded-[32px] sm:shadow-2xl sm:shadow-slate-950/10 sm:ring-1 sm:ring-slate-950/5">
-          <div className="relative overflow-hidden bg-[#101522] px-4 pb-5 pt-16 text-white sm:px-7 sm:pb-7 sm:pt-20">
-            <div className="absolute right-4 top-4 z-10 flex w-fit flex-nowrap items-center justify-end gap-1.5 sm:right-7 sm:top-7 sm:gap-2">
-              <p className="inline-flex shrink-0 whitespace-nowrap rounded-full bg-white/10 px-3 py-1.5 text-[10px] font-black text-lime-200 ring-1 ring-white/10 sm:px-4 sm:text-xs">
-                {shortDate(dashboard.currentCertificationDate)}
-              </p>
-              <p className="inline-flex shrink-0 whitespace-nowrap rounded-full bg-lime-300 px-3 py-1.5 text-[10px] font-black text-slate-950 shadow-sm shadow-lime-300/30 sm:px-4 sm:text-xs">
-                {certificationDayLabel(dashboard.currentCertificationDate)}
-              </p>
-            </div>
-            <div className="relative mx-auto grid max-w-6xl gap-5 sm:gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,27rem)] lg:items-center">
-              <div className="min-w-0">
+          <div className="overflow-hidden bg-[#101522] px-4 py-5 text-white sm:p-7">
+            <div className="mx-auto max-w-6xl">
+              <div className="mb-5 flex min-w-0 items-center justify-between gap-3 sm:mb-6">
                 <h2 className="max-w-full whitespace-nowrap text-[clamp(2.05rem,8.8vw,3.75rem)] font-black leading-[1.04] text-white">
                   오늘의 인증
                 </h2>
+                <div className="flex shrink-0 flex-nowrap items-center justify-end gap-1.5 sm:gap-2">
+                  <p className="inline-flex shrink-0 whitespace-nowrap rounded-full bg-white/10 px-3 py-1.5 text-[10px] font-black text-lime-200 ring-1 ring-white/10 sm:px-4 sm:text-xs">
+                    {shortDate(dashboard.currentCertificationDate)}
+                  </p>
+                  <p className="inline-flex shrink-0 whitespace-nowrap rounded-full bg-lime-300 px-3 py-1.5 text-[10px] font-black text-slate-950 shadow-sm shadow-lime-300/30 sm:px-4 sm:text-xs">
+                    {certificationDayLabel(dashboard.currentCertificationDate)}
+                  </p>
+                </div>
               </div>
 
-              <div className="rounded-[24px] bg-white/10 p-4 ring-1 ring-white/10 shadow-2xl shadow-slate-950/20 sm:rounded-[30px] sm:p-5 lg:p-6">
+              <div className="w-full rounded-[24px] bg-white/10 p-4 ring-1 ring-white/10 shadow-2xl shadow-slate-950/20 sm:rounded-[30px] sm:p-5 lg:ml-auto lg:max-w-[27rem] lg:p-6">
                 <div className="flex items-center justify-between gap-4 sm:gap-5">
                   <div className="min-w-0">
                     <p className="text-[clamp(3.25rem,13vw,4.9rem)] font-black leading-none text-lime-200">
-                      {isInitialDashboardLoading ? "--" : <AnimatedNumber value={dashboard.completionRate} suffix="%" />}
+                      {isInitialDashboardLoading ? "--" : <AnimatedNumber key={`hero-rate-${animationRun}`} value={dashboard.completionRate} suffix="%" />}
                     </p>
                     <p className="mt-2 text-xs font-semibold text-white/55 sm:text-sm">
                       {isInitialDashboardLoading ? "인증 현황 불러오는 중" : `${dashboard.currentDateCertifiedIds.size}/${dashboard.participants.length}명 인증 완료`}
                     </p>
                   </div>
-                  <svg viewBox="0 0 120 120" className="h-[clamp(5.75rem,24vw,8.5rem)] w-[clamp(5.75rem,24vw,8.5rem)] shrink-0 -rotate-90 dashboard-ring-pop">
+                  <svg key={`hero-ring-${animationRun}`} viewBox="0 0 120 120" className="h-[clamp(5.75rem,24vw,8.5rem)] w-[clamp(5.75rem,24vw,8.5rem)] shrink-0 -rotate-90 dashboard-ring-pop">
                     <circle cx="60" cy="60" r="48" fill="none" stroke="rgba(255,255,255,.14)" strokeWidth="14" className="dashboard-ring-track" />
                     <circle
                       cx="60"
@@ -746,7 +766,7 @@ export default function DashboardPage() {
               >
                 <p className="text-[10px] font-black text-oriwan-text-muted">진행일</p>
                 <p className="mt-1 text-[1.35rem] font-black leading-tight text-oriwan-text sm:text-2xl">
-                  <AnimatedNumber value={dashboard.elapsedDays.length} />/{CHALLENGE_DAYS}
+                  <AnimatedNumber key={`elapsed-${animationRun}`} value={dashboard.elapsedDays.length} />/{CHALLENGE_DAYS}
                 </p>
               </button>
               <button
@@ -756,7 +776,7 @@ export default function DashboardPage() {
               >
                 <p className="text-[10px] font-black text-oriwan-text-muted">주차별 인증률</p>
                 <p className="mt-1 text-[1.35rem] font-black leading-tight text-oriwan-text sm:text-2xl">
-                  {isInitialDashboardLoading ? "--" : <AnimatedNumber value={latestWeeklyRate} suffix="%" />}
+                  {isInitialDashboardLoading ? "--" : <AnimatedNumber key={`weekly-${animationRun}`} value={latestWeeklyRate} suffix="%" />}
                 </p>
               </button>
               <button
@@ -766,7 +786,7 @@ export default function DashboardPage() {
               >
                 <p className="text-[10px] font-black opacity-60">매일 인증률</p>
                 <p className="mt-1 text-[1.35rem] font-black leading-tight sm:text-2xl">
-                  {isInitialDashboardLoading ? "--" : <AnimatedNumber value={latestDailyRate} suffix="%" />}
+                  {isInitialDashboardLoading ? "--" : <AnimatedNumber key={`daily-${animationRun}`} value={latestDailyRate} suffix="%" />}
                 </p>
               </button>
             </div>
@@ -835,7 +855,7 @@ export default function DashboardPage() {
                           <p className="truncate text-sm font-black leading-tight text-oriwan-text sm:text-base">{row.participant.name}</p>
                           <span className="inline-flex items-baseline gap-1 rounded-full bg-oriwan-surface-light px-2 py-0.5 text-[10px] font-black leading-none text-oriwan-text shadow-[inset_0_0_0_1px_rgba(16,21,34,0.05)]">
                             <span className="text-[8px] font-extrabold text-oriwan-text-muted">총거리</span>
-                            <AnimatedMetricNumber value={row.distanceKm} suffix="km" />
+                            <AnimatedMetricNumber key={`distance-${animationRun}-${row.participant.id}`} value={row.distanceKm} suffix="km" />
                           </span>
                           <span className="inline-flex items-baseline gap-1 rounded-full bg-oriwan-surface-light px-2 py-0.5 text-[10px] font-black leading-none text-oriwan-text shadow-[inset_0_0_0_1px_rgba(16,21,34,0.05)]">
                             <span className="text-[8px] font-extrabold text-oriwan-text-muted">총시간</span>
@@ -853,7 +873,7 @@ export default function DashboardPage() {
                         </div>
                       </div>
                       <p className={`shrink-0 text-xl font-black leading-none sm:text-2xl ${gaugeTextClass(row.certifiedDays)}`}>
-                        <AnimatedNumber value={row.rate} suffix="%" />
+                        <AnimatedNumber key={`member-rate-${animationRun}-${row.participant.id}`} value={row.rate} suffix="%" />
                       </p>
                     </div>
                   </button>
