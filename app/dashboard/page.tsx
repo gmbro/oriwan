@@ -692,7 +692,7 @@ export default function DashboardPage() {
       <section className="mx-auto w-full max-w-7xl px-0 py-0 sm:px-4 sm:py-6">
         <section className="overflow-hidden bg-white sm:rounded-[32px] sm:shadow-2xl sm:shadow-slate-950/10 sm:ring-1 sm:ring-slate-950/5">
           <div className="relative overflow-hidden bg-[#101522] px-4 pb-5 pt-16 text-white sm:px-7 sm:pb-7 sm:pt-20">
-            <div className="absolute right-4 top-4 z-10 flex max-w-[calc(100%-2rem)] flex-nowrap justify-end gap-1.5 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] sm:right-7 sm:top-7 sm:gap-2 [&::-webkit-scrollbar]:hidden">
+            <div className="absolute right-4 top-4 z-10 flex w-fit flex-nowrap items-center justify-end gap-1.5 sm:right-7 sm:top-7 sm:gap-2">
               <p className="inline-flex shrink-0 whitespace-nowrap rounded-full bg-white/10 px-3 py-1.5 text-[10px] font-black text-lime-200 ring-1 ring-white/10 sm:px-4 sm:text-xs">
                 {shortDate(dashboard.currentCertificationDate)}
               </p>
@@ -702,8 +702,8 @@ export default function DashboardPage() {
             </div>
             <div className="relative mx-auto grid max-w-6xl gap-5 sm:gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,27rem)] lg:items-center">
               <div className="min-w-0">
-                <h2 className="max-w-[9ch] text-[clamp(2.2rem,9vw,3.9rem)] font-black leading-[1.04] text-white sm:max-w-[10ch]">
-                  <span className="block">오늘의 인증</span>
+                <h2 className="max-w-full whitespace-nowrap text-[clamp(2.05rem,8.8vw,3.75rem)] font-black leading-[1.04] text-white">
+                  오늘의 인증
                 </h2>
               </div>
 
