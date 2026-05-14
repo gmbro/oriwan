@@ -13,7 +13,7 @@ import {
   parseJsonObject,
   validImage,
 } from "@/lib/run-image-extraction";
-import { calculatePaceSeconds } from "@/lib/run-records";
+import { calculatePaceSeconds, isCertificationCountedStatus } from "@/lib/run-records";
 import { createClient } from "@/lib/supabase/server";
 import { guardMutationRequest } from "@/lib/request-security";
 
@@ -26,6 +26,17 @@ type AnalyzeFailure = {
   file_name: string;
   error: string;
   extracted?: ExtractedRun;
+};
+
+type ExistingRunRecord = {
+  id: string;
+  record_date: string | null;
+  distance_km: number | null;
+  duration_seconds: number | null;
+  pace_seconds_per_km: number | null;
+  source_app: string | null;
+  confidence_score: number | null;
+  status: string | null;
 };
 
 async function analyzeImage(image: UploadedImage, targetDate?: string | null) {
@@ -57,6 +68,24 @@ async function analyzeImage(image: UploadedImage, targetDate?: string | null) {
   });
 
   return parseJsonObject<ExtractedRun>(response.text || "{}");
+}
+
+async function findExistingRecord(
+  service: NonNullable<ReturnType<typeof getServiceClient>>,
+  adminUserId: string,
+  participantId: string,
+  recordDate: string
+) {
+  const { data, error } = await service
+    .from("daily_run_records")
+    .select("id, record_date, distance_km, duration_seconds, pace_seconds_per_km, source_app, confidence_score, status")
+    .eq("user_id", adminUserId)
+    .eq("participant_id", participantId)
+    .eq("record_date", recordDate)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data as ExistingRunRecord | null;
 }
 
 export async function POST(request: NextRequest) {
@@ -125,8 +154,9 @@ export async function POST(request: NextRequest) {
       }
 
       const extractedDate = normalizeRecordDate(extracted.record_date);
-      const recordDate = extractedDate || targetDate;
-      const dateWasFallback = !extractedDate && Boolean(targetDate);
+      const recordDate = targetDate || extractedDate;
+      const dateWasFallback = Boolean(targetDate && !extractedDate);
+      const dateWasSelectedOverride = Boolean(targetDate && extractedDate && extractedDate !== targetDate);
       const distanceKm = parseDistanceKm(extracted.distance_km);
       const durationSeconds = parseDurationText(extracted.duration_seconds ?? extracted.duration_text);
 
@@ -143,36 +173,61 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
+      const existingRecord = await findExistingRecord(service, adminUserId, participant.id, recordDate);
+      if (existingRecord?.id && isCertificationCountedStatus(existingRecord.status)) {
+        results.push({
+          id: existingRecord.id,
+          file_name: image.name,
+          record_date: existingRecord.record_date,
+          distance_km: existingRecord.distance_km,
+          duration_seconds: existingRecord.duration_seconds,
+          pace_seconds_per_km: existingRecord.pace_seconds_per_km,
+          source_app: existingRecord.source_app || "기존 인증",
+          confidence_score: existingRecord.confidence_score,
+          date_was_fallback: dateWasFallback,
+          duplicate: true,
+        });
+        continue;
+      }
+
       const paceSeconds = calculatePaceSeconds(distanceKm, durationSeconds);
       const notes = [
         `${image.name} 이미지에서 자동 추출`,
         extracted.source_app ? `앱: ${extracted.source_app}` : null,
         dateWasFallback ? "이미지에 날짜가 없어 선택한 날짜를 적용" : null,
+        dateWasSelectedOverride ? `이미지 날짜(${extractedDate}) 대신 선택한 날짜(${targetDate})를 적용` : null,
         !distanceKm ? "거리는 나중에 보완 가능" : null,
         !durationSeconds ? "시간은 나중에 보완 가능" : null,
         extracted.notes,
       ].filter(Boolean).join(" / ");
 
-      const { data, error: saveError } = await service
-        .from("daily_run_records")
-        .upsert(
-          {
-            user_id: adminUserId,
-            participant_id: participant.id,
-            record_date: recordDate,
-            distance_km: distanceKm,
-            duration_seconds: durationSeconds,
-            pace_seconds_per_km: paceSeconds,
-            source_app: extracted.source_app || "participant_image",
-            status: "certified",
-            confidence_score: extracted.confidence_score ?? null,
-            raw_extracted_text: extracted.raw_text || null,
-            notes,
-          },
-          { onConflict: "user_id,participant_id,record_date" }
-        )
-        .select("id")
-        .single();
+      const recordPayload = {
+        user_id: adminUserId,
+        participant_id: participant.id,
+        record_date: recordDate,
+        distance_km: distanceKm,
+        duration_seconds: durationSeconds,
+        pace_seconds_per_km: paceSeconds,
+        source_app: extracted.source_app || "participant_image",
+        status: "certified",
+        confidence_score: extracted.confidence_score ?? null,
+        raw_extracted_text: extracted.raw_text || null,
+        notes,
+      };
+
+      const { data, error: saveError } = existingRecord?.id
+        ? await service
+          .from("daily_run_records")
+          .update(recordPayload)
+          .eq("id", existingRecord.id)
+          .eq("user_id", adminUserId)
+          .select("id")
+          .single()
+        : await service
+          .from("daily_run_records")
+          .insert(recordPayload)
+          .select("id")
+          .single();
 
       if (saveError) throw saveError;
 
@@ -185,7 +240,7 @@ export async function POST(request: NextRequest) {
         pace_seconds_per_km: paceSeconds,
         source_app: extracted.source_app || "러닝 앱 이미지",
         confidence_score: extracted.confidence_score ?? null,
-        date_was_fallback: dateWasFallback,
+        date_was_fallback: dateWasFallback || dateWasSelectedOverride,
       });
     }
 

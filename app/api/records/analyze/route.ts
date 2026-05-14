@@ -4,7 +4,7 @@ import { GoogleGenAI } from "@google/genai";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdminUser } from "@/lib/admin-server";
 import { GEMINI_OCR_MODEL, RUN_IMAGE_RESPONSE_SCHEMA, buildRunImagePrompt, getGeminiErrorDebug, getGeminiErrorMessage } from "@/lib/gemini";
-import { calculatePaceSeconds } from "@/lib/run-records";
+import { calculatePaceSeconds, isCertificationCountedStatus } from "@/lib/run-records";
 import { CHALLENGE_DATE_ERROR, CHALLENGE_START_DATE, isWithinChallengeWindow } from "@/lib/challenge";
 import {
   ExtractedRunBase,
@@ -271,7 +271,7 @@ export async function POST(request: NextRequest) {
 
         if (fallbackParticipant?.id && targetDate) {
           const existingRecord = await findExistingRecord(supabase, user.id, fallbackParticipant.id, targetDate);
-          if (existingRecord?.id) {
+          if (existingRecord?.id && isCertificationCountedStatus(existingRecord.status)) {
             results.push(duplicateResult({
               record: existingRecord,
               fileName: image.name,
@@ -297,28 +297,38 @@ export async function POST(request: NextRequest) {
             });
           }
 
-          const { data: fallbackRecord, error: fallbackRecordError } = await supabase
-            .from("daily_run_records")
-            .insert({
-              user_id: user.id,
-              participant_id: fallbackParticipant.id,
-              upload_batch_id: batch.id,
-              record_date: targetDate,
-              distance_km: null,
-              duration_seconds: null,
-              pace_seconds_per_km: null,
-              source_app: null,
-              status: "needs_review",
-              confidence_score: null,
-              image_url: filePath,
-              raw_extracted_text: null,
-              notes: fallbackNotes,
-            })
-            .select("id")
-            .single();
+          const fallbackPayload = {
+            user_id: user.id,
+            participant_id: fallbackParticipant.id,
+            upload_batch_id: batch.id,
+            record_date: targetDate,
+            distance_km: null,
+            duration_seconds: null,
+            pace_seconds_per_km: null,
+            source_app: null,
+            status: "needs_review",
+            confidence_score: null,
+            image_url: filePath,
+            raw_extracted_text: null,
+            notes: fallbackNotes,
+          };
 
-            if (fallbackRecordError) throw fallbackRecordError;
-            recordId = fallbackRecord.id;
+          const { data: fallbackRecord, error: fallbackRecordError } = existingRecord?.id
+            ? await supabase
+              .from("daily_run_records")
+              .update(fallbackPayload)
+              .eq("id", existingRecord.id)
+              .eq("user_id", user.id)
+              .select("id")
+              .single()
+            : await supabase
+              .from("daily_run_records")
+              .insert(fallbackPayload)
+              .select("id")
+              .single();
+
+          if (fallbackRecordError) throw fallbackRecordError;
+          recordId = fallbackRecord.id;
         }
 
         needsReviewCount += 1;
@@ -350,9 +360,10 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: CHALLENGE_DATE_ERROR }, { status: 400 });
       }
 
+      let existingRecord: ExistingRunRecord | null = null;
       if (participant?.id && recordDate) {
-        const existingRecord = await findExistingRecord(supabase, user.id, participant.id, recordDate);
-        if (existingRecord?.id) {
+        existingRecord = await findExistingRecord(supabase, user.id, participant.id, recordDate);
+        if (existingRecord?.id && isCertificationCountedStatus(existingRecord.status)) {
           results.push(duplicateResult({
             record: existingRecord,
             fileName: image.name,
@@ -407,11 +418,19 @@ export async function POST(request: NextRequest) {
         ].filter(Boolean).join(" / ") || null,
       };
 
-      const { data: record, error: recordError } = await supabase
-        .from("daily_run_records")
-        .insert(recordPayload)
-        .select("id")
-        .single();
+      const { data: record, error: recordError } = existingRecord?.id
+        ? await supabase
+          .from("daily_run_records")
+          .update(recordPayload)
+          .eq("id", existingRecord.id)
+          .eq("user_id", user.id)
+          .select("id")
+          .single()
+        : await supabase
+          .from("daily_run_records")
+          .insert(recordPayload)
+          .select("id")
+          .single();
 
       if (recordError) throw recordError;
 
