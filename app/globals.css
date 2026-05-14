@@ -225,24 +225,24 @@ img { -webkit-user-drag: none; user-select: none; }
 }
 
 @keyframes dashboard-ring-pop {
-  0% { opacity: 0.65; transform: scale(0.92) rotate(-90deg); filter: drop-shadow(0 0 0 rgba(190, 242, 100, 0)); }
-  55% { opacity: 1; transform: scale(1.03) rotate(-90deg); filter: drop-shadow(0 0 18px rgba(190, 242, 100, 0.38)); }
-  100% { opacity: 1; transform: scale(1) rotate(-90deg); filter: drop-shadow(0 0 8px rgba(190, 242, 100, 0.28)); }
+  0% { opacity: 0.7; transform: scale(0.96) rotate(-90deg); }
+  70% { opacity: 1; transform: scale(1.02) rotate(-90deg); }
+  100% { opacity: 1; transform: scale(1) rotate(-90deg); }
 }
 
 @keyframes dashboard-ring-track-pulse {
   0%, 100% { stroke-opacity: 0.14; }
-  50% { stroke-opacity: 0.28; }
+  50% { stroke-opacity: 0.22; }
 }
 
 @keyframes dashboard-ring-sweep-glow {
-  0%, 100% { filter: drop-shadow(0 0 0 rgba(190, 242, 100, 0)); }
-  50% { filter: drop-shadow(0 0 10px rgba(190, 242, 100, 0.62)); }
+  0%, 100% { stroke-opacity: 0.92; }
+  50% { stroke-opacity: 1; }
 }
 
 @keyframes dashboard-line-draw {
-  from { opacity: 0.3; stroke-dashoffset: 1; filter: drop-shadow(0 0 0 rgba(190, 242, 100, 0)); }
-  to { opacity: 1; stroke-dashoffset: 0; filter: drop-shadow(0 0 8px rgba(190, 242, 100, 0.46)); }
+  from { opacity: 0.35; stroke-dashoffset: 1; }
+  to { opacity: 1; stroke-dashoffset: 0; }
 }
 
 @keyframes dashboard-axis-draw {
@@ -322,34 +322,34 @@ img { -webkit-user-drag: none; user-select: none; }
 }
 .dashboard-ring-pop {
   transform-origin: center;
-  animation: dashboard-ring-pop 1.35s cubic-bezier(0.16, 0.9, 0.2, 1) both;
+  animation: dashboard-ring-pop 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 .dashboard-ring-track {
-  animation: dashboard-ring-track-pulse 2.8s ease-in-out infinite;
+  animation: dashboard-ring-track-pulse 2s ease-in-out infinite;
 }
 .dashboard-ring-sweep {
-  animation: dashboard-ring-sweep-glow 2.2s ease-in-out infinite;
+  animation: dashboard-ring-sweep-glow 2s ease-in-out infinite;
 }
 .dashboard-line-draw {
   stroke-dasharray: 1;
   stroke-dashoffset: 1;
-  animation: dashboard-line-draw 1.45s cubic-bezier(0.16, 0.9, 0.2, 1) forwards;
+  animation: dashboard-line-draw 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
 }
 .dashboard-axis-draw {
   stroke-dasharray: 1;
   stroke-dashoffset: 1;
-  animation: dashboard-axis-draw 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+  animation: dashboard-axis-draw 0.65s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
 }
 .dashboard-area-rise {
   transform-box: fill-box;
   transform-origin: bottom;
-  animation: dashboard-area-rise 1.15s cubic-bezier(0.16, 0.9, 0.2, 1) 0.18s both;
+  animation: dashboard-area-rise 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) 0.12s both;
 }
 .dashboard-dot-pop {
   opacity: 0;
   transform-box: fill-box;
   transform-origin: center;
-  animation: dashboard-dot-pop 0.54s cubic-bezier(0.16, 0.9, 0.2, 1) forwards;
+  animation: dashboard-dot-pop 0.42s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
 }
 .dashboard-dot-halo {
   transform-box: fill-box;
@@ -359,12 +359,12 @@ img { -webkit-user-drag: none; user-select: none; }
 .dashboard-chart-label {
   transform-box: fill-box;
   transform-origin: center;
-  animation: dashboard-chart-label 0.42s ease-out 0.2s both;
+  animation: dashboard-chart-label 0.42s ease-out 0.16s both;
 }
 .dashboard-number-pop {
   display: inline-block;
   transform-origin: center bottom;
-  animation: dashboard-number-pop 0.42s cubic-bezier(0.16, 0.9, 0.2, 1) both;
+  animation: dashboard-number-pop 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 .dashboard-gauge-card {
   animation: dashboard-card-reveal 0.46s ease-out both;
@@ -372,7 +372,7 @@ img { -webkit-user-drag: none; user-select: none; }
 .gauge-fill-flow {
   background-image: linear-gradient(90deg, rgba(255,255,255,0.08), rgba(255,255,255,0.38), rgba(255,255,255,0.08));
   background-size: 180% 180%;
-  animation: gauge-fill-flow 1.75s ease-in-out infinite;
+  animation: gauge-fill-flow 2s ease-in-out infinite;
 }
 .gauge-complete-card {
   position: relative;
@@ -408,7 +408,7 @@ img { -webkit-user-drag: none; user-select: none; }
   font-weight: 900;
   letter-spacing: -0.02em;
   padding: 6px 9px;
-  animation: fanfare-center 1.45s ease-out both;
+  animation: fanfare-center 1s ease-out both;
 }
 .fanfare-burst span {
   --hue: calc(70 + var(--i) * 18);
@@ -419,15 +419,15 @@ img { -webkit-user-drag: none; user-select: none; }
   height: 12px;
   border-radius: 999px;
   background: hsl(var(--hue) 92% 58%);
-  animation: fanfare-pop 1.55s cubic-bezier(0.16, 0.82, 0.26, 1) both;
-  animation-delay: calc(var(--i) * 28ms);
+  animation: fanfare-pop 1s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation-delay: calc(var(--i) * 22ms);
 }
 .fanfare-burst-compact::before { display: none; }
 .fanfare-burst-compact span {
   top: 70%;
   width: 5px;
   height: 8px;
-  animation-duration: 1.15s;
+  animation-duration: 0.9s;
 }
 @media (prefers-reduced-motion: reduce) {
   *, ::before, ::after {

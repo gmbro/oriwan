@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import { IconX, IconYoutube } from "@/components/icons";
 import { getCuratedYoutubeShortTips, tipCategoryLabels, youtubeEmbedUrl, youtubeThumbnailUrl, youtubeWatchUrl } from "@/lib/youtube-shorts";
 import type { TipCategory, YoutubeShortTip } from "@/lib/youtube-shorts";
@@ -184,7 +185,7 @@ export function YoutubeShortsSection() {
           <button
             type="button"
             onClick={() => setRefreshSeed((value) => value + 1)}
-            className="shrink-0 rounded-full bg-white px-3 py-2 text-xs font-black text-oriwan-text ring-1 ring-slate-950/10 transition hover:bg-lime-100"
+            className="shrink-0 rounded-full bg-white px-3 py-2 text-xs font-black text-oriwan-text ring-1 ring-slate-950/5 transition hover:bg-lime-50"
           >
             {loading ? "찾는 중" : "다음 쇼츠"}
           </button>
@@ -203,10 +204,12 @@ export function YoutubeShortsSection() {
           >
             <div className="relative aspect-[9/12] overflow-hidden bg-gradient-to-br from-slate-900 via-[#26351d] to-slate-950 p-4">
               {!thumbnailBroken && (
-                <img
+                <Image
                   src={tip.thumbnailUrl || youtubeThumbnailUrl(tip.id)}
                   alt=""
-                  className="absolute inset-0 h-full w-full object-cover opacity-70 transition duration-500 group-hover:scale-105"
+                  fill
+                  sizes="(max-width: 640px) 210px, 240px"
+                  className="object-cover opacity-70 transition duration-500 group-hover:scale-105"
                   loading="lazy"
                   onError={() => {
                     setBrokenThumbnailIds((current) => (

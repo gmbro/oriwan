@@ -752,7 +752,7 @@ export default function DashboardPage() {
                       strokeLinecap="round"
                       strokeDasharray={RING_CIRCUMFERENCE}
                       strokeDashoffset={RING_CIRCUMFERENCE - ((motionReady ? dashboard.completionRate : 0) / 100) * RING_CIRCUMFERENCE}
-                      className="dashboard-ring-sweep transition-[stroke-dashoffset] duration-[1600ms] ease-out"
+                      className="dashboard-ring-sweep transition-[stroke-dashoffset] duration-[900ms] ease-out"
                     />
                   </svg>
                 </div>
@@ -870,7 +870,7 @@ export default function DashboardPage() {
                         </div>
                         <div className="mt-2 h-2 overflow-hidden rounded-full bg-oriwan-surface-light">
                           <div
-                            className={`gauge-fill-flow h-full rounded-full transition-all duration-1000 ease-out ${gaugeColorClass(row.certifiedDays)}`}
+                            className={`gauge-fill-flow h-full rounded-full transition-all duration-[900ms] ease-out ${gaugeColorClass(row.certifiedDays)}`}
                             style={{
                               width: `${motionReady ? Math.max(row.rate, row.certifiedDays ? 3 : 0) : 0}%`,
                               transitionDelay: `${Math.min(index * 45, 500)}ms`,

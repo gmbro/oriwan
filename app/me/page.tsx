@@ -35,6 +35,7 @@ type ImageAnalyzeResult = {
   confidence_score: number | null;
   date_was_fallback?: boolean;
   file_name?: string | null;
+  duplicate?: boolean;
 };
 
 type ImageAnalyzeFailure = {
@@ -77,18 +78,18 @@ function MyPageLoading() {
         <div className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
           {Array.from({ length: 2 }, (_, index) => (
             <div key={index} className="card mobile-page-card p-4 sm:p-5">
-              <div className="h-5 w-32 rounded-full bg-slate-100" />
-              <div className="mt-3 h-3 w-3/4 rounded-full bg-slate-100" />
-              <div className="mt-6 h-12 rounded-2xl bg-slate-100" />
-              <div className="mt-3 h-12 rounded-2xl bg-slate-100" />
+              <div className="h-5 w-32 rounded-full bg-oriwan-surface-light" />
+              <div className="mt-3 h-3 w-3/4 rounded-full bg-oriwan-surface-light" />
+              <div className="mt-6 h-12 rounded-2xl bg-oriwan-surface-light" />
+              <div className="mt-3 h-12 rounded-2xl bg-oriwan-surface-light" />
             </div>
           ))}
         </div>
         <div className="card mobile-page-card mt-4 p-4 sm:p-5">
-          <div className="h-5 w-36 rounded-full bg-slate-100" />
+          <div className="h-5 w-36 rounded-full bg-oriwan-surface-light" />
           <div className="mt-5 grid gap-3 sm:grid-cols-3">
             {Array.from({ length: 6 }, (_, index) => (
-              <div key={index} className="h-20 rounded-3xl bg-slate-100" />
+              <div key={index} className="h-20 rounded-3xl bg-oriwan-surface-light" />
             ))}
           </div>
         </div>
@@ -320,7 +321,7 @@ export default function MyPage() {
                 <h3 className="text-lg font-black text-oriwan-text">이름 연결하기</h3>
                 <p className="mt-1 text-xs leading-5 text-oriwan-text-muted">어드민에 등록된 이름과 띄어쓰기까지 똑같이 입력하면 기록이 착 붙어요.</p>
               </div>
-              <span className={`w-fit shrink-0 rounded-full px-3 py-1 text-[10px] font-black ${data.matched_participant ? "bg-lime-200 text-slate-950" : "bg-amber-100 text-amber-800"}`}>
+              <span className={`w-fit shrink-0 rounded-full px-3 py-1 text-[10px] font-black ${data.matched_participant ? "bg-amber-50 text-slate-950" : "bg-lime-300/25 text-amber-800"}`}>
                 {data.matched_participant ? "연결 완료" : "이름 연결 전"}
               </span>
             </div>
@@ -355,7 +356,7 @@ export default function MyPage() {
                     NRC, Garmin, Strava 스크린샷 여러 장에서 날짜, 거리, 시간을 가볍게 읽어옵니다.
                   </p>
                 </div>
-                <span className="rounded-full bg-lime-200 px-3 py-1 text-[10px] font-black text-slate-950">일괄 OCR</span>
+                <span className="rounded-full bg-amber-50 px-3 py-1 text-[10px] font-black text-slate-950">일괄 OCR</span>
               </div>
               <div className="mt-4 rounded-[22px] border border-dashed border-lime-400/80 bg-white/60 p-3">
                 <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl bg-white px-4 py-5 text-center ring-1 ring-slate-950/5">
@@ -418,12 +419,14 @@ export default function MyPage() {
                 <h3 className="text-lg font-black text-oriwan-text">이미지 등록 결과</h3>
                 <p className="mt-1 text-xs text-oriwan-text-muted">저장된 기록은 내 기록과 팀 보드에 바로 반영돼요.</p>
               </div>
-              <span className="w-fit shrink-0 rounded-full bg-lime-200 px-3 py-1 text-[10px] font-black text-slate-950">{imageResults.length}개 저장</span>
+              <span className="w-fit shrink-0 rounded-full bg-amber-50 px-3 py-1 text-[10px] font-black text-slate-950">{imageResults.length}개 처리</span>
             </div>
             <div className="mt-4 space-y-2">
               {imageResults.map((result) => (
                 <div key={result.id} className="min-w-0 rounded-3xl bg-white p-3 ring-1 ring-slate-950/5">
-                  <p className="truncate text-sm font-black text-oriwan-text">{result.record_date || "날짜 없음"} · {(result.distance_km || 0).toFixed(2)}km</p>
+                  <p className="truncate text-sm font-black text-oriwan-text">
+                    {result.record_date || "날짜 없음"} · {(result.distance_km || 0).toFixed(2)}km{result.duplicate ? " · 기존 인증 유지" : ""}
+                  </p>
                   <p className="mt-1 truncate text-[11px] text-oriwan-text-muted">
                     {secondsToTime(result.duration_seconds)} · {secondsToPace(result.pace_seconds_per_km)} · {result.source_app || "러닝 앱 이미지"}
                     {result.date_was_fallback ? " · 선택일 적용" : ""}

@@ -134,15 +134,6 @@ const officialCertificationEndDate = toIsoDate(addDays(new Date(`${ACTUAL_CERTIF
 const initialRecordDate = clampToChallengeWindow(today);
 const initialUploadDate = clampToChallengeWindow(today);
 const rangeStart = CHALLENGE_START_DATE;
-const TOP_RUNNER_BADGE_EXCLUDED_NAMES = new Set(["이경민"]);
-
-function normalizeParticipantName(name: string) {
-  return name.normalize("NFKC").replace(/[\s\u200B-\u200D\uFEFF]/g, "");
-}
-
-function canShowTopRunnerBadge(participant: Participant, topRunnerId: string) {
-  return topRunnerId === participant.id && !TOP_RUNNER_BADGE_EXCLUDED_NAMES.has(normalizeParticipantName(participant.name));
-}
 
 function statusLabel(status: AnalysisStatus) {
   if (status === "duplicate") return "이미 인증됨";
@@ -153,7 +144,7 @@ function statusLabel(status: AnalysisStatus) {
 }
 
 function statusClass(status: AnalysisStatus) {
-  if (status === "duplicate") return "bg-sky-100 text-sky-900 border-sky-200";
+  if (status === "duplicate") return "bg-slate-100 text-slate-700 border-slate-200";
   if (status === "certified") return "bg-lime-100 text-lime-900 border-lime-200";
   if (status === "needs_review") return "bg-orange-100 text-orange-900 border-orange-200";
   if (status === "rejected") return "bg-rose-100 text-rose-900 border-rose-200";
@@ -404,14 +395,10 @@ export default function AdminPage() {
         a.participant.name.localeCompare(b.participant.name, "ko")
       ));
   }, [participantPictogramById, participants, records]);
-
   const sortedParticipantProgress = useMemo(
     () => sortParticipantRanks(participantProgress, participantSortMode),
     [participantProgress, participantSortMode]
   );
-  const topRunnerId = sortedParticipantProgress.find((row) => (
-    row.certifiedDays > 0 || row.distanceKm > 0 || row.durationSeconds > 0
-  ))?.participant.id || "";
 
   const selectedRecordsParticipant = useMemo(
     () => participants.find((participant) => participant.id === selectedRecordsParticipantId) || null,
@@ -973,9 +960,9 @@ export default function AdminPage() {
               <span className="h-1.5 w-1.5 rounded-full bg-current animate-pulse" />
               {liveStatus === "live" ? "LIVE" : liveStatus === "polling" ? "SYNC" : "연결 중"}
             </span>
-            {userAvatar && <img src={userAvatar} alt="" width={28} height={28} className="rounded-full border border-white/20" />}
+            {userAvatar && <Image src={userAvatar} alt="" width={28} height={28} className="rounded-full border border-white/20" />}
             <span className="hidden md:inline text-xs font-semibold text-white/60">{userName}</span>
-            <button onClick={handleLogout} className="text-xs text-white/55 hover:text-white transition-colors font-medium">로그아웃</button>
+            <button onClick={handleLogout} className="text-xs text-white/60 hover:text-white transition-colors font-medium">로그아웃</button>
           </div>
         </div>
       </header>
@@ -1056,33 +1043,13 @@ export default function AdminPage() {
                 <div className="mt-2 h-1.5 animate-pulse rounded-full bg-oriwan-surface-light" />
               </div>
             ))}
-            {sortedParticipantProgress.map((row) => {
-              const isTopRunner = canShowTopRunnerBadge(row.participant, topRunnerId);
-              return (
+            {sortedParticipantProgress.map((row) => (
               <button
                 key={row.participant.id}
                 type="button"
                 onClick={() => openParticipantRecords(row.participant.id)}
                 className={`relative overflow-hidden rounded-[18px] bg-white px-3 py-2.5 text-left ring-1 ring-slate-950/5 transition hover:-translate-y-0.5 hover:ring-lime-300 ${row.rate >= 100 ? "gauge-complete-card" : "dashboard-gauge-card"}`}
               >
-                {isTopRunner && (
-                  <span
-                    className="absolute bottom-2 right-2 z-10 inline-flex h-7 w-7 items-center justify-center rounded-full bg-sky-500 text-white shadow-lg shadow-sky-500/35 ring-2 ring-white"
-                    title="1등 기준: 인증일 > 총거리 > 총시간"
-                    aria-label={`${row.participant.name} 1등 파란 뱃지`}
-                  >
-                    <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
-                      <path
-                        fill="none"
-                        stroke="currentColor"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="3"
-                        d="M6.5 12.2 10.2 16 17.8 8"
-                      />
-                    </svg>
-                  </span>
-                )}
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex min-w-0 flex-1 items-center gap-2">
                     <MemberPictogram index={row.pictogramIndex} participantName={row.participant.name} />
@@ -1102,15 +1069,14 @@ export default function AdminPage() {
                     {row.rate}%
                   </p>
                 </div>
-                <div className={`mt-2 h-1.5 overflow-hidden rounded-full bg-oriwan-surface-light ${isTopRunner ? "mr-9" : ""}`}>
+                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-oriwan-surface-light">
                   <div
                     className={`gauge-fill-flow h-full rounded-full transition-all duration-1000 ease-out ${gaugeColorClass(row.certifiedDays)}`}
                     style={{ width: `${Math.max(row.rate, row.certifiedDays ? 3 : 0)}%` }}
                   />
                 </div>
               </button>
-              );
-            })}
+            ))}
             {!participantProgress.length && !loading && (
               <p className="rounded-2xl bg-white px-4 py-8 text-center text-sm text-oriwan-text-muted sm:col-span-2 lg:col-span-3">
                 멤버가 추가되면 인증게이지가 바로 채워집니다.
