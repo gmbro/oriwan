@@ -713,30 +713,26 @@ export default function DashboardPage() {
       <section className="mx-auto w-full max-w-7xl px-0 py-0 sm:px-4 sm:py-6">
         <section className="overflow-hidden bg-white sm:rounded-[32px] sm:shadow-2xl sm:shadow-slate-950/10 sm:ring-1 sm:ring-slate-950/5">
           <div className="relative overflow-hidden bg-[#101522] px-4 py-5 text-white sm:p-7">
-            <div className="relative mx-auto grid max-w-6xl gap-4 sm:gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,26rem)] lg:items-center">
+            <div className="absolute right-4 top-4 z-10 flex max-w-[calc(100%-2rem)] flex-nowrap justify-end gap-1.5 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] sm:right-7 sm:top-7 sm:gap-2 [&::-webkit-scrollbar]:hidden">
+              <p className="inline-flex shrink-0 whitespace-nowrap rounded-full bg-white/10 px-3 py-1.5 text-[10px] font-black text-lime-200 ring-1 ring-white/10 sm:px-4 sm:text-xs">
+                {shortDate(dashboard.currentCertificationDate)}
+              </p>
+              <p className="inline-flex shrink-0 whitespace-nowrap rounded-full bg-lime-300 px-3 py-1.5 text-[10px] font-black text-slate-950 shadow-sm shadow-lime-300/30 sm:px-4 sm:text-xs">
+                {certificationDayLabel(dashboard.currentCertificationDate)}
+              </p>
+            </div>
+            <div className="relative mx-auto grid max-w-6xl gap-4 pt-10 sm:gap-5 sm:pt-11 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,26rem)] lg:items-center">
               <div className="min-w-0">
-                <div className="flex max-w-full flex-nowrap gap-1.5 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] sm:gap-2 [&::-webkit-scrollbar]:hidden">
-                  <p className="inline-flex shrink-0 whitespace-nowrap rounded-full bg-white/10 px-3 py-1.5 text-[10px] font-black text-lime-200 ring-1 ring-white/10 sm:px-4 sm:text-xs">
-                    {shortDate(dashboard.currentCertificationDate)}
-                  </p>
-                  <p className="inline-flex shrink-0 whitespace-nowrap rounded-full bg-lime-300 px-3 py-1.5 text-[10px] font-black text-slate-950 shadow-sm shadow-lime-300/30 sm:px-4 sm:text-xs">
-                    {certificationDayLabel(dashboard.currentCertificationDate)}
-                  </p>
-                </div>
-                <h2 className="mt-4 max-w-[12ch] text-[clamp(2rem,8.2vw,4.75rem)] font-black leading-[1.05] text-white sm:max-w-[14ch] lg:max-w-[12ch]">
-                  <span className="block">이번 인증,</span>
-                  <span className="block">얼마나 완료됐을까?</span>
+                <h2 className="max-w-[8ch] text-[clamp(2.35rem,10vw,4.25rem)] font-black leading-[1.04] text-white sm:max-w-[10ch] lg:max-w-[8ch]">
+                  <span className="block">오늘의 인증</span>
                 </h2>
-                <p className="mt-3 max-w-md text-sm font-semibold leading-relaxed text-white/58 sm:text-base">
-                  오늘 기준 인증 현황을 산뜻하게 보여드려요.
-                </p>
               </div>
 
               <div className="rounded-[24px] bg-white/10 p-4 ring-1 ring-white/10 shadow-2xl shadow-slate-950/20 sm:rounded-[30px] sm:p-5 lg:p-6">
                 <div className="flex items-center justify-between gap-4">
                   <div className="min-w-0">
-                    <p className="text-xs font-black text-white/50 sm:text-sm">오늘 인증률</p>
-                    <p className="mt-1 text-[clamp(2.8rem,12vw,4.5rem)] font-black leading-none text-lime-200">
+                    <p className="text-sm font-black text-white/55 sm:text-base">오늘의 인증</p>
+                    <p className="mt-1 text-[clamp(3.1rem,13vw,4.8rem)] font-black leading-none text-lime-200">
                       {isInitialDashboardLoading ? "--" : <AnimatedNumber value={dashboard.completionRate} suffix="%" />}
                     </p>
                   </div>
