@@ -720,27 +720,36 @@ export default function DashboardPage() {
 
       <section className="mx-auto w-full max-w-7xl px-0 py-0 sm:px-4 sm:py-6">
         <section className="overflow-hidden bg-white sm:rounded-[32px] sm:shadow-2xl sm:shadow-slate-950/10 sm:ring-1 sm:ring-slate-950/5">
-          <div className="relative overflow-hidden bg-[#101522] px-3 py-3.5 text-white sm:p-7">
-            <div className="relative mx-auto flex max-w-xl flex-col gap-2.5 sm:gap-3">
-              <div className="flex max-w-full flex-nowrap justify-center gap-1.5 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] sm:gap-2 [&::-webkit-scrollbar]:hidden">
-                <p className="inline-flex shrink-0 whitespace-nowrap rounded-full bg-white/10 px-3 py-1.5 text-[10px] font-black text-lime-200 ring-1 ring-white/10 sm:text-[11px]">
-                  {shortDate(dashboard.currentCertificationDate)}
-                </p>
-                <p className="inline-flex shrink-0 whitespace-nowrap rounded-full bg-lime-300 px-3 py-1.5 text-[10px] font-black text-slate-950 shadow-sm shadow-lime-300/30 sm:text-[11px]">
-                  {certificationDayLabel(dashboard.currentCertificationDate)}
+          <div className="relative overflow-hidden bg-[#101522] px-4 py-5 text-white sm:p-7">
+            <div className="relative mx-auto grid max-w-6xl gap-4 sm:gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,26rem)] lg:items-center">
+              <div className="min-w-0">
+                <div className="flex max-w-full flex-nowrap gap-1.5 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] sm:gap-2 [&::-webkit-scrollbar]:hidden">
+                  <p className="inline-flex shrink-0 whitespace-nowrap rounded-full bg-white/10 px-3 py-1.5 text-[10px] font-black text-lime-200 ring-1 ring-white/10 sm:px-4 sm:text-xs">
+                    {shortDate(dashboard.currentCertificationDate)}
+                  </p>
+                  <p className="inline-flex shrink-0 whitespace-nowrap rounded-full bg-lime-300 px-3 py-1.5 text-[10px] font-black text-slate-950 shadow-sm shadow-lime-300/30 sm:px-4 sm:text-xs">
+                    {certificationDayLabel(dashboard.currentCertificationDate)}
+                  </p>
+                </div>
+                <h2 className="mt-4 max-w-[12ch] text-[clamp(2rem,8.2vw,4.75rem)] font-black leading-[1.05] text-white sm:max-w-[14ch] lg:max-w-[12ch]">
+                  <span className="block">이번 인증,</span>
+                  <span className="block">얼마나 완료됐을까?</span>
+                </h2>
+                <p className="mt-3 max-w-md text-sm font-semibold leading-relaxed text-white/58 sm:text-base">
+                  오늘 기준 인증 현황을 산뜻하게 보여드려요.
                 </p>
               </div>
 
-              <div className="rounded-[22px] bg-white/10 p-3 ring-1 ring-white/10 shadow-2xl shadow-slate-950/20 sm:rounded-[30px] sm:p-5">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs font-black text-white/45">오늘 인증률</p>
-                    <p className="mt-1 text-[2.55rem] font-black leading-none text-lime-200 sm:text-[3.5rem]">
+              <div className="rounded-[24px] bg-white/10 p-4 ring-1 ring-white/10 shadow-2xl shadow-slate-950/20 sm:rounded-[30px] sm:p-5 lg:p-6">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="min-w-0">
+                    <p className="text-xs font-black text-white/50 sm:text-sm">오늘 인증률</p>
+                    <p className="mt-1 text-[clamp(2.8rem,12vw,4.5rem)] font-black leading-none text-lime-200">
                       {isInitialDashboardLoading ? "--" : <AnimatedNumber value={dashboard.completionRate} suffix="%" />}
                     </p>
                   </div>
-                  <svg viewBox="0 0 120 120" className="h-[clamp(4.7rem,22vw,7rem)] w-[clamp(4.7rem,22vw,7rem)] shrink-0 -rotate-90 dashboard-ring-pop">
-                    <circle cx="60" cy="60" r="48" fill="none" stroke="rgba(255,255,255,.12)" strokeWidth="14" />
+                  <svg viewBox="0 0 120 120" className="h-[clamp(5.75rem,24vw,8.5rem)] w-[clamp(5.75rem,24vw,8.5rem)] shrink-0 -rotate-90 dashboard-ring-pop">
+                    <circle cx="60" cy="60" r="48" fill="none" stroke="rgba(255,255,255,.14)" strokeWidth="14" className="dashboard-ring-track" />
                     <circle
                       cx="60"
                       cy="60"
@@ -751,11 +760,11 @@ export default function DashboardPage() {
                       strokeLinecap="round"
                       strokeDasharray={RING_CIRCUMFERENCE}
                       strokeDashoffset={RING_CIRCUMFERENCE - ((motionReady ? dashboard.completionRate : 0) / 100) * RING_CIRCUMFERENCE}
-                      className="transition-[stroke-dashoffset] duration-1000 ease-out"
+                      className="dashboard-ring-sweep transition-[stroke-dashoffset] duration-[1600ms] ease-out"
                     />
                   </svg>
                 </div>
-                <p className="mt-2 text-xs font-semibold text-white/50">
+                <p className="mt-2 text-xs font-semibold text-white/55 sm:text-sm">
                   {isInitialDashboardLoading ? "인증 현황 불러오는 중" : `${dashboard.currentDateCertifiedIds.size}/${dashboard.participants.length}명 인증 완료`}
                 </p>
               </div>
