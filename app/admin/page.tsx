@@ -1,9 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { IconTrash, IconX } from "@/components/icons";
+import { IconCalendar, IconCheck, IconRun, IconSync, IconTarget, IconTrash, IconX } from "@/components/icons";
 import { buildMemberPictogramMap, MemberPictogram } from "@/components/member-pictogram";
 import { ACTUAL_CERTIFICATION_START_DATE, CHALLENGE_DAYS, CHALLENGE_START_DATE, clampToChallengeWindow } from "@/lib/challenge";
 import { imageFileToOptimizedDataUrl } from "@/lib/image-client";
@@ -195,6 +195,44 @@ function hydrateAnalysisResult(result: AnalysisResult): AnalysisResult {
   };
 }
 
+function AdminActionButton({
+  title,
+  meta,
+  icon,
+  variant = "dark",
+  onClick,
+}: {
+  title: string;
+  meta: string;
+  icon: ReactNode;
+  variant?: "primary" | "dark";
+  onClick: () => void;
+}) {
+  const isPrimary = variant === "primary";
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`group flex min-h-[74px] items-center justify-between gap-3 rounded-[22px] px-4 py-3 text-left transition hover:-translate-y-0.5 ${
+        isPrimary
+          ? "bg-lime-300 text-slate-950 shadow-lg shadow-lime-300/20"
+          : "bg-white/10 text-white ring-1 ring-white/10 hover:bg-white/[0.14]"
+      }`}
+    >
+      <span className="min-w-0">
+        <span className={`block text-[11px] font-black ${isPrimary ? "text-slate-950/60" : "text-white/50"}`}>{meta}</span>
+        <span className="mt-1 block text-sm font-black leading-tight">{title}</span>
+      </span>
+      <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl transition group-hover:scale-105 ${
+        isPrimary ? "bg-slate-950 text-lime-200" : "bg-white text-slate-950"
+      }`}>
+        {icon}
+      </span>
+    </button>
+  );
+}
+
 export default function AdminPage() {
   const router = useRouter();
   const loadInFlightRef = useRef(false);
@@ -367,6 +405,34 @@ export default function AdminPage() {
     () => sortParticipantRanks(participantProgress, participantSortMode),
     [participantProgress, participantSortMode]
   );
+  const adminStats = useMemo(() => {
+    const todayCertifiedIds = new Set<string>();
+    let reviewCount = 0;
+    let totalDistanceKm = 0;
+    let totalDurationSeconds = 0;
+
+    records.forEach((record) => {
+      if (record.status === "needs_review") reviewCount += 1;
+      if (!isCertificationCountedStatus(record.status)) return;
+      if (record.record_date === effectiveToday && record.participant_id) todayCertifiedIds.add(record.participant_id);
+      if (
+        record.record_date &&
+        record.record_date >= ACTUAL_CERTIFICATION_START_DATE &&
+        record.record_date <= officialCertificationEndDate
+      ) {
+        totalDistanceKm += record.distance_km || 0;
+        totalDurationSeconds += record.duration_seconds || 0;
+      }
+    });
+
+    return {
+      todayCertifiedCount: todayCertifiedIds.size,
+      todayRate: participants.length ? Math.round((todayCertifiedIds.size / participants.length) * 100) : 0,
+      reviewCount,
+      totalDistanceKm,
+      totalDurationSeconds,
+    };
+  }, [participants.length, records]);
 
   const selectedRecordsParticipant = useMemo(
     () => participants.find((participant) => participant.id === selectedRecordsParticipantId) || null,
@@ -915,7 +981,7 @@ export default function AdminPage() {
           </div>
           <div className="flex items-center gap-2.5">
             <span className={`hidden sm:inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-black ${liveStatus === "syncing" ? "bg-lime-300 text-slate-950" : "bg-white/10 text-white/70"}`}>
-              <span className="h-1.5 w-1.5 rounded-full bg-current animate-pulse" />
+              <IconSync size={13} className={liveStatus === "syncing" ? "animate-spin" : ""} />
               {liveStatus === "syncing" ? "동기화 중" : "보호 모드"}
             </span>
             {userAvatar && <Image src={userAvatar} alt="" width={28} height={28} className="rounded-full border border-white/20" />}
@@ -925,25 +991,72 @@ export default function AdminPage() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl space-y-4 px-3 py-4 pb-10 sm:px-4">
-        <section className="relative overflow-hidden rounded-[24px] bg-[#101522] p-4 text-white shadow-2xl shadow-slate-950/10 sm:rounded-[28px]">
-          <div className="relative grid gap-2 sm:grid-cols-3">
-            <button type="button" onClick={() => openUploadForDate(initialUploadDate)} className="rounded-2xl bg-lime-300 px-4 py-3 text-left text-sm font-black text-slate-950">
-              이미지 올리기
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                resetParticipantForm();
-                setAdminModal("participant");
-              }}
-              className="rounded-2xl bg-white/10 px-4 py-3 text-left text-sm font-black text-white ring-1 ring-white/10"
-            >
-              멤버 관리
-            </button>
-            <button type="button" onClick={() => openManualRecordForDate(effectiveToday)} className="rounded-2xl bg-white/10 px-4 py-3 text-left text-sm font-black text-white ring-1 ring-white/10">
-              직접 입력
-            </button>
+      <main className="mx-auto max-w-7xl space-y-4 px-3 py-4 pb-10 sm:px-4 sm:py-5">
+        <section className="relative overflow-hidden rounded-[28px] bg-[#101522] p-4 text-white shadow-2xl shadow-slate-950/15 ring-1 ring-white/10 sm:p-5 lg:p-6">
+          <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-lime-300/50 to-transparent" />
+          <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,26rem)] lg:items-stretch">
+            <div className="min-w-0">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-[11px] font-black uppercase text-lime-200/70">Admin Console</p>
+                  <h2 className="mt-1 text-2xl font-black leading-tight text-white sm:text-3xl">오늘 운영 현황</h2>
+                </div>
+                <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5 text-[11px] font-black text-white/70 ring-1 ring-white/10">
+                  <IconCalendar size={14} />
+                  {effectiveToday.slice(5).replace("-", ".")}
+                </span>
+              </div>
+
+              <div className="mt-5 grid grid-cols-[minmax(0,1fr)_auto] items-end gap-4 rounded-[26px] bg-white/[0.07] p-4 ring-1 ring-white/10 sm:p-5">
+                <div className="min-w-0">
+                  <p className="text-xs font-black text-white/45">오늘 인증</p>
+                  <p className="mt-1 text-[clamp(3rem,14vw,5rem)] font-black leading-none text-lime-200">{adminStats.todayRate}%</p>
+                  <p className="mt-2 text-xs font-semibold text-white/55">{adminStats.todayCertifiedCount}/{participants.length}명 인증 완료</p>
+                </div>
+                <div className="grid gap-2 text-right">
+                  <span className="rounded-2xl bg-white/10 px-3 py-2 ring-1 ring-white/10">
+                    <span className="block text-[10px] font-black text-white/40">검수 대기</span>
+                    <span className="text-lg font-black text-white">{adminStats.reviewCount}</span>
+                  </span>
+                </div>
+              </div>
+
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <div className="rounded-2xl bg-white/[0.08] px-3 py-3 ring-1 ring-white/10">
+                  <p className="text-[10px] font-black text-white/40">누적 거리</p>
+                  <p className="mt-1 text-base font-black text-white">{adminStats.totalDistanceKm.toFixed(1)}km</p>
+                </div>
+                <div className="rounded-2xl bg-white/[0.08] px-3 py-3 ring-1 ring-white/10">
+                  <p className="text-[10px] font-black text-white/40">누적 시간</p>
+                  <p className="mt-1 text-base font-black text-white">{secondsToTime(adminStats.totalDurationSeconds)}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid gap-2.5">
+              <AdminActionButton
+                title="이미지 올리기"
+                meta="OCR"
+                icon={<IconRun size={18} />}
+                variant="primary"
+                onClick={() => openUploadForDate(initialUploadDate)}
+              />
+              <AdminActionButton
+                title="멤버 관리"
+                meta={`${participants.length}명`}
+                icon={<IconTarget size={18} />}
+                onClick={() => {
+                  resetParticipantForm();
+                  setAdminModal("participant");
+                }}
+              />
+              <AdminActionButton
+                title="직접 입력"
+                meta="기록 추가"
+                icon={<IconCheck size={18} />}
+                onClick={() => openManualRecordForDate(effectiveToday)}
+              />
+            </div>
           </div>
         </section>
 
@@ -956,93 +1069,103 @@ export default function AdminPage() {
           </section>
         )}
 
-        <section className="card mobile-page-card p-4">
-          <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div className="min-w-0">
-              <h2 className="text-lg font-black leading-tight text-oriwan-text">스내사 크루별 인증게이지</h2>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="flex rounded-full bg-oriwan-surface-light p-1 ring-1 ring-slate-950/5">
-                {PARTICIPANT_RANK_SORT_OPTIONS.map((option) => (
-                  <button
-                    key={option.key}
-                    type="button"
-                    onClick={() => setParticipantSortMode(option.key)}
-                    aria-pressed={participantSortMode === option.key}
-                    className={`rounded-full px-3 py-1.5 text-[11px] font-black transition ${
-                      participantSortMode === option.key
-                        ? "bg-slate-950 text-lime-200 shadow-sm"
-                        : "text-oriwan-text-muted hover:text-oriwan-text"
-                    }`}
-                  >
-                    {option.label}
-                  </button>
-                ))}
+        <section className="card mobile-page-card overflow-hidden p-0">
+          <div className="border-b border-slate-950/5 px-4 pb-4 pt-4 sm:px-5 sm:pt-5">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
+                <p className="text-[11px] font-black uppercase text-oriwan-text-muted">Crew Gauge</p>
+                <h2 className="mt-1 text-xl font-black leading-tight text-oriwan-text">스내사 크루별 인증게이지</h2>
               </div>
-              <span className="inline-flex shrink-0 rounded-full bg-lime-300 px-3 py-1 text-[11px] font-black text-slate-950 shadow-sm shadow-lime-300/30">
+              <span className="inline-flex w-fit shrink-0 rounded-full bg-lime-300 px-3 py-1.5 text-[11px] font-black text-slate-950 shadow-sm shadow-lime-300/30">
                 {isInitialAdminLoading ? "멤버 불러오는 중" : `멤버 ${participants.length}명`}
               </span>
             </div>
+            <div className="mt-4 flex overflow-x-auto rounded-full bg-oriwan-surface-light p-1 ring-1 ring-slate-950/5">
+              {PARTICIPANT_RANK_SORT_OPTIONS.map((option) => (
+                <button
+                  key={option.key}
+                  type="button"
+                  onClick={() => setParticipantSortMode(option.key)}
+                  aria-pressed={participantSortMode === option.key}
+                  className={`min-w-[72px] flex-1 rounded-full px-3 py-2 text-[11px] font-black transition ${
+                    participantSortMode === option.key
+                      ? "bg-slate-950 text-lime-200 shadow-sm"
+                      : "text-oriwan-text-muted hover:text-oriwan-text"
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
           </div>
-          <div className="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
-            {isInitialAdminLoading && Array.from({ length: 6 }, (_, index) => (
-              <div key={`admin-loading-${index}`} className="rounded-[18px] bg-white px-3 py-2.5 ring-1 ring-slate-950/5">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <span className="h-7 w-7 shrink-0 animate-pulse rounded-full bg-oriwan-surface-light" />
-                    <span className="flex min-w-0 flex-wrap items-center gap-1.5">
-                      <span className="block h-3 w-20 animate-pulse rounded-full bg-oriwan-surface-light" />
-                      <span className="block h-5 w-16 animate-pulse rounded-full bg-oriwan-surface-light" />
-                      <span className="block h-5 w-16 animate-pulse rounded-full bg-oriwan-surface-light" />
-                    </span>
-                  </div>
-                  <span className="h-5 w-10 shrink-0 animate-pulse rounded-full bg-oriwan-surface-light" />
-                </div>
-                <div className="mt-2 h-1.5 animate-pulse rounded-full bg-oriwan-surface-light" />
-              </div>
-            ))}
-            {sortedParticipantProgress.map((row) => (
-              <button
-                key={row.participant.id}
-                type="button"
-                onClick={() => openParticipantRecords(row.participant.id)}
-                className={`relative overflow-hidden rounded-[18px] bg-white px-3 py-2.5 text-left ring-1 ring-slate-950/5 transition hover:-translate-y-0.5 hover:ring-lime-300 ${row.rate >= 100 ? "gauge-complete-card" : "dashboard-gauge-card"}`}
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex min-w-0 flex-1 items-center gap-2">
-                    <MemberPictogram index={row.pictogramIndex} participantName={row.participant.name} />
-                    <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-                      <p className="truncate text-base font-black leading-tight text-oriwan-text">{row.participant.name}</p>
-                      <span className="inline-flex items-baseline gap-1 rounded-full bg-oriwan-surface-light px-2 py-0.5 text-[10px] font-black leading-none text-oriwan-text shadow-[inset_0_0_0_1px_rgba(16,21,34,0.05)]">
-                        <span className="text-[8px] font-extrabold text-oriwan-text-muted">총거리</span>
-                        {row.distanceKm.toFixed(1)}km
-                      </span>
-                      <span className="inline-flex items-baseline gap-1 rounded-full bg-oriwan-surface-light px-2 py-0.5 text-[10px] font-black leading-none text-oriwan-text shadow-[inset_0_0_0_1px_rgba(16,21,34,0.05)]">
-                        <span className="text-[8px] font-extrabold text-oriwan-text-muted">총시간</span>
-                        {secondsToTime(row.durationSeconds)}
+          <div className="p-3 sm:p-5">
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {isInitialAdminLoading && Array.from({ length: 6 }, (_, index) => (
+                <div key={`admin-loading-${index}`} className="rounded-[22px] bg-white px-3.5 py-3.5 ring-1 ring-slate-950/5">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <span className="h-10 w-10 shrink-0 animate-pulse rounded-2xl bg-oriwan-surface-light" />
+                      <span className="grid min-w-0 gap-1.5">
+                        <span className="block h-3 w-20 animate-pulse rounded-full bg-oriwan-surface-light" />
+                        <span className="block h-5 w-32 animate-pulse rounded-full bg-oriwan-surface-light" />
                       </span>
                     </div>
+                    <span className="h-6 w-11 shrink-0 animate-pulse rounded-full bg-oriwan-surface-light" />
                   </div>
-                  <p className={`shrink-0 text-xl font-black leading-none ${gaugeTextClass(row.certifiedDays)}`}>
-                    {row.rate}%
-                  </p>
+                  <div className="mt-3 h-2 animate-pulse rounded-full bg-oriwan-surface-light" />
                 </div>
-                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-oriwan-surface-light">
-                  <div
-                    className={`gauge-fill-flow h-full rounded-full transition-all duration-1000 ease-out ${gaugeColorClass(row.certifiedDays)}`}
-                    style={{ width: `${Math.max(row.rate, row.certifiedDays ? 3 : 0)}%` }}
-                  />
-                </div>
-              </button>
-            ))}
-            {!participantProgress.length && !loading && (
-              <p className="rounded-2xl bg-white px-4 py-8 text-center text-sm text-oriwan-text-muted sm:col-span-2 lg:col-span-3">
-                멤버가 추가되면 인증게이지가 바로 채워집니다.
-              </p>
-            )}
+              ))}
+              {sortedParticipantProgress.map((row, index) => (
+                <button
+                  key={row.participant.id}
+                  type="button"
+                  onClick={() => openParticipantRecords(row.participant.id)}
+                  className={`relative overflow-hidden rounded-[22px] bg-white px-3.5 py-3.5 text-left ring-1 ring-slate-950/5 transition hover:-translate-y-0.5 hover:ring-lime-300 hover:shadow-lg hover:shadow-slate-950/5 ${
+                    row.rate >= 100 ? "gauge-complete-card" : "dashboard-gauge-card"
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex min-w-0 flex-1 items-center gap-3">
+                      <span className="relative shrink-0">
+                        <MemberPictogram index={row.pictogramIndex} participantName={row.participant.name} className="!h-11 !w-11" />
+                        <span className="absolute -left-1 -top-1 rounded-full bg-slate-950 px-1.5 py-0.5 text-[9px] font-black leading-none text-lime-200 ring-2 ring-white">
+                          {index + 1}
+                        </span>
+                      </span>
+                      <div className="min-w-0">
+                        <p className="truncate text-base font-black leading-tight text-oriwan-text">{row.participant.name}</p>
+                        <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5">
+                          <span className="inline-flex items-baseline gap-1 rounded-full bg-oriwan-surface-light px-2 py-0.5 text-[10px] font-black leading-none text-oriwan-text shadow-[inset_0_0_0_1px_rgba(16,21,34,0.05)]">
+                            <span className="text-[8px] font-extrabold text-oriwan-text-muted">거리</span>
+                            {row.distanceKm.toFixed(1)}km
+                          </span>
+                          <span className="inline-flex items-baseline gap-1 rounded-full bg-oriwan-surface-light px-2 py-0.5 text-[10px] font-black leading-none text-oriwan-text shadow-[inset_0_0_0_1px_rgba(16,21,34,0.05)]">
+                            <span className="text-[8px] font-extrabold text-oriwan-text-muted">시간</span>
+                            {secondsToTime(row.durationSeconds)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <p className={`shrink-0 text-2xl font-black leading-none ${gaugeTextClass(row.certifiedDays)}`}>
+                      {row.rate}%
+                    </p>
+                  </div>
+                  <div className="mt-3 h-2 overflow-hidden rounded-full bg-oriwan-surface-light">
+                    <div
+                      className={`gauge-fill-flow h-full rounded-full transition-all duration-1000 ease-out ${gaugeColorClass(row.certifiedDays)}`}
+                      style={{ width: `${Math.max(row.rate, row.certifiedDays ? 3 : 0)}%` }}
+                    />
+                  </div>
+                </button>
+              ))}
+              {!participantProgress.length && !loading && (
+                <p className="rounded-2xl bg-white px-4 py-8 text-center text-sm text-oriwan-text-muted sm:col-span-2 lg:col-span-3">
+                  멤버가 추가되면 인증게이지가 바로 채워집니다.
+                </p>
+              )}
+            </div>
           </div>
         </section>
-
         {adminModal === "upload" && (
           <div
             className="fixed inset-0 z-[80] flex items-end bg-slate-950/45 px-0 py-0 backdrop-blur-sm sm:items-center sm:justify-center sm:px-4 sm:py-4"
