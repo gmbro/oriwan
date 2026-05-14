@@ -3,9 +3,16 @@ import { addDays, toIsoDate, toKstIsoDate } from "@/lib/run-records";
 import { isMissingTableError, missingSchemaResponse } from "@/lib/supabase-errors";
 import { CERTIFICATION_DISPLAY_START_DATE, CHALLENGE_END_DATE, CHALLENGE_START_DATE, clampToChallengeStart } from "@/lib/challenge";
 import { findAdminUserId, getServiceClient } from "@/lib/admin-data";
+import { guardReadRequest } from "@/lib/request-security";
 
 const PUBLIC_DASHBOARD_CACHE_CONTROL = "public, max-age=0, s-maxage=5, stale-while-revalidate=30";
 const PUBLIC_DASHBOARD_MEMORY_CACHE_TTL_MS = 5_000;
+const PUBLIC_DASHBOARD_RATE_LIMIT = {
+  key: "public-dashboard-read",
+  limit: 180,
+  windowMs: 60_000,
+  message: "대시보드 요청이 잠시 몰렸어요. 조금 뒤 새로고침해주세요.",
+};
 
 type PublicDashboardPayload = {
   from: string;
@@ -142,6 +149,15 @@ async function getPublicDashboardPayload(cacheKey: string, from: string, to: str
 }
 
 export async function GET(request: NextRequest) {
+  const guardResponse = guardReadRequest(request, {
+    requireSameOrigin: true,
+    rateLimit: PUBLIC_DASHBOARD_RATE_LIMIT,
+  });
+  if (guardResponse) {
+    guardResponse.headers.set("Cache-Control", "private, no-store");
+    return guardResponse;
+  }
+
   const { searchParams } = new URL(request.url);
   const scope = searchParams.get("scope");
   const daysParam = Number(searchParams.get("days") || 30);
@@ -150,7 +166,7 @@ export async function GET(request: NextRequest) {
   const to = today;
   const rangeEnd = new Date(`${to}T00:00:00`);
   const from = scope === "all" ? CHALLENGE_START_DATE : clampToChallengeStart(toIsoDate(addDays(rangeEnd, -(days - 1))));
-  const bypassCache = searchParams.has("t") || searchParams.get("fresh") === "1";
+  const bypassCache = false;
   const cacheKey = `${scope || "range"}:${from}:${to}`;
 
   try {

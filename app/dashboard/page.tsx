@@ -7,10 +7,8 @@ import { IconCalendar, IconDna, IconDroplet, IconFlame, IconHeart, IconMountain,
 import { buildMemberPictogramMap, MemberPictogram } from "@/components/member-pictogram";
 import { YoutubeShortsSection } from "@/components/youtube-shorts-section";
 import { ACTUAL_CERTIFICATION_START_DATE, CERTIFICATION_DISPLAY_START_DATE, CHALLENGE_DAYS } from "@/lib/challenge";
-import { DASHBOARD_REFRESH_CHANNEL, DASHBOARD_REFRESH_EVENT } from "@/lib/dashboard-refresh";
 import { PARTICIPANT_RANK_SORT_OPTIONS, type ParticipantRankSortMode, sortParticipantRanks } from "@/lib/participant-ranking";
 import { addDays, isCertificationCountedStatus, secondsToTime, toIsoDate, toKstIsoDate } from "@/lib/run-records";
-import { createClient } from "@/lib/supabase/client";
 
 type Participant = {
   id: string;
@@ -451,7 +449,6 @@ export default function DashboardPage() {
   const [showSeasonReportModal, setShowSeasonReportModal] = useState(false);
   const [participantSortMode, setParticipantSortMode] = useState<ParticipantRankSortMode>("certification");
   const loadingRef = useRef(false);
-  const refreshTimerRef = useRef<number | null>(null);
   const lastLoadedAtRef = useRef(0);
 
   const load = useCallback(async (options?: { fresh?: boolean }) => {
@@ -459,8 +456,7 @@ export default function DashboardPage() {
     loadingRef.current = true;
     try {
       setTodayIso(toKstIsoDate());
-      const cacheBuster = options?.fresh ? `&t=${Date.now()}` : "";
-      const response = await fetch(`/api/public-dashboard?scope=all${cacheBuster}`, {
+      const response = await fetch("/api/public-dashboard?scope=all", {
         cache: options?.fresh ? "no-store" : "default",
       });
       const json = await response.json() as PublicDashboardData;
@@ -477,13 +473,6 @@ export default function DashboardPage() {
     }
   }, []);
 
-  const scheduleRefresh = useCallback(() => {
-    if (refreshTimerRef.current) window.clearTimeout(refreshTimerRef.current);
-    refreshTimerRef.current = window.setTimeout(() => {
-      if (document.visibilityState === "visible") load({ fresh: true });
-    }, 650);
-  }, [load]);
-
   useEffect(() => {
     queueMicrotask(() => {
       const cachedData = readCachedDashboardData();
@@ -495,14 +484,6 @@ export default function DashboardPage() {
       }
       void load();
     });
-    const supabase = createClient();
-    const channel = supabase
-      .channel(DASHBOARD_REFRESH_CHANNEL)
-      .on("broadcast", { event: DASHBOARD_REFRESH_EVENT }, scheduleRefresh)
-      .on("postgres_changes", { event: "*", schema: "public", table: "participants" }, scheduleRefresh)
-      .on("postgres_changes", { event: "*", schema: "public", table: "daily_run_records" }, scheduleRefresh)
-      .subscribe();
-
     const shouldRefresh = (minimumAgeMs = PUBLIC_DASHBOARD_FOCUS_REFRESH_MS) => (
       Date.now() - lastLoadedAtRef.current > minimumAgeMs
     );
@@ -521,12 +502,10 @@ export default function DashboardPage() {
 
     return () => {
       window.clearInterval(interval);
-      if (refreshTimerRef.current) window.clearTimeout(refreshTimerRef.current);
-      supabase.removeChannel(channel);
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [load, scheduleRefresh]);
+  }, [load]);
 
   useEffect(() => {
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -712,7 +691,7 @@ export default function DashboardPage() {
 
       <section className="mx-auto w-full max-w-7xl px-0 py-0 sm:px-4 sm:py-6">
         <section className="overflow-hidden bg-white sm:rounded-[32px] sm:shadow-2xl sm:shadow-slate-950/10 sm:ring-1 sm:ring-slate-950/5">
-          <div className="relative overflow-hidden bg-[#101522] px-4 py-5 text-white sm:p-7">
+          <div className="relative overflow-hidden bg-[#101522] px-4 pb-5 pt-16 text-white sm:px-7 sm:pb-7 sm:pt-20">
             <div className="absolute right-4 top-4 z-10 flex max-w-[calc(100%-2rem)] flex-nowrap justify-end gap-1.5 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] sm:right-7 sm:top-7 sm:gap-2 [&::-webkit-scrollbar]:hidden">
               <p className="inline-flex shrink-0 whitespace-nowrap rounded-full bg-white/10 px-3 py-1.5 text-[10px] font-black text-lime-200 ring-1 ring-white/10 sm:px-4 sm:text-xs">
                 {shortDate(dashboard.currentCertificationDate)}
@@ -721,19 +700,21 @@ export default function DashboardPage() {
                 {certificationDayLabel(dashboard.currentCertificationDate)}
               </p>
             </div>
-            <div className="relative mx-auto grid max-w-6xl gap-4 pt-10 sm:gap-5 sm:pt-11 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,26rem)] lg:items-center">
+            <div className="relative mx-auto grid max-w-6xl gap-5 sm:gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,27rem)] lg:items-center">
               <div className="min-w-0">
-                <h2 className="max-w-[8ch] text-[clamp(2.35rem,10vw,4.25rem)] font-black leading-[1.04] text-white sm:max-w-[10ch] lg:max-w-[8ch]">
+                <h2 className="max-w-[9ch] text-[clamp(2.2rem,9vw,3.9rem)] font-black leading-[1.04] text-white sm:max-w-[10ch]">
                   <span className="block">오늘의 인증</span>
                 </h2>
               </div>
 
               <div className="rounded-[24px] bg-white/10 p-4 ring-1 ring-white/10 shadow-2xl shadow-slate-950/20 sm:rounded-[30px] sm:p-5 lg:p-6">
-                <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center justify-between gap-4 sm:gap-5">
                   <div className="min-w-0">
-                    <p className="text-sm font-black text-white/55 sm:text-base">오늘의 인증</p>
-                    <p className="mt-1 text-[clamp(3.1rem,13vw,4.8rem)] font-black leading-none text-lime-200">
+                    <p className="text-[clamp(3.25rem,13vw,4.9rem)] font-black leading-none text-lime-200">
                       {isInitialDashboardLoading ? "--" : <AnimatedNumber value={dashboard.completionRate} suffix="%" />}
+                    </p>
+                    <p className="mt-2 text-xs font-semibold text-white/55 sm:text-sm">
+                      {isInitialDashboardLoading ? "인증 현황 불러오는 중" : `${dashboard.currentDateCertifiedIds.size}/${dashboard.participants.length}명 인증 완료`}
                     </p>
                   </div>
                   <svg viewBox="0 0 120 120" className="h-[clamp(5.75rem,24vw,8.5rem)] w-[clamp(5.75rem,24vw,8.5rem)] shrink-0 -rotate-90 dashboard-ring-pop">
@@ -752,9 +733,6 @@ export default function DashboardPage() {
                     />
                   </svg>
                 </div>
-                <p className="mt-2 text-xs font-semibold text-white/55 sm:text-sm">
-                  {isInitialDashboardLoading ? "인증 현황 불러오는 중" : `${dashboard.currentDateCertifiedIds.size}/${dashboard.participants.length}명 인증 완료`}
-                </p>
               </div>
             </div>
           </div>

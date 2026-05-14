@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { CHALLENGE_START_DATE, clampToChallengeWindow } from "@/lib/challenge";
-import { broadcastDashboardRefresh } from "@/lib/dashboard-refresh";
 import { imageFileToOptimizedDataUrl } from "@/lib/image-client";
 import { isCertificationCountedStatus, parseDurationToSeconds, secondsToPace, secondsToTime, toIsoDate } from "@/lib/run-records";
 
@@ -212,8 +211,7 @@ export default function MyPage() {
     if (response.ok) {
       setDistance("");
       setDuration("");
-      setMessage("기록 저장 완료. 어드민과 팀 보드에도 바로 반영돼요.");
-      void broadcastDashboardRefresh();
+      setMessage("기록 저장 완료. 어드민과 팀 보드는 잠시 후 자동으로 갱신돼요.");
       await loadMe(true);
     } else {
       setMessage(json.error || "기록을 저장하지 못했어요. 거리 또는 시간을 다시 확인해주세요.");
@@ -263,8 +261,7 @@ export default function MyPage() {
       setImageFiles([]);
 
       if (savedResults.length) {
-        setMessage(`${savedResults.length}개 이미지 기록을 저장했어요. 팀 보드에도 바로 이어졌습니다.${failedResults.length ? ` ${failedResults.length}개는 한 번만 확인해주세요.` : ""}`);
-        void broadcastDashboardRefresh();
+        setMessage(`${savedResults.length}개 이미지 기록을 저장했어요. 팀 보드는 잠시 후 자동으로 갱신됩니다.${failedResults.length ? ` ${failedResults.length}개는 한 번만 확인해주세요.` : ""}`);
         await loadMe(true);
       } else {
         setMessage(failedResults[0]?.error || "저장된 이미지 기록이 없어요. 날짜, 거리, 시간이 잘 보이는 이미지로 다시 시도해주세요.");

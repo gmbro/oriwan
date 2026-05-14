@@ -49,6 +49,7 @@ app/api/records/analyze/route.ts    이미지 OCR 분석 및 기록 생성
 ## 데이터베이스
 
 `docs/supabase-schema.sql`을 Supabase SQL Editor에서 실행합니다.
+운영 배포 전에는 이어서 `docs/supabase-security-hardening.sql`도 실행해 anon 직접 접근, Realtime 직접 구독, 공개 Storage 버킷 설정을 잠급니다.
 
 주요 테이블:
 

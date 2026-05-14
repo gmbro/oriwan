@@ -4,10 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { IconTrash, IconX } from "@/components/icons";
-import { createClient } from "@/lib/supabase/client";
 import { buildMemberPictogramMap, MemberPictogram } from "@/components/member-pictogram";
 import { ACTUAL_CERTIFICATION_START_DATE, CHALLENGE_DAYS, CHALLENGE_START_DATE, clampToChallengeWindow } from "@/lib/challenge";
-import { DASHBOARD_REFRESH_CHANNEL, DASHBOARD_REFRESH_EVENT, broadcastDashboardRefresh } from "@/lib/dashboard-refresh";
 import { imageFileToOptimizedDataUrl } from "@/lib/image-client";
 import { PARTICIPANT_RANK_SORT_OPTIONS, type ParticipantRankSortMode, sortParticipantRanks } from "@/lib/participant-ranking";
 import { addDays, isCertificationCountedStatus, parseDurationToSeconds, secondsToTime, toIsoDate, toKstIsoDate } from "@/lib/run-records";
@@ -200,7 +198,6 @@ function hydrateAnalysisResult(result: AnalysisResult): AnalysisResult {
 export default function AdminPage() {
   const router = useRouter();
   const loadInFlightRef = useRef(false);
-  const refreshTimerRef = useRef<number | null>(null);
   const [mounted, setMounted] = useState(false);
   const [authReady, setAuthReady] = useState(false);
   const [authorized, setAuthorized] = useState(false);
@@ -232,7 +229,7 @@ export default function AdminPage() {
   const [manualDuration, setManualDuration] = useState("");
   const [selectedRecordsParticipantId, setSelectedRecordsParticipantId] = useState("");
   const [recordDrafts, setRecordDrafts] = useState<Record<string, { distance: string; duration: string }>>({});
-  const [liveStatus, setLiveStatus] = useState<"connecting" | "live" | "polling">("connecting");
+  const [liveStatus, setLiveStatus] = useState<"polling" | "syncing">("polling");
   const [setupMessage, setSetupMessage] = useState("");
   const [adminModal, setAdminModal] = useState<AdminModal>(null);
   const [editingParticipantId, setEditingParticipantId] = useState("");
@@ -280,13 +277,6 @@ export default function AdminPage() {
     }
   }, []);
 
-  const scheduleRefresh = useCallback(() => {
-    if (refreshTimerRef.current) window.clearTimeout(refreshTimerRef.current);
-    refreshTimerRef.current = window.setTimeout(() => {
-      if (document.visibilityState === "visible") loadData(false);
-    }, 650);
-  }, [loadData]);
-
   useEffect(() => {
     let cancelled = false;
     const init = async () => {
@@ -320,39 +310,17 @@ export default function AdminPage() {
   useEffect(() => {
     if (!mounted || !authorized) return;
 
-    const supabase = createClient();
-    const channel = supabase
-      .channel(DASHBOARD_REFRESH_CHANNEL)
-      .on("broadcast", { event: DASHBOARD_REFRESH_EVENT }, () => {
-        setLiveStatus("live");
-        scheduleRefresh();
-      })
-      .on("postgres_changes", { event: "*", schema: "public", table: "participants" }, () => {
-        setLiveStatus("live");
-        scheduleRefresh();
-      })
-      .on("postgres_changes", { event: "*", schema: "public", table: "daily_run_records" }, () => {
-        setLiveStatus("live");
-        scheduleRefresh();
-      })
-      .subscribe((status) => {
-        if (status === "SUBSCRIBED") setLiveStatus("live");
-        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") setLiveStatus("polling");
-      });
-
     const interval = window.setInterval(() => {
       if (document.visibilityState === "visible") {
-        setLiveStatus((current) => current === "live" ? "live" : "polling");
-        loadData(false);
+        setLiveStatus("syncing");
+        void loadData(false).finally(() => setLiveStatus("polling"));
       }
     }, 60000);
 
     return () => {
       window.clearInterval(interval);
-      if (refreshTimerRef.current) window.clearTimeout(refreshTimerRef.current);
-      supabase.removeChannel(channel);
     };
-  }, [authorized, loadData, mounted, scheduleRefresh]);
+  }, [authorized, loadData, mounted]);
 
   const participantPictogramById = useMemo(() => buildMemberPictogramMap(participants), [participants]);
 
@@ -421,7 +389,6 @@ export default function AdminPage() {
     if (res.ok) {
       setNewName("");
       setNewNickname("");
-      void broadcastDashboardRefresh();
       await loadData();
     } else {
       alert("멤버를 저장하지 못했어요. 이름을 다시 확인해주세요.");
@@ -479,7 +446,6 @@ export default function AdminPage() {
 
     if (res.ok) {
       resetParticipantForm();
-      void broadcastDashboardRefresh();
       await loadData();
     } else {
       alert("멤버 정보를 수정하지 못했어요.");
@@ -491,7 +457,6 @@ export default function AdminPage() {
     const res = await fetch(`/api/participants/${participantId}`, { method: "DELETE" });
     if (res.ok) {
       if (editingParticipantId === participantId) resetParticipantForm();
-      void broadcastDashboardRefresh();
       await loadData();
     } else {
       alert("멤버를 삭제하지 못했어요.");
@@ -530,7 +495,6 @@ export default function AdminPage() {
         setUploadNewName("");
         setAnalysisMessage(`${participant.name}님을 추가했어요.`);
       }
-      void broadcastDashboardRefresh();
       await loadData(false);
     } catch (err) {
       setAnalysisMessage(err instanceof Error ? err.message : "멤버를 저장하지 못했어요.");
@@ -632,7 +596,6 @@ export default function AdminPage() {
       const duplicate = results.filter((result) => result.duplicate || result.status === "duplicate").length;
       const review = results.length - certified - duplicate;
       setAnalysisMessage(`${results.length}장 정리 완료 · 인증 반영 ${certified}건 · 이미 인증 ${duplicate}건 · 보류 ${review}건`);
-      void broadcastDashboardRefresh();
       await loadData();
     } catch (err) {
       setAnalysisMessage(err instanceof Error ? err.message : "이미지를 읽지 못했어요. 흐린 이미지는 직접 입력으로 가볍게 보완해주세요.");
@@ -674,7 +637,6 @@ export default function AdminPage() {
           : item
       )));
       setAnalysisMessage(`${participant.name}님으로 연결했어요.`);
-      void broadcastDashboardRefresh();
       await loadData(false);
     } catch (err) {
       setAnalysisMessage(err instanceof Error ? err.message : "멤버를 저장하지 못했어요.");
@@ -732,7 +694,6 @@ export default function AdminPage() {
           : item
       )));
       setAnalysisMessage("거리와 시간을 저장했어요.");
-      void broadcastDashboardRefresh();
       await loadData(false);
     } catch (err) {
       setAnalysisMessage(err instanceof Error ? err.message : "기록을 수정하지 못했어요.");
@@ -790,7 +751,6 @@ export default function AdminPage() {
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(typeof json.error === "string" ? json.error : "기록을 수정하지 못했어요.");
 
-      void broadcastDashboardRefresh();
       await loadData(false);
     } catch (err) {
       alert(err instanceof Error ? err.message : "기록을 수정하지 못했어요.");
@@ -815,7 +775,6 @@ export default function AdminPage() {
         delete next[record.id];
         return next;
       });
-      void broadcastDashboardRefresh();
       await loadData(false);
     } catch (err) {
       alert(err instanceof Error ? err.message : "기록을 삭제하지 못했어요.");
@@ -842,7 +801,6 @@ export default function AdminPage() {
       setManualDistance("");
       setManualDuration("");
       setAdminModal(null);
-      void broadcastDashboardRefresh();
       await loadData();
     } else {
       alert("기록을 저장하지 못했어요.");
@@ -956,9 +914,9 @@ export default function AdminPage() {
             </div>
           </div>
           <div className="flex items-center gap-2.5">
-            <span className={`hidden sm:inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-black ${liveStatus === "live" ? "bg-lime-300 text-slate-950" : "bg-white/10 text-white/70"}`}>
+            <span className={`hidden sm:inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-black ${liveStatus === "syncing" ? "bg-lime-300 text-slate-950" : "bg-white/10 text-white/70"}`}>
               <span className="h-1.5 w-1.5 rounded-full bg-current animate-pulse" />
-              {liveStatus === "live" ? "LIVE" : liveStatus === "polling" ? "SYNC" : "연결 중"}
+              {liveStatus === "syncing" ? "동기화 중" : "보호 모드"}
             </span>
             {userAvatar && <Image src={userAvatar} alt="" width={28} height={28} className="rounded-full border border-white/20" />}
             <span className="hidden md:inline text-xs font-semibold text-white/60">{userName}</span>

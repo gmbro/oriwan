@@ -15,6 +15,11 @@ type GuardOptions = {
   rateLimit?: RateLimitOptions;
 };
 
+type ReadGuardOptions = {
+  rateLimit?: RateLimitOptions;
+  requireSameOrigin?: boolean;
+};
+
 type RateBucket = {
   count: number;
   resetAt: number;
@@ -120,6 +125,13 @@ export function guardMutationRequest(request: NextRequest, options: GuardOptions
   return (
     sameOriginGuard(request) ||
     bodySizeGuard(request, options.maxBodyBytes ?? DEFAULT_BODY_LIMIT_BYTES) ||
+    (options.rateLimit ? rateLimitGuard(request, options.rateLimit) : null)
+  );
+}
+
+export function guardReadRequest(request: NextRequest, options: ReadGuardOptions = {}) {
+  return (
+    (options.requireSameOrigin ? sameOriginGuard(request) : null) ||
     (options.rateLimit ? rateLimitGuard(request, options.rateLimit) : null)
   );
 }
