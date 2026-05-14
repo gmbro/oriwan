@@ -59,6 +59,70 @@ type PendingAnalyzeImage = {
   dataUrl: string;
 };
 
+function MemberPicker({
+  participants,
+  value,
+  onChange,
+  placeholder = "멤버 선택",
+  disabled = false,
+}: {
+  participants: Participant[];
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const selectedParticipant = participants.find((participant) => participant.id === value) || null;
+
+  const selectValue = (nextValue: string) => {
+    onChange(nextValue);
+    setOpen(false);
+  };
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        disabled={disabled}
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
+        className="flex min-h-12 w-full items-center justify-between gap-3 rounded-xl border border-oriwan-border bg-white px-3.5 py-3 text-left text-base font-black text-oriwan-text outline-none transition focus:border-oriwan-primary disabled:opacity-50"
+      >
+        <span className={`min-w-0 truncate ${selectedParticipant ? "text-oriwan-text" : "text-oriwan-text-muted"}`}>
+          {selectedParticipant?.name || placeholder}
+        </span>
+        <span className="shrink-0 text-sm font-black text-oriwan-text-muted" aria-hidden="true">v</span>
+      </button>
+      {open && !disabled && (
+        <div className="absolute left-0 right-0 top-[calc(100%+0.4rem)] z-[120] max-h-72 overflow-y-auto rounded-2xl bg-white p-1.5 shadow-2xl shadow-slate-950/20 ring-1 ring-slate-950/10">
+          <button
+            type="button"
+            onClick={() => selectValue("")}
+            className={`flex min-h-11 w-full items-center rounded-xl px-3 text-left text-base font-black ${
+              !value ? "bg-blue-500 text-white" : "text-oriwan-text hover:bg-oriwan-surface-light"
+            }`}
+          >
+            {placeholder}
+          </button>
+          {participants.map((participant) => (
+            <button
+              key={participant.id}
+              type="button"
+              onClick={() => selectValue(participant.id)}
+              className={`mt-1 flex min-h-11 w-full items-center rounded-xl px-3 text-left text-base font-black ${
+                value === participant.id ? "bg-blue-500 text-white" : "text-oriwan-text hover:bg-oriwan-surface-light"
+              }`}
+            >
+              <span className="truncate">{participant.name}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 type AdminModal = "participant" | "record" | "upload" | "participantRecords" | null;
 
 const IMAGE_UPLOAD_CHUNK_SIZE = 5;
@@ -1088,19 +1152,17 @@ export default function AdminPage() {
               </label>
 
               <div className="mt-3 rounded-2xl bg-white p-3 ring-1 ring-slate-950/5">
-                <label className="block text-xs font-black text-oriwan-text-muted">
-                  이름 없을 때 적용할 멤버
-                  <select
-                    value={uploadParticipantId}
-                    onChange={(event) => setUploadParticipantId(event.target.value)}
-                    className="mt-1 w-full rounded-xl border border-oriwan-border bg-white px-3 py-2.5 text-sm font-black text-oriwan-text outline-none focus:border-oriwan-primary"
-                  >
-                    <option value="">이미지에서 자동 인식</option>
-                    {participants.map((participant) => (
-                      <option key={participant.id} value={participant.id}>{participant.name}</option>
-                    ))}
-                  </select>
-                </label>
+                <div>
+                  <p className="text-xs font-black text-oriwan-text-muted">이름 없을 때 적용할 멤버</p>
+                  <div className="mt-1">
+                    <MemberPicker
+                      participants={participants}
+                      value={uploadParticipantId}
+                      onChange={setUploadParticipantId}
+                      placeholder="이미지에서 자동 인식"
+                    />
+                  </div>
+                </div>
                 <div className="mt-2 flex gap-2">
                   <input
                     value={uploadNewName}
@@ -1225,20 +1287,18 @@ export default function AdminPage() {
                             {statusLabel(status)}
                           </span>
                         </div>
-                        <label className="mt-3 block text-[10px] font-black text-oriwan-text-muted">
-                          멤버
-                          <select
-                            value={result.participant_id || ""}
-                            onChange={(event) => updateAnalysisParticipant(index, event.target.value)}
-                            disabled={!result.id || isUpdatingResult || isDuplicate}
-                            className="mt-1 w-full rounded-xl border border-oriwan-border bg-white px-3 py-2 text-sm font-black text-oriwan-text outline-none focus:border-oriwan-primary disabled:opacity-50"
-                          >
-                            <option value="">{result.id ? "멤버 선택" : "저장된 기록 없음"}</option>
-                            {participants.map((participant) => (
-                              <option key={participant.id} value={participant.id}>{participant.name}</option>
-                            ))}
-                          </select>
-                        </label>
+                        <div className="mt-3">
+                          <p className="text-[10px] font-black text-oriwan-text-muted">멤버</p>
+                          <div className="mt-1">
+                            <MemberPicker
+                              participants={participants}
+                              value={result.participant_id || ""}
+                              onChange={(participantId) => updateAnalysisParticipant(index, participantId)}
+                              disabled={!result.id || isUpdatingResult || isDuplicate}
+                              placeholder={result.id ? "멤버 선택" : "저장된 기록 없음"}
+                            />
+                          </div>
+                        </div>
                         <div className="mt-3 rounded-xl bg-oriwan-surface-light px-3 py-2 text-xs font-black text-oriwan-text">
                           날짜 {result.record_date || "확인 필요"}
                         </div>
@@ -1478,10 +1538,7 @@ export default function AdminPage() {
                 </button>
               </div>
               <div className="grid gap-2 sm:grid-cols-2">
-                <select value={manualParticipantId} onChange={(e) => setManualParticipantId(e.target.value)} className="rounded-xl border border-oriwan-border bg-white px-3 py-2.5 text-sm">
-                  <option value="">멤버 선택</option>
-                  {participants.map((participant) => <option key={participant.id} value={participant.id}>{participant.name}</option>)}
-                </select>
+                <MemberPicker participants={participants} value={manualParticipantId} onChange={setManualParticipantId} />
                 <input type="date" min={CHALLENGE_START_DATE} value={manualDate} onChange={(e) => setManualDate(e.target.value)} className="rounded-xl border border-oriwan-border px-3 py-2.5 text-sm" />
                 <input value={manualDistance} onChange={(e) => setManualDistance(e.target.value)} placeholder="거리 km" inputMode="decimal" className="rounded-xl border border-oriwan-border px-3 py-2.5 text-sm" />
                 <input value={manualDuration} onChange={(e) => setManualDuration(e.target.value)} placeholder="시간 예: 32:10" className="rounded-xl border border-oriwan-border px-3 py-2.5 text-sm" />
