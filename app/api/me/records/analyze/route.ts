@@ -6,11 +6,13 @@ import { GEMINI_OCR_MODEL, RUN_IMAGE_RESPONSE_SCHEMA, buildRunImagePrompt, getGe
 import {
   ExtractedRunBase,
   UploadedImage,
+  mapWithConcurrency,
   normalizeRecordDate,
   parseDataUrl,
   parseDistanceKm,
   parseDurationText,
   parseJsonObject,
+  resolveOcrConcurrency,
   validImage,
 } from "@/lib/run-image-extraction";
 import { calculatePaceSeconds, isCertificationCountedStatus } from "@/lib/run-records";
@@ -21,6 +23,7 @@ type ExtractedRun = ExtractedRunBase;
 
 const MAX_IMAGES = 5;
 const MAX_BODY_BYTES = MAX_IMAGES * 4 * 1024 * 1024 + 512 * 1024;
+const DEFAULT_OCR_CONCURRENCY = 3;
 
 type AnalyzeFailure = {
   file_name: string;
@@ -70,6 +73,18 @@ async function analyzeImage(image: UploadedImage, targetDate?: string | null) {
   return parseJsonObject<ExtractedRun>(response.text || "{}");
 }
 
+type AnalyzedPersonalImage =
+  | {
+    ok: true;
+    image: UploadedImage;
+    extracted: ExtractedRun;
+  }
+  | {
+    ok: false;
+    image: UploadedImage;
+    error: unknown;
+  };
+
 async function findExistingRecord(
   service: NonNullable<ReturnType<typeof getServiceClient>>,
   adminUserId: string,
@@ -110,7 +125,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const targetDate = normalizeRecordDate(body.targetDate);
     const rawImages = Array.isArray(body.images) ? body.images : [];
-    const images = rawImages.filter(validImage).slice(0, MAX_IMAGES);
+    const images = rawImages.filter(validImage).slice(0, MAX_IMAGES) as UploadedImage[];
 
     if (!images.length) {
       return NextResponse.json({ error: "NRC나 Garmin 같은 러닝 기록 이미지를 올려주세요." }, { status: 400 });
@@ -139,11 +154,22 @@ export async function POST(request: NextRequest) {
     const results = [];
     const failed: AnalyzeFailure[] = [];
 
-    for (const image of images) {
-      let extracted: ExtractedRun;
-      try {
-        extracted = await analyzeImage(image, targetDate);
-      } catch (error) {
+    const analyzedImages = await mapWithConcurrency(
+      images,
+      resolveOcrConcurrency(process.env.OCR_CONCURRENCY, DEFAULT_OCR_CONCURRENCY, images.length),
+      async (image): Promise<AnalyzedPersonalImage> => {
+        try {
+          return { ok: true, image, extracted: await analyzeImage(image, targetDate) };
+        } catch (error) {
+          return { ok: false, image, error };
+        }
+      }
+    );
+
+    for (const analyzedImage of analyzedImages) {
+      const { image } = analyzedImage;
+      if (!analyzedImage.ok) {
+        const { error } = analyzedImage;
         console.warn("Personal OCR image analysis failed", {
           model: GEMINI_OCR_MODEL,
           file: image.name,
@@ -152,6 +178,7 @@ export async function POST(request: NextRequest) {
         failed.push({ file_name: image.name, error: getGeminiErrorMessage(error) });
         continue;
       }
+      const extracted = analyzedImage.extracted;
 
       const extractedDate = normalizeRecordDate(extracted.record_date);
       const recordDate = targetDate || extractedDate;

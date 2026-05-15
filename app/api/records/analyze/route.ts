@@ -9,11 +9,13 @@ import { CHALLENGE_DATE_ERROR, CHALLENGE_START_DATE, isWithinChallengeWindow } f
 import {
   ExtractedRunBase,
   UploadedImage,
+  mapWithConcurrency,
   normalizeRecordDate,
   parseDataUrl,
   parseDistanceKm,
   parseDurationText,
   parseJsonObject,
+  resolveOcrConcurrency,
   validImage,
 } from "@/lib/run-image-extraction";
 import { guardMutationRequest } from "@/lib/request-security";
@@ -36,6 +38,7 @@ type ExistingRunRecord = {
 
 const MAX_IMAGES = 40;
 const MAX_BODY_BYTES = MAX_IMAGES * 4 * 1024 * 1024 + 2 * 1024 * 1024;
+const DEFAULT_OCR_CONCURRENCY = 4;
 const DEFAULT_PARTICIPANT_NAME_WHEN_OCR_NAME_MISSING = "이경민";
 
 function normalizeParticipantName(name: string) {
@@ -105,6 +108,21 @@ async function analyzeImage(image: UploadedImage, knownNames: string[], targetDa
     base64,
   };
 }
+
+type AnalyzedAdminImage =
+  | {
+    ok: true;
+    index: number;
+    image: UploadedImage;
+    analyzed: Awaited<ReturnType<typeof analyzeImage>>;
+    extracted: ExtractedRun;
+  }
+  | {
+    ok: false;
+    index: number;
+    image: UploadedImage;
+    error: unknown;
+  };
 
 async function uploadImageToStorage(input: {
   userId: string;
@@ -246,15 +264,24 @@ export async function POST(request: NextRequest) {
     const results = [];
     let needsReviewCount = 0;
 
-    for (let index = 0; index < images.length; index += 1) {
-      const image = images[index];
+    const analyzedImages = await mapWithConcurrency(
+      images,
+      resolveOcrConcurrency(process.env.OCR_CONCURRENCY, DEFAULT_OCR_CONCURRENCY, images.length),
+      async (image, index): Promise<AnalyzedAdminImage> => {
+        try {
+          const analyzed = await analyzeImage(image, knownNames, targetDate);
+          return { ok: true, index, image, analyzed, extracted: analyzed.extracted };
+        } catch (error) {
+          return { ok: false, index, image, error };
+        }
+      }
+    );
 
-      let analyzed: Awaited<ReturnType<typeof analyzeImage>>;
-      let extracted: ExtractedRun;
-      try {
-        analyzed = await analyzeImage(image, knownNames, targetDate);
-        extracted = analyzed.extracted;
-      } catch (error) {
+    for (const analyzedImage of analyzedImages) {
+      const { image, index } = analyzedImage;
+
+      if (!analyzedImage.ok) {
+        const { error } = analyzedImage;
         console.warn("Admin OCR image analysis failed", {
           model: GEMINI_OCR_MODEL,
           file: image.name,
@@ -346,6 +373,8 @@ export async function POST(request: NextRequest) {
         });
         continue;
       }
+      const analyzed = analyzedImage.analyzed;
+      const extracted = analyzedImage.extracted;
       const extractedParticipantName = typeof extracted.participant_name === "string" ? extracted.participant_name : "";
       const participantNameMissing = !hasParticipantName(extractedParticipantName);
       const participant = matchParticipant(extractedParticipantName, participants) || (participantNameMissing ? fallbackParticipant : null);

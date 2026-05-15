@@ -40,6 +40,34 @@ export function validImage(input: unknown): input is UploadedImage {
   }
 }
 
+export function resolveOcrConcurrency(value: string | undefined, fallback: number, max: number) {
+  const parsed = Number(value);
+  const candidate = Number.isFinite(parsed) ? Math.floor(parsed) : fallback;
+  return Math.max(1, Math.min(Math.max(1, max), candidate));
+}
+
+export async function mapWithConcurrency<T, R>(
+  items: T[],
+  limit: number,
+  worker: (item: T, index: number) => Promise<R>
+) {
+  if (!items.length) return [];
+
+  const workerCount = Math.min(Math.max(1, Math.floor(limit)), items.length);
+  const results = new Array<R>(items.length);
+  let nextIndex = 0;
+
+  await Promise.all(Array.from({ length: workerCount }, async () => {
+    while (nextIndex < items.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      results[index] = await worker(items[index], index);
+    }
+  }));
+
+  return results;
+}
+
 export function parseJsonObject<T>(text: string): T {
   const cleaned = text
     .trim()
