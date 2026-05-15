@@ -59,7 +59,8 @@ type MeData = {
 
 const today = toIsoDate(new Date());
 const initialRecordDate = clampToChallengeWindow(today);
-const IMAGE_UPLOAD_CHUNK_SIZE = 5;
+const IMAGE_UPLOAD_CHUNK_SIZE = 20;
+const MAX_IMAGE_FILES = 20;
 
 function MyPageLoading() {
   return (
@@ -366,7 +367,13 @@ export default function MyPage() {
                     type="file"
                     accept="image/*"
                     multiple
-                    onChange={(event) => setImageFiles(Array.from(event.target.files || []))}
+                    onChange={(event) => {
+                      const selected = Array.from(event.target.files || []);
+                      setImageFiles(selected.slice(0, MAX_IMAGE_FILES));
+                      if (selected.length > MAX_IMAGE_FILES) {
+                        setMessage(`이미지는 한 번에 최대 ${MAX_IMAGE_FILES}장까지 읽을 수 있어요.`);
+                      }
+                    }}
                     className="sr-only"
                   />
                 </label>

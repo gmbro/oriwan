@@ -123,8 +123,8 @@ function MemberPicker({
 
 type AdminModal = "participant" | "record" | "upload" | "participantRecords" | null;
 
-const IMAGE_UPLOAD_CHUNK_SIZE = 8;
-const MAX_BATCH_IMAGE_FILES = 40;
+const IMAGE_UPLOAD_CHUNK_SIZE = 20;
+const MAX_BATCH_IMAGE_FILES = 20;
 const now = new Date();
 const today = toKstIsoDate(now);
 const effectiveToday = today;

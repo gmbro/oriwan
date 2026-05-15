@@ -36,7 +36,7 @@ type ExistingRunRecord = {
   status: "certified" | "needs_review" | "missing" | "rejected";
 };
 
-const MAX_IMAGES = 40;
+const MAX_IMAGES = 20;
 const MAX_BODY_BYTES = MAX_IMAGES * 4 * 1024 * 1024 + 2 * 1024 * 1024;
 const DEFAULT_OCR_CONCURRENCY = 4;
 const DEFAULT_PARTICIPANT_NAME_WHEN_OCR_NAME_MISSING = "이경민";
