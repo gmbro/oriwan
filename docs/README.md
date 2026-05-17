@@ -57,6 +57,14 @@ app/api/records/analyze/route.ts    이미지 OCR 분석 및 기록 생성
 - `upload_batches`
 - `daily_run_records`
 
+주요 Storage bucket:
+
+- `photos`: 러닝 인증 원본 이미지
+- `snasa-gallery`: 스내사 포토로그 이미지
+
+`snasa-gallery`에는 날짜가 들어간 폴더를 만들고 사진을 넣으면 됩니다.
+예: `2026-05-16 스내사 남산런/photo-001.jpg`, `0516 스내사 남산런/photo-001.jpg`
+
 ## 운영 플로우
 
 1. 참가자 이름을 등록합니다.

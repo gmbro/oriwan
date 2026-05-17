@@ -113,3 +113,12 @@ CREATE INDEX IF NOT EXISTS idx_daily_run_records_status
 -- Supabase Dashboard > Database > Replication 또는 Realtime 설정에서
 -- participants, daily_run_records 테이블의 Realtime을 켜면 입력/수정 즉시 화면이 갱신됩니다.
 -- Realtime이 꺼져 있어도 웹 대시보드는 60초마다 자동으로 최신 데이터를 다시 가져옵니다.
+
+-- 6. Storage: 스내사 포토로그 버킷
+-- Supabase Dashboard > Storage에 아래 버킷을 만들고, 날짜가 들어간 폴더 안에 사진을 올리면
+-- 대시보드가 자동으로 날짜별 사진첩을 구성합니다.
+-- 권장 폴더명 예시: 2026-05-16 스내사 남산런 / 0516 스내사 남산런
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('snasa-gallery', 'snasa-gallery', false)
+ON CONFLICT (id) DO UPDATE
+SET public = false;

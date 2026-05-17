@@ -57,7 +57,7 @@ END $$;
 -- 5. 인증 이미지 버킷은 공개 버킷으로 두지 않습니다.
 UPDATE storage.buckets
 SET public = false
-WHERE id = 'photos';
+WHERE id IN ('photos', 'snasa-gallery');
 
 COMMIT;
 
