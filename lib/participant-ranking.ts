@@ -14,23 +14,17 @@ type SortableParticipantRank = {
   durationSeconds: number;
 };
 
-function compareByCertification<T extends SortableParticipantRank>(a: T, b: T) {
-  return (
-    b.rate - a.rate ||
-    b.certifiedDays - a.certifiedDays ||
-    b.distanceKm - a.distanceKm ||
-    b.durationSeconds - a.durationSeconds
-  );
+function compareByName<T extends SortableParticipantRank>(a: T, b: T) {
+  return a.participant.name.localeCompare(b.participant.name, "ko-KR", {
+    numeric: true,
+    sensitivity: "base",
+  });
 }
 
 function compareParticipantRank<T extends SortableParticipantRank>(a: T, b: T, sortMode: ParticipantRankSortMode) {
-  const metricCompare = sortMode === "distance"
-    ? b.distanceKm - a.distanceKm || compareByCertification(a, b) || b.durationSeconds - a.durationSeconds
-    : sortMode === "duration"
-      ? b.durationSeconds - a.durationSeconds || compareByCertification(a, b) || b.distanceKm - a.distanceKm
-      : compareByCertification(a, b);
-
-  return metricCompare || a.participant.name.localeCompare(b.participant.name, "ko");
+  if (sortMode === "distance") return b.distanceKm - a.distanceKm || compareByName(a, b);
+  if (sortMode === "duration") return b.durationSeconds - a.durationSeconds || compareByName(a, b);
+  return b.rate - a.rate || compareByName(a, b);
 }
 
 export function sortParticipantRanks<T extends SortableParticipantRank>(items: readonly T[], sortMode: ParticipantRankSortMode) {
