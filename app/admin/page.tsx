@@ -742,6 +742,7 @@ export default function AdminPage() {
           distance_km: result.edit_distance || null,
           duration_seconds: durationSeconds,
           status: nextStatus,
+          notes: nextStatus === "certified" ? null : result.notes ?? null,
         }),
       });
       const json = await res.json().catch(() => ({}));
@@ -756,6 +757,7 @@ export default function AdminPage() {
               status: nextStatus,
               edit_distance: result.edit_distance || "",
               edit_duration: result.edit_duration || "",
+              notes: nextStatus === "certified" ? null : item.notes,
             }
           : item
       )));
@@ -812,6 +814,7 @@ export default function AdminPage() {
           distance_km: draft.distance || null,
           duration_seconds: durationSeconds,
           status: nextStatus,
+          notes: nextStatus === "certified" ? null : record.notes,
         }),
       });
       const json = await res.json().catch(() => ({}));
