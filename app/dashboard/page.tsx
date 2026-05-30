@@ -102,6 +102,7 @@ const RING_CIRCUMFERENCE = 302;
 const PUBLIC_DASHBOARD_STORAGE_KEY = "oriwan-public-dashboard-cache-v1";
 const PUBLIC_DASHBOARD_STORAGE_TTL_MS = 5 * 60 * 1000;
 const PUBLIC_DASHBOARD_FOCUS_REFRESH_MS = 30 * 1000;
+const SILENT_CHEER_STORAGE_PREFIX = "oriwan-silent-cheer-v1";
 
 function readCachedDashboardData() {
   if (typeof window === "undefined") return null;
@@ -130,6 +131,44 @@ function writeCachedDashboardData(data: PublicDashboardData) {
   } catch {
     // Storage can fail in private mode. Network refresh still keeps the dashboard usable.
   }
+}
+
+function silentCheerStorageKey(date: string) {
+  return `${SILENT_CHEER_STORAGE_PREFIX}:${date}`;
+}
+
+function readSilentCheer(date: string) {
+  if (typeof window === "undefined" || !date) return false;
+
+  try {
+    return window.localStorage.getItem(silentCheerStorageKey(date)) === "sent";
+  } catch {
+    return false;
+  }
+}
+
+function writeSilentCheer(date: string) {
+  if (typeof window === "undefined" || !date) return;
+
+  try {
+    window.localStorage.setItem(silentCheerStorageKey(date), "sent");
+  } catch {
+    // The cheer is intentionally lightweight; the button still gives immediate feedback.
+  }
+}
+
+function formatCompactDistance(value: number) {
+  if (!value || value <= 0) return "0km";
+  if (value >= 100) return `${Math.round(value)}km`;
+  return `${value.toFixed(1)}km`;
+}
+
+function formatCompactDuration(seconds: number) {
+  if (!seconds || seconds <= 0) return "0분";
+  const hours = seconds / 3600;
+  if (hours >= 10) return `${Math.round(hours)}시간`;
+  if (hours >= 1) return `${hours.toFixed(1)}시간`;
+  return `${Math.max(Math.round(seconds / 60), 1)}분`;
 }
 
 function getLongestDateStreak(dates: string[]) {
@@ -449,6 +488,7 @@ export default function DashboardPage() {
   const [trendModal, setTrendModal] = useState<TrendModal>(null);
   const [showSeasonReportModal, setShowSeasonReportModal] = useState(false);
   const [participantSortMode, setParticipantSortMode] = useState<ParticipantRankSortMode>("certification");
+  const [silentCheerSent, setSilentCheerSent] = useState(false);
   const loadingRef = useRef(false);
   const lastLoadedAtRef = useRef(0);
   const motionFrameRef = useRef<number | null>(null);
@@ -478,7 +518,7 @@ export default function DashboardPage() {
       const response = await fetch("/api/public-dashboard?scope=all", {
         cache: options?.fresh ? "no-store" : "default",
       });
-      const json = await response.json() as PublicDashboardData;
+      const json = await response.json().catch(() => ({ error: "팀 보드 응답을 읽지 못했어요." })) as PublicDashboardData;
       if (!response.ok) throw new Error(json.error || "오늘의 보드를 불러오지 못했어요.");
       setData(json);
       writeCachedDashboardData(json);
@@ -598,15 +638,27 @@ export default function DashboardPage() {
       return { index, weekDays };
     }).filter((week) => week.weekDays[0] && week.weekDays[0] <= currentCertificationDate);
     const weekTrend = visibleOfficialWeeks.map(({ index, weekDays }) => {
+      const weekRecords = officialCertifiedRecords.filter((record) => Boolean(record.record_date && weekDays.includes(record.record_date)));
+      const elapsedWeekDays = weekDays.filter((day) => day <= currentCertificationDate);
       const certifiedSlots = weekDays.reduce((sum, day) => sum + (certifiedCountByDay.get(day) || 0), 0);
       const possibleSlots = weekDays.length * participants.length;
       const averageRate = possibleSlots ? Math.round((certifiedSlots / possibleSlots) * 100) : 0;
+      const elapsedCertifiedSlots = elapsedWeekDays.reduce((sum, day) => sum + (certifiedCountByDay.get(day) || 0), 0);
+      const elapsedPossibleSlots = elapsedWeekDays.length * participants.length;
+      const reportRate = elapsedPossibleSlots ? Math.round((elapsedCertifiedSlots / elapsedPossibleSlots) * 100) : 0;
+      const activeParticipantCount = new Set(weekRecords.map((record) => record.participant_id).filter(Boolean)).size;
       return {
         label: `${index + 1}주`,
         from: weekDays[0] || "",
         to: weekDays.at(-1) || "",
         averageRate,
         averageCount: weekDays.length ? Math.round(certifiedSlots / weekDays.length) : 0,
+        certifiedSlots,
+        elapsedCertifiedSlots,
+        reportRate,
+        activeParticipantCount,
+        distanceKm: weekRecords.reduce((sum, record) => sum + (record.distance_km || 0), 0),
+        durationSeconds: weekRecords.reduce((sum, record) => sum + (record.duration_seconds || 0), 0),
       };
     });
     const pictogramByParticipantId = buildMemberPictogramMap(participants);
@@ -655,12 +707,22 @@ export default function DashboardPage() {
       stampDays: makeDaysThrough(CERTIFICATION_DISPLAY_START_DATE, latestStampDate),
     };
   }, [data, todayIso]);
+  useEffect(() => {
+    setSilentCheerSent(readSilentCheer(dashboard.currentCertificationDate));
+  }, [dashboard.currentCertificationDate]);
+
+  const sendSilentCheer = useCallback(() => {
+    writeSilentCheer(dashboard.currentCertificationDate);
+    setSilentCheerSent(true);
+  }, [dashboard.currentCertificationDate]);
+
   const sortedParticipantProgress = useMemo(
     () => sortParticipantRanks(dashboard.participantProgress, participantSortMode),
     [dashboard.participantProgress, participantSortMode]
   );
   const latestWeeklyRate = dashboard.weekTrend.at(-1)?.averageRate || 0;
   const latestDailyRate = dashboard.dayTrend.at(-1)?.rate || 0;
+  const currentWeeklyReport = dashboard.weekTrend.at(-1) || null;
   const selectedParticipant = dashboard.participantProgress.find((row) => row.participant.id === selectedParticipantId) || null;
   const selectedStampedDates = new Set(selectedParticipant?.stampedDates || []);
   const selectedRecordByDate = new Map<string, RunRecord>(
@@ -753,6 +815,75 @@ export default function DashboardPage() {
                     />
                   </svg>
                 </div>
+              </div>
+
+              <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:mt-4">
+                <button
+                  type="button"
+                  onClick={() => setTrendModal("weekly")}
+                  className="dashboard-card-reveal group min-w-0 rounded-[22px] bg-white/10 p-4 text-left ring-1 ring-white/10 transition hover:-translate-y-0.5 hover:bg-white/15 hover:ring-lime-300/60 sm:rounded-[26px] [animation-delay:120ms]"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-[11px] font-black text-lime-200">주간 버티기 리포트</p>
+                      <p className="mt-1 truncate text-xl font-black leading-tight text-white">
+                        {currentWeeklyReport ? `${currentWeeklyReport.label} ${currentWeeklyReport.reportRate}%` : "이번 주 집계 중"}
+                      </p>
+                      <p className="mt-1 truncate text-[11px] font-bold text-white/45">
+                        {currentWeeklyReport ? `${currentWeeklyReport.activeParticipantCount}명이 이번 주 함께 버티는 중` : "인증이 들어오면 바로 채워져요"}
+                      </p>
+                    </div>
+                    <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-lime-300 text-slate-950 shadow-sm shadow-lime-300/30 transition group-hover:scale-105">
+                      <IconCalendar size={18} />
+                    </span>
+                  </div>
+                  <div className="mt-3 grid grid-cols-3 gap-1.5">
+                    <span className="rounded-2xl bg-white/10 px-2.5 py-2 ring-1 ring-white/5">
+                      <span className="block text-[9px] font-black text-white/45">인증</span>
+                      <span className="mt-0.5 block text-sm font-black text-white">{currentWeeklyReport?.elapsedCertifiedSlots || 0}회</span>
+                    </span>
+                    <span className="rounded-2xl bg-white/10 px-2.5 py-2 ring-1 ring-white/5">
+                      <span className="block text-[9px] font-black text-white/45">거리</span>
+                      <span className="mt-0.5 block text-sm font-black text-white">{formatCompactDistance(currentWeeklyReport?.distanceKm || 0)}</span>
+                    </span>
+                    <span className="rounded-2xl bg-white/10 px-2.5 py-2 ring-1 ring-white/5">
+                      <span className="block text-[9px] font-black text-white/45">시간</span>
+                      <span className="mt-0.5 block text-sm font-black text-white">{formatCompactDuration(currentWeeklyReport?.durationSeconds || 0)}</span>
+                    </span>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={sendSilentCheer}
+                  aria-pressed={silentCheerSent}
+                  disabled={silentCheerSent}
+                  className={`dashboard-card-reveal group relative min-w-0 overflow-hidden rounded-[22px] p-4 text-left ring-1 transition sm:rounded-[26px] [animation-delay:210ms] ${
+                    silentCheerSent
+                      ? "bg-lime-300 text-slate-950 ring-lime-200 shadow-sm shadow-lime-300/30"
+                      : "bg-white text-slate-950 ring-white/10 hover:-translate-y-0.5 hover:bg-lime-50 hover:ring-lime-300"
+                  }`}
+                >
+                  {silentCheerSent && <FanfareBurst compact />}
+                  <div className="relative flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className={`text-[11px] font-black ${silentCheerSent ? "text-slate-950/60" : "text-oriwan-text-muted"}`}>
+                        침묵의 응원
+                      </p>
+                      <p className="mt-1 text-xl font-black leading-tight">
+                        {silentCheerSent ? "오늘 응원 보냄" : "조용히 응원하기"}
+                      </p>
+                      <p className={`mt-2 text-xs font-bold leading-5 ${silentCheerSent ? "text-slate-950/60" : "text-oriwan-text-muted"}`}>
+                        {silentCheerSent
+                          ? "오늘 인증한 크루에게 마음만 놓고 갔어요."
+                          : `${dashboard.currentDateCertifiedIds.size}명의 오늘 루틴에 힘을 보태요.`}
+                      </p>
+                    </div>
+                    <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-slate-950 text-lime-200 transition group-hover:scale-105">
+                      <IconHeart size={18} />
+                    </span>
+                  </div>
+                </button>
               </div>
             </div>
           </div>
