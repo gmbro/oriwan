@@ -49,6 +49,21 @@ type PersonalGrowthBadge = {
   colorClassName: string;
 };
 
+const CHEER_PARTICLES = [
+  { left: "10%", top: "32%", dx: "-34px", dy: "-88px" },
+  { left: "18%", top: "58%", dx: "-18px", dy: "-104px" },
+  { left: "26%", top: "38%", dx: "24px", dy: "-92px" },
+  { left: "35%", top: "72%", dx: "-30px", dy: "-112px" },
+  { left: "44%", top: "30%", dx: "14px", dy: "-96px" },
+  { left: "52%", top: "62%", dx: "-12px", dy: "-118px" },
+  { left: "60%", top: "42%", dx: "32px", dy: "-100px" },
+  { left: "68%", top: "70%", dx: "18px", dy: "-108px" },
+  { left: "76%", top: "34%", dx: "-26px", dy: "-90px" },
+  { left: "86%", top: "56%", dx: "30px", dy: "-104px" },
+  { left: "14%", top: "78%", dx: "28px", dy: "-84px" },
+  { left: "84%", top: "80%", dx: "-24px", dy: "-86px" },
+] as const;
+
 const actualCertificationEndDate = toIsoDate(addDays(new Date(`${ACTUAL_CERTIFICATION_START_DATE}T00:00:00`), CHALLENGE_DAYS - 1));
 
 function formatLastUpdated(value?: string) {
@@ -476,6 +491,35 @@ function FanfareBurst({ compact = false }: { compact?: boolean }) {
   );
 }
 
+function SilentCheerBurst({ burstId }: { burstId: number }) {
+  return (
+    <div key={burstId} className="silent-cheer-overlay" aria-hidden="true">
+      <div className="silent-cheer-ripple" />
+      <div className="silent-cheer-toast">
+        <span className="silent-cheer-toast-icon">
+          <IconHeart size={16} />
+        </span>
+        <span>조용한 응원이 퍼졌어요</span>
+      </div>
+      <div className="silent-cheer-particles">
+        {CHEER_PARTICLES.map((particle, index) => (
+          <span
+            key={`${particle.left}-${particle.top}`}
+            className="silent-cheer-particle"
+            style={{
+              "--i": index,
+              "--dx": particle.dx,
+              "--dy": particle.dy,
+              left: particle.left,
+              top: particle.top,
+            } as CSSProperties}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function DashboardPage() {
   const [data, setData] = useState<PublicDashboardData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -489,9 +533,12 @@ export default function DashboardPage() {
   const [showSeasonReportModal, setShowSeasonReportModal] = useState(false);
   const [participantSortMode, setParticipantSortMode] = useState<ParticipantRankSortMode>("certification");
   const [silentCheerSent, setSilentCheerSent] = useState(false);
+  const [cheerBurstId, setCheerBurstId] = useState(0);
+  const [cheerBurstVisible, setCheerBurstVisible] = useState(false);
   const loadingRef = useRef(false);
   const lastLoadedAtRef = useRef(0);
   const motionFrameRef = useRef<number | null>(null);
+  const cheerTimeoutRef = useRef<number | null>(null);
 
   const restartMotion = useCallback(() => {
     if (motionFrameRef.current) window.cancelAnimationFrame(motionFrameRef.current);
@@ -571,6 +618,7 @@ export default function DashboardPage() {
   useEffect(() => {
     return () => {
       if (motionFrameRef.current) window.cancelAnimationFrame(motionFrameRef.current);
+      if (cheerTimeoutRef.current) window.clearTimeout(cheerTimeoutRef.current);
     };
   }, []);
 
@@ -714,6 +762,13 @@ export default function DashboardPage() {
   const sendSilentCheer = useCallback(() => {
     writeSilentCheer(dashboard.currentCertificationDate);
     setSilentCheerSent(true);
+    setCheerBurstId((current) => current + 1);
+    setCheerBurstVisible(true);
+    if (cheerTimeoutRef.current) window.clearTimeout(cheerTimeoutRef.current);
+    cheerTimeoutRef.current = window.setTimeout(() => {
+      setCheerBurstVisible(false);
+      cheerTimeoutRef.current = null;
+    }, 1600);
   }, [dashboard.currentCertificationDate]);
 
   const sortedParticipantProgress = useMemo(
@@ -759,7 +814,13 @@ export default function DashboardPage() {
   const isInitialDashboardLoading = loading && !data;
 
   return (
-    <main className="min-h-screen w-full overflow-x-hidden bg-oriwan-bg">
+    <main className={`min-h-screen w-full overflow-x-hidden bg-oriwan-bg ${cheerBurstVisible ? "cheer-mode-active" : ""}`}>
+      {cheerBurstVisible && (
+        <>
+          <p className="sr-only" role="status">조용한 응원이 퍼졌어요.</p>
+          <SilentCheerBurst burstId={cheerBurstId} />
+        </>
+      )}
       <header className="sticky top-0 z-50 border-b border-slate-950/10 bg-[#101522]/95 px-3 py-2.5 text-white backdrop-blur-2xl sm:px-4 sm:py-3">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
@@ -858,7 +919,7 @@ export default function DashboardPage() {
                   onClick={sendSilentCheer}
                   aria-pressed={silentCheerSent}
                   disabled={silentCheerSent}
-                  className={`dashboard-card-reveal group relative min-w-0 overflow-hidden rounded-[22px] p-4 text-left ring-1 transition sm:rounded-[26px] [animation-delay:210ms] ${
+                  className={`silent-cheer-button dashboard-card-reveal group relative min-w-0 overflow-hidden rounded-[22px] p-4 text-left ring-1 transition sm:rounded-[26px] [animation-delay:210ms] ${
                     silentCheerSent
                       ? "bg-lime-300 text-slate-950 ring-lime-200 shadow-sm shadow-lime-300/30"
                       : "bg-white text-slate-950 ring-white/10 hover:-translate-y-0.5 hover:bg-lime-50 hover:ring-lime-300"

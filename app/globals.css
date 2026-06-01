@@ -316,6 +316,40 @@ img { -webkit-user-drag: none; user-select: none; }
   20%, 72% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
 }
 
+@keyframes silent-cheer-overlay-fade {
+  0% { opacity: 0; }
+  12%, 78% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes silent-cheer-ripple {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.36); }
+  22% { opacity: 0.58; }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.1); }
+}
+
+@keyframes silent-cheer-toast {
+  0% { opacity: 0; transform: translate(-50%, 10px) scale(0.96); }
+  18%, 74% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -8px) scale(0.98); }
+}
+
+@keyframes silent-cheer-particle {
+  0% { opacity: 0; transform: translate3d(0, 18px, 0) scale(0.45) rotate(0deg); }
+  18% { opacity: 1; }
+  100% { opacity: 0; transform: translate3d(var(--dx), var(--dy), 0) scale(1.08) rotate(32deg); }
+}
+
+@keyframes silent-cheer-button-pulse {
+  0%, 100% { transform: translateY(0) scale(1); }
+  32% { transform: translateY(-2px) scale(1.012); }
+}
+
+@keyframes silent-cheer-card-glow {
+  0%, 100% { box-shadow: 0 1px 0 rgba(255,255,255,0.78) inset, 0 0 0 rgba(190, 242, 100, 0); }
+  36% { box-shadow: 0 1px 0 rgba(255,255,255,0.9) inset, 0 12px 34px rgba(190, 242, 100, 0.22), 0 0 0 1px rgba(190, 242, 100, 0.48) inset; }
+}
+
 .animate-fade-up { animation: fade-up 0.45s ease-out forwards; }
 .dashboard-card-reveal {
   animation: dashboard-card-reveal 0.48s cubic-bezier(0.2, 0.8, 0.2, 1) both;
@@ -381,6 +415,91 @@ img { -webkit-user-drag: none; user-select: none; }
     #fff;
   animation: gauge-complete-glow 2.6s ease-in-out infinite;
 }
+.silent-cheer-overlay {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  overflow: hidden;
+  animation: silent-cheer-overlay-fade 1.6s ease-out both;
+}
+.silent-cheer-ripple,
+.silent-cheer-ripple::after {
+  position: absolute;
+  left: 50%;
+  top: 28%;
+  width: min(92vw, 680px);
+  aspect-ratio: 1;
+  border-radius: 9999px;
+  transform: translate(-50%, -50%);
+}
+.silent-cheer-ripple {
+  border: 1px solid rgba(190, 242, 100, 0.42);
+  background: radial-gradient(circle, rgba(190, 242, 100, 0.22), rgba(190, 242, 100, 0.08) 36%, transparent 68%);
+  animation: silent-cheer-ripple 1.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.silent-cheer-ripple::after {
+  content: "";
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  animation: silent-cheer-ripple 1.5s cubic-bezier(0.2, 0.8, 0.2, 1) 0.14s both;
+}
+.silent-cheer-toast {
+  position: absolute;
+  left: 50%;
+  top: calc(env(safe-area-inset-top) + 4.75rem);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 999px;
+  background: rgba(16, 21, 34, 0.92);
+  color: #ecfccb;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 900;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.24);
+  animation: silent-cheer-toast 1.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.silent-cheer-toast-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  background: #bef264;
+  color: #101522;
+}
+.silent-cheer-particles {
+  position: absolute;
+  inset: 0;
+}
+.silent-cheer-particle {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #bef264;
+  box-shadow: 0 0 18px rgba(190, 242, 100, 0.42);
+  animation: silent-cheer-particle 1.28s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation-delay: calc(var(--i) * 34ms);
+}
+.silent-cheer-particle:nth-child(3n) {
+  width: 14px;
+  height: 6px;
+  background: #ffffff;
+}
+.silent-cheer-particle:nth-child(4n) {
+  width: 6px;
+  height: 14px;
+  background: #d9f99d;
+}
+.cheer-mode-active .silent-cheer-button {
+  animation: silent-cheer-button-pulse 1.12s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.cheer-mode-active .dashboard-gauge-card,
+.cheer-mode-active .gauge-complete-card {
+  animation: silent-cheer-card-glow 1.25s ease-out both;
+}
 .modal-rise {
   position: relative;
   animation: modal-rise 0.34s cubic-bezier(0.2, 0.8, 0.2, 1) both;
@@ -430,6 +549,10 @@ img { -webkit-user-drag: none; user-select: none; }
   animation-duration: 0.9s;
 }
 @media (prefers-reduced-motion: reduce) {
+  .silent-cheer-ripple,
+  .silent-cheer-particles {
+    display: none;
+  }
   *, ::before, ::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
