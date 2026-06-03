@@ -67,7 +67,8 @@ function decideStatus(input: {
   allowFallbackDate: boolean;
 }) {
   const hasMetric = Boolean((input.distanceKm && input.distanceKm > 0) || (input.durationSeconds && input.durationSeconds > 0));
-  if (!input.participantId || !input.recordDate || !hasMetric) return "needs_review";
+  if (!input.participantId || !input.recordDate) return "needs_review";
+  if (!hasMetric) return "missing";
   if (input.dateWasFallback && !input.allowFallbackDate) return "needs_review";
   return "certified";
 }
@@ -328,7 +329,7 @@ export async function POST(request: NextRequest) {
             duration_seconds: null,
             pace_seconds_per_km: null,
             source_app: null,
-            status: "needs_review",
+            status: "missing",
             confidence_score: null,
             image_url: filePath,
             raw_extracted_text: null,
@@ -362,7 +363,7 @@ export async function POST(request: NextRequest) {
           record_date: targetDate,
           distance_km: null,
           duration_seconds: null,
-          status: "needs_review",
+          status: "missing",
           confidence_score: null,
           notes: fallbackNotes,
         });
@@ -408,7 +409,7 @@ export async function POST(request: NextRequest) {
         allowFallbackDate: Boolean(targetDate),
       });
 
-      if (status === "needs_review") needsReviewCount += 1;
+      if (status !== "certified") needsReviewCount += 1;
 
       const filePath = await uploadImageToStorage({
         userId: user.id,

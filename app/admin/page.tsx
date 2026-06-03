@@ -137,6 +137,7 @@ function statusLabel(status: AnalysisStatus) {
   if (status === "duplicate") return "이미 인증됨";
   if (status === "certified") return "완료";
   if (status === "needs_review") return "확인 중";
+  if (status === "missing") return "보류";
   if (status === "rejected") return "반려";
   return "아직";
 }
@@ -145,6 +146,7 @@ function statusClass(status: AnalysisStatus) {
   if (status === "duplicate") return "bg-slate-100 text-slate-700 border-slate-200";
   if (status === "certified") return "bg-lime-100 text-lime-900 border-lime-200";
   if (status === "needs_review") return "bg-orange-100 text-orange-900 border-orange-200";
+  if (status === "missing") return "bg-slate-100 text-slate-700 border-slate-200";
   if (status === "rejected") return "bg-rose-100 text-rose-900 border-rose-200";
   return "bg-slate-100 text-slate-400 border-slate-200";
 }
@@ -658,7 +660,7 @@ export default function AdminPage() {
       const results = await postAnalyzeImages(images);
       setFiles([]);
       setAnalysisResults(results);
-      const certified = results.filter((result) => result.participant_id && result.record_date && isCertificationCountedStatus(result.status)).length;
+      const certified = results.filter((result) => result.status === "certified").length;
       const duplicate = results.filter((result) => result.duplicate || result.status === "duplicate").length;
       const review = results.length - certified - duplicate;
       setAnalysisMessage(`${results.length}장 정리 완료 · 인증 반영 ${certified}건 · 이미 인증 ${duplicate}건 · 보류 ${review}건`);
@@ -730,7 +732,7 @@ export default function AdminPage() {
 
     const durationSeconds = parseDurationToSeconds(result.edit_duration || "");
     const hasMetric = Boolean((result.edit_distance || "").trim() || durationSeconds);
-    const nextStatus: RecordStatus = result.participant_id && result.record_date && hasMetric ? "certified" : "needs_review";
+    const nextStatus: RecordStatus = result.participant_id && result.record_date && hasMetric ? "certified" : "missing";
     const resultKey = getAnalysisResultKey(result, resultIndex);
     setUpdatingAnalysisKey(resultKey);
 
@@ -761,7 +763,7 @@ export default function AdminPage() {
             }
           : item
       )));
-      setAnalysisMessage("거리와 시간을 저장했어요.");
+      setAnalysisMessage(nextStatus === "certified" ? "거리와 시간을 저장했어요." : "보류 상태로 저장했어요. 멤버, 거리, 시간을 확인해주세요.");
       await loadData(false);
     } catch (err) {
       setAnalysisMessage(err instanceof Error ? err.message : "기록을 수정하지 못했어요.");
@@ -803,7 +805,7 @@ export default function AdminPage() {
     };
     const durationSeconds = parseDurationToSeconds(draft.duration);
     const hasMetric = Boolean(draft.distance.trim() || durationSeconds);
-    const nextStatus: RecordStatus = record.participant_id && record.record_date && hasMetric ? "certified" : "needs_review";
+    const nextStatus: RecordStatus = record.participant_id && record.record_date && hasMetric ? "certified" : "missing";
     setUpdatingRecordId(record.id);
 
     try {

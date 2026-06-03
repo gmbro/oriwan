@@ -1,7 +1,7 @@
 export type RecordStatus = "certified" | "needs_review" | "missing" | "rejected";
 
 export function isCertificationCountedStatus(status: RecordStatus | string | null | undefined) {
-  return status === "certified" || status === "needs_review";
+  return status === "certified";
 }
 
 export function secondsToTime(seconds: number | null | undefined) {
