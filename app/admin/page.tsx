@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { IconCalendar, IconCheck, IconRun, IconSync, IconTarget, IconTrash, IconX } from "@/components/icons";
@@ -259,6 +259,7 @@ export default function AdminPage() {
   const [uploadNewName, setUploadNewName] = useState("");
   const [addingUploadParticipant, setAddingUploadParticipant] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
+  const [uploadDragActive, setUploadDragActive] = useState(false);
   const [analysisMessage, setAnalysisMessage] = useState("");
   const [analysisResults, setAnalysisResults] = useState<AnalysisResult[]>([]);
   const [updatingAnalysisKey, setUpdatingAnalysisKey] = useState("");
@@ -592,6 +593,7 @@ export default function AdminPage() {
 
   const addImageFiles = useCallback((fileList: FileList | File[]) => {
     const selectedImages = getImageFiles(fileList);
+    setUploadDragActive(false);
     setAnalysisResults([]);
 
     if (!selectedImages.length) {
@@ -644,6 +646,25 @@ export default function AdminPage() {
     setAnalysisResults([]);
     setAnalysisMessage("선택한 이미지가 비워졌어요.");
   }, []);
+
+  const handleUploadDragOver = useCallback((event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setUploadDragActive(true);
+  }, []);
+
+  const handleUploadDragLeave = useCallback((event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget)) return;
+    setUploadDragActive(false);
+  }, []);
+
+  const handleUploadDrop = useCallback((event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    addImageFiles(event.dataTransfer.files);
+  }, [addImageFiles]);
 
   const analyzeImages = useCallback(async () => {
     if (!files.length) return;
@@ -1238,15 +1259,27 @@ export default function AdminPage() {
               </div>
 
               <div
-                className="mt-4 rounded-[24px] border-2 border-dashed border-lime-300/80 bg-lime-50/70 p-4 text-center transition hover:bg-lime-50 sm:p-5"
-                onDragOver={(event) => event.preventDefault()}
-                onDrop={(event) => {
-                  event.preventDefault();
-                  addImageFiles(event.dataTransfer.files);
-                }}
+                className={`mt-4 rounded-[28px] border-2 border-dashed p-4 text-center transition sm:p-5 ${
+                  uploadDragActive
+                    ? "border-lime-400 bg-lime-100 shadow-lg shadow-lime-300/20"
+                    : "border-lime-300/80 bg-lime-50/70 hover:bg-lime-50"
+                }`}
+                onDragEnter={handleUploadDragOver}
+                onDragOver={handleUploadDragOver}
+                onDragLeave={handleUploadDragLeave}
+                onDrop={handleUploadDrop}
               >
-                <p className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-950 text-lg font-black text-lime-200">{files.length || "+"}</p>
-                <p className="text-base font-black text-oriwan-text">여러 이미지 한 번에 자동 인식</p>
+                <label htmlFor="admin-batch-image-input" className="block cursor-pointer rounded-[22px] bg-white/80 px-4 py-5 ring-1 ring-lime-300/40">
+                  <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-950 text-xl font-black text-lime-200">
+                    {uploadDragActive ? "↓" : files.length || "+"}
+                  </span>
+                  <span className="mt-3 block text-base font-black text-oriwan-text">
+                    {uploadDragActive ? "여기에 놓으면 바로 추가돼요" : "이미지를 드래그해서 놓기"}
+                  </span>
+                  <span className="mt-1 block text-xs font-bold text-oriwan-text-muted">
+                    또는 눌러서 여러 이미지를 선택할 수 있어요
+                  </span>
+                </label>
                 <input
                   id="admin-batch-image-input"
                   type="file"

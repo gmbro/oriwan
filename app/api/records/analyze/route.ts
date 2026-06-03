@@ -39,6 +39,11 @@ type ExistingRunRecord = {
 const MAX_IMAGES = 20;
 const MAX_BODY_BYTES = MAX_IMAGES * 4 * 1024 * 1024 + 2 * 1024 * 1024;
 const DEFAULT_OCR_CONCURRENCY = 4;
+const OCR_MODEL_FALLBACKS = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"];
+
+function resolveOcrModels() {
+  return Array.from(new Set([GEMINI_OCR_MODEL, ...OCR_MODEL_FALLBACKS].filter(Boolean)));
+}
 
 function normalizeParticipantName(name: string) {
   return name.toLowerCase().replace(/\s+/g, "");
@@ -84,28 +89,38 @@ async function analyzeImage(image: UploadedImage, knownNames: string[], targetDa
     includeParticipantName: true,
   });
 
-  const response = await ai.models.generateContent({
-    model: GEMINI_OCR_MODEL,
-    contents: [
-      {
-        role: "user",
-        parts: [
-          { text: prompt },
-          { inlineData: { mimeType, data: base64 } },
+  const errors: string[] = [];
+  for (const model of resolveOcrModels()) {
+    try {
+      const response = await ai.models.generateContent({
+        model,
+        contents: [
+          {
+            role: "user",
+            parts: [
+              { text: prompt },
+              { inlineData: { mimeType, data: base64 } },
+            ],
+          },
         ],
-      },
-    ],
-    config: {
-      responseMimeType: "application/json",
-      temperature: 0.1,
-    },
-  });
+        config: {
+          temperature: 0.1,
+        },
+      });
+      const text = response.text || "";
+      if (!text.trim()) throw new Error("empty response");
 
-  return {
-    extracted: parseJsonObject<ExtractedRun>(response.text || "{}"),
-    mimeType,
-    base64,
-  };
+      return {
+        extracted: parseJsonObject<ExtractedRun>(text),
+        mimeType,
+        base64,
+      };
+    } catch (error) {
+      errors.push(`${model}: ${getGeminiErrorDebug(error)}`);
+    }
+  }
+
+  throw new Error(`OCR attempts failed - ${errors.join(" | ")}`);
 }
 
 type AnalyzedAdminImage =
@@ -285,6 +300,7 @@ export async function POST(request: NextRequest) {
         let filePath: string | null = null;
         const fallbackNotes = [
           getGeminiErrorMessage(error),
+          `OCR 세부 오류: ${getGeminiErrorDebug(error)}`,
           fallbackParticipantNote,
           "거리와 시간은 나중에 보완해주세요.",
           !fallbackParticipant ? "멤버 매칭을 한 번 확인해주세요." : null,
