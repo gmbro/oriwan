@@ -290,9 +290,11 @@ export async function POST(request: NextRequest) {
           !fallbackParticipant ? "멤버 매칭을 한 번 확인해주세요." : null,
         ].filter(Boolean).join(" / ");
 
-        if (fallbackParticipant?.id && targetDate) {
-          const existingRecord = await findExistingRecord(supabase, user.id, fallbackParticipant.id, targetDate);
-          if (existingRecord?.id && isCertificationCountedStatus(existingRecord.status)) {
+        if (targetDate) {
+          const existingRecord = fallbackParticipant?.id
+            ? await findExistingRecord(supabase, user.id, fallbackParticipant.id, targetDate)
+            : null;
+          if (fallbackParticipant && existingRecord?.id && isCertificationCountedStatus(existingRecord.status)) {
             results.push(duplicateResult({
               record: existingRecord,
               fileName: image.name,
@@ -320,7 +322,7 @@ export async function POST(request: NextRequest) {
 
           const fallbackPayload = {
             user_id: user.id,
-            participant_id: fallbackParticipant.id,
+            participant_id: fallbackParticipant?.id || null,
             upload_batch_id: batch.id,
             record_date: targetDate,
             distance_km: null,
