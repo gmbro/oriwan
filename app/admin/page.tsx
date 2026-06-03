@@ -57,6 +57,26 @@ type PendingAnalyzeImage = {
   dataUrl: string;
 };
 
+async function preparePendingAnalyzeImages(files: File[], onProgress: (completed: number) => void) {
+  const results = new Array<PendingAnalyzeImage>(files.length);
+  let nextIndex = 0;
+  let completed = 0;
+  const workerCount = Math.min(4, Math.max(1, files.length));
+
+  await Promise.all(Array.from({ length: workerCount }, async () => {
+    while (nextIndex < files.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      const file = files[index];
+      results[index] = { name: file.name, dataUrl: await imageFileToOptimizedDataUrl(file) };
+      completed += 1;
+      onProgress(completed);
+    }
+  }));
+
+  return results;
+}
+
 function MemberPicker({
   participants,
   value,
@@ -238,6 +258,7 @@ function AdminActionButton({
 export default function AdminPage() {
   const router = useRouter();
   const loadInFlightRef = useRef(false);
+  const uploadFileInputRef = useRef<HTMLInputElement | null>(null);
   const [mounted, setMounted] = useState(false);
   const [authReady, setAuthReady] = useState(false);
   const [authorized, setAuthorized] = useState(false);
@@ -572,6 +593,10 @@ export default function AdminPage() {
     }
   }, [loadData, participants, uploadNewName]);
 
+  const openUploadFilePicker = useCallback(() => {
+    uploadFileInputRef.current?.click();
+  }, []);
+
   const postAnalyzeImages = useCallback(async (images: PendingAnalyzeImage[]) => {
     const results: AnalysisResult[] = [];
 
@@ -619,11 +644,11 @@ export default function AdminPage() {
       });
 
       if (added) {
-        setAnalysisMessage(`${added}장 추가됐어요. 총 ${next.length}장을 한 번에 자동 인식할 수 있어요.`);
+        setAnalysisMessage(`${next.length}장 선택됨 · 바로 등록 가능`);
       } else {
         setAnalysisMessage(
           duplicateOrOverflow
-            ? `이미 선택한 파일이거나 최대 ${MAX_BATCH_IMAGE_FILES}장을 넘었어요.`
+            ? `이미 선택했거나 최대 ${MAX_BATCH_IMAGE_FILES}장을 넘었어요.`
             : "이미지 파일만 올릴 수 있어요."
         );
       }
@@ -635,7 +660,7 @@ export default function AdminPage() {
   const removeImageFile = useCallback((fileKey: string) => {
     setFiles((current) => {
       const next = current.filter((file) => getImageFileKey(file) !== fileKey);
-      setAnalysisMessage(next.length ? `${next.length}장이 선택돼 있어요.` : "선택한 이미지가 비워졌어요.");
+      setAnalysisMessage(next.length ? `${next.length}장 선택됨` : "선택한 이미지 없음");
       return next;
     });
     setAnalysisResults([]);
@@ -644,7 +669,7 @@ export default function AdminPage() {
   const clearImageFiles = useCallback(() => {
     setFiles([]);
     setAnalysisResults([]);
-    setAnalysisMessage("선택한 이미지가 비워졌어요.");
+    setAnalysisMessage("선택한 이미지 없음");
   }, []);
 
   const handleUploadDragOver = useCallback((event: DragEvent<HTMLDivElement>) => {
@@ -672,12 +697,10 @@ export default function AdminPage() {
     setAnalysisMessage("");
     setAnalysisResults([]);
     try {
-      const images: PendingAnalyzeImage[] = [];
-      for (let index = 0; index < files.length; index += 1) {
-        const file = files[index];
-        setAnalysisMessage(`이미지 준비 중... ${index + 1}/${files.length}`);
-        images.push({ name: file.name, dataUrl: await imageFileToOptimizedDataUrl(file) });
-      }
+      setAnalysisMessage(`이미지 준비 중... 0/${files.length}`);
+      const images = await preparePendingAnalyzeImages(files, (completed) => {
+        setAnalysisMessage(`이미지 준비 중... ${completed}/${files.length}`);
+      });
       const results = await postAnalyzeImages(images);
       setFiles([]);
       setAnalysisResults(results);
@@ -1201,8 +1224,8 @@ export default function AdminPage() {
             <div className="card mobile-sheet w-full max-w-2xl overflow-y-auto p-4 sm:max-h-[86svh] sm:p-6" onClick={(event) => event.stopPropagation()}>
               <div className="mb-4 flex items-start justify-between gap-3">
                 <div>
-                  <h2 className="text-xl font-black leading-tight text-oriwan-text">이미지 올리기</h2>
-                  <p className="mt-1 text-xs leading-5 text-oriwan-text-muted">NRC, Garmin, Strava 캡처에서 날짜, 거리, 시간을 읽어 공통 대시보드에 반영해요.</p>
+                  <h2 className="text-xl font-black leading-tight text-oriwan-text">이미지 등록</h2>
+                  <p className="mt-1 text-xs font-bold leading-5 text-oriwan-text-muted">러닝 캡처를 빠르게 읽어 대시보드에 반영해요.</p>
                 </div>
                 <button
                   type="button"
@@ -1214,20 +1237,20 @@ export default function AdminPage() {
                 </button>
               </div>
 
-              <label className="block text-xs font-bold text-oriwan-text-muted">
-                날짜가 없거나 &apos;오늘&apos;로 보일 때 쓸 날짜
-                <input
-                  type="date"
-                  min={CHALLENGE_START_DATE}
-                  value={targetDate}
-                  onChange={(e) => setTargetDate(e.target.value)}
-                  className="mt-1 block w-full rounded-2xl border border-oriwan-border bg-white px-4 py-3 text-base font-black text-oriwan-text sm:text-sm"
-                />
-              </label>
+              <div className="grid gap-2 sm:grid-cols-[minmax(0,0.82fr)_minmax(0,1.18fr)]">
+                <label className="block rounded-2xl bg-oriwan-surface-light p-3 text-xs font-black text-oriwan-text-muted">
+                  기준 날짜
+                  <input
+                    type="date"
+                    min={CHALLENGE_START_DATE}
+                    value={targetDate}
+                    onChange={(e) => setTargetDate(e.target.value)}
+                    className="mt-1 block w-full rounded-xl border border-oriwan-border bg-white px-3 py-2.5 text-base font-black text-oriwan-text sm:text-sm"
+                  />
+                </label>
 
-              <div className="mt-3 rounded-2xl bg-white p-3 ring-1 ring-slate-950/5">
-                <div>
-                  <p className="text-xs font-black text-oriwan-text-muted">이름 없을 때 적용할 멤버</p>
+                <div className="rounded-2xl bg-oriwan-surface-light p-3">
+                  <p className="text-xs font-black text-oriwan-text-muted">멤버 보정</p>
                   <div className="mt-1">
                     <MemberPicker
                       participants={participants}
@@ -1237,29 +1260,43 @@ export default function AdminPage() {
                     />
                   </div>
                 </div>
-                <div className="mt-2 flex gap-2">
-                  <input
-                    value={uploadNewName}
-                    onChange={(event) => setUploadNewName(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") addUploadParticipant();
-                    }}
-                    placeholder="새 이름"
-                    className="min-w-0 flex-1 rounded-xl border border-oriwan-border bg-white px-3 py-2.5 text-sm font-black text-oriwan-text outline-none focus:border-oriwan-primary"
-                  />
-                  <button
-                    type="button"
-                    onClick={addUploadParticipant}
-                    disabled={!uploadNewName.trim() || addingUploadParticipant}
-                    className="shrink-0 rounded-xl bg-slate-950 px-4 py-2.5 text-xs font-black text-lime-200 disabled:opacity-40"
-                  >
-                    {addingUploadParticipant ? "추가 중" : "이름 추가"}
-                  </button>
-                </div>
               </div>
 
+              <div className="mt-2 flex gap-2">
+                <input
+                  value={uploadNewName}
+                  onChange={(event) => setUploadNewName(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") addUploadParticipant();
+                  }}
+                  placeholder="새 멤버 이름"
+                  className="min-w-0 flex-1 rounded-xl border border-oriwan-border bg-white px-3 py-2.5 text-sm font-black text-oriwan-text outline-none focus:border-oriwan-primary"
+                />
+                <button
+                  type="button"
+                  onClick={addUploadParticipant}
+                  disabled={!uploadNewName.trim() || addingUploadParticipant}
+                  className="shrink-0 rounded-xl bg-slate-950 px-4 py-2.5 text-xs font-black text-lime-200 disabled:opacity-40"
+                >
+                  {addingUploadParticipant ? "추가 중" : "추가"}
+                </button>
+              </div>
+
+              <input
+                ref={uploadFileInputRef}
+                id="admin-batch-image-input"
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={(e) => {
+                  addImageFiles(e.target.files || []);
+                  e.currentTarget.value = "";
+                }}
+                className="sr-only"
+              />
+
               <div
-                className={`mt-4 rounded-[28px] border-2 border-dashed p-4 text-center transition sm:p-5 ${
+                className={`mt-3 rounded-[22px] border-2 border-dashed p-3 transition ${
                   uploadDragActive
                     ? "border-lime-400 bg-lime-100 shadow-lg shadow-lime-300/20"
                     : "border-lime-300/80 bg-lime-50/70 hover:bg-lime-50"
@@ -1269,81 +1306,83 @@ export default function AdminPage() {
                 onDragLeave={handleUploadDragLeave}
                 onDrop={handleUploadDrop}
               >
-                <label htmlFor="admin-batch-image-input" className="block cursor-pointer rounded-[22px] bg-white/80 px-4 py-5 ring-1 ring-lime-300/40">
-                  <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-950 text-xl font-black text-lime-200">
-                    {uploadDragActive ? "↓" : files.length || "+"}
+                <button
+                  type="button"
+                  onClick={openUploadFilePicker}
+                  className="flex w-full items-center justify-between gap-3 rounded-2xl bg-white px-4 py-4 text-left ring-1 ring-slate-950/5 transition hover:ring-lime-300"
+                >
+                  <span className="flex min-w-0 items-center gap-3">
+                    <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-slate-950 text-xl font-black text-lime-200">
+                      {uploadDragActive ? "↓" : files.length || "+"}
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block truncate text-base font-black text-oriwan-text">
+                        {uploadDragActive ? "여기에 놓기" : files.length ? `${files.length}장 선택됨` : "여러 이미지 선택"}
+                      </span>
+                      <span className="mt-0.5 block truncate text-xs font-bold text-oriwan-text-muted">
+                        {files.length ? "추가 선택하거나 바로 등록" : "드래그해서 놓아도 됩니다"}
+                      </span>
+                    </span>
                   </span>
-                  <span className="mt-3 block text-base font-black text-oriwan-text">
-                    {uploadDragActive ? "여기에 놓으면 바로 추가돼요" : "이미지를 드래그해서 놓기"}
+                  <span className="shrink-0 rounded-full bg-lime-300 px-3 py-1 text-[11px] font-black text-slate-950">
+                    {files.length}/{MAX_BATCH_IMAGE_FILES}
                   </span>
-                  <span className="mt-1 block text-xs font-bold text-oriwan-text-muted">
-                    또는 눌러서 여러 이미지를 선택할 수 있어요
-                  </span>
-                </label>
-                <input
-                  id="admin-batch-image-input"
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  onChange={(e) => {
-                    addImageFiles(e.target.files || []);
-                    e.currentTarget.value = "";
-                  }}
-                  className="sr-only"
-                />
-                <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-center">
-                  <label
-                    htmlFor="admin-batch-image-input"
-                    className="inline-flex cursor-pointer items-center justify-center rounded-2xl bg-slate-950 px-5 py-3 text-sm font-black text-lime-200 shadow-sm shadow-slate-950/10"
+                </button>
+
+                <div className="mt-2 grid grid-cols-[1fr_auto] gap-2">
+                  <button
+                    type="button"
+                    onClick={openUploadFilePicker}
+                    disabled={analyzing}
+                    className="rounded-2xl bg-slate-950 px-4 py-3 text-sm font-black text-lime-200 shadow-sm shadow-slate-950/10 disabled:opacity-40"
                   >
                     여러 이미지 선택
-                  </label>
-                  {files.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={clearImageFiles}
-                      disabled={analyzing}
-                      className="rounded-2xl bg-white px-5 py-3 text-sm font-black text-oriwan-text disabled:opacity-40"
-                    >
-                      전체 비우기
-                    </button>
-                  )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={clearImageFiles}
+                    disabled={!files.length || analyzing}
+                    className="rounded-2xl bg-white px-4 py-3 text-sm font-black text-oriwan-text disabled:opacity-35"
+                  >
+                    비우기
+                  </button>
                 </div>
 
                 {files.length > 0 && (
-                  <div className="mt-4 rounded-2xl bg-white/90 p-3 text-left ring-1 ring-slate-950/5">
-                    <div className="mb-2 flex items-center justify-between gap-2">
-                      <p className="text-xs font-black text-oriwan-text">선택된 이미지 {files.length}장</p>
-                      <span className="rounded-full bg-lime-300 px-2.5 py-1 text-[10px] font-black text-slate-950">
-                        최대 {MAX_BATCH_IMAGE_FILES}장
-                      </span>
-                    </div>
-                    <div className="max-h-40 space-y-1 overflow-y-auto pr-1">
-                      {files.map((file, index) => {
+                  <div className="mt-3 rounded-2xl bg-white/95 p-2.5 text-left ring-1 ring-slate-950/5">
+                    <div className="grid max-h-32 gap-1 overflow-y-auto pr-1 sm:grid-cols-2">
+                      {files.slice(0, 8).map((file, index) => {
                         const fileKey = getImageFileKey(file);
                         return (
-                          <div key={fileKey} className="flex items-center justify-between gap-2 rounded-xl bg-oriwan-surface-light px-3 py-2">
+                          <div key={fileKey} className="flex items-center justify-between gap-2 rounded-xl bg-oriwan-surface-light px-2.5 py-2">
                             <div className="min-w-0">
-                              <p className="truncate text-xs font-black text-oriwan-text">{index + 1}. {file.name}</p>
+                              <p className="truncate text-[11px] font-black text-oriwan-text">{index + 1}. {file.name}</p>
                               <p className="mt-0.5 text-[10px] font-semibold text-oriwan-text-muted">{formatFileSize(file.size)}</p>
                             </div>
                             <button
                               type="button"
                               onClick={() => removeImageFile(fileKey)}
                               disabled={analyzing}
-                              className="shrink-0 rounded-lg bg-white px-2.5 py-1.5 text-[10px] font-black text-oriwan-text-muted disabled:opacity-40"
+                              className="shrink-0 rounded-lg bg-white px-2 py-1 text-[10px] font-black text-oriwan-text-muted disabled:opacity-40"
                             >
                               삭제
                             </button>
                           </div>
                         );
                       })}
+                      {files.length > 8 && (
+                        <div className="rounded-xl bg-slate-950 px-2.5 py-2 text-[11px] font-black text-lime-200">
+                          +{files.length - 8}장 더 선택됨
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
+              </div>
 
-                <button onClick={analyzeImages} disabled={!files.length || analyzing} className="btn-primary mt-4 w-full py-3 text-sm disabled:opacity-40">
-                  {analyzing ? "이미지 읽는 중..." : `선택한 ${files.length || 0}장 한 번에 등록`}
+              <div className="sticky bottom-0 z-10 -mx-4 mt-3 border-t border-slate-950/5 bg-white/95 px-4 py-3 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:px-0 sm:py-0">
+                <button onClick={analyzeImages} disabled={!files.length || analyzing} className="btn-primary w-full py-3 text-sm disabled:opacity-40">
+                  {analyzing ? "OCR 등록 중..." : files.length ? `${files.length}장 바로 등록` : "이미지 선택 필요"}
                 </button>
               </div>
 
