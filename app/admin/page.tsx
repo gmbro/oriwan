@@ -468,6 +468,10 @@ export default function AdminPage() {
       .filter((record) => record.participant_id === selectedRecordsParticipantId && record.record_date)
       .sort((a, b) => (b.record_date || "").localeCompare(a.record_date || "") || b.id.localeCompare(a.id))
   ), [records, selectedRecordsParticipantId]);
+  const defaultUploadParticipant = useMemo(
+    () => participants.find((participant) => participant.name.replace(/\s+/g, "") === "이경민") || null,
+    [participants]
+  );
 
   const addParticipant = useCallback(async () => {
     if (!newName.trim()) return;
@@ -514,12 +518,12 @@ export default function AdminPage() {
   const openUploadForDate = useCallback((date: string) => {
     setTargetDate(date);
     setFiles([]);
-    setUploadParticipantId("");
+    setUploadParticipantId(defaultUploadParticipant?.id || "");
     setUploadNewName("");
     setAnalysisResults([]);
     setAnalysisMessage("");
     setAdminModal("upload");
-  }, []);
+  }, [defaultUploadParticipant?.id]);
 
   const saveParticipant = useCallback(async () => {
     if (!newName.trim()) return;
@@ -606,7 +610,7 @@ export default function AdminPage() {
       const res = await fetch("/api/records/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ targetDate, fallbackParticipantId: uploadParticipantId || null, images: chunk }),
+        body: JSON.stringify({ targetDate, fallbackParticipantId: uploadParticipantId || defaultUploadParticipant?.id || null, images: chunk }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "analysis failed");
@@ -614,7 +618,7 @@ export default function AdminPage() {
     }
 
     return results;
-  }, [targetDate, uploadParticipantId]);
+  }, [defaultUploadParticipant?.id, targetDate, uploadParticipantId]);
 
   const addImageFiles = useCallback((fileList: FileList | File[]) => {
     const selectedImages = getImageFiles(fileList);
@@ -776,7 +780,8 @@ export default function AdminPage() {
 
     const durationSeconds = parseDurationToSeconds(result.edit_duration || "");
     const hasMetric = Boolean((result.edit_distance || "").trim() || durationSeconds);
-    const nextStatus: RecordStatus = result.participant_id && result.record_date && hasMetric ? "certified" : "missing";
+    const effectiveParticipantId = result.participant_id || defaultUploadParticipant?.id || null;
+    const nextStatus: RecordStatus = effectiveParticipantId && result.record_date && hasMetric ? "certified" : "missing";
     const resultKey = getAnalysisResultKey(result, resultIndex);
     setUpdatingAnalysisKey(resultKey);
 
@@ -785,6 +790,7 @@ export default function AdminPage() {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          participant_id: effectiveParticipantId || undefined,
           distance_km: result.edit_distance || null,
           duration_seconds: durationSeconds,
           status: nextStatus,
@@ -798,6 +804,8 @@ export default function AdminPage() {
         index === resultIndex
           ? {
               ...item,
+              participant_id: effectiveParticipantId || item.participant_id,
+              participant_name: effectiveParticipantId === defaultUploadParticipant?.id ? defaultUploadParticipant.name : item.participant_name,
               distance_km: result.edit_distance ? Number(result.edit_distance) : null,
               duration_seconds: durationSeconds,
               status: nextStatus,
@@ -814,7 +822,7 @@ export default function AdminPage() {
     } finally {
       setUpdatingAnalysisKey("");
     }
-  }, [analysisResults, loadData]);
+  }, [analysisResults, defaultUploadParticipant, loadData]);
 
   const openParticipantRecords = useCallback((participantId: string) => {
     const drafts = records
