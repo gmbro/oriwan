@@ -103,6 +103,9 @@ export function getGeminiErrorMessage(error: unknown) {
   if (isGeminiBillingError(error)) {
     return "OCR 서버 크레딧이 소진됐어요. Google AI Studio 결제/크레딧을 충전하거나 새 Gemini API 키로 교체해야 이미지 인식이 다시 작동합니다.";
   }
+  if (normalized.includes("free_tier") || normalized.includes("free tier")) {
+    return "현재 Gemini API 키가 무료 티어 quota로 처리되고 있어요. Vercel의 GEMINI_API_KEY가 결제 완료된 프로젝트의 키인지 확인해주세요.";
+  }
   if (message.includes("RESOURCE_EXHAUSTED") || normalized.includes("quota") || normalized.includes("rate limit")) {
     return "OCR 요청 한도가 잠시 꽉 찼어요. 잠시 후 다시 시도하거나 GEMINI_OCR_MODEL_FALLBACKS에 더 가벼운 모델을 추가해주세요.";
   }
@@ -125,8 +128,9 @@ export function isGeminiBillingError(error: unknown) {
   const normalized = message.toLowerCase();
   return (
     normalized.includes("prepayment credits are depleted") ||
-    normalized.includes("billing") ||
-    normalized.includes("payment") ||
-    normalized.includes("credit")
+    normalized.includes("billing is not enabled") ||
+    normalized.includes("billing account is not configured") ||
+    normalized.includes("project has no billing account") ||
+    normalized.includes("payment required")
   );
 }
