@@ -3,7 +3,7 @@ import { createClient as createSupabaseAdmin } from "@supabase/supabase-js";
 import { GoogleGenAI } from "@google/genai";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdminUser } from "@/lib/admin-server";
-import { GEMINI_OCR_MODEL, buildRunImagePrompt, getGeminiErrorDebug, getGeminiErrorMessage, isGeminiBillingError } from "@/lib/gemini";
+import { GEMINI_OCR_CONFIG, GEMINI_OCR_MODEL, buildRunImagePrompt, getGeminiErrorDebug, getGeminiErrorMessage, isGeminiBillingError, resolveGeminiOcrModels } from "@/lib/gemini";
 import { calculatePaceSeconds, isCertificationCountedStatus } from "@/lib/run-records";
 import { CHALLENGE_DATE_ERROR, CHALLENGE_START_DATE, isWithinChallengeWindow } from "@/lib/challenge";
 import {
@@ -39,11 +39,6 @@ type ExistingRunRecord = {
 const MAX_IMAGES = 20;
 const MAX_BODY_BYTES = MAX_IMAGES * 4 * 1024 * 1024 + 2 * 1024 * 1024;
 const DEFAULT_OCR_CONCURRENCY = 4;
-const OCR_MODEL_FALLBACKS = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"];
-
-function resolveOcrModels() {
-  return Array.from(new Set([GEMINI_OCR_MODEL, ...OCR_MODEL_FALLBACKS].filter(Boolean)));
-}
 
 function normalizeParticipantName(name: string) {
   return name.toLowerCase().replace(/\s+/g, "");
@@ -90,7 +85,7 @@ async function analyzeImage(image: UploadedImage, knownNames: string[], targetDa
   });
 
   const errors: string[] = [];
-  for (const model of resolveOcrModels()) {
+  for (const model of resolveGeminiOcrModels()) {
     try {
       const response = await ai.models.generateContent({
         model,
@@ -103,9 +98,7 @@ async function analyzeImage(image: UploadedImage, knownNames: string[], targetDa
             ],
           },
         ],
-        config: {
-          temperature: 0.1,
-        },
+        config: GEMINI_OCR_CONFIG,
       });
       const text = response.text || "";
       if (!text.trim()) throw new Error("empty response");

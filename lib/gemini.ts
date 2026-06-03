@@ -1,6 +1,33 @@
-import { Type } from "@google/genai";
+import { Type, type GenerateContentConfig } from "@google/genai";
 
-export const GEMINI_OCR_MODEL = process.env.GEMINI_OCR_MODEL || "gemini-2.5-flash";
+export const GEMINI_OCR_MODEL = process.env.GEMINI_OCR_MODEL || "gemini-3.5-flash";
+
+const GEMINI_OCR_MODEL_FALLBACKS = [
+  "gemini-3.5-flash",
+  "gemini-3.1-flash",
+  "gemini-3-flash",
+  "gemini-2.5-flash",
+  "gemini-2.0-flash",
+];
+
+export function resolveGeminiOcrModels() {
+  const configuredFallbacks = (process.env.GEMINI_OCR_MODEL_FALLBACKS || "")
+    .split(",")
+    .map((model) => model.trim())
+    .filter(Boolean);
+
+  return Array.from(new Set([
+    GEMINI_OCR_MODEL,
+    ...configuredFallbacks,
+    ...GEMINI_OCR_MODEL_FALLBACKS,
+  ].filter(Boolean)));
+}
+
+export const GEMINI_OCR_CONFIG: GenerateContentConfig = {
+  responseMimeType: "application/json",
+  temperature: 0.1,
+  maxOutputTokens: 1200,
+};
 
 export const RUN_IMAGE_RESPONSE_SCHEMA = {
   type: Type.OBJECT,
@@ -73,13 +100,11 @@ ${participantGuide}
 export function getGeminiErrorMessage(error: unknown) {
   const message = error instanceof Error ? error.message : String(error || "");
   const normalized = message.toLowerCase();
-  if (
-    message.includes("RESOURCE_EXHAUSTED") ||
-    normalized.includes("prepayment credits are depleted") ||
-    normalized.includes("quota") ||
-    normalized.includes("billing")
-  ) {
+  if (isGeminiBillingError(error)) {
     return "OCR 서버 크레딧이 소진됐어요. Google AI Studio 결제/크레딧을 충전하거나 새 Gemini API 키로 교체해야 이미지 인식이 다시 작동합니다.";
+  }
+  if (message.includes("RESOURCE_EXHAUSTED") || normalized.includes("quota") || normalized.includes("rate limit")) {
+    return "OCR 요청 한도가 잠시 꽉 찼어요. 잠시 후 다시 시도하거나 GEMINI_OCR_MODEL_FALLBACKS에 더 가벼운 모델을 추가해주세요.";
   }
   if (message.includes("NOT_FOUND") || message.includes("404") || message.includes("not found")) {
     return "OCR 모델 연결이 막혔어요. Gemini 모델 설정을 한 번 확인해주세요.";
@@ -99,9 +124,9 @@ export function isGeminiBillingError(error: unknown) {
   const message = error instanceof Error ? error.message : String(error || "");
   const normalized = message.toLowerCase();
   return (
-    message.includes("RESOURCE_EXHAUSTED") ||
     normalized.includes("prepayment credits are depleted") ||
-    normalized.includes("quota") ||
-    normalized.includes("billing")
+    normalized.includes("billing") ||
+    normalized.includes("payment") ||
+    normalized.includes("credit")
   );
 }

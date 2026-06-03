@@ -2,7 +2,7 @@ import { GoogleGenAI } from "@google/genai";
 import { NextRequest, NextResponse } from "next/server";
 import { findAdminUserId, findParticipantByRunnerName, getServiceClient } from "@/lib/admin-data";
 import { CHALLENGE_DATE_ERROR, CHALLENGE_START_DATE, isWithinChallengeWindow } from "@/lib/challenge";
-import { GEMINI_OCR_MODEL, buildRunImagePrompt, getGeminiErrorDebug, getGeminiErrorMessage, isGeminiBillingError } from "@/lib/gemini";
+import { GEMINI_OCR_CONFIG, GEMINI_OCR_MODEL, buildRunImagePrompt, getGeminiErrorDebug, getGeminiErrorMessage, isGeminiBillingError, resolveGeminiOcrModels } from "@/lib/gemini";
 import {
   ExtractedRunBase,
   UploadedImage,
@@ -52,24 +52,33 @@ async function analyzeImage(image: UploadedImage, targetDate?: string | null) {
     targetDate,
   });
 
-  const response = await ai.models.generateContent({
-    model: GEMINI_OCR_MODEL,
-    contents: [
-      {
-        role: "user",
-        parts: [
-          { text: prompt },
-          { inlineData: { mimeType, data: base64 } },
+  const errors: string[] = [];
+  for (const model of resolveGeminiOcrModels()) {
+    try {
+      const response = await ai.models.generateContent({
+        model,
+        contents: [
+          {
+            role: "user",
+            parts: [
+              { text: prompt },
+              { inlineData: { mimeType, data: base64 } },
+            ],
+          },
         ],
-      },
-    ],
-    config: {
-      responseMimeType: "application/json",
-      temperature: 0.1,
-    },
-  });
+        config: GEMINI_OCR_CONFIG,
+      });
 
-  return parseJsonObject<ExtractedRun>(response.text || "{}");
+      const text = response.text || "";
+      if (!text.trim()) throw new Error("empty response");
+      return parseJsonObject<ExtractedRun>(text);
+    } catch (error) {
+      if (isGeminiBillingError(error)) throw error;
+      errors.push(`${model}: ${getGeminiErrorDebug(error)}`);
+    }
+  }
+
+  throw new Error(`OCR attempts failed - ${errors.join(" | ")}`);
 }
 
 type AnalyzedPersonalImage =
