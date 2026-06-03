@@ -72,6 +72,15 @@ ${participantGuide}
 
 export function getGeminiErrorMessage(error: unknown) {
   const message = error instanceof Error ? error.message : String(error || "");
+  const normalized = message.toLowerCase();
+  if (
+    message.includes("RESOURCE_EXHAUSTED") ||
+    normalized.includes("prepayment credits are depleted") ||
+    normalized.includes("quota") ||
+    normalized.includes("billing")
+  ) {
+    return "OCR 서버 크레딧이 소진됐어요. Google AI Studio 결제/크레딧을 충전하거나 새 Gemini API 키로 교체해야 이미지 인식이 다시 작동합니다.";
+  }
   if (message.includes("NOT_FOUND") || message.includes("404") || message.includes("not found")) {
     return "OCR 모델 연결이 막혔어요. Gemini 모델 설정을 한 번 확인해주세요.";
   }
@@ -84,4 +93,15 @@ export function getGeminiErrorMessage(error: unknown) {
 export function getGeminiErrorDebug(error: unknown) {
   const message = error instanceof Error ? error.message : String(error || "Unknown OCR error");
   return message.replace(/\s+/g, " ").slice(0, 500);
+}
+
+export function isGeminiBillingError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error || "");
+  const normalized = message.toLowerCase();
+  return (
+    message.includes("RESOURCE_EXHAUSTED") ||
+    normalized.includes("prepayment credits are depleted") ||
+    normalized.includes("quota") ||
+    normalized.includes("billing")
+  );
 }

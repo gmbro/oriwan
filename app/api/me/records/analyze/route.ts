@@ -2,7 +2,7 @@ import { GoogleGenAI } from "@google/genai";
 import { NextRequest, NextResponse } from "next/server";
 import { findAdminUserId, findParticipantByRunnerName, getServiceClient } from "@/lib/admin-data";
 import { CHALLENGE_DATE_ERROR, CHALLENGE_START_DATE, isWithinChallengeWindow } from "@/lib/challenge";
-import { GEMINI_OCR_MODEL, buildRunImagePrompt, getGeminiErrorDebug, getGeminiErrorMessage } from "@/lib/gemini";
+import { GEMINI_OCR_MODEL, buildRunImagePrompt, getGeminiErrorDebug, getGeminiErrorMessage, isGeminiBillingError } from "@/lib/gemini";
 import {
   ExtractedRunBase,
   UploadedImage,
@@ -160,6 +160,7 @@ export async function POST(request: NextRequest) {
         try {
           return { ok: true, image, extracted: await analyzeImage(image, targetDate) };
         } catch (error) {
+          if (isGeminiBillingError(error)) throw error;
           return { ok: false, image, error };
         }
       }
@@ -277,6 +278,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, participant, results, failed });
   } catch (err) {
     console.error("Personal image analysis error:", err);
+    if (isGeminiBillingError(err)) {
+      return NextResponse.json({ error: getGeminiErrorMessage(err) }, { status: 429 });
+    }
     return NextResponse.json({ error: "이미지 분석 중 오류가 발생했습니다." }, { status: 500 });
   }
 }

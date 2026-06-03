@@ -3,7 +3,7 @@ import { createClient as createSupabaseAdmin } from "@supabase/supabase-js";
 import { GoogleGenAI } from "@google/genai";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdminUser } from "@/lib/admin-server";
-import { GEMINI_OCR_MODEL, buildRunImagePrompt, getGeminiErrorDebug, getGeminiErrorMessage } from "@/lib/gemini";
+import { GEMINI_OCR_MODEL, buildRunImagePrompt, getGeminiErrorDebug, getGeminiErrorMessage, isGeminiBillingError } from "@/lib/gemini";
 import { calculatePaceSeconds, isCertificationCountedStatus } from "@/lib/run-records";
 import { CHALLENGE_DATE_ERROR, CHALLENGE_START_DATE, isWithinChallengeWindow } from "@/lib/challenge";
 import {
@@ -116,6 +116,7 @@ async function analyzeImage(image: UploadedImage, knownNames: string[], targetDa
         base64,
       };
     } catch (error) {
+      if (isGeminiBillingError(error)) throw error;
       errors.push(`${model}: ${getGeminiErrorDebug(error)}`);
     }
   }
