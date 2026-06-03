@@ -39,7 +39,6 @@ type ExistingRunRecord = {
 const MAX_IMAGES = 20;
 const MAX_BODY_BYTES = MAX_IMAGES * 4 * 1024 * 1024 + 2 * 1024 * 1024;
 const DEFAULT_OCR_CONCURRENCY = 4;
-const DEFAULT_PARTICIPANT_NAME_WHEN_OCR_NAME_MISSING = "이경민";
 
 function normalizeParticipantName(name: string) {
   return name.toLowerCase().replace(/\s+/g, "");
@@ -236,15 +235,10 @@ export async function POST(request: NextRequest) {
     if (fallbackParticipantId && !selectedFallbackParticipant) {
       return NextResponse.json({ error: "선택한 멤버를 찾지 못했어요. 멤버 목록을 새로고침해주세요." }, { status: 400 });
     }
-    const defaultFallbackParticipant = participants.find(
-      (participant) => normalizeParticipantName(participant.name) === normalizeParticipantName(DEFAULT_PARTICIPANT_NAME_WHEN_OCR_NAME_MISSING)
-    ) || null;
-    const fallbackParticipant = selectedFallbackParticipant || defaultFallbackParticipant;
+    const fallbackParticipant = selectedFallbackParticipant;
 
     const fallbackParticipantNote = fallbackParticipant
-      ? selectedFallbackParticipant
-        ? `${fallbackParticipant.name}님으로 직접 지정했어요.`
-        : `이미지에서 이름이 보이지 않아 ${fallbackParticipant.name}님으로 연결했어요.`
+      ? `${fallbackParticipant.name}님으로 직접 지정했어요.`
       : null;
 
     const { data: batch, error: batchError } = await supabase
