@@ -13,6 +13,11 @@ function sanitizeNumber(value: unknown) {
   return Number.isFinite(n) ? n : null;
 }
 
+function sanitizeInteger(value: unknown) {
+  const n = sanitizeNumber(value);
+  return n === null ? null : Math.round(n);
+}
+
 function sanitizeStatus(value: unknown) {
   return typeof value === "string" && RECORD_STATUSES.has(value) ? value : null;
 }
@@ -42,7 +47,7 @@ export async function PATCH(
     return NextResponse.json({ error: CHALLENGE_DATE_ERROR }, { status: 400 });
   }
   if ("distance_km" in body) patch.distance_km = sanitizeNumber(body.distance_km);
-  if ("duration_seconds" in body) patch.duration_seconds = sanitizeNumber(body.duration_seconds);
+  if ("duration_seconds" in body) patch.duration_seconds = sanitizeInteger(body.duration_seconds);
   if ("source_app" in body) patch.source_app = body.source_app || null;
   if ("status" in body) {
     const status = sanitizeStatus(body.status);
@@ -54,9 +59,9 @@ export async function PATCH(
   const distanceProvided = "distance_km" in body;
   const durationProvided = "duration_seconds" in body;
   const distanceKm = distanceProvided ? sanitizeNumber(body.distance_km) : null;
-  const durationSeconds = durationProvided ? sanitizeNumber(body.duration_seconds) : null;
+  const durationSeconds = durationProvided ? sanitizeInteger(body.duration_seconds) : null;
   if ("pace_seconds_per_km" in body) {
-    patch.pace_seconds_per_km = sanitizeNumber(body.pace_seconds_per_km);
+    patch.pace_seconds_per_km = sanitizeInteger(body.pace_seconds_per_km);
   } else if (distanceProvided || durationProvided) {
     patch.pace_seconds_per_km = calculatePaceSeconds(distanceKm, durationSeconds);
   }

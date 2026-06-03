@@ -11,6 +11,11 @@ function sanitizeNumber(value: unknown) {
   return Number.isFinite(n) ? n : null;
 }
 
+function sanitizeInteger(value: unknown) {
+  const n = sanitizeNumber(value);
+  return n === null ? null : Math.round(n);
+}
+
 function hasPositiveMetric(value: number | null) {
   return Boolean(value && value > 0);
 }
@@ -29,7 +34,7 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => ({}));
   const recordDate = typeof body.record_date === "string" ? body.record_date : "";
   const distanceKm = sanitizeNumber(body.distance_km);
-  const durationSeconds = sanitizeNumber(body.duration_seconds);
+  const durationSeconds = sanitizeInteger(body.duration_seconds);
   const paceSeconds = calculatePaceSeconds(distanceKm, durationSeconds);
 
   if (!isWithinChallengeWindow(recordDate)) {

@@ -14,6 +14,11 @@ function sanitizeNumber(value: unknown) {
   return Number.isFinite(n) ? n : null;
 }
 
+function sanitizeInteger(value: unknown) {
+  const n = sanitizeNumber(value);
+  return n === null ? null : Math.round(n);
+}
+
 function sanitizeStatus(value: unknown) {
   return typeof value === "string" && RECORD_STATUSES.has(value) ? value : null;
 }
@@ -81,8 +86,8 @@ export async function POST(request: NextRequest) {
   const participantId = typeof body.participant_id === "string" ? body.participant_id : null;
   const recordDate = typeof body.record_date === "string" ? body.record_date : null;
   const distanceKm = sanitizeNumber(body.distance_km);
-  const durationSeconds = sanitizeNumber(body.duration_seconds);
-  const paceSeconds = sanitizeNumber(body.pace_seconds_per_km) ?? calculatePaceSeconds(distanceKm, durationSeconds);
+  const durationSeconds = sanitizeInteger(body.duration_seconds);
+  const paceSeconds = sanitizeInteger(body.pace_seconds_per_km) ?? calculatePaceSeconds(distanceKm, durationSeconds);
 
   if (!participantId || !recordDate) {
     return NextResponse.json({ error: "멤버와 날짜를 함께 선택해주세요." }, { status: 400 });

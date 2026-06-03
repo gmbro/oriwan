@@ -866,13 +866,14 @@ export default function AdminPage() {
         notes: !manualDistance || !duration ? "거리 또는 시간은 나중에 보완 가능" : null,
       }),
     });
+    const json = await res.json().catch(() => ({}));
     if (res.ok) {
       setManualDistance("");
       setManualDuration("");
       setAdminModal(null);
       await loadData();
     } else {
-      alert("기록을 저장하지 못했어요.");
+      alert(typeof json.error === "string" ? json.error : "기록을 저장하지 못했어요.");
     }
   }, [loadData, manualDate, manualDistance, manualDuration, manualParticipantId]);
 

@@ -22,16 +22,38 @@ export function secondsToPace(seconds: number | null | undefined) {
 
 export function parseDurationToSeconds(value: string | null | undefined) {
   if (!value) return null;
-  const normalized = value.trim();
+  const normalized = value.trim().replace(/：/g, ":").replace(/\s+/g, "");
   if (!normalized) return null;
 
-  const parts = normalized.split(":").map((part) => Number(part));
-  if (parts.some((part) => Number.isNaN(part))) return null;
+  const parseTimeParts = (parts: string[]) => {
+    if (parts.length < 2 || parts.length > 3) return null;
+    if (parts.some((part) => !/^\d+$/.test(part))) return null;
 
-  if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
-  if (parts.length === 2) return parts[0] * 60 + parts[1];
-  if (parts.length === 1) return parts[0] * 60;
-  return null;
+    const numbers = parts.map((part) => Number(part));
+    if (numbers.some((part) => !Number.isFinite(part))) return null;
+
+    if (numbers.length === 3) {
+      const [hours, minutes, seconds] = numbers;
+      if (minutes >= 60 || seconds >= 60) return null;
+      return hours * 3600 + minutes * 60 + seconds;
+    }
+
+    const [minutes, seconds] = numbers;
+    if (seconds >= 60) return null;
+    return minutes * 60 + seconds;
+  };
+
+  if (normalized.includes(":")) {
+    return parseTimeParts(normalized.split(":"));
+  }
+
+  if (/^\d+\.\d{2}(\.\d{2})?$/.test(normalized)) {
+    return parseTimeParts(normalized.split("."));
+  }
+
+  const minutes = Number(normalized);
+  if (!Number.isFinite(minutes) || minutes < 0) return null;
+  return Math.round(minutes * 60);
 }
 
 export function calculatePaceSeconds(distanceKm: number | null, durationSeconds: number | null) {
