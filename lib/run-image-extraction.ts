@@ -82,7 +82,21 @@ export function parseJsonObject<T>(text: string): T {
 export function parseDurationText(value: string | number | null | undefined) {
   if (typeof value === "number" && Number.isFinite(value)) return Math.round(value);
   if (typeof value !== "string" || !value) return null;
-  const normalized = value
+  const compact = value.trim().replace(/：/g, ":").replace(/\s+/g, "");
+  if (/^\d+\.\d{2}(\.\d{2})?$/.test(compact)) {
+    const parts = compact.split(".").map(Number);
+    if (parts.some((part) => !Number.isFinite(part))) return null;
+    if (parts.length === 3) {
+      const [hours, minutes, seconds] = parts;
+      if (minutes >= 60 || seconds >= 60) return null;
+      return hours * 3600 + minutes * 60 + seconds;
+    }
+    const [minutes, seconds] = parts;
+    if (seconds >= 60) return null;
+    return minutes * 60 + seconds;
+  }
+
+  const normalized = compact
     .trim()
     .replace(/[^\d:시간분초hms]/g, " ")
     .replace(/시간|h/gi, ":")

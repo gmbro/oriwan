@@ -2,7 +2,7 @@ import { GoogleGenAI } from "@google/genai";
 import { NextRequest, NextResponse } from "next/server";
 import { findAdminUserId, findParticipantByRunnerName, getServiceClient } from "@/lib/admin-data";
 import { CHALLENGE_DATE_ERROR, CHALLENGE_START_DATE, isWithinChallengeWindow } from "@/lib/challenge";
-import { GEMINI_OCR_MODEL, RUN_IMAGE_RESPONSE_SCHEMA, buildRunImagePrompt, getGeminiErrorDebug, getGeminiErrorMessage } from "@/lib/gemini";
+import { GEMINI_OCR_MODEL, buildRunImagePrompt, getGeminiErrorDebug, getGeminiErrorMessage } from "@/lib/gemini";
 import {
   ExtractedRunBase,
   UploadedImage,
@@ -65,7 +65,6 @@ async function analyzeImage(image: UploadedImage, targetDate?: string | null) {
     ],
     config: {
       responseMimeType: "application/json",
-      responseSchema: RUN_IMAGE_RESPONSE_SCHEMA,
       temperature: 0.1,
     },
   });
