@@ -258,7 +258,6 @@ function AdminActionButton({
 export default function AdminPage() {
   const router = useRouter();
   const loadInFlightRef = useRef(false);
-  const uploadFileInputRef = useRef<HTMLInputElement | null>(null);
   const [mounted, setMounted] = useState(false);
   const [authReady, setAuthReady] = useState(false);
   const [authorized, setAuthorized] = useState(false);
@@ -468,11 +467,6 @@ export default function AdminPage() {
       .filter((record) => record.participant_id === selectedRecordsParticipantId && record.record_date)
       .sort((a, b) => (b.record_date || "").localeCompare(a.record_date || "") || b.id.localeCompare(a.id))
   ), [records, selectedRecordsParticipantId]);
-  const defaultUploadParticipant = useMemo(
-    () => participants.find((participant) => participant.name.replace(/\s+/g, "") === "이경민") || null,
-    [participants]
-  );
-
   const addParticipant = useCallback(async () => {
     if (!newName.trim()) return;
     const res = await fetch("/api/participants", {
@@ -518,12 +512,12 @@ export default function AdminPage() {
   const openUploadForDate = useCallback((date: string) => {
     setTargetDate(date);
     setFiles([]);
-    setUploadParticipantId(defaultUploadParticipant?.id || "");
+    setUploadParticipantId("");
     setUploadNewName("");
     setAnalysisResults([]);
     setAnalysisMessage("");
     setAdminModal("upload");
-  }, [defaultUploadParticipant?.id]);
+  }, []);
 
   const saveParticipant = useCallback(async () => {
     if (!newName.trim()) return;
@@ -597,10 +591,6 @@ export default function AdminPage() {
     }
   }, [loadData, participants, uploadNewName]);
 
-  const openUploadFilePicker = useCallback(() => {
-    uploadFileInputRef.current?.click();
-  }, []);
-
   const postAnalyzeImages = useCallback(async (images: PendingAnalyzeImage[]) => {
     const results: AnalysisResult[] = [];
 
@@ -610,7 +600,7 @@ export default function AdminPage() {
       const res = await fetch("/api/records/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ targetDate, fallbackParticipantId: uploadParticipantId || defaultUploadParticipant?.id || null, images: chunk }),
+        body: JSON.stringify({ targetDate, fallbackParticipantId: uploadParticipantId || null, images: chunk }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "analysis failed");
@@ -618,9 +608,9 @@ export default function AdminPage() {
     }
 
     return results;
-  }, [defaultUploadParticipant?.id, targetDate, uploadParticipantId]);
+  }, [targetDate, uploadParticipantId]);
 
-  const addImageFiles = useCallback((fileList: FileList | File[]) => {
+  const analyzeDroppedImages = useCallback(async (fileList: FileList | File[]) => {
     const selectedImages = getImageFiles(fileList);
     setUploadDragActive(false);
     setAnalysisResults([]);
@@ -630,51 +620,29 @@ export default function AdminPage() {
       return;
     }
 
-    setFiles((current) => {
-      const seen = new Set(current.map(getImageFileKey));
-      const next = [...current];
-      let added = 0;
-      let duplicateOrOverflow = 0;
-
-      selectedImages.forEach((file) => {
-        const key = getImageFileKey(file);
-        if (seen.has(key) || next.length >= MAX_BATCH_IMAGE_FILES) {
-          duplicateOrOverflow += 1;
-          return;
-        }
-        seen.add(key);
-        next.push(file);
-        added += 1;
+    const nextFiles = selectedImages.slice(0, MAX_BATCH_IMAGE_FILES);
+    setFiles(nextFiles);
+    setAnalyzing(true);
+    try {
+      setAnalysisMessage(`이미지 준비 중... 0/${nextFiles.length}`);
+      const images = await preparePendingAnalyzeImages(nextFiles, (completed) => {
+        setAnalysisMessage(`이미지 준비 중... ${completed}/${nextFiles.length}`);
       });
-
-      if (added) {
-        setAnalysisMessage(`${next.length}장 선택됨 · 바로 등록 가능`);
-      } else {
-        setAnalysisMessage(
-          duplicateOrOverflow
-            ? `이미 선택했거나 최대 ${MAX_BATCH_IMAGE_FILES}장을 넘었어요.`
-            : "이미지 파일만 올릴 수 있어요."
-        );
-      }
-
-      return next;
-    });
-  }, []);
-
-  const removeImageFile = useCallback((fileKey: string) => {
-    setFiles((current) => {
-      const next = current.filter((file) => getImageFileKey(file) !== fileKey);
-      setAnalysisMessage(next.length ? `${next.length}장 선택됨` : "선택한 이미지 없음");
-      return next;
-    });
-    setAnalysisResults([]);
-  }, []);
-
-  const clearImageFiles = useCallback(() => {
-    setFiles([]);
-    setAnalysisResults([]);
-    setAnalysisMessage("선택한 이미지 없음");
-  }, []);
+      const results = await postAnalyzeImages(images);
+      setFiles([]);
+      setAnalysisResults(results);
+      const certified = results.filter((result) => result.status === "certified").length;
+      const duplicate = results.filter((result) => result.duplicate || result.status === "duplicate").length;
+      const review = results.length - certified - duplicate;
+      setAnalysisMessage(`${results.length}장 정리 완료 · 인증 반영 ${certified}건 · 이미 인증 ${duplicate}건 · 보류 ${review}건`);
+      await loadData();
+    } catch (err) {
+      setFiles([]);
+      setAnalysisMessage(err instanceof Error ? err.message : "이미지를 읽지 못했어요. 흐린 이미지는 직접 입력으로 가볍게 보완해주세요.");
+    } finally {
+      setAnalyzing(false);
+    }
+  }, [loadData, postAnalyzeImages]);
 
   const handleUploadDragOver = useCallback((event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
@@ -692,33 +660,8 @@ export default function AdminPage() {
   const handleUploadDrop = useCallback((event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     event.stopPropagation();
-    addImageFiles(event.dataTransfer.files);
-  }, [addImageFiles]);
-
-  const analyzeImages = useCallback(async () => {
-    if (!files.length) return;
-    setAnalyzing(true);
-    setAnalysisMessage("");
-    setAnalysisResults([]);
-    try {
-      setAnalysisMessage(`이미지 준비 중... 0/${files.length}`);
-      const images = await preparePendingAnalyzeImages(files, (completed) => {
-        setAnalysisMessage(`이미지 준비 중... ${completed}/${files.length}`);
-      });
-      const results = await postAnalyzeImages(images);
-      setFiles([]);
-      setAnalysisResults(results);
-      const certified = results.filter((result) => result.status === "certified").length;
-      const duplicate = results.filter((result) => result.duplicate || result.status === "duplicate").length;
-      const review = results.length - certified - duplicate;
-      setAnalysisMessage(`${results.length}장 정리 완료 · 인증 반영 ${certified}건 · 이미 인증 ${duplicate}건 · 보류 ${review}건`);
-      await loadData();
-    } catch (err) {
-      setAnalysisMessage(err instanceof Error ? err.message : "이미지를 읽지 못했어요. 흐린 이미지는 직접 입력으로 가볍게 보완해주세요.");
-    } finally {
-      setAnalyzing(false);
-    }
-  }, [files, loadData, postAnalyzeImages]);
+    void analyzeDroppedImages(event.dataTransfer.files);
+  }, [analyzeDroppedImages]);
 
   const updateAnalysisParticipant = useCallback(async (resultIndex: number, participantId: string) => {
     const result = analysisResults[resultIndex];
@@ -780,8 +723,7 @@ export default function AdminPage() {
 
     const durationSeconds = parseDurationToSeconds(result.edit_duration || "");
     const hasMetric = Boolean((result.edit_distance || "").trim() || durationSeconds);
-    const effectiveParticipantId = result.participant_id || defaultUploadParticipant?.id || null;
-    const nextStatus: RecordStatus = effectiveParticipantId && result.record_date && hasMetric ? "certified" : "missing";
+    const nextStatus: RecordStatus = result.participant_id && result.record_date && hasMetric ? "certified" : "missing";
     const resultKey = getAnalysisResultKey(result, resultIndex);
     setUpdatingAnalysisKey(resultKey);
 
@@ -790,7 +732,6 @@ export default function AdminPage() {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          participant_id: effectiveParticipantId || undefined,
           distance_km: result.edit_distance || null,
           duration_seconds: durationSeconds,
           status: nextStatus,
@@ -804,8 +745,6 @@ export default function AdminPage() {
         index === resultIndex
           ? {
               ...item,
-              participant_id: effectiveParticipantId || item.participant_id,
-              participant_name: effectiveParticipantId === defaultUploadParticipant?.id ? defaultUploadParticipant.name : item.participant_name,
               distance_km: result.edit_distance ? Number(result.edit_distance) : null,
               duration_seconds: durationSeconds,
               status: nextStatus,
@@ -822,7 +761,7 @@ export default function AdminPage() {
     } finally {
       setUpdatingAnalysisKey("");
     }
-  }, [analysisResults, defaultUploadParticipant, loadData]);
+  }, [analysisResults, loadData]);
 
   const openParticipantRecords = useCallback((participantId: string) => {
     const drafts = records
@@ -1290,19 +1229,6 @@ export default function AdminPage() {
                 </button>
               </div>
 
-              <input
-                ref={uploadFileInputRef}
-                id="admin-batch-image-input"
-                type="file"
-                accept="image/*"
-                multiple
-                onChange={(e) => {
-                  addImageFiles(e.target.files || []);
-                  e.currentTarget.value = "";
-                }}
-                className="sr-only"
-              />
-
               <div
                 className={`mt-3 rounded-[22px] border-2 border-dashed p-3 transition ${
                   uploadDragActive
@@ -1314,46 +1240,23 @@ export default function AdminPage() {
                 onDragLeave={handleUploadDragLeave}
                 onDrop={handleUploadDrop}
               >
-                <button
-                  type="button"
-                  onClick={openUploadFilePicker}
-                  className="flex w-full items-center justify-between gap-3 rounded-2xl bg-white px-4 py-4 text-left ring-1 ring-slate-950/5 transition hover:ring-lime-300"
-                >
+                <div className="flex w-full items-center justify-between gap-3 rounded-2xl bg-white px-4 py-4 text-left ring-1 ring-slate-950/5">
                   <span className="flex min-w-0 items-center gap-3">
                     <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-slate-950 text-xl font-black text-lime-200">
-                      {uploadDragActive ? "↓" : files.length || "+"}
+                      {uploadDragActive ? "↓" : analyzing ? "…" : "+"}
                     </span>
                     <span className="min-w-0">
                       <span className="block truncate text-base font-black text-oriwan-text">
-                        {uploadDragActive ? "여기에 놓기" : files.length ? `${files.length}장 선택됨` : "여러 이미지 선택"}
+                        {uploadDragActive ? "여기에 놓기" : analyzing ? "OCR 등록 중" : "이미지 드래그앤드랍"}
                       </span>
                       <span className="mt-0.5 block truncate text-xs font-bold text-oriwan-text-muted">
-                        {files.length ? "추가 선택하거나 바로 등록" : "드래그해서 놓아도 됩니다"}
+                        {analyzing ? "잠시만 기다려주세요" : "놓으면 바로 자동 인식됩니다"}
                       </span>
                     </span>
                   </span>
                   <span className="shrink-0 rounded-full bg-lime-300 px-3 py-1 text-[11px] font-black text-slate-950">
-                    {files.length}/{MAX_BATCH_IMAGE_FILES}
+                    최대 {MAX_BATCH_IMAGE_FILES}장
                   </span>
-                </button>
-
-                <div className="mt-2 grid grid-cols-[1fr_auto] gap-2">
-                  <button
-                    type="button"
-                    onClick={openUploadFilePicker}
-                    disabled={analyzing}
-                    className="rounded-2xl bg-slate-950 px-4 py-3 text-sm font-black text-lime-200 shadow-sm shadow-slate-950/10 disabled:opacity-40"
-                  >
-                    여러 이미지 선택
-                  </button>
-                  <button
-                    type="button"
-                    onClick={clearImageFiles}
-                    disabled={!files.length || analyzing}
-                    className="rounded-2xl bg-white px-4 py-3 text-sm font-black text-oriwan-text disabled:opacity-35"
-                  >
-                    비우기
-                  </button>
                 </div>
 
                 {files.length > 0 && (
@@ -1367,14 +1270,6 @@ export default function AdminPage() {
                               <p className="truncate text-[11px] font-black text-oriwan-text">{index + 1}. {file.name}</p>
                               <p className="mt-0.5 text-[10px] font-semibold text-oriwan-text-muted">{formatFileSize(file.size)}</p>
                             </div>
-                            <button
-                              type="button"
-                              onClick={() => removeImageFile(fileKey)}
-                              disabled={analyzing}
-                              className="shrink-0 rounded-lg bg-white px-2 py-1 text-[10px] font-black text-oriwan-text-muted disabled:opacity-40"
-                            >
-                              삭제
-                            </button>
                           </div>
                         );
                       })}
@@ -1386,12 +1281,6 @@ export default function AdminPage() {
                     </div>
                   </div>
                 )}
-              </div>
-
-              <div className="sticky bottom-0 z-10 -mx-4 mt-3 border-t border-slate-950/5 bg-white/95 px-4 py-3 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:px-0 sm:py-0">
-                <button onClick={analyzeImages} disabled={!files.length || analyzing} className="btn-primary w-full py-3 text-sm disabled:opacity-40">
-                  {analyzing ? "OCR 등록 중..." : files.length ? `${files.length}장 바로 등록` : "이미지 선택 필요"}
-                </button>
               </div>
 
               {analysisMessage && (

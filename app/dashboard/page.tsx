@@ -49,21 +49,6 @@ type PersonalGrowthBadge = {
   colorClassName: string;
 };
 
-const CHEER_PARTICLES = [
-  { left: "10%", top: "32%", dx: "-34px", dy: "-88px" },
-  { left: "18%", top: "58%", dx: "-18px", dy: "-104px" },
-  { left: "26%", top: "38%", dx: "24px", dy: "-92px" },
-  { left: "35%", top: "72%", dx: "-30px", dy: "-112px" },
-  { left: "44%", top: "30%", dx: "14px", dy: "-96px" },
-  { left: "52%", top: "62%", dx: "-12px", dy: "-118px" },
-  { left: "60%", top: "42%", dx: "32px", dy: "-100px" },
-  { left: "68%", top: "70%", dx: "18px", dy: "-108px" },
-  { left: "76%", top: "34%", dx: "-26px", dy: "-90px" },
-  { left: "86%", top: "56%", dx: "30px", dy: "-104px" },
-  { left: "14%", top: "78%", dx: "28px", dy: "-84px" },
-  { left: "84%", top: "80%", dx: "-24px", dy: "-86px" },
-] as const;
-
 const actualCertificationEndDate = toIsoDate(addDays(new Date(`${ACTUAL_CERTIFICATION_START_DATE}T00:00:00`), CHALLENGE_DAYS - 1));
 
 function formatLastUpdated(value?: string) {
@@ -117,7 +102,6 @@ const RING_CIRCUMFERENCE = 302;
 const PUBLIC_DASHBOARD_STORAGE_KEY = "oriwan-public-dashboard-cache-v1";
 const PUBLIC_DASHBOARD_STORAGE_TTL_MS = 5 * 60 * 1000;
 const PUBLIC_DASHBOARD_FOCUS_REFRESH_MS = 30 * 1000;
-const SILENT_CHEER_STORAGE_PREFIX = "oriwan-silent-cheer-v1";
 
 function readCachedDashboardData() {
   if (typeof window === "undefined") return null;
@@ -146,44 +130,6 @@ function writeCachedDashboardData(data: PublicDashboardData) {
   } catch {
     // Storage can fail in private mode. Network refresh still keeps the dashboard usable.
   }
-}
-
-function silentCheerStorageKey(date: string) {
-  return `${SILENT_CHEER_STORAGE_PREFIX}:${date}`;
-}
-
-function readSilentCheer(date: string) {
-  if (typeof window === "undefined" || !date) return false;
-
-  try {
-    return window.localStorage.getItem(silentCheerStorageKey(date)) === "sent";
-  } catch {
-    return false;
-  }
-}
-
-function writeSilentCheer(date: string) {
-  if (typeof window === "undefined" || !date) return;
-
-  try {
-    window.localStorage.setItem(silentCheerStorageKey(date), "sent");
-  } catch {
-    // The cheer is intentionally lightweight; the button still gives immediate feedback.
-  }
-}
-
-function formatCompactDistance(value: number) {
-  if (!value || value <= 0) return "0km";
-  if (value >= 100) return `${Math.round(value)}km`;
-  return `${value.toFixed(1)}km`;
-}
-
-function formatCompactDuration(seconds: number) {
-  if (!seconds || seconds <= 0) return "0분";
-  const hours = seconds / 3600;
-  if (hours >= 10) return `${Math.round(hours)}시간`;
-  if (hours >= 1) return `${hours.toFixed(1)}시간`;
-  return `${Math.max(Math.round(seconds / 60), 1)}분`;
 }
 
 function getLongestDateStreak(dates: string[]) {
@@ -491,35 +437,6 @@ function FanfareBurst({ compact = false }: { compact?: boolean }) {
   );
 }
 
-function SilentCheerBurst({ burstId }: { burstId: number }) {
-  return (
-    <div key={burstId} className="silent-cheer-overlay" aria-hidden="true">
-      <div className="silent-cheer-ripple" />
-      <div className="silent-cheer-toast">
-        <span className="silent-cheer-toast-icon">
-          <IconHeart size={16} />
-        </span>
-        <span>조용한 응원이 퍼졌어요</span>
-      </div>
-      <div className="silent-cheer-particles">
-        {CHEER_PARTICLES.map((particle, index) => (
-          <span
-            key={`${particle.left}-${particle.top}`}
-            className="silent-cheer-particle"
-            style={{
-              "--i": index,
-              "--dx": particle.dx,
-              "--dy": particle.dy,
-              left: particle.left,
-              top: particle.top,
-            } as CSSProperties}
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
-
 export default function DashboardPage() {
   const [data, setData] = useState<PublicDashboardData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -532,13 +449,9 @@ export default function DashboardPage() {
   const [trendModal, setTrendModal] = useState<TrendModal>(null);
   const [showSeasonReportModal, setShowSeasonReportModal] = useState(false);
   const [participantSortMode, setParticipantSortMode] = useState<ParticipantRankSortMode>("certification");
-  const [silentCheerSent, setSilentCheerSent] = useState(false);
-  const [cheerBurstId, setCheerBurstId] = useState(0);
-  const [cheerBurstVisible, setCheerBurstVisible] = useState(false);
   const loadingRef = useRef(false);
   const lastLoadedAtRef = useRef(0);
   const motionFrameRef = useRef<number | null>(null);
-  const cheerTimeoutRef = useRef<number | null>(null);
 
   const restartMotion = useCallback(() => {
     if (motionFrameRef.current) window.cancelAnimationFrame(motionFrameRef.current);
@@ -618,7 +531,6 @@ export default function DashboardPage() {
   useEffect(() => {
     return () => {
       if (motionFrameRef.current) window.cancelAnimationFrame(motionFrameRef.current);
-      if (cheerTimeoutRef.current) window.clearTimeout(cheerTimeoutRef.current);
     };
   }, []);
 
@@ -755,21 +667,6 @@ export default function DashboardPage() {
       stampDays: makeDaysThrough(CERTIFICATION_DISPLAY_START_DATE, latestStampDate),
     };
   }, [data, todayIso]);
-  useEffect(() => {
-    setSilentCheerSent(readSilentCheer(dashboard.currentCertificationDate));
-  }, [dashboard.currentCertificationDate]);
-
-  const sendSilentCheer = useCallback(() => {
-    writeSilentCheer(dashboard.currentCertificationDate);
-    setSilentCheerSent(true);
-    setCheerBurstId((current) => current + 1);
-    setCheerBurstVisible(true);
-    if (cheerTimeoutRef.current) window.clearTimeout(cheerTimeoutRef.current);
-    cheerTimeoutRef.current = window.setTimeout(() => {
-      setCheerBurstVisible(false);
-      cheerTimeoutRef.current = null;
-    }, 1600);
-  }, [dashboard.currentCertificationDate]);
 
   const sortedParticipantProgress = useMemo(
     () => sortParticipantRanks(dashboard.participantProgress, participantSortMode),
@@ -777,7 +674,6 @@ export default function DashboardPage() {
   );
   const latestWeeklyRate = dashboard.weekTrend.at(-1)?.averageRate || 0;
   const latestDailyRate = dashboard.dayTrend.at(-1)?.rate || 0;
-  const currentWeeklyReport = dashboard.weekTrend.at(-1) || null;
   const selectedParticipant = dashboard.participantProgress.find((row) => row.participant.id === selectedParticipantId) || null;
   const selectedStampedDates = new Set(selectedParticipant?.stampedDates || []);
   const selectedRecordByDate = new Map<string, RunRecord>(
@@ -814,13 +710,7 @@ export default function DashboardPage() {
   const isInitialDashboardLoading = loading && !data;
 
   return (
-    <main className={`min-h-screen w-full overflow-x-hidden bg-oriwan-bg ${cheerBurstVisible ? "cheer-mode-active" : ""}`}>
-      {cheerBurstVisible && (
-        <>
-          <p className="sr-only" role="status">조용한 응원이 퍼졌어요.</p>
-          <SilentCheerBurst burstId={cheerBurstId} />
-        </>
-      )}
+    <main className="min-h-screen w-full overflow-x-hidden bg-oriwan-bg">
       <header className="sticky top-0 z-50 border-b border-slate-950/10 bg-[#101522]/95 px-3 py-2.5 text-white backdrop-blur-2xl sm:px-4 sm:py-3">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
@@ -878,112 +768,43 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:mt-4">
+              <div className="mt-3 grid grid-cols-3 gap-1.5 sm:mt-4 sm:gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowSeasonReportModal(true)}
+                  className="dashboard-card-reveal min-w-0 rounded-2xl bg-white/10 px-1.5 py-2.5 text-center ring-1 ring-white/10 transition hover:-translate-y-0.5 hover:ring-lime-300 sm:rounded-3xl sm:px-3 sm:py-4 [animation-delay:0ms]"
+                >
+                  <p className="truncate text-[10px] font-black text-white/50">진행일</p>
+                  <p className="mt-1 whitespace-nowrap text-[1.25rem] font-black leading-tight text-white sm:text-2xl">
+                    <AnimatedNumber key={`elapsed-${animationRun}`} value={dashboard.elapsedDays.length} />/{CHALLENGE_DAYS}
+                  </p>
+                </button>
                 <button
                   type="button"
                   onClick={() => setTrendModal("weekly")}
-                  className="dashboard-card-reveal group min-w-0 rounded-[22px] bg-white/10 p-4 text-left ring-1 ring-white/10 transition hover:-translate-y-0.5 hover:bg-white/15 hover:ring-lime-300/60 sm:rounded-[26px] [animation-delay:120ms]"
+                  className="dashboard-card-reveal min-w-0 rounded-2xl bg-white/10 px-1.5 py-2.5 text-center ring-1 ring-white/10 transition hover:-translate-y-0.5 hover:ring-lime-300 sm:rounded-3xl sm:px-3 sm:py-4 [animation-delay:90ms]"
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-[11px] font-black text-lime-200">주간 버티기 리포트</p>
-                      <p className="mt-1 truncate text-xl font-black leading-tight text-white">
-                        {currentWeeklyReport ? `${currentWeeklyReport.label} ${currentWeeklyReport.reportRate}%` : "이번 주 집계 중"}
-                      </p>
-                      <p className="mt-1 truncate text-[11px] font-bold text-white/45">
-                        {currentWeeklyReport ? `${currentWeeklyReport.activeParticipantCount}명이 이번 주 함께 버티는 중` : "인증이 들어오면 바로 채워져요"}
-                      </p>
-                    </div>
-                    <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-lime-300 text-slate-950 shadow-sm shadow-lime-300/30 transition group-hover:scale-105">
-                      <IconCalendar size={18} />
-                    </span>
-                  </div>
-                  <div className="mt-3 grid grid-cols-3 gap-1.5">
-                    <span className="rounded-2xl bg-white/10 px-2.5 py-2 ring-1 ring-white/5">
-                      <span className="block text-[9px] font-black text-white/45">인증</span>
-                      <span className="mt-0.5 block text-sm font-black text-white">{currentWeeklyReport?.elapsedCertifiedSlots || 0}회</span>
-                    </span>
-                    <span className="rounded-2xl bg-white/10 px-2.5 py-2 ring-1 ring-white/5">
-                      <span className="block text-[9px] font-black text-white/45">거리</span>
-                      <span className="mt-0.5 block text-sm font-black text-white">{formatCompactDistance(currentWeeklyReport?.distanceKm || 0)}</span>
-                    </span>
-                    <span className="rounded-2xl bg-white/10 px-2.5 py-2 ring-1 ring-white/5">
-                      <span className="block text-[9px] font-black text-white/45">시간</span>
-                      <span className="mt-0.5 block text-sm font-black text-white">{formatCompactDuration(currentWeeklyReport?.durationSeconds || 0)}</span>
-                    </span>
-                  </div>
+                  <p className="truncate text-[10px] font-black text-white/50">주차별 인증률</p>
+                  <p className="mt-1 whitespace-nowrap text-[1.25rem] font-black leading-tight text-white sm:text-2xl">
+                    {isInitialDashboardLoading ? "--" : <AnimatedNumber key={`weekly-${animationRun}`} value={latestWeeklyRate} suffix="%" />}
+                  </p>
                 </button>
-
                 <button
                   type="button"
-                  onClick={sendSilentCheer}
-                  aria-pressed={silentCheerSent}
-                  disabled={silentCheerSent}
-                  className={`silent-cheer-button dashboard-card-reveal group relative min-w-0 overflow-hidden rounded-[22px] p-4 text-left ring-1 transition sm:rounded-[26px] [animation-delay:210ms] ${
-                    silentCheerSent
-                      ? "bg-lime-300 text-slate-950 ring-lime-200 shadow-sm shadow-lime-300/30"
-                      : "bg-white text-slate-950 ring-white/10 hover:-translate-y-0.5 hover:bg-lime-50 hover:ring-lime-300"
-                  }`}
+                  onClick={() => setTrendModal("daily")}
+                  className="dashboard-card-reveal min-w-0 rounded-2xl bg-lime-300 px-1.5 py-2.5 text-center text-slate-950 shadow-sm shadow-lime-300/30 transition hover:-translate-y-0.5 hover:ring-2 hover:ring-lime-400 sm:rounded-3xl sm:px-3 sm:py-4 [animation-delay:180ms]"
                 >
-                  {silentCheerSent && <FanfareBurst compact />}
-                  <div className="relative flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className={`text-[11px] font-black ${silentCheerSent ? "text-slate-950/60" : "text-oriwan-text-muted"}`}>
-                        침묵의 응원
-                      </p>
-                      <p className="mt-1 text-xl font-black leading-tight">
-                        {silentCheerSent ? "오늘 응원 보냄" : "조용히 응원하기"}
-                      </p>
-                      <p className={`mt-2 text-xs font-bold leading-5 ${silentCheerSent ? "text-slate-950/60" : "text-oriwan-text-muted"}`}>
-                        {silentCheerSent
-                          ? "오늘 인증한 크루에게 마음만 놓고 갔어요."
-                          : `${dashboard.currentDateCertifiedIds.size}명의 오늘 루틴에 힘을 보태요.`}
-                      </p>
-                    </div>
-                    <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-slate-950 text-lime-200 transition group-hover:scale-105">
-                      <IconHeart size={18} />
-                    </span>
-                  </div>
+                  <p className="truncate text-[10px] font-black opacity-60">매일 인증률</p>
+                  <p className="mt-1 whitespace-nowrap text-[1.25rem] font-black leading-tight sm:text-2xl">
+                    {isInitialDashboardLoading ? "--" : <AnimatedNumber key={`daily-${animationRun}`} value={latestDailyRate} suffix="%" />}
+                  </p>
                 </button>
               </div>
             </div>
           </div>
 
           <div className="p-2.5 sm:p-5">
-            <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
-              <button
-                type="button"
-                onClick={() => setShowSeasonReportModal(true)}
-                className="dashboard-card-reveal rounded-2xl bg-white px-1.5 py-2.5 text-center ring-1 ring-slate-950/5 transition hover:-translate-y-0.5 hover:ring-lime-300 sm:rounded-3xl sm:px-3 sm:py-4 [animation-delay:0ms]"
-              >
-                <p className="text-[10px] font-black text-oriwan-text-muted">진행일</p>
-                <p className="mt-1 text-[1.35rem] font-black leading-tight text-oriwan-text sm:text-2xl">
-                  <AnimatedNumber key={`elapsed-${animationRun}`} value={dashboard.elapsedDays.length} />/{CHALLENGE_DAYS}
-                </p>
-              </button>
-              <button
-                type="button"
-                onClick={() => setTrendModal("weekly")}
-                className="dashboard-card-reveal rounded-2xl bg-white px-1.5 py-2.5 text-center ring-1 ring-slate-950/5 transition hover:-translate-y-0.5 hover:ring-lime-300 sm:rounded-3xl sm:px-3 sm:py-4 [animation-delay:90ms]"
-              >
-                <p className="text-[10px] font-black text-oriwan-text-muted">주차별 인증률</p>
-                <p className="mt-1 text-[1.35rem] font-black leading-tight text-oriwan-text sm:text-2xl">
-                  {isInitialDashboardLoading ? "--" : <AnimatedNumber key={`weekly-${animationRun}`} value={latestWeeklyRate} suffix="%" />}
-                </p>
-              </button>
-              <button
-                type="button"
-                onClick={() => setTrendModal("daily")}
-                className="dashboard-card-reveal rounded-2xl bg-lime-300 px-1.5 py-2.5 text-center text-slate-950 shadow-sm shadow-lime-300/30 transition hover:-translate-y-0.5 hover:ring-2 hover:ring-lime-400 sm:rounded-3xl sm:px-3 sm:py-4 [animation-delay:180ms]"
-              >
-                <p className="text-[10px] font-black opacity-60">매일 인증률</p>
-                <p className="mt-1 text-[1.35rem] font-black leading-tight sm:text-2xl">
-                  {isInitialDashboardLoading ? "--" : <AnimatedNumber key={`daily-${animationRun}`} value={latestDailyRate} suffix="%" />}
-                </p>
-              </button>
-            </div>
-
-            <div className="mt-4 sm:mt-5">
+            <div>
               <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div className="min-w-0">
                   <h4 className="text-base font-black leading-tight text-oriwan-text">스내사 크루별 인증게이지</h4>
