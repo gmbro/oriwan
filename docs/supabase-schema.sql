@@ -103,18 +103,48 @@ CREATE INDEX IF NOT EXISTS idx_daily_run_records_participant_date
 CREATE INDEX IF NOT EXISTS idx_daily_run_records_status
   ON daily_run_records(user_id, status);
 
--- 4. Storage: 인증 이미지 저장 버킷
+-- 4. 개인 성장 뱃지 획득 이력
+-- 한 번 획득한 뱃지는 기록 보정 이후에도 받은 상태로 유지합니다.
+CREATE TABLE IF NOT EXISTS participant_growth_badges (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  participant_id UUID REFERENCES participants(id) ON DELETE CASCADE NOT NULL,
+  badge_key TEXT NOT NULL,
+  earned_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  UNIQUE(user_id, participant_id, badge_key)
+);
+
+ALTER TABLE participant_growth_badges ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Users can read own participant growth badges" ON participant_growth_badges;
+DROP POLICY IF EXISTS "Users can insert own participant growth badges" ON participant_growth_badges;
+DROP POLICY IF EXISTS "Users can update own participant growth badges" ON participant_growth_badges;
+DROP POLICY IF EXISTS "Users can delete own participant growth badges" ON participant_growth_badges;
+
+CREATE POLICY "Users can read own participant growth badges"
+  ON participant_growth_badges FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can insert own participant growth badges"
+  ON participant_growth_badges FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can update own participant growth badges"
+  ON participant_growth_badges FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "Users can delete own participant growth badges"
+  ON participant_growth_badges FOR DELETE USING (auth.uid() = user_id);
+
+CREATE INDEX IF NOT EXISTS idx_participant_growth_badges_user_participant
+  ON participant_growth_badges(user_id, participant_id, earned_at DESC);
+
+-- 5. Storage: 인증 이미지 저장 버킷
 -- Supabase Dashboard > Storage > New bucket
 -- 이름: photos
 -- Public: OFF 권장
 -- 파일 크기 제한: 운영 정책에 맞게 설정
 
--- 5. 실시간 대시보드
+-- 6. 실시간 대시보드
 -- Supabase Dashboard > Database > Replication 또는 Realtime 설정에서
 -- participants, daily_run_records 테이블의 Realtime을 켜면 입력/수정 즉시 화면이 갱신됩니다.
 -- Realtime이 꺼져 있어도 웹 대시보드는 60초마다 자동으로 최신 데이터를 다시 가져옵니다.
 
--- 6. Storage: 스내사 포토로그 버킷
+-- 7. Storage: 스내사 포토로그 버킷
 -- Supabase Dashboard > Storage에 아래 버킷을 만들고, 날짜가 들어간 폴더 안에 사진을 올리면
 -- 대시보드가 자동으로 날짜별 사진첩을 구성합니다.
 -- 권장 폴더명 예시: 2026-05-16 스내사 남산런 / 0516 스내사 남산런

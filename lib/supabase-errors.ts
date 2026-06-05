@@ -4,7 +4,9 @@ export function isMissingTableError(error: unknown) {
   const maybeError = error as { code?: string; message?: string };
   return (
     maybeError.code === "PGRST205" ||
-    Boolean(maybeError.message?.includes("Could not find the table"))
+    maybeError.code === "42P01" ||
+    Boolean(maybeError.message?.includes("Could not find the table")) ||
+    Boolean(maybeError.message?.includes("does not exist"))
   );
 }
 

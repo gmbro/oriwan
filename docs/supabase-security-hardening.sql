@@ -9,24 +9,29 @@ BEGIN;
 ALTER TABLE public.participants ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.upload_batches ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.daily_run_records ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.participant_growth_badges ENABLE ROW LEVEL SECURITY;
 
 -- 2. anon/public 역할의 직접 Data API 접근을 제거합니다.
 --    공개 대시보드는 Next.js 서버 API가 service key로 필요한 필드만 읽습니다.
 REVOKE ALL ON TABLE public.participants FROM anon;
 REVOKE ALL ON TABLE public.upload_batches FROM anon;
 REVOKE ALL ON TABLE public.daily_run_records FROM anon;
+REVOKE ALL ON TABLE public.participant_growth_badges FROM anon;
 REVOKE ALL ON TABLE public.participants FROM PUBLIC;
 REVOKE ALL ON TABLE public.upload_batches FROM PUBLIC;
 REVOKE ALL ON TABLE public.daily_run_records FROM PUBLIC;
+REVOKE ALL ON TABLE public.participant_growth_badges FROM PUBLIC;
 
 -- 3. 로그인한 사용자와 서버 전용 역할만 테이블을 사용할 수 있게 둡니다.
 --    실제 행 접근은 docs/supabase-schema.sql의 auth.uid() = user_id RLS 정책이 제한합니다.
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.participants TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.upload_batches TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.daily_run_records TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.participant_growth_badges TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.participants TO service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.upload_batches TO service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.daily_run_records TO service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.participant_growth_badges TO service_role;
 
 -- 4. 공개 브라우저에서 DB 변경 스트림을 직접 구독하지 않도록 Realtime publication에서 제외합니다.
 DO $$
@@ -51,6 +56,16 @@ BEGIN
     ) THEN
       EXECUTE 'ALTER PUBLICATION supabase_realtime DROP TABLE public.daily_run_records';
     END IF;
+
+    IF EXISTS (
+      SELECT 1
+      FROM pg_publication_tables
+      WHERE pubname = 'supabase_realtime'
+        AND schemaname = 'public'
+        AND tablename = 'participant_growth_badges'
+    ) THEN
+      EXECUTE 'ALTER PUBLICATION supabase_realtime DROP TABLE public.participant_growth_badges';
+    END IF;
   END IF;
 END $$;
 
@@ -65,10 +80,10 @@ COMMIT;
 -- SELECT schemaname, tablename, rowsecurity
 -- FROM pg_tables
 -- WHERE schemaname = 'public'
---   AND tablename IN ('participants', 'upload_batches', 'daily_run_records');
+--   AND tablename IN ('participants', 'upload_batches', 'daily_run_records', 'participant_growth_badges');
 --
 -- SELECT grantee, table_name, privilege_type
 -- FROM information_schema.role_table_grants
 -- WHERE table_schema = 'public'
---   AND table_name IN ('participants', 'upload_batches', 'daily_run_records')
+--   AND table_name IN ('participants', 'upload_batches', 'daily_run_records', 'participant_growth_badges')
 -- ORDER BY table_name, grantee, privilege_type;

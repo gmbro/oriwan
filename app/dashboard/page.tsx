@@ -7,6 +7,15 @@ import { IconCalendar, IconDna, IconDroplet, IconFlame, IconHeart, IconMountain,
 import { buildMemberPictogramMap, MemberPictogram } from "@/components/member-pictogram";
 import { YoutubeShortsSection } from "@/components/youtube-shorts-section";
 import { ACTUAL_CERTIFICATION_START_DATE, CERTIFICATION_DISPLAY_START_DATE, CHALLENGE_DAYS } from "@/lib/challenge";
+import {
+  getBestWeekdayMorningProgress,
+  getCurrentDateStreak,
+  getLongestDateStreak,
+  getWeekdayMorningProgress,
+  makePersonalGrowthBadges,
+  type GrowthBadgeUnlock,
+  type PersonalGrowthBadge,
+} from "@/lib/growth-badges";
 import { PARTICIPANT_RANK_SORT_OPTIONS, type ParticipantRankSortMode, sortParticipantRanks } from "@/lib/participant-ranking";
 import { addDays, isCertificationCountedStatus, secondsToTime, toIsoDate, toKstIsoDate } from "@/lib/run-records";
 
@@ -34,20 +43,12 @@ type PublicDashboardData = {
   generated_at: string;
   participants: Participant[];
   records: RunRecord[];
+  growth_badges?: GrowthBadgeUnlock[];
   setup_required?: boolean;
   error?: string;
 };
 
 type TrendModal = "weekly" | "daily" | null;
-type PersonalGrowthBadge = {
-  key: string;
-  label: string;
-  description: string;
-  progress: string;
-  unlocked: boolean;
-  icon: "run" | "flame" | "target" | "calendar" | "sprout" | "heart" | "mountain" | "muscle" | "droplet" | "sync" | "dna";
-  colorClassName: string;
-};
 
 const actualCertificationEndDate = toIsoDate(addDays(new Date(`${ACTUAL_CERTIFICATION_START_DATE}T00:00:00`), CHALLENGE_DAYS - 1));
 
@@ -102,6 +103,9 @@ const RING_CIRCUMFERENCE = 302;
 const PUBLIC_DASHBOARD_STORAGE_KEY = "oriwan-public-dashboard-cache-v1";
 const PUBLIC_DASHBOARD_STORAGE_TTL_MS = 5 * 60 * 1000;
 const PUBLIC_DASHBOARD_FOCUS_REFRESH_MS = 30 * 1000;
+const PERSONAL_GROWTH_BADGE_STORAGE_KEY = "oriwan-personal-growth-badges-v1";
+
+type StoredGrowthBadges = Record<string, string[]>;
 
 function readCachedDashboardData() {
   if (typeof window === "undefined") return null;
@@ -132,39 +136,36 @@ function writeCachedDashboardData(data: PublicDashboardData) {
   }
 }
 
-function getLongestDateStreak(dates: string[]) {
-  const dateSet = new Set(dates);
-  return dates.reduce((longest, day) => {
-    if (dateSet.has(toIsoDate(addDays(new Date(`${day}T00:00:00`), -1)))) return longest;
-    let streak = 0;
-    let cursor = day;
-    while (dateSet.has(cursor)) {
-      streak += 1;
-      cursor = toIsoDate(addDays(new Date(`${cursor}T00:00:00`), 1));
-    }
-    return Math.max(longest, streak);
-  }, 0);
-}
+function readStoredGrowthBadges(): StoredGrowthBadges {
+  if (typeof window === "undefined") return {};
 
-function getCurrentDateStreak(dates: string[], referenceDate: string) {
-  const dateSet = new Set(dates);
-  let streak = 0;
-  let cursor = referenceDate;
-  while (dateSet.has(cursor)) {
-    streak += 1;
-    cursor = toIsoDate(addDays(new Date(`${cursor}T00:00:00`), -1));
+  try {
+    const raw = window.localStorage.getItem(PERSONAL_GROWTH_BADGE_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+
+    return Object.fromEntries(
+      Object.entries(parsed as Record<string, unknown>)
+        .filter(([participantId, badgeKeys]) => participantId && Array.isArray(badgeKeys))
+        .map(([participantId, badgeKeys]) => [
+          participantId,
+          Array.from(new Set((badgeKeys as unknown[]).filter((badgeKey): badgeKey is string => typeof badgeKey === "string"))),
+        ])
+    );
+  } catch {
+    return {};
   }
-  return streak;
 }
 
-function getWeekdayMorningProgress(dates: string[], referenceDate: string) {
-  const dateSet = new Set(dates);
-  const reference = new Date(`${referenceDate}T00:00:00`);
-  const day = reference.getDay();
-  const mondayOffset = day === 0 ? -6 : 1 - day;
-  const monday = addDays(reference, mondayOffset);
-  const weekdays = Array.from({ length: 5 }, (_, index) => toIsoDate(addDays(monday, index)));
-  return weekdays.filter((weekday) => dateSet.has(weekday)).length;
+function writeStoredGrowthBadges(value: StoredGrowthBadges) {
+  if (typeof window === "undefined") return;
+
+  try {
+    window.localStorage.setItem(PERSONAL_GROWTH_BADGE_STORAGE_KEY, JSON.stringify(value));
+  } catch {
+    // Badge locks are an enhancement; the dashboard should still render if storage is blocked.
+  }
 }
 
 function GrowthBadgeIcon({ icon }: { icon: PersonalGrowthBadge["icon"] }) {
@@ -180,162 +181,6 @@ function GrowthBadgeIcon({ icon }: { icon: PersonalGrowthBadge["icon"] }) {
   if (icon === "sync") return <IconSync size={16} className={iconClassName} />;
   if (icon === "dna") return <IconDna size={16} className={iconClassName} />;
   return <IconRun size={16} className={iconClassName} />;
-}
-
-function badgeProgress(current: number, target: number, suffix = "") {
-  return `${Math.min(Math.floor(current), target)}${suffix}/${target}${suffix}`;
-}
-
-function makePersonalGrowthBadges({
-  certifiedDays,
-  certifiedDates,
-  currentStreak,
-  longestStreak,
-  weekdayMorningCount,
-  elapsedDayCount,
-  distanceKm,
-  durationSeconds,
-  maxSingleDistanceKm,
-}: {
-  certifiedDays: number;
-  certifiedDates: string[];
-  currentStreak: number;
-  longestStreak: number;
-  weekdayMorningCount: number;
-  elapsedDayCount: number;
-  distanceKm: number;
-  durationSeconds: number;
-  maxSingleDistanceKm: number;
-}): PersonalGrowthBadge[] {
-  const durationHours = durationSeconds / 3600;
-  return [
-    {
-      key: "morning-start",
-      label: "모닝 스타터",
-      description: "오전 러닝 첫 인증",
-      progress: `${Math.min(certifiedDays, 1)}/1`,
-      unlocked: certifiedDays >= 1,
-      icon: "run",
-      colorClassName: "bg-lime-300 text-slate-950",
-    },
-    {
-      key: "three-day-rhythm",
-      label: "3일 리듬",
-      description: "현재 3일 연속 인증",
-      progress: `${Math.min(currentStreak, 3)}/3`,
-      unlocked: currentStreak >= 3,
-      icon: "flame",
-      colorClassName: "bg-amber-50 text-slate-950",
-    },
-    {
-      key: "seven-day-routine",
-      label: "7일 루틴",
-      description: "7일 연속 인증",
-      progress: `${Math.min(longestStreak, 7)}/7`,
-      unlocked: longestStreak >= 7,
-      icon: "target",
-      colorClassName: "bg-[#101522] text-white",
-    },
-    {
-      key: "weekday-morning",
-      label: "평일 모닝 5",
-      description: "이번 주 평일 오전 루틴",
-      progress: `${Math.min(weekdayMorningCount, 5)}/5`,
-      unlocked: weekdayMorningCount >= 5,
-      icon: "calendar",
-      colorClassName: "bg-lime-300 text-slate-950",
-    },
-    {
-      key: "season-pacer",
-      label: "시즌 페이서",
-      description: "오늘까지 빠짐없이 인증",
-      progress: `${certifiedDates.length}/${Math.max(elapsedDayCount, 1)}`,
-      unlocked: elapsedDayCount > 0 && certifiedDays >= elapsedDayCount,
-      icon: "heart",
-      colorClassName: "bg-rose-400 text-white",
-    },
-    {
-      key: "thirty-day-root",
-      label: "30일 뿌리",
-      description: "30일 연속 인증",
-      progress: badgeProgress(longestStreak, 30),
-      unlocked: longestStreak >= 30,
-      icon: "dna",
-      colorClassName: "bg-[#101522] text-white",
-    },
-    {
-      key: "fifty-day-core",
-      label: "50일 코어",
-      description: "50일 연속 인증",
-      progress: badgeProgress(longestStreak, 50),
-      unlocked: longestStreak >= 50,
-      icon: "muscle",
-      colorClassName: "bg-amber-50 text-slate-950",
-    },
-    {
-      key: "seventy-day-arc",
-      label: "70일 아치",
-      description: "70일 연속 인증",
-      progress: badgeProgress(longestStreak, 70),
-      unlocked: longestStreak >= 70,
-      icon: "mountain",
-      colorClassName: "bg-slate-950 text-lime-200",
-    },
-    {
-      key: "five-k-finisher",
-      label: "5K 완주",
-      description: "하루 5km 이상 러닝",
-      progress: badgeProgress(maxSingleDistanceKm, 5, "km"),
-      unlocked: maxSingleDistanceKm >= 5,
-      icon: "sprout",
-      colorClassName: "bg-[#101522] text-white",
-    },
-    {
-      key: "ten-k-finisher",
-      label: "10K 완주",
-      description: "하루 10km 이상 러닝",
-      progress: badgeProgress(maxSingleDistanceKm, 10, "km"),
-      unlocked: maxSingleDistanceKm >= 10,
-      icon: "mountain",
-      colorClassName: "bg-lime-300 text-slate-950",
-    },
-    {
-      key: "distance-fifty",
-      label: "거리 50K",
-      description: "누적 50km 달성",
-      progress: badgeProgress(distanceKm, 50, "km"),
-      unlocked: distanceKm >= 50,
-      icon: "run",
-      colorClassName: "bg-amber-50 text-slate-950",
-    },
-    {
-      key: "distance-hundred",
-      label: "거리 100K",
-      description: "누적 100km 달성",
-      progress: badgeProgress(distanceKm, 100, "km"),
-      unlocked: distanceKm >= 100,
-      icon: "target",
-      colorClassName: "bg-rose-400 text-white",
-    },
-    {
-      key: "time-ten-hours",
-      label: "시간 10H",
-      description: "누적 러닝 10시간",
-      progress: badgeProgress(durationHours, 10, "h"),
-      unlocked: durationHours >= 10,
-      icon: "droplet",
-      colorClassName: "bg-slate-950 text-lime-200",
-    },
-    {
-      key: "time-twenty-hours",
-      label: "시간 20H",
-      description: "누적 러닝 20시간",
-      progress: badgeProgress(durationHours, 20, "h"),
-      unlocked: durationHours >= 20,
-      icon: "sync",
-      colorClassName: "bg-lime-300 text-slate-950",
-    },
-  ];
 }
 
 function makeGraphPath(items: { value: number }[], width = 320, height = 150, padding = 24) {
@@ -449,6 +294,7 @@ export default function DashboardPage() {
   const [trendModal, setTrendModal] = useState<TrendModal>(null);
   const [showSeasonReportModal, setShowSeasonReportModal] = useState(false);
   const [participantSortMode, setParticipantSortMode] = useState<ParticipantRankSortMode>("certification");
+  const [storedGrowthBadges, setStoredGrowthBadges] = useState<StoredGrowthBadges>({});
   const loadingRef = useRef(false);
   const lastLoadedAtRef = useRef(0);
   const motionFrameRef = useRef<number | null>(null);
@@ -495,6 +341,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     queueMicrotask(() => {
+      setStoredGrowthBadges(readStoredGrowthBadges());
       const cachedData = readCachedDashboardData();
       if (cachedData) {
         setData(cachedData);
@@ -634,6 +481,7 @@ export default function DashboardPage() {
         const currentStreak = getCurrentDateStreak(certifiedDates, currentCertificationDate);
         const longestStreak = getLongestDateStreak(certifiedDates);
         const weekdayMorningCount = getWeekdayMorningProgress(certifiedDates, currentCertificationDate);
+        const bestWeekdayMorningCount = getBestWeekdayMorningProgress(certifiedDates);
         return {
           participant,
           pictogramIndex: pictogramByParticipantId.get(participant.id) ?? 0,
@@ -644,6 +492,7 @@ export default function DashboardPage() {
           currentStreak,
           longestStreak,
           weekdayMorningCount,
+          bestWeekdayMorningCount,
           rate,
           ...metrics,
         };
@@ -668,6 +517,44 @@ export default function DashboardPage() {
     };
   }, [data, todayIso]);
 
+  useEffect(() => {
+    if (!dashboard.participantProgress.length) return;
+
+    setStoredGrowthBadges((current) => {
+      let changed = false;
+      const next: StoredGrowthBadges = Object.fromEntries(
+        Object.entries(current).map(([participantId, badgeKeys]) => [participantId, [...badgeKeys]])
+      );
+
+      dashboard.participantProgress.forEach((row) => {
+        const unlockedKeys = makePersonalGrowthBadges({
+          certifiedDays: row.certifiedDays,
+          certifiedDates: row.certifiedDates,
+          currentStreak: row.currentStreak,
+          longestStreak: row.longestStreak,
+          weekdayMorningCount: row.weekdayMorningCount,
+          bestWeekdayMorningCount: row.bestWeekdayMorningCount,
+          elapsedDayCount: dashboard.elapsedDays.length,
+          distanceKm: row.distanceKm,
+          durationSeconds: row.durationSeconds,
+          maxSingleDistanceKm: row.maxSingleDistanceKm,
+        }).filter((badge) => badge.unlocked).map((badge) => badge.key);
+
+        if (!unlockedKeys.length) return;
+        const badgeKeySet = new Set(next[row.participant.id] || []);
+        unlockedKeys.forEach((badgeKey) => {
+          if (badgeKeySet.has(badgeKey)) return;
+          badgeKeySet.add(badgeKey);
+          changed = true;
+        });
+        next[row.participant.id] = Array.from(badgeKeySet);
+      });
+
+      if (changed) writeStoredGrowthBadges(next);
+      return changed ? next : current;
+    });
+  }, [dashboard.elapsedDays.length, dashboard.participantProgress]);
+
   const sortedParticipantProgress = useMemo(
     () => sortParticipantRanks(dashboard.participantProgress, participantSortMode),
     [dashboard.participantProgress, participantSortMode]
@@ -682,16 +569,42 @@ export default function DashboardPage() {
       .map((record) => [record.record_date as string, record])
   );
   const selectedDailyRecord = selectedDailyRecordDate ? selectedRecordByDate.get(selectedDailyRecordDate) : null;
+  const persistedGrowthBadgeKeysByParticipant = useMemo(() => {
+    const badgeKeysByParticipant = new Map<string, Set<string>>();
+    const add = (participantId: string | null | undefined, badgeKey: string | null | undefined) => {
+      if (!participantId || !badgeKey) return;
+      if (!badgeKeysByParticipant.has(participantId)) badgeKeysByParticipant.set(participantId, new Set());
+      badgeKeysByParticipant.get(participantId)?.add(badgeKey);
+    };
+
+    data?.growth_badges?.forEach((badge) => add(badge.participant_id, badge.badge_key));
+    Object.entries(storedGrowthBadges).forEach(([participantId, badgeKeys]) => {
+      badgeKeys.forEach((badgeKey) => add(participantId, badgeKey));
+    });
+
+    return badgeKeysByParticipant;
+  }, [data?.growth_badges, storedGrowthBadges]);
+  const selectedPersistedGrowthBadgeKeys = selectedParticipant
+    ? persistedGrowthBadgeKeysByParticipant.get(selectedParticipant.participant.id) || new Set<string>()
+    : new Set<string>();
   const selectedPersonalGrowthBadges = selectedParticipant ? makePersonalGrowthBadges({
     certifiedDays: selectedParticipant.certifiedDays,
     certifiedDates: selectedParticipant.certifiedDates,
     currentStreak: selectedParticipant.currentStreak,
     longestStreak: selectedParticipant.longestStreak,
     weekdayMorningCount: selectedParticipant.weekdayMorningCount,
+    bestWeekdayMorningCount: selectedParticipant.bestWeekdayMorningCount,
     elapsedDayCount: dashboard.elapsedDays.length,
     distanceKm: selectedParticipant.distanceKm,
     durationSeconds: selectedParticipant.durationSeconds,
     maxSingleDistanceKm: selectedParticipant.maxSingleDistanceKm,
+  }).map((badge) => {
+    const persistentlyUnlocked = selectedPersistedGrowthBadgeKeys.has(badge.key);
+    return {
+      ...badge,
+      progress: persistentlyUnlocked && !badge.unlocked ? "획득" : badge.progress,
+      unlocked: badge.unlocked || persistentlyUnlocked,
+    };
   }) : [];
   const unlockedSelectedBadgeCount = selectedPersonalGrowthBadges.filter((badge) => badge.unlocked).length;
   const remainingSeasonDays = Math.max(CHALLENGE_DAYS - dashboard.elapsedDays.length, 0);
