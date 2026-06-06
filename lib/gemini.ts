@@ -4,11 +4,22 @@ export const GEMINI_OCR_MODEL = process.env.GEMINI_OCR_MODEL || "gemini-3.5-flas
 
 const GEMINI_OCR_MODEL_FALLBACKS = [
   "gemini-3.5-flash",
-  "gemini-3.1-flash",
-  "gemini-3-flash",
   "gemini-2.5-flash",
+  "gemini-2.5-flash-lite",
+  "gemini-3-flash-preview",
+  "gemini-flash-latest",
+  "gemini-flash-lite-latest",
   "gemini-2.0-flash",
 ];
+
+const GEMINI_OCR_MODEL_ALIASES: Record<string, string> = {
+  "gemini-3.1-flash": "gemini-2.5-flash",
+  "gemini-3-flash": "gemini-3-flash-preview",
+};
+
+function normalizeGeminiOcrModel(model: string) {
+  return GEMINI_OCR_MODEL_ALIASES[model] || model;
+}
 
 export function resolveGeminiOcrModels() {
   const configuredFallbacks = (process.env.GEMINI_OCR_MODEL_FALLBACKS || "")
@@ -20,7 +31,7 @@ export function resolveGeminiOcrModels() {
     GEMINI_OCR_MODEL,
     ...configuredFallbacks,
     ...GEMINI_OCR_MODEL_FALLBACKS,
-  ].filter(Boolean)));
+  ].filter(Boolean).map(normalizeGeminiOcrModel)));
 }
 
 export const GEMINI_OCR_CONFIG: GenerateContentConfig = {
@@ -110,7 +121,7 @@ export function getGeminiErrorMessage(error: unknown) {
     return "OCR 요청 한도가 잠시 꽉 찼어요. 잠시 후 다시 시도하거나 GEMINI_OCR_MODEL_FALLBACKS에 더 가벼운 모델을 추가해주세요.";
   }
   if (message.includes("NOT_FOUND") || message.includes("404") || message.includes("not found")) {
-    return "OCR 모델 연결이 막혔어요. Gemini 모델 설정을 한 번 확인해주세요.";
+    return "OCR 모델명이 현재 Gemini API에서 지원되지 않아요. 잠시 후 다시 시도하거나 GEMINI_OCR_MODEL 설정을 확인해주세요.";
   }
   if (message.includes("API key") || message.includes("GEMINI_API_KEY")) {
     return "OCR 서버 키가 아직 설정되지 않았어요. 환경변수를 확인해주세요.";
