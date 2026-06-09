@@ -57,11 +57,13 @@ type PendingAnalyzeImage = {
   dataUrl: string;
 };
 
+const IMAGE_PREP_CONCURRENCY = 6;
+
 async function preparePendingAnalyzeImages(files: File[], onProgress: (completed: number) => void) {
   const results = new Array<PendingAnalyzeImage>(files.length);
   let nextIndex = 0;
   let completed = 0;
-  const workerCount = Math.min(4, Math.max(1, files.length));
+  const workerCount = Math.min(IMAGE_PREP_CONCURRENCY, Math.max(1, files.length));
 
   await Promise.all(Array.from({ length: workerCount }, async () => {
     while (nextIndex < files.length) {
@@ -596,7 +598,11 @@ export default function AdminPage() {
 
     for (let index = 0; index < images.length; index += IMAGE_UPLOAD_CHUNK_SIZE) {
       const chunk = images.slice(index, index + IMAGE_UPLOAD_CHUNK_SIZE);
-      setAnalysisMessage(`이미지 읽는 중... ${Math.min(index + chunk.length, images.length)}/${images.length}`);
+      setAnalysisMessage(
+        images.length <= IMAGE_UPLOAD_CHUNK_SIZE
+          ? `OCR 일괄 인식 중... ${chunk.length}장`
+          : `OCR 일괄 인식 중... ${Math.min(index + chunk.length, images.length)}/${images.length}`
+      );
       const res = await fetch("/api/records/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -610,24 +616,68 @@ export default function AdminPage() {
     return results;
   }, [targetDate, uploadParticipantId]);
 
-  const analyzeDroppedImages = useCallback(async (fileList: FileList | File[]) => {
+  const queueDroppedImages = useCallback((fileList: FileList | File[]) => {
     const selectedImages = getImageFiles(fileList);
     setUploadDragActive(false);
-    setAnalysisResults([]);
+
+    if (analyzing) {
+      setAnalysisMessage("OCR 인식 중에는 새 이미지를 추가하지 않아요. 잠시만 기다려주세요.");
+      return;
+    }
 
     if (!selectedImages.length) {
       setAnalysisMessage("이미지 파일만 올릴 수 있어요.");
       return;
     }
 
-    const nextFiles = selectedImages.slice(0, MAX_BATCH_IMAGE_FILES);
+    const existingKeys = new Set(files.map(getImageFileKey));
+    const nextFiles = [...files];
+    let addedCount = 0;
+    let duplicateCount = 0;
+    let overflowCount = 0;
+
+    selectedImages.forEach((file) => {
+      const fileKey = getImageFileKey(file);
+      if (existingKeys.has(fileKey)) {
+        duplicateCount += 1;
+        return;
+      }
+      if (nextFiles.length >= MAX_BATCH_IMAGE_FILES) {
+        overflowCount += 1;
+        return;
+      }
+      existingKeys.add(fileKey);
+      nextFiles.push(file);
+      addedCount += 1;
+    });
+
     setFiles(nextFiles);
+    setAnalysisResults([]);
+    setAnalysisMessage([
+      `${nextFiles.length}장 등록 대기`,
+      addedCount ? `${addedCount}장 추가` : null,
+      duplicateCount ? `중복 ${duplicateCount}장 제외` : null,
+      overflowCount ? `최대 ${MAX_BATCH_IMAGE_FILES}장까지만` : null,
+      "버튼을 누르면 한 번에 인식합니다",
+    ].filter(Boolean).join(" · "));
+  }, [analyzing, files]);
+
+  const analyzeQueuedImages = useCallback(async () => {
+    if (analyzing) return;
+    const queuedFiles = files.slice(0, MAX_BATCH_IMAGE_FILES);
+    if (!queuedFiles.length) {
+      setAnalysisMessage("이미지를 먼저 드래그앤드랍으로 올려주세요.");
+      return;
+    }
+
+    setAnalysisResults([]);
     setAnalyzing(true);
     try {
-      setAnalysisMessage(`이미지 준비 중... 0/${nextFiles.length}`);
-      const images = await preparePendingAnalyzeImages(nextFiles, (completed) => {
-        setAnalysisMessage(`이미지 준비 중... ${completed}/${nextFiles.length}`);
+      setAnalysisMessage(`이미지 최적화 중... 0/${queuedFiles.length}`);
+      const images = await preparePendingAnalyzeImages(queuedFiles, (completed) => {
+        setAnalysisMessage(`이미지 최적화 중... ${completed}/${queuedFiles.length}`);
       });
+      setAnalysisMessage(`OCR 일괄 인식 중... ${images.length}장`);
       const results = await postAnalyzeImages(images);
       setFiles([]);
       setAnalysisResults(results);
@@ -637,12 +687,11 @@ export default function AdminPage() {
       setAnalysisMessage(`${results.length}장 정리 완료 · 인증 반영 ${certified}건 · 이미 인증 ${duplicate}건 · 보류 ${review}건`);
       await loadData();
     } catch (err) {
-      setFiles([]);
       setAnalysisMessage(err instanceof Error ? err.message : "이미지를 읽지 못했어요. 흐린 이미지는 직접 입력으로 가볍게 보완해주세요.");
     } finally {
       setAnalyzing(false);
     }
-  }, [loadData, postAnalyzeImages]);
+  }, [analyzing, files, loadData, postAnalyzeImages]);
 
   const handleUploadDragOver = useCallback((event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
@@ -660,8 +709,8 @@ export default function AdminPage() {
   const handleUploadDrop = useCallback((event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     event.stopPropagation();
-    void analyzeDroppedImages(event.dataTransfer.files);
-  }, [analyzeDroppedImages]);
+    queueDroppedImages(event.dataTransfer.files);
+  }, [queueDroppedImages]);
 
   const updateAnalysisParticipant = useCallback(async (resultIndex: number, participantId: string) => {
     const result = analysisResults[resultIndex];
@@ -1247,10 +1296,10 @@ export default function AdminPage() {
                     </span>
                     <span className="min-w-0">
                       <span className="block truncate text-base font-black text-oriwan-text">
-                        {uploadDragActive ? "여기에 놓기" : analyzing ? "OCR 등록 중" : "이미지 드래그앤드랍"}
+                        {uploadDragActive ? "여기에 놓기" : analyzing ? "일괄 OCR 인식 중" : files.length ? `${files.length}장 등록 대기` : "이미지 드래그앤드랍"}
                       </span>
                       <span className="mt-0.5 block truncate text-xs font-bold text-oriwan-text-muted">
-                        {analyzing ? "잠시만 기다려주세요" : "놓으면 바로 자동 인식됩니다"}
+                        {analyzing ? "최대 20장을 한 번에 읽고 있어요" : files.length ? "더 놓으면 대기 목록에 추가됩니다" : "먼저 모아두고 버튼으로 한 번에 인식합니다"}
                       </span>
                     </span>
                   </span>
@@ -1281,6 +1330,15 @@ export default function AdminPage() {
                     </div>
                   </div>
                 )}
+
+                <button
+                  type="button"
+                  onClick={analyzeQueuedImages}
+                  disabled={analyzing || !files.length}
+                  className="mt-3 flex min-h-12 w-full items-center justify-center rounded-2xl bg-slate-950 px-4 py-3 text-sm font-black text-lime-200 transition hover:-translate-y-0.5 disabled:translate-y-0 disabled:bg-slate-300 disabled:text-white"
+                >
+                  {analyzing ? "인식 중..." : files.length ? `한번에 인식하기 (${files.length})` : "이미지를 드롭하면 시작 가능"}
+                </button>
               </div>
 
               {analysisMessage && (
