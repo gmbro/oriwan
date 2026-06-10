@@ -1,11 +1,11 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Image from "next/image";
 import type { CSSProperties } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { IconCalendar, IconDna, IconDroplet, IconFlame, IconHeart, IconMountain, IconMuscle, IconRun, IconSprout, IconSync, IconTarget, IconX } from "@/components/icons";
 import { buildMemberPictogramMap, MemberPictogram } from "@/components/member-pictogram";
-import { YoutubeShortsSection } from "@/components/youtube-shorts-section";
 import { ACTUAL_CERTIFICATION_START_DATE, CERTIFICATION_DISPLAY_START_DATE, CHALLENGE_DAYS } from "@/lib/challenge";
 import {
   getBestWeekdayMorningProgress,
@@ -21,6 +21,11 @@ import { addDays, formatKstTime, isCertificationCountedStatus, secondsToTime, to
 
 type TrendModal = "weekly" | "daily" | null;
 
+const LazyYoutubeShortsSection = dynamic(
+  () => import("@/components/youtube-shorts-section").then((mod) => mod.YoutubeShortsSection),
+  { ssr: false }
+);
+
 const actualCertificationEndDate = toIsoDate(addDays(new Date(`${ACTUAL_CERTIFICATION_START_DATE}T00:00:00`), CHALLENGE_DAYS - 1));
 
 function formatLastUpdated(value?: string) {
@@ -34,6 +39,12 @@ function certificationDayLabel(referenceDate: string) {
   const diffDays = Math.floor((current.getTime() - start.getTime()) / 86_400_000);
   if (diffDays < 0) return `D-${CHALLENGE_DAYS}`;
   return `D-${Math.max(CHALLENGE_DAYS - diffDays, 0)}`;
+}
+
+function certificationDayNumber(referenceDate: string) {
+  const start = new Date(`${ACTUAL_CERTIFICATION_START_DATE}T00:00:00`);
+  const current = new Date(`${referenceDate}T00:00:00`);
+  return Math.floor((current.getTime() - start.getTime()) / 86_400_000) + 1;
 }
 
 function shortDate(value: string) {
@@ -75,6 +86,8 @@ const PUBLIC_DASHBOARD_STORAGE_KEY = "oriwan-public-dashboard-cache-v1";
 const PUBLIC_DASHBOARD_STORAGE_TTL_MS = 5 * 60 * 1000;
 const PUBLIC_DASHBOARD_FOCUS_REFRESH_MS = 30 * 1000;
 const PERSONAL_GROWTH_BADGE_STORAGE_KEY = "oriwan-personal-growth-badges-v1";
+const ONE_PLUS_ONE_DISMISS_STORAGE_KEY = "oriwan-one-plus-one-dismissed-v1";
+const ONE_PLUS_ONE_MILESTONES = new Set([40, 50, 60, 70, 80, 90, 100]);
 
 type StoredGrowthBadges = Record<string, string[]>;
 
@@ -136,6 +149,30 @@ function writeStoredGrowthBadges(value: StoredGrowthBadges) {
     window.localStorage.setItem(PERSONAL_GROWTH_BADGE_STORAGE_KEY, JSON.stringify(value));
   } catch {
     // Badge locks are an enhancement; the dashboard should still render if storage is blocked.
+  }
+}
+
+function onePlusOneDismissKey(day: number, date: string) {
+  return `${date}:${day}`;
+}
+
+function readDismissedOnePlusOneEvent(day: number, date: string) {
+  if (typeof window === "undefined") return false;
+
+  try {
+    return window.localStorage.getItem(ONE_PLUS_ONE_DISMISS_STORAGE_KEY) === onePlusOneDismissKey(day, date);
+  } catch {
+    return false;
+  }
+}
+
+function writeDismissedOnePlusOneEvent(day: number, date: string) {
+  if (typeof window === "undefined") return;
+
+  try {
+    window.localStorage.setItem(ONE_PLUS_ONE_DISMISS_STORAGE_KEY, onePlusOneDismissKey(day, date));
+  } catch {
+    // Dismissal is a convenience only; the event remains usable without storage.
   }
 }
 
@@ -253,6 +290,98 @@ function FanfareBurst({ compact = false }: { compact?: boolean }) {
   );
 }
 
+function OnePlusOneEventModal({
+  milestoneDay,
+  onClose,
+  onCloseToday,
+}: {
+  milestoneDay: number;
+  onClose: () => void;
+  onCloseToday: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-[90] flex items-end bg-slate-950/45 px-0 py-0 backdrop-blur-sm sm:items-center sm:justify-center sm:px-4 sm:py-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="one-plus-one-title"
+      onClick={onClose}
+    >
+      <div
+        className="card mobile-sheet modal-rise w-full max-w-lg overflow-y-auto p-4 sm:max-h-[88vh] sm:p-6"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="inline-flex rounded-full bg-lime-300 px-3 py-1 text-[11px] font-black text-slate-950">
+              깜짝 이벤트 도착!
+            </p>
+            <h3 id="one-plus-one-title" className="mt-2 text-2xl font-black leading-tight text-oriwan-text">
+              1+1 찬스 이벤트
+            </h3>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-oriwan-surface-light text-oriwan-text-muted transition hover:bg-slate-950 hover:text-lime-200"
+            aria-label="닫기"
+          >
+            <IconX size={18} />
+          </button>
+        </div>
+
+        <div className="space-y-4 text-sm font-bold leading-6 text-oriwan-text">
+          <p>
+            오늘은 스내사 챌린지 <span className="font-black text-lime-700">{milestoneDay}일차 보너스 데이</span>입니다.
+          </p>
+          <p>오늘 인증을 완료한 멤버는 아래 3가지 중 하나를 선택할 수 있어요.</p>
+
+          <div className="grid gap-2">
+            {[
+              ["1. 거리 2배", "오늘 달린 거리를 2배로 인정"],
+              ["2. 시간 2배", "오늘 달린 시간을 2배로 인정"],
+              ["3. 놓친 날짜 채우기", "이전에 놓친 날짜 1개를 100m / 1분으로 인정"],
+            ].map(([title, description]) => (
+              <div key={title} className="rounded-2xl bg-oriwan-surface-light px-4 py-3 ring-1 ring-slate-950/5">
+                <p className="font-black text-oriwan-text">{title}</p>
+                <p className="mt-0.5 text-xs font-bold text-oriwan-text-muted">{description}</p>
+              </div>
+            ))}
+          </div>
+
+          <div>
+            <p>사용할 찬스를 카톡방에 짧게 남겨주세요.</p>
+            <div className="mt-2 rounded-2xl bg-slate-950 px-4 py-3 font-mono text-sm font-black leading-7 text-lime-200">
+              <p>거리 2배</p>
+              <p>시간 2배</p>
+              <p>놓친 날짜 05.03</p>
+            </div>
+          </div>
+
+          <p className="text-xs font-black text-oriwan-text-muted">선택 후 변경은 어려워요.</p>
+        </div>
+
+        <div className="mt-5 grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={onCloseToday}
+            className="rounded-2xl bg-oriwan-surface-light px-4 py-3 text-sm font-black text-oriwan-text transition hover:bg-slate-200"
+          >
+            오늘은 닫기
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-2xl bg-slate-950 px-4 py-3 text-sm font-black text-lime-200 transition hover:bg-slate-800"
+          >
+            닫기
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function DashboardClient({
   initialData = null,
   initialError = "",
@@ -272,11 +401,17 @@ export function DashboardClient({
   const [selectedDailyRecordDate, setSelectedDailyRecordDate] = useState("");
   const [trendModal, setTrendModal] = useState<TrendModal>(null);
   const [showSeasonReportModal, setShowSeasonReportModal] = useState(false);
+  const [showOnePlusOneEventModal, setShowOnePlusOneEventModal] = useState(false);
+  const [showDeferredTips, setShowDeferredTips] = useState(false);
   const [participantSortMode, setParticipantSortMode] = useState<ParticipantRankSortMode>("certification");
   const [storedGrowthBadges, setStoredGrowthBadges] = useState<StoredGrowthBadges>({});
   const loadingRef = useRef(false);
   const lastLoadedAtRef = useRef(initialData ? Date.now() : 0);
   const motionFrameRef = useRef<number | null>(null);
+  const milestoneDay = useMemo(() => {
+    const dayNumber = certificationDayNumber(todayIso);
+    return ONE_PLUS_ONE_MILESTONES.has(dayNumber) ? dayNumber : null;
+  }, [todayIso]);
 
   const restartMotion = useCallback(() => {
     if (motionFrameRef.current) window.cancelAnimationFrame(motionFrameRef.current);
@@ -360,6 +495,20 @@ export function DashboardClient({
       if (motionFrameRef.current) window.cancelAnimationFrame(motionFrameRef.current);
     };
   }, []);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => setShowDeferredTips(true), 1200);
+    return () => window.clearTimeout(timeout);
+  }, []);
+
+  useEffect(() => {
+    if (!milestoneDay) {
+      setShowOnePlusOneEventModal(false);
+      return;
+    }
+
+    setShowOnePlusOneEventModal(!readDismissedOnePlusOneEvent(milestoneDay, todayIso));
+  }, [milestoneDay, todayIso]);
 
   const dashboard = useMemo(() => {
     const participants = data?.participants || [];
@@ -807,11 +956,22 @@ export function DashboardClient({
           </div>
         )}
 
-        <YoutubeShortsSection initialDayKey={todayIso} />
+        {showDeferredTips && <LazyYoutubeShortsSection initialDayKey={todayIso} />}
 
         <p className="py-6 text-center text-[11px] font-semibold text-oriwan-text-muted">
           {loading ? "오늘의 기록을 데려오는 중..." : `마지막 업데이트 ${formatLastUpdated(data?.generated_at)}`}
         </p>
+
+        {showOnePlusOneEventModal && milestoneDay && (
+          <OnePlusOneEventModal
+            milestoneDay={milestoneDay}
+            onClose={() => setShowOnePlusOneEventModal(false)}
+            onCloseToday={() => {
+              writeDismissedOnePlusOneEvent(milestoneDay, todayIso);
+              setShowOnePlusOneEventModal(false);
+            }}
+          />
+        )}
 
         {selectedParticipant && (
           <div
