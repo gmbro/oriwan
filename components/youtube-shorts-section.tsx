@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { IconX, IconYoutube } from "@/components/icons";
+import { toKstIsoDate } from "@/lib/run-records";
 import { getCuratedYoutubeShortTips, tipCategoryLabels, youtubeEmbedUrl, youtubeThumbnailUrl, youtubeWatchUrl } from "@/lib/youtube-shorts";
 import type { TipCategory, YoutubeShortTip } from "@/lib/youtube-shorts";
 
@@ -30,12 +31,7 @@ function makeEmptyCursors(): Record<TipCategory, string> {
 }
 
 function getKstDateKey() {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Seoul",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date());
+  return toKstIsoDate();
 }
 
 function dateSeed(dayKey: string) {
@@ -67,9 +63,8 @@ function appendUniqueIds(current: string[], nextTips: YoutubeShortTip[]) {
   return Array.from(new Set([...current, ...nextTips.map((tip) => tip.id)])).slice(-1000);
 }
 
-export function YoutubeShortsSection() {
-  const initialDayKey = getKstDateKey();
-  const seenIdsRef = useRef<Record<TipCategory, string[]>>(loadSeenStore(initialDayKey));
+export function YoutubeShortsSection({ initialDayKey }: { initialDayKey: string }) {
+  const seenIdsRef = useRef<Record<TipCategory, string[]>>(makeEmptySeenIds());
   const cursorRef = useRef<Record<TipCategory, string>>(makeEmptyCursors());
   const [category, setCategory] = useState<TipCategory>("running");
   const [refreshSeed, setRefreshSeed] = useState(0);

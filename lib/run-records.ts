@@ -65,13 +65,22 @@ export function toIsoDate(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
+const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
+
+function toKstDate(date: Date) {
+  return new Date(date.getTime() + KST_OFFSET_MS);
+}
+
 export function toKstIsoDate(date = new Date()) {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Seoul",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(date);
+  const kstDate = toKstDate(date);
+  return `${kstDate.getUTCFullYear()}-${String(kstDate.getUTCMonth() + 1).padStart(2, "0")}-${String(kstDate.getUTCDate()).padStart(2, "0")}`;
+}
+
+export function formatKstTime(value: string | Date) {
+  const date = typeof value === "string" ? new Date(value) : value;
+  if (Number.isNaN(date.getTime())) return "-";
+  const kstDate = toKstDate(date);
+  return `${String(kstDate.getUTCHours()).padStart(2, "0")}:${String(kstDate.getUTCMinutes()).padStart(2, "0")}`;
 }
 
 export function addDays(date: Date, days: number) {

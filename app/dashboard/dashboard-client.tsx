@@ -17,7 +17,7 @@ import {
 } from "@/lib/growth-badges";
 import { PARTICIPANT_RANK_SORT_OPTIONS, type ParticipantRankSortMode, sortParticipantRanks } from "@/lib/participant-ranking";
 import type { PublicDashboardParticipant as Participant, PublicDashboardPayload as PublicDashboardData, PublicDashboardRecord as RunRecord } from "@/lib/public-dashboard-data";
-import { addDays, isCertificationCountedStatus, secondsToTime, toIsoDate, toKstIsoDate } from "@/lib/run-records";
+import { addDays, formatKstTime, isCertificationCountedStatus, secondsToTime, toIsoDate, toKstIsoDate } from "@/lib/run-records";
 
 type TrendModal = "weekly" | "daily" | null;
 
@@ -25,7 +25,7 @@ const actualCertificationEndDate = toIsoDate(addDays(new Date(`${ACTUAL_CERTIFIC
 
 function formatLastUpdated(value?: string) {
   if (!value) return "-";
-  return new Date(value).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
+  return formatKstTime(value);
 }
 
 function certificationDayLabel(referenceDate: string) {
@@ -256,14 +256,16 @@ function FanfareBurst({ compact = false }: { compact?: boolean }) {
 export function DashboardClient({
   initialData = null,
   initialError = "",
+  initialTodayIso,
 }: {
   initialData?: PublicDashboardData | null;
   initialError?: string;
+  initialTodayIso: string;
 }) {
   const [data, setData] = useState<PublicDashboardData | null>(initialData);
   const [loading, setLoading] = useState(!initialData);
   const [error, setError] = useState(initialError);
-  const [todayIso, setTodayIso] = useState(() => toKstIsoDate());
+  const [todayIso, setTodayIso] = useState(() => initialData?.to || initialTodayIso);
   const [motionReady, setMotionReady] = useState(false);
   const [animationRun, setAnimationRun] = useState(0);
   const [selectedParticipantId, setSelectedParticipantId] = useState("");
@@ -805,7 +807,7 @@ export function DashboardClient({
           </div>
         )}
 
-        <YoutubeShortsSection />
+        <YoutubeShortsSection initialDayKey={todayIso} />
 
         <p className="py-6 text-center text-[11px] font-semibold text-oriwan-text-muted">
           {loading ? "오늘의 기록을 데려오는 중..." : `마지막 업데이트 ${formatLastUpdated(data?.generated_at)}`}
