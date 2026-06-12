@@ -15,7 +15,18 @@ import {
   resolveOcrConcurrency,
   validImage,
 } from "@/lib/run-image-extraction";
-import { calculatePaceSeconds, isCertificationCountedStatus } from "@/lib/run-records";
+import {
+  RECOVERY_CERTIFICATION_DISTANCE_KM,
+  RECOVERY_CERTIFICATION_DURATION_SECONDS,
+  RECOVERY_CERTIFICATION_LIMIT,
+  RECOVERY_CERTIFICATION_NOTE,
+  RECOVERY_CERTIFICATION_SOURCE,
+  calculatePaceSeconds,
+  hasRecoveryCertificationText,
+  isCertificationCountedStatus,
+  isRecoveryCertificationFlag,
+  isRecoveryCertificationRecord,
+} from "@/lib/run-records";
 import { createClient } from "@/lib/supabase/server";
 import { guardMutationRequest } from "@/lib/request-security";
 
@@ -39,6 +50,14 @@ type ExistingRunRecord = {
   pace_seconds_per_km: number | null;
   source_app: string | null;
   confidence_score: number | null;
+  status: string | null;
+};
+
+type RecoveryUsageRecord = {
+  id: string;
+  source_app: string | null;
+  raw_extracted_text: string | null;
+  notes: string | null;
   status: string | null;
 };
 
@@ -109,6 +128,41 @@ async function findExistingRecord(
 
   if (error) throw error;
   return data as ExistingRunRecord | null;
+}
+
+function isRecoveryExtraction(extracted: ExtractedRun, distanceKm: number | null, durationSeconds: number | null) {
+  const hasVisibleMetric = Boolean((distanceKm && distanceKm > 0) || (durationSeconds && durationSeconds > 0));
+  return (
+    isRecoveryCertificationFlag(extracted.is_recovery_certification) ||
+    (
+      hasVisibleMetric &&
+      (
+        hasRecoveryCertificationText(extracted.raw_text) ||
+        hasRecoveryCertificationText(extracted.notes) ||
+        hasRecoveryCertificationText(extracted.source_app)
+      )
+    )
+  );
+}
+
+async function countCertifiedRecoveryUsage(input: {
+  service: NonNullable<ReturnType<typeof getServiceClient>>;
+  adminUserId: string;
+  participantId: string;
+  excludeRecordId?: string | null;
+}) {
+  const { data, error } = await input.service
+    .from("daily_run_records")
+    .select("id, source_app, raw_extracted_text, notes, status")
+    .eq("user_id", input.adminUserId)
+    .eq("participant_id", input.participantId)
+    .eq("status", "certified");
+
+  if (error) throw error;
+  return ((data || []) as RecoveryUsageRecord[])
+    .filter((record) => record.id !== input.excludeRecordId)
+    .filter((record) => isRecoveryCertificationRecord(record))
+    .length;
 }
 
 export async function POST(request: NextRequest) {
@@ -193,8 +247,11 @@ export async function POST(request: NextRequest) {
       const recordDate = targetDate || extractedDate;
       const dateWasFallback = Boolean(targetDate && !extractedDate);
       const dateWasSelectedOverride = Boolean(targetDate && extractedDate && extractedDate !== targetDate);
-      const distanceKm = parseDistanceKm(extracted.distance_km);
-      const durationSeconds = parseDurationText(extracted.duration_seconds ?? extracted.duration_text);
+      const extractedDistanceKm = parseDistanceKm(extracted.distance_km);
+      const extractedDurationSeconds = parseDurationText(extracted.duration_seconds ?? extracted.duration_text);
+      const isRecoveryCertification = isRecoveryExtraction(extracted, extractedDistanceKm, extractedDurationSeconds);
+      const distanceKm = isRecoveryCertification ? RECOVERY_CERTIFICATION_DISTANCE_KM : extractedDistanceKm;
+      const durationSeconds = isRecoveryCertification ? RECOVERY_CERTIFICATION_DURATION_SECONDS : extractedDurationSeconds;
 
       if (!recordDate) {
         failed.push({ file_name: image.name, error: "이미지에서 날짜를 찾지 못했어요. 날짜 없는 이미지는 선택일 적용을 켜주세요.", extracted });
@@ -225,9 +282,22 @@ export async function POST(request: NextRequest) {
         });
         continue;
       }
+      if (isRecoveryCertification) {
+        const recoveryUsageCount = await countCertifiedRecoveryUsage({
+          service,
+          adminUserId,
+          participantId: participant.id,
+          excludeRecordId: existingRecord?.id || null,
+        });
+        if (recoveryUsageCount >= RECOVERY_CERTIFICATION_LIMIT) {
+          failed.push({ file_name: image.name, error: `리커버리 인증 ${RECOVERY_CERTIFICATION_LIMIT}회를 이미 사용했어요.`, extracted });
+          continue;
+        }
+      }
 
       const paceSeconds = calculatePaceSeconds(distanceKm, durationSeconds);
       const notes = [
+        isRecoveryCertification ? RECOVERY_CERTIFICATION_NOTE : null,
         `${image.name} 이미지에서 자동 추출`,
         extracted.source_app ? `앱: ${extracted.source_app}` : null,
         dateWasFallback ? "이미지에 날짜가 없어 선택한 날짜를 적용" : null,
@@ -244,7 +314,7 @@ export async function POST(request: NextRequest) {
         distance_km: distanceKm,
         duration_seconds: durationSeconds,
         pace_seconds_per_km: paceSeconds,
-        source_app: extracted.source_app || "participant_image",
+        source_app: isRecoveryCertification ? RECOVERY_CERTIFICATION_SOURCE : extracted.source_app || "participant_image",
         status: "certified",
         confidence_score: extracted.confidence_score ?? null,
         raw_extracted_text: extracted.raw_text || null,
@@ -274,7 +344,7 @@ export async function POST(request: NextRequest) {
         distance_km: distanceKm,
         duration_seconds: durationSeconds,
         pace_seconds_per_km: paceSeconds,
-        source_app: extracted.source_app || "러닝 앱 이미지",
+        source_app: isRecoveryCertification ? RECOVERY_CERTIFICATION_NOTE : extracted.source_app || "러닝 앱 이미지",
         confidence_score: extracted.confidence_score ?? null,
         date_was_fallback: dateWasFallback || dateWasSelectedOverride,
       });

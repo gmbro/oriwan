@@ -6,6 +6,7 @@ import type { CSSProperties } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { IconCalendar, IconDna, IconDroplet, IconFlame, IconHeart, IconMountain, IconMuscle, IconRun, IconSprout, IconSync, IconTarget, IconX } from "@/components/icons";
 import { buildMemberPictogramMap, MemberPictogram } from "@/components/member-pictogram";
+import { RecoveryBadgeStrip } from "@/components/recovery-badge-strip";
 import { ACTUAL_CERTIFICATION_START_DATE, CERTIFICATION_DISPLAY_START_DATE, CHALLENGE_DAYS } from "@/lib/challenge";
 import {
   getBestWeekdayMorningProgress,
@@ -17,7 +18,7 @@ import {
 } from "@/lib/growth-badges";
 import { PARTICIPANT_RANK_SORT_OPTIONS, type ParticipantRankSortMode, sortParticipantRanks } from "@/lib/participant-ranking";
 import type { PublicDashboardParticipant as Participant, PublicDashboardPayload as PublicDashboardData, PublicDashboardRecord as RunRecord } from "@/lib/public-dashboard-data";
-import { addDays, formatKstTime, isCertificationCountedStatus, secondsToTime, toIsoDate, toKstIsoDate } from "@/lib/run-records";
+import { addDays, formatKstTime, isCertificationCountedStatus, isRecoveryCertificationRecord, secondsToTime, toIsoDate, toKstIsoDate } from "@/lib/run-records";
 
 type TrendModal = "weekly" | "daily" | null;
 
@@ -82,7 +83,7 @@ function gaugeTextClass(certifiedDays: number) {
 
 const officialCertificationDays = makeOfficialCertificationDays();
 const RING_CIRCUMFERENCE = 302;
-const PUBLIC_DASHBOARD_STORAGE_KEY = "oriwan-public-dashboard-cache-v1";
+const PUBLIC_DASHBOARD_STORAGE_KEY = "oriwan-public-dashboard-cache-v2";
 const PUBLIC_DASHBOARD_STORAGE_TTL_MS = 5 * 60 * 1000;
 const PUBLIC_DASHBOARD_FOCUS_REFRESH_MS = 30 * 1000;
 const PERSONAL_GROWTH_BADGE_STORAGE_KEY = "oriwan-personal-growth-badges-v1";
@@ -540,6 +541,7 @@ export function DashboardClient({
     const certifiedIdsByDay = new Map<string, Set<string>>();
     const certifiedDaysByParticipant = new Map<string, Set<string>>();
     const officialMetricsByParticipant = new Map<string, { distanceKm: number; durationSeconds: number; maxSingleDistanceKm: number }>();
+    const recoveryUsageByParticipant = new Map<string, number>();
 
     officialCertifiedRecords.forEach((record) => {
       if (!record.participant_id || !record.record_date) return;
@@ -554,6 +556,9 @@ export function DashboardClient({
       metrics.durationSeconds += record.duration_seconds || 0;
       metrics.maxSingleDistanceKm = Math.max(metrics.maxSingleDistanceKm, record.distance_km || 0);
       officialMetricsByParticipant.set(record.participant_id, metrics);
+      if (isRecoveryCertificationRecord(record)) {
+        recoveryUsageByParticipant.set(record.participant_id, (recoveryUsageByParticipant.get(record.participant_id) || 0) + 1);
+      }
     });
 
     const stampDatesByParticipant = new Map<string, Set<string>>();
@@ -632,6 +637,7 @@ export function DashboardClient({
           weekdayMorningCount,
           bestWeekdayMorningCount,
           rate,
+          recoveryUsageCount: recoveryUsageByParticipant.get(participant.id) || 0,
           ...metrics,
         };
       })
@@ -925,6 +931,7 @@ export function DashboardClient({
                             <span className="text-[8px] font-extrabold text-oriwan-text-muted">총시간</span>
                             {secondsToTime(row.durationSeconds)}
                           </span>
+                          <RecoveryBadgeStrip usedCount={row.recoveryUsageCount} />
                         </div>
                         <div className="mt-2 h-2 overflow-hidden rounded-full bg-oriwan-surface-light">
                           <div
@@ -1014,6 +1021,7 @@ export function DashboardClient({
                 <div className="mt-2 flex min-w-0 items-center gap-2">
                   <MemberPictogram index={selectedParticipant.pictogramIndex} participantName={selectedParticipant.participant.name} size="lg" />
                   <h3 className="min-w-0 truncate text-2xl font-black leading-tight text-oriwan-text">{selectedParticipant.participant.name}</h3>
+                  <RecoveryBadgeStrip usedCount={selectedParticipant.recoveryUsageCount} />
                 </div>
                 {selectedParticipant.participant.nickname && (
                   <p className="mt-3 w-full whitespace-pre-line break-keep rounded-2xl bg-oriwan-surface-light px-4 py-3 text-sm font-bold leading-6 text-oriwan-text">

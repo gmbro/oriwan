@@ -4,7 +4,18 @@ import { GoogleGenAI } from "@google/genai";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdminUser } from "@/lib/admin-server";
 import { GEMINI_OCR_CONFIG, GEMINI_OCR_MODEL, buildRunImagePrompt, getGeminiErrorDebug, getGeminiErrorMessage, isGeminiBillingError, resolveGeminiOcrModels } from "@/lib/gemini";
-import { calculatePaceSeconds, isCertificationCountedStatus } from "@/lib/run-records";
+import {
+  RECOVERY_CERTIFICATION_DISTANCE_KM,
+  RECOVERY_CERTIFICATION_DURATION_SECONDS,
+  RECOVERY_CERTIFICATION_LIMIT,
+  RECOVERY_CERTIFICATION_NOTE,
+  RECOVERY_CERTIFICATION_SOURCE,
+  calculatePaceSeconds,
+  hasRecoveryCertificationText,
+  isCertificationCountedStatus,
+  isRecoveryCertificationFlag,
+  isRecoveryCertificationRecord,
+} from "@/lib/run-records";
 import { CHALLENGE_DATE_ERROR, CHALLENGE_START_DATE, isWithinChallengeWindow } from "@/lib/challenge";
 import {
   ExtractedRunBase,
@@ -34,6 +45,14 @@ type ExistingRunRecord = {
   distance_km: number | null;
   duration_seconds: number | null;
   status: "certified" | "needs_review" | "missing" | "rejected";
+};
+
+type RecoveryUsageRecord = {
+  id: string;
+  source_app: string | null;
+  raw_extracted_text: string | null;
+  notes: string | null;
+  status: string | null;
 };
 
 const MAX_IMAGES = 20;
@@ -199,6 +218,41 @@ function duplicateResult(input: {
     confidence_score: null,
     notes: `${input.participant.name}님은 ${input.recordDate}에 이미 인증되어 있어요. 중복 이미지는 저장하지 않았습니다.`,
   };
+}
+
+function isRecoveryExtraction(extracted: ExtractedRun, distanceKm: number | null, durationSeconds: number | null) {
+  const hasVisibleMetric = Boolean((distanceKm && distanceKm > 0) || (durationSeconds && durationSeconds > 0));
+  return (
+    isRecoveryCertificationFlag(extracted.is_recovery_certification) ||
+    (
+      hasVisibleMetric &&
+      (
+        hasRecoveryCertificationText(extracted.raw_text) ||
+        hasRecoveryCertificationText(extracted.notes) ||
+        hasRecoveryCertificationText(extracted.source_app)
+      )
+    )
+  );
+}
+
+async function countCertifiedRecoveryUsage(input: {
+  supabase: Awaited<ReturnType<typeof createClient>>;
+  userId: string;
+  participantId: string;
+  excludeRecordId?: string | null;
+}) {
+  const { data, error } = await input.supabase
+    .from("daily_run_records")
+    .select("id, source_app, raw_extracted_text, notes, status")
+    .eq("user_id", input.userId)
+    .eq("participant_id", input.participantId)
+    .eq("status", "certified");
+
+  if (error) throw error;
+  return ((data || []) as RecoveryUsageRecord[])
+    .filter((record) => record.id !== input.excludeRecordId)
+    .filter((record) => isRecoveryCertificationRecord(record))
+    .length;
 }
 
 export async function POST(request: NextRequest) {
@@ -394,8 +448,11 @@ export async function POST(request: NextRequest) {
       const extractedDate = normalizeRecordDate(extracted.record_date);
       const recordDate = extractedDate || targetDate;
       const dateWasFallback = !extractedDate && Boolean(targetDate);
-      const durationSeconds = parseDurationText(extracted.duration_seconds ?? extracted.duration_text);
-      const distanceKm = parseDistanceKm(extracted.distance_km);
+      const extractedDurationSeconds = parseDurationText(extracted.duration_seconds ?? extracted.duration_text);
+      const extractedDistanceKm = parseDistanceKm(extracted.distance_km);
+      const isRecoveryCertification = isRecoveryExtraction(extracted, extractedDistanceKm, extractedDurationSeconds);
+      const durationSeconds = isRecoveryCertification ? RECOVERY_CERTIFICATION_DURATION_SECONDS : extractedDurationSeconds;
+      const distanceKm = isRecoveryCertification ? RECOVERY_CERTIFICATION_DISTANCE_KM : extractedDistanceKm;
 
       if (recordDate && !isWithinChallengeWindow(recordDate)) {
         return NextResponse.json({ error: CHALLENGE_DATE_ERROR }, { status: 400 });
@@ -416,7 +473,7 @@ export async function POST(request: NextRequest) {
       }
 
       const paceSeconds = calculatePaceSeconds(distanceKm, durationSeconds);
-      const status = decideStatus({
+      let status = decideStatus({
         participantId: participant?.id,
         recordDate,
         distanceKm,
@@ -424,6 +481,19 @@ export async function POST(request: NextRequest) {
         dateWasFallback,
         allowFallbackDate: Boolean(targetDate),
       });
+      let recoveryLimitNote: string | null = null;
+      if (isRecoveryCertification && participant?.id) {
+        const recoveryUsageCount = await countCertifiedRecoveryUsage({
+          supabase,
+          userId: user.id,
+          participantId: participant.id,
+          excludeRecordId: existingRecord?.id || null,
+        });
+        if (recoveryUsageCount >= RECOVERY_CERTIFICATION_LIMIT) {
+          status = "needs_review";
+          recoveryLimitNote = `리커버리 인증 ${RECOVERY_CERTIFICATION_LIMIT}회를 이미 사용했어요.`;
+        }
+      }
 
       if (status !== "certified") needsReviewCount += 1;
 
@@ -443,12 +513,14 @@ export async function POST(request: NextRequest) {
         distance_km: distanceKm,
         duration_seconds: durationSeconds,
         pace_seconds_per_km: paceSeconds,
-        source_app: extracted.source_app || null,
+        source_app: isRecoveryCertification ? RECOVERY_CERTIFICATION_SOURCE : extracted.source_app || null,
         status,
         confidence_score: extracted.confidence_score ?? null,
         image_url: filePath,
         raw_extracted_text: extracted.raw_text || null,
         notes: [
+          isRecoveryCertification ? RECOVERY_CERTIFICATION_NOTE : null,
+          recoveryLimitNote,
           extracted.notes,
           usedFallbackParticipant ? fallbackParticipantNote : null,
           dateWasFallback ? "이미지에서 날짜가 보이지 않아 선택한 날짜를 임시 적용했어요." : null,

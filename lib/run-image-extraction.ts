@@ -18,6 +18,7 @@ export type ExtractedRunBase = {
   raw_text?: string | null;
   confidence_score?: number | null;
   notes?: string | null;
+  is_recovery_certification?: boolean | string | number | null;
 };
 
 export function parseDataUrl(dataUrl: string) {

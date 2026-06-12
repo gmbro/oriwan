@@ -1,7 +1,44 @@
 export type RecordStatus = "certified" | "needs_review" | "missing" | "rejected";
 
+export const RECOVERY_CERTIFICATION_NOTE = "리커버리 인증";
+export const RECOVERY_CERTIFICATION_SOURCE = "recovery_certification";
+export const RECOVERY_CERTIFICATION_DISTANCE_KM = 3;
+export const RECOVERY_CERTIFICATION_DURATION_SECONDS = 20 * 60;
+export const RECOVERY_CERTIFICATION_LIMIT = 3;
+
 export function isCertificationCountedStatus(status: RecordStatus | string | null | undefined) {
   return status === "certified";
+}
+
+function normalizeRecoveryText(value: unknown) {
+  return typeof value === "string" ? value.toLowerCase().replace(/\s+/g, "") : "";
+}
+
+export function hasRecoveryCertificationText(value: unknown) {
+  const normalized = normalizeRecoveryText(value);
+  return normalized.includes("리커버리인증") || normalized.includes(RECOVERY_CERTIFICATION_SOURCE);
+}
+
+export function isRecoveryCertificationFlag(value: unknown) {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value === 1;
+  if (typeof value !== "string") return false;
+  const normalized = normalizeRecoveryText(value);
+  return normalized === "true" || normalized === "1" || normalized === "yes" || normalized.includes("리커버리인증");
+}
+
+export function isRecoveryCertificationRecord(record: {
+  is_recovery_certification?: boolean | null;
+  notes?: string | null;
+  raw_extracted_text?: string | null;
+  source_app?: string | null;
+}) {
+  if (record.is_recovery_certification) return true;
+  return (
+    hasRecoveryCertificationText(record.notes) ||
+    hasRecoveryCertificationText(record.raw_extracted_text) ||
+    hasRecoveryCertificationText(record.source_app)
+  );
 }
 
 export function secondsToTime(seconds: number | null | undefined) {

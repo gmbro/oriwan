@@ -5,10 +5,11 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { IconCalendar, IconCheck, IconRun, IconSync, IconTarget, IconTrash, IconX } from "@/components/icons";
 import { buildMemberPictogramMap, MemberPictogram } from "@/components/member-pictogram";
+import { RecoveryBadgeStrip } from "@/components/recovery-badge-strip";
 import { ACTUAL_CERTIFICATION_START_DATE, CHALLENGE_DAYS, CHALLENGE_START_DATE, clampToChallengeWindow } from "@/lib/challenge";
 import { imageFileToOptimizedDataUrl } from "@/lib/image-client";
 import { PARTICIPANT_RANK_SORT_OPTIONS, type ParticipantRankSortMode, sortParticipantRanks } from "@/lib/participant-ranking";
-import { addDays, isCertificationCountedStatus, parseDurationToSeconds, secondsToTime, toIsoDate, toKstIsoDate } from "@/lib/run-records";
+import { RECOVERY_CERTIFICATION_NOTE, addDays, isCertificationCountedStatus, isRecoveryCertificationRecord, parseDurationToSeconds, secondsToTime, toIsoDate, toKstIsoDate } from "@/lib/run-records";
 
 type Participant = {
   id: string;
@@ -219,6 +220,16 @@ function hydrateAnalysisResult(result: AnalysisResult): AnalysisResult {
   };
 }
 
+function nextRecordNotesForStatus(status: RecordStatus, record: {
+  notes?: string | null;
+  raw_extracted_text?: string | null;
+  source_app?: string | null;
+}) {
+  if (status !== "certified") return record.notes ?? null;
+  if (isRecoveryCertificationRecord(record)) return record.notes || RECOVERY_CERTIFICATION_NOTE;
+  return null;
+}
+
 function AdminActionButton({
   title,
   meta,
@@ -390,6 +401,7 @@ export default function AdminPage() {
   const participantProgress = useMemo(() => {
     const certifiedDaysByParticipant = new Map<string, Set<string>>();
     const metricsByParticipant = new Map<string, { distanceKm: number; durationSeconds: number }>();
+    const recoveryUsageByParticipant = new Map<string, number>();
     records.forEach((record) => {
       if (
         !isCertificationCountedStatus(record.status) ||
@@ -404,6 +416,9 @@ export default function AdminPage() {
       metrics.distanceKm += record.distance_km || 0;
       metrics.durationSeconds += record.duration_seconds || 0;
       metricsByParticipant.set(record.participant_id, metrics);
+      if (isRecoveryCertificationRecord(record)) {
+        recoveryUsageByParticipant.set(record.participant_id, (recoveryUsageByParticipant.get(record.participant_id) || 0) + 1);
+      }
     });
 
     return participants
@@ -416,6 +431,7 @@ export default function AdminPage() {
           pictogramIndex: participantPictogramById.get(participant.id) ?? 0,
           certifiedDays,
           rate,
+          recoveryUsageCount: recoveryUsageByParticipant.get(participant.id) || 0,
           ...metrics,
         };
       })
@@ -773,6 +789,7 @@ export default function AdminPage() {
     const durationSeconds = parseDurationToSeconds(result.edit_duration || "");
     const hasMetric = Boolean((result.edit_distance || "").trim() || durationSeconds);
     const nextStatus: RecordStatus = result.participant_id && result.record_date && hasMetric ? "certified" : "missing";
+    const nextNotes = nextRecordNotesForStatus(nextStatus, result);
     const resultKey = getAnalysisResultKey(result, resultIndex);
     setUpdatingAnalysisKey(resultKey);
 
@@ -784,7 +801,7 @@ export default function AdminPage() {
           distance_km: result.edit_distance || null,
           duration_seconds: durationSeconds,
           status: nextStatus,
-          notes: nextStatus === "certified" ? null : result.notes ?? null,
+          notes: nextNotes,
         }),
       });
       const json = await res.json().catch(() => ({}));
@@ -799,7 +816,7 @@ export default function AdminPage() {
               status: nextStatus,
               edit_distance: result.edit_distance || "",
               edit_duration: result.edit_duration || "",
-              notes: nextStatus === "certified" ? null : item.notes,
+              notes: nextNotes,
             }
           : item
       )));
@@ -846,6 +863,7 @@ export default function AdminPage() {
     const durationSeconds = parseDurationToSeconds(draft.duration);
     const hasMetric = Boolean(draft.distance.trim() || durationSeconds);
     const nextStatus: RecordStatus = record.participant_id && record.record_date && hasMetric ? "certified" : "missing";
+    const nextNotes = nextRecordNotesForStatus(nextStatus, record);
     setUpdatingRecordId(record.id);
 
     try {
@@ -856,7 +874,7 @@ export default function AdminPage() {
           distance_km: draft.distance || null,
           duration_seconds: durationSeconds,
           status: nextStatus,
-          notes: nextStatus === "certified" ? null : record.notes,
+          notes: nextNotes,
         }),
       });
       const json = await res.json().catch(() => ({}));
@@ -1189,6 +1207,7 @@ export default function AdminPage() {
                             <span className="text-[8px] font-extrabold text-oriwan-text-muted">시간</span>
                             {secondsToTime(row.durationSeconds)}
                           </span>
+                          <RecoveryBadgeStrip usedCount={row.recoveryUsageCount} />
                         </div>
                       </div>
                     </div>

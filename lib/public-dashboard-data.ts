@@ -8,7 +8,7 @@ import {
   makePersonalGrowthBadges,
   type GrowthBadgeUnlock,
 } from "@/lib/growth-badges";
-import { addDays, isCertificationCountedStatus, toIsoDate, toKstIsoDate } from "@/lib/run-records";
+import { addDays, isCertificationCountedStatus, isRecoveryCertificationRecord, toIsoDate, toKstIsoDate } from "@/lib/run-records";
 import { isMissingTableError, missingSchemaResponse } from "@/lib/supabase-errors";
 
 export const PUBLIC_DASHBOARD_CACHE_CONTROL = "public, max-age=0, s-maxage=5, stale-while-revalidate=30";
@@ -30,6 +30,7 @@ export type PublicDashboardRecord = {
   distance_km: number | null;
   duration_seconds: number | null;
   status: "certified" | "needs_review" | "missing" | "rejected";
+  is_recovery_certification?: boolean;
 };
 
 export type PublicDashboardPayload = {
@@ -58,6 +59,12 @@ type GrowthBadgeInsertRow = {
   participant_id: string;
   badge_key: string;
   earned_at: string;
+};
+
+type FetchedDashboardRecord = PublicDashboardRecord & {
+  source_app?: string | null;
+  raw_extracted_text?: string | null;
+  notes?: string | null;
 };
 
 let publicDashboardCache: PublicDashboardCacheEntry | null = null;
@@ -238,7 +245,10 @@ export async function buildPublicDashboardPayload(from: string, to: string): Pro
         record_date,
         distance_km,
         duration_seconds,
-        status
+        status,
+        source_app,
+        raw_extracted_text,
+        notes
       `)
       .eq("user_id", adminUserId)
       .in("status", ["certified", "needs_review"])
@@ -266,7 +276,15 @@ export async function buildPublicDashboardPayload(from: string, to: string): Pro
   if (recordsResult.error) throw recordsResult.error;
 
   const participants = (participantsResult.data || []) as PublicDashboardParticipant[];
-  const records = (recordsResult.data || []) as PublicDashboardRecord[];
+  const records = ((recordsResult.data || []) as FetchedDashboardRecord[]).map((record) => ({
+    id: record.id,
+    participant_id: record.participant_id,
+    record_date: record.record_date,
+    distance_km: record.distance_km,
+    duration_seconds: record.duration_seconds,
+    status: record.status,
+    is_recovery_certification: isRecoveryCertificationRecord(record),
+  }));
   const growthBadges = await syncGrowthBadgeRows({
     supabase,
     adminUserId,
