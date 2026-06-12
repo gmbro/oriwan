@@ -13,6 +13,7 @@ import { isMissingTableError, missingSchemaResponse } from "@/lib/supabase-error
 
 export const PUBLIC_DASHBOARD_CACHE_CONTROL = "public, max-age=0, s-maxage=5, stale-while-revalidate=30";
 const PUBLIC_DASHBOARD_MEMORY_CACHE_TTL_MS = 5_000;
+const PUBLIC_DASHBOARD_HIDDEN_PARTICIPANT_NAMES = new Set(["수연"]);
 
 export type PublicDashboardParticipant = {
   id: string;
@@ -66,6 +67,14 @@ type FetchedDashboardRecord = PublicDashboardRecord & {
   raw_extracted_text?: string | null;
   notes?: string | null;
 };
+
+function normalizeParticipantDisplayName(name: string) {
+  return name.trim().replace(/\s+/g, "");
+}
+
+function isPublicDashboardParticipantVisible(participant: PublicDashboardParticipant) {
+  return !PUBLIC_DASHBOARD_HIDDEN_PARTICIPANT_NAMES.has(normalizeParticipantDisplayName(participant.name));
+}
 
 let publicDashboardCache: PublicDashboardCacheEntry | null = null;
 const actualCertificationEndDate = toIsoDate(addDays(new Date(`${ACTUAL_CERTIFICATION_START_DATE}T00:00:00`), CHALLENGE_DAYS - 1));
@@ -275,23 +284,27 @@ export async function buildPublicDashboardPayload(from: string, to: string): Pro
   if (participantsResult.error) throw participantsResult.error;
   if (recordsResult.error) throw recordsResult.error;
 
-  const participants = (participantsResult.data || []) as PublicDashboardParticipant[];
-  const records = ((recordsResult.data || []) as FetchedDashboardRecord[]).map((record) => ({
-    id: record.id,
-    participant_id: record.participant_id,
-    record_date: record.record_date,
-    distance_km: record.distance_km,
-    duration_seconds: record.duration_seconds,
-    status: record.status,
-    is_recovery_certification: isRecoveryCertificationRecord(record),
-  }));
-  const growthBadges = await syncGrowthBadgeRows({
+  const participants = ((participantsResult.data || []) as PublicDashboardParticipant[])
+    .filter(isPublicDashboardParticipantVisible);
+  const visibleParticipantIds = new Set(participants.map((participant) => participant.id));
+  const records = ((recordsResult.data || []) as FetchedDashboardRecord[])
+    .filter((record) => Boolean(record.participant_id && visibleParticipantIds.has(record.participant_id)))
+    .map((record) => ({
+      id: record.id,
+      participant_id: record.participant_id,
+      record_date: record.record_date,
+      distance_km: record.distance_km,
+      duration_seconds: record.duration_seconds,
+      status: record.status,
+      is_recovery_certification: isRecoveryCertificationRecord(record),
+    }));
+  const growthBadges = (await syncGrowthBadgeRows({
     supabase,
     adminUserId,
     participants,
     records,
     to,
-  });
+  })).filter((badge) => Boolean(badge.participant_id && visibleParticipantIds.has(badge.participant_id)));
 
   return {
     from,
