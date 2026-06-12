@@ -349,6 +349,24 @@ img { -webkit-user-drag: none; user-select: none; }
   36% { box-shadow: 0 1px 0 rgba(255,255,255,0.9) inset, 0 12px 34px rgba(190, 242, 100, 0.22), 0 0 0 1px rgba(190, 242, 100, 0.48) inset; }
 }
 
+@keyframes full-house-fireworks-fade {
+  0% { opacity: 0; }
+  8%, 82% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes full-house-firework-spark {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) rotate(calc(var(--i) * 20deg)) translateY(0) scale(0.28);
+  }
+  16% { opacity: 1; }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) rotate(calc(var(--i) * 20deg)) translateY(-132px) scale(1);
+  }
+}
+
 .animate-fade-up { animation: fade-up 0.45s ease-out forwards; }
 .dashboard-card-reveal {
   animation: dashboard-card-reveal 0.48s cubic-bezier(0.2, 0.8, 0.2, 1) both;
@@ -492,6 +510,45 @@ img { -webkit-user-drag: none; user-select: none; }
   height: 14px;
   background: #d9f99d;
 }
+.full-house-fireworks {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 22%, rgba(190, 242, 100, 0.12), transparent 34%),
+    radial-gradient(circle at 50% 72%, rgba(255, 255, 255, 0.08), transparent 32%);
+  animation: full-house-fireworks-fade 1.9s ease-out both;
+}
+.full-house-firework {
+  position: absolute;
+  left: var(--x);
+  top: var(--y);
+}
+.full-house-firework span {
+  --spark-hue: calc(var(--hue) + var(--i) * 8);
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 7px;
+  height: 14px;
+  border-radius: 999px;
+  background: hsl(var(--spark-hue) 92% 58%);
+  box-shadow: 0 0 18px hsla(var(--spark-hue), 92%, 58%, 0.42);
+  animation: full-house-firework-spark 1.18s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation-delay: calc(var(--delay) + var(--i) * 14ms);
+}
+.full-house-firework span:nth-child(3n) {
+  width: 12px;
+  height: 6px;
+  background: #ffffff;
+}
+.full-house-firework span:nth-child(4n) {
+  width: 6px;
+  height: 12px;
+  background: #d9f99d;
+}
 .cheer-mode-active .silent-cheer-button {
   animation: silent-cheer-button-pulse 1.12s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
@@ -549,7 +606,8 @@ img { -webkit-user-drag: none; user-select: none; }
 }
 @media (prefers-reduced-motion: reduce) {
   .silent-cheer-ripple,
-  .silent-cheer-particles {
+  .silent-cheer-particles,
+  .full-house-fireworks {
     display: none;
   }
   *, ::before, ::after {

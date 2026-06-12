@@ -88,10 +88,20 @@ const PUBLIC_DASHBOARD_STORAGE_TTL_MS = 5 * 60 * 1000;
 const PUBLIC_DASHBOARD_FOCUS_REFRESH_MS = 30 * 1000;
 const PERSONAL_GROWTH_BADGE_STORAGE_KEY = "oriwan-personal-growth-badges-v1";
 const ONE_PLUS_ONE_DISMISS_STORAGE_KEY = "oriwan-one-plus-one-dismissed-v1";
+const FULL_HOUSE_FIREWORKS_STORAGE_KEY = "oriwan-full-house-fireworks-v1";
+const FULL_HOUSE_FIREWORKS_DURATION_MS = 1900;
 const ONE_PLUS_ONE_MILESTONES = new Set([40, 50, 60, 70, 80, 90]);
 const CERTIFICATION_SORT_DIRECTION_OPTIONS: { key: ParticipantRankSortDirection; label: string }[] = [
   { key: "desc", label: "높은순" },
   { key: "asc", label: "낮은순" },
+];
+const FULL_HOUSE_FIREWORK_BURSTS = [
+  { x: "18%", y: "22%", delay: 0, hue: 82 },
+  { x: "50%", y: "18%", delay: 110, hue: 44 },
+  { x: "82%", y: "24%", delay: 40, hue: 146 },
+  { x: "28%", y: "58%", delay: 190, hue: 196 },
+  { x: "70%", y: "62%", delay: 230, hue: 318 },
+  { x: "50%", y: "46%", delay: 320, hue: 26 },
 ];
 
 type StoredGrowthBadges = Record<string, string[]>;
@@ -178,6 +188,30 @@ function writeDismissedOnePlusOneEvent(day: number, date: string) {
     window.localStorage.setItem(ONE_PLUS_ONE_DISMISS_STORAGE_KEY, onePlusOneDismissKey(day, date));
   } catch {
     // Dismissal is a convenience only; the event remains usable without storage.
+  }
+}
+
+function fullHouseFireworksKey(date: string) {
+  return `${date}:full-house`;
+}
+
+function readShownFullHouseFireworks(date: string) {
+  if (typeof window === "undefined") return true;
+
+  try {
+    return window.localStorage.getItem(FULL_HOUSE_FIREWORKS_STORAGE_KEY) === fullHouseFireworksKey(date);
+  } catch {
+    return false;
+  }
+}
+
+function writeShownFullHouseFireworks(date: string) {
+  if (typeof window === "undefined") return;
+
+  try {
+    window.localStorage.setItem(FULL_HOUSE_FIREWORKS_STORAGE_KEY, fullHouseFireworksKey(date));
+  } catch {
+    // The animation is celebratory only; blocked storage should not affect the dashboard.
   }
 }
 
@@ -290,6 +324,29 @@ function FanfareBurst({ compact = false }: { compact?: boolean }) {
     <div className={`fanfare-burst ${compact ? "fanfare-burst-compact" : ""}`} aria-hidden="true">
       {Array.from({ length: compact ? 10 : 16 }, (_, index) => (
         <span key={index} style={{ "--i": index } as CSSProperties} />
+      ))}
+    </div>
+  );
+}
+
+function FullHouseFireworks() {
+  return (
+    <div className="full-house-fireworks" aria-hidden="true">
+      {FULL_HOUSE_FIREWORK_BURSTS.map((burst, burstIndex) => (
+        <span
+          key={`${burst.x}-${burst.y}`}
+          className="full-house-firework"
+          style={{
+            "--x": burst.x,
+            "--y": burst.y,
+            "--delay": `${burst.delay}ms`,
+            "--hue": burst.hue,
+          } as CSSProperties}
+        >
+          {Array.from({ length: 18 }, (_, index) => (
+            <span key={`${burstIndex}-${index}`} style={{ "--i": index } as CSSProperties} />
+          ))}
+        </span>
       ))}
     </div>
   );
@@ -420,6 +477,7 @@ export function DashboardClient({
   const [showSeasonReportModal, setShowSeasonReportModal] = useState(false);
   const [showOnePlusOneEventModal, setShowOnePlusOneEventModal] = useState(false);
   const [showDeferredTips, setShowDeferredTips] = useState(false);
+  const [showFullHouseFireworks, setShowFullHouseFireworks] = useState(false);
   const [participantSortMode, setParticipantSortMode] = useState<ParticipantRankSortMode>("certification");
   const [participantCertificationSortDirection, setParticipantCertificationSortDirection] = useState<ParticipantRankSortDirection>("desc");
   const [storedGrowthBadges, setStoredGrowthBadges] = useState<StoredGrowthBadges>({});
@@ -775,8 +833,30 @@ export function DashboardClient({
   const trendGraph = makeGraphPath(trendItems, 680, 260, 36);
   const isInitialDashboardLoading = loading && !data;
 
+  useEffect(() => {
+    const fullHouseAchieved = (
+      dashboard.participants.length > 0 &&
+      dashboard.currentCertificationDate === todayIso &&
+      dashboard.currentDateCertifiedIds.size >= dashboard.participants.length &&
+      dashboard.completionRate >= 100
+    );
+    if (!fullHouseAchieved || readShownFullHouseFireworks(todayIso)) return;
+
+    writeShownFullHouseFireworks(todayIso);
+    setShowFullHouseFireworks(true);
+    const timeout = window.setTimeout(() => setShowFullHouseFireworks(false), FULL_HOUSE_FIREWORKS_DURATION_MS);
+    return () => window.clearTimeout(timeout);
+  }, [
+    dashboard.completionRate,
+    dashboard.currentCertificationDate,
+    dashboard.currentDateCertifiedIds.size,
+    dashboard.participants.length,
+    todayIso,
+  ]);
+
   return (
     <main className="min-h-screen w-full overflow-x-hidden bg-oriwan-bg">
+      {showFullHouseFireworks && <FullHouseFireworks />}
       <header className="sticky top-0 z-50 border-b border-slate-950/10 bg-[#101522]/95 px-3 py-2.5 text-white backdrop-blur-2xl sm:px-4 sm:py-3">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
