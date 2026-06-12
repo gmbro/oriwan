@@ -354,10 +354,11 @@ function FullHouseFireworks() {
 
 type MascotCoachMessage = {
   text: string;
-  quote: string;
 };
 
 type MascotCoachInput = {
+  participantId: string;
+  participantName: string;
   rate: number;
   certifiedDays: number;
   currentStreak: number;
@@ -370,106 +371,177 @@ type MascotCoachInput = {
 
 const DEFAULT_MASCOT_COACH_MESSAGE: MascotCoachMessage = {
   text: "오늘의 몸 상태를 먼저 살피고, 가능한 만큼만 부드럽게 이어가요.",
-  quote: "꾸준함은 나를 다그치는 힘보다 나를 돌보는 힘에 더 가깝습니다.",
 };
+
+function mascotCoachHash(value: string) {
+  return Array.from(value).reduce((hash, char) => {
+    return (hash * 33 + char.charCodeAt(0)) >>> 0;
+  }, 5381);
+}
+
+function pickMascotCoachText(input: MascotCoachInput, salt: string, templates: string[]) {
+  const displayName = `${input.participantName}님`;
+  const index = mascotCoachHash(`${input.participantId}:${input.participantName}:${salt}`) % templates.length;
+  return templates[index].replaceAll("{name}", displayName);
+}
 
 function makeMascotCoachMessages(input: MascotCoachInput) {
   const messages: MascotCoachMessage[] = [];
 
   if (input.rate >= 100) {
     messages.push({
-      text: "끝까지 해낸 기록이에요. 빠르기보다 오래 지켜낸 마음이 정말 멋져요.",
-      quote: "완주는 속도가 아니라 멈추지 않은 마음의 결과입니다.",
+      text: pickMascotCoachText(input, "rate-100", [
+        "{name}, 끝까지 해낸 기록이에요. 오래 지켜낸 마음이 정말 멋져요.",
+        "{name}, 완주까지 차분히 이어온 힘이 보여요. 정말 자랑스러운 기록이에요.",
+        "{name}, 마지막 칸까지 잘 도착했어요. 꾸준히 쌓아온 시간이 빛나요.",
+        "{name}, 여기까지 온 과정이 그대로 힘이 됐어요. 충분히 크게 기뻐해도 좋아요.",
+      ]),
     });
   } else if (input.rate >= 90) {
     messages.push({
-      text: "마지막 구간까지 아주 가까이 왔어요. 오늘은 몸을 아끼며 차분히 마무리해요.",
-      quote: "끝에 가까울수록 더 다정한 페이스가 필요합니다.",
+      text: pickMascotCoachText(input, "rate-90", [
+        "{name}, 마지막 구간까지 아주 가까이 왔어요. 오늘은 몸을 아끼며 차분히 가요.",
+        "{name}, 거의 다 왔어요. 서두르지 말고 지금 페이스를 편안하게 지켜요.",
+        "{name}, 마무리 구간일수록 더 부드럽게 가면 좋아요. 충분히 잘하고 있어요.",
+        "{name}, 남은 칸이 얼마 없어요. 오늘도 안전하게 한 걸음만 더 이어가요.",
+      ]),
     });
   } else if (input.rate >= 70) {
     messages.push({
-      text: "꾸준함이 눈에 보이는 구간이에요. 지금 리듬을 편안하게 지켜가요.",
-      quote: "잘 쌓인 하루들은 조용히 자신감을 만들어줍니다.",
+      text: pickMascotCoachText(input, "rate-70", [
+        "{name}, 꾸준함이 눈에 보이는 구간이에요. 지금 리듬을 편안하게 지켜가요.",
+        "{name}, 이미 좋은 흐름을 만들고 있어요. 무리하지 않아도 충분히 단단해요.",
+        "{name}, 쌓인 인증들이 안정적인 페이스를 보여줘요. 오늘도 차분히 이어가요.",
+        "{name}, 여기까지 온 힘이 좋아요. 몸 상태를 살피면서 지금 흐름을 유지해요.",
+      ]),
     });
   } else if (input.rate >= 50) {
     messages.push({
-      text: "절반을 넘긴 힘이 이미 안에 있어요. 오늘도 비교보다 내 호흡에 맞춰가요.",
-      quote: "오래 가는 사람은 자기 속도를 존중하는 사람입니다.",
+      text: pickMascotCoachText(input, "rate-50", [
+        "{name}, 절반을 넘긴 힘이 이미 안에 있어요. 오늘도 내 호흡에 맞춰가요.",
+        "{name}, 중간 구간을 잘 지나고 있어요. 조금 느려도 이어지는 게 중요해요.",
+        "{name}, 지금까지의 기록이 충분히 좋은 기반이에요. 편안한 속도로 계속 가요.",
+        "{name}, 절반을 지났다는 건 이미 리듬을 만들었다는 뜻이에요. 잘하고 있어요.",
+      ]),
     });
   } else if (input.rate >= 30) {
     messages.push({
-      text: "조금씩 리듬이 돌아오고 있어요. 완벽하지 않아도 이어가는 쪽이 더 강해요.",
-      quote: "작은 반복은 결국 나를 믿는 근거가 됩니다.",
+      text: pickMascotCoachText(input, "rate-30", [
+        "{name}, 조금씩 리듬이 돌아오고 있어요. 완벽하지 않아도 이어가는 쪽이 더 강해요.",
+        "{name}, 지금은 흐름을 다시 잡는 구간이에요. 오늘 한 칸이면 충분히 좋아요.",
+        "{name}, 잘 따라오고 있어요. 부담을 낮추고 가능한 만큼만 부드럽게 가요.",
+        "{name}, 아직 충분히 이어갈 수 있어요. 작게라도 움직이면 흐름이 살아나요.",
+      ]),
     });
   } else if (input.certifiedDays > 0) {
     messages.push({
-      text: "괜찮아요. 다시 시작하기에 늦은 날은 없어요. 오늘 한 칸만 부드럽게 채워봐요.",
-      quote: "가장 작은 시작도 방향을 바꿀 수 있습니다.",
+      text: pickMascotCoachText(input, "rate-low", [
+        "{name}, 괜찮아요. 다시 시작하기에 늦은 날은 없어요. 오늘 한 칸만 채워봐요.",
+        "{name}, 기록은 다시 이어갈 수 있어요. 오늘은 가볍게 몸을 깨우는 정도도 좋아요.",
+        "{name}, 부담을 크게 잡지 않아도 돼요. 가능한 만큼만 해도 다시 흐름이 생겨요.",
+        "{name}, 이미 시작한 힘이 있어요. 오늘은 그 힘을 살짝 다시 꺼내봐요.",
+      ]),
     });
   } else {
     messages.push({
-      text: "첫 칸은 언제나 가장 조용하지만 가장 중요해요. 가볍게 시작해도 충분해요.",
-      quote: "시작은 크게 보이지 않아도 흐름을 여는 문입니다.",
+      text: pickMascotCoachText(input, "rate-zero", [
+        "{name}, 첫 칸은 언제나 가장 중요해요. 아주 가볍게 시작해도 충분해요.",
+        "{name}, 오늘은 부담 없이 몸을 움직여보는 날로 잡아도 좋아요.",
+        "{name}, 시작은 크게 하지 않아도 괜찮아요. 편안한 첫 걸음이면 충분해요.",
+        "{name}, 아직 늦지 않았어요. 작게 시작해서 내 리듬을 천천히 찾아봐요.",
+      ]),
     });
   }
 
   if (input.todayCertified) {
     messages.push({
-      text: "오늘 인증까지 잘 채웠어요. 몸이 기억할 만큼 충분히 좋은 흐름이에요.",
-      quote: "오늘의 한 칸은 내일의 부담을 조금 덜어줍니다.",
+      text: pickMascotCoachText(input, "today-done", [
+        "{name}, 오늘 인증까지 잘 채웠어요. 몸이 기억할 만큼 좋은 흐름이에요.",
+        "{name}, 오늘 칸이 예쁘게 채워졌어요. 스스로에게 다정하게 칭찬해줘도 좋아요.",
+        "{name}, 오늘도 해냈어요. 작은 성실함이 아주 잘 쌓이고 있어요.",
+        "{name}, 오늘 기록까지 확인됐어요. 컨디션 관리도 함께 잘 챙겨주세요.",
+      ]),
     });
   } else {
     messages.push({
-      text: "오늘은 아직 비어 있어요. 컨디션을 먼저 보고, 가능한 만큼만 천천히 움직여요.",
-      quote: "좋은 기록은 몸을 이긴 날보다 몸을 들은 날에 더 오래 남습니다.",
+      text: pickMascotCoachText(input, "today-empty", [
+        "{name}, 오늘은 아직 비어 있어요. 컨디션을 먼저 보고 가능한 만큼만 움직여요.",
+        "{name}, 아직 오늘 칸이 기다리고 있어요. 무리 없는 거리로 부드럽게 시작해요.",
+        "{name}, 오늘 기록은 천천히 채워도 괜찮아요. 몸 상태를 먼저 살펴주세요.",
+        "{name}, 가능하다면 가볍게 한 번 움직여봐요. 작은 인증도 흐름을 지켜줘요.",
+      ]),
     });
   }
 
   if (input.currentStreak >= 10) {
     messages.push({
-      text: "연속 인증이 단단하게 이어지고 있어요. 지금은 무리보다 회복을 섞는 지혜가 좋아요.",
-      quote: "강한 습관은 쉬어야 할 때도 알고 있습니다.",
+      text: pickMascotCoachText(input, "streak-10", [
+        "{name}, 연속 인증이 단단하게 이어지고 있어요. 지금은 회복도 함께 챙기면 좋아요.",
+        "{name}, 긴 흐름을 잘 만들었어요. 몸이 지치지 않게 페이스를 살짝 낮춰도 괜찮아요.",
+        "{name}, 꾸준함이 아주 안정적이에요. 오늘은 가볍게 지켜내는 방식도 좋아요.",
+      ]),
     });
   } else if (input.currentStreak >= 5) {
     messages.push({
-      text: "며칠째 흐름이 이어지고 있어요. 아주 잘하고 있으니 오늘도 편안히 지켜봐요.",
-      quote: "반복은 작아 보여도 마음의 근육을 키웁니다.",
+      text: pickMascotCoachText(input, "streak-5", [
+        "{name}, 며칠째 흐름이 이어지고 있어요. 아주 잘하고 있으니 오늘도 편안히 가요.",
+        "{name}, 연속 인증의 감각이 좋아요. 무리 없이 이 리듬을 조금 더 지켜봐요.",
+        "{name}, 좋은 습관이 붙고 있어요. 오늘도 내 몸에 맞는 페이스면 충분해요.",
+      ]),
     });
   } else if (input.longestStreak >= 7) {
     messages.push({
-      text: "이미 길게 이어본 힘이 있어요. 다시 리듬을 찾을 수 있는 사람이라는 증거예요.",
-      quote: "한 번 만든 길은 다시 걸을 때 조금 더 익숙합니다.",
+      text: pickMascotCoachText(input, "longest-7", [
+        "{name}, 이미 길게 이어본 힘이 있어요. 다시 리듬을 찾을 수 있는 사람이에요.",
+        "{name}, 예전에 만든 좋은 흐름이 있어요. 오늘 한 칸부터 다시 이어가면 돼요.",
+        "{name}, 한 번 해낸 경험은 남아 있어요. 차분하게 다시 몸을 깨워봐요.",
+      ]),
     });
   }
 
   if (input.recoveryUsageCount >= 3) {
     messages.push({
-      text: "회복이 필요한 순간들을 잘 골라냈어요. 쉬는 선택도 챌린지를 지키는 방식이에요.",
-      quote: "몸을 돌보는 사람만이 오래 달릴 수 있습니다.",
+      text: pickMascotCoachText(input, "recovery-3", [
+        "{name}, 회복이 필요한 순간들을 잘 골라냈어요. 쉬는 선택도 챌린지를 지키는 방식이에요.",
+        "{name}, 몸을 챙기며 이어온 점이 좋아요. 안전하게 오래 가는 게 제일 중요해요.",
+        "{name}, 리커버리를 잘 활용했어요. 무리보다 회복을 택한 것도 좋은 기록이에요.",
+      ]),
     });
   } else if (input.recoveryUsageCount > 0) {
     messages.push({
-      text: "리커버리 쉴드를 쓴 날도 잘 지킨 날이에요. 안전하게 이어가는 선택이 좋아요.",
-      quote: "멈춤은 포기가 아니라 다음 걸음을 위한 준비가 될 수 있습니다.",
+      text: pickMascotCoachText(input, "recovery-1", [
+        "{name}, 리커버리 쉴드를 쓴 날도 잘 지킨 날이에요. 안전하게 이어가는 선택이 좋아요.",
+        "{name}, 회복을 챙긴 것도 아주 좋은 판단이에요. 몸이 편해야 다시 잘 달릴 수 있어요.",
+        "{name}, 쉬어가는 선택을 잘했어요. 오늘도 통증보다 안정감을 먼저 봐주세요.",
+      ]),
     });
   }
 
   if (input.missedDays >= 10) {
     messages.push({
-      text: "빈칸이 있어도 괜찮아요. 기록은 혼내기보다 돌아올 길을 보여주려고 있어요.",
-      quote: "다시 돌아온 하루가 지난 빈칸보다 더 큰 의미를 가집니다.",
+      text: pickMascotCoachText(input, "missed-10", [
+        "{name}, 빈칸이 있어도 괜찮아요. 기록은 다시 돌아올 길을 보여주려고 있어요.",
+        "{name}, 지난 빈칸보다 오늘 다시 채우는 한 칸이 더 중요해요. 천천히 가요.",
+        "{name}, 놓친 날이 있어도 흐름은 다시 만들 수 있어요. 오늘부터 부드럽게 이어가요.",
+      ]),
     });
   } else if (input.missedDays > 0) {
     messages.push({
-      text: "몇 칸 비어 있어도 지금 채우는 한 칸이 제일 중요해요. 충분히 다시 이어갈 수 있어요.",
-      quote: "꾸준함은 빈칸이 없는 상태가 아니라 다시 이어가는 태도입니다.",
+      text: pickMascotCoachText(input, "missed-1", [
+        "{name}, 몇 칸 비어 있어도 지금 채우는 한 칸이 제일 중요해요. 다시 이어갈 수 있어요.",
+        "{name}, 빈칸이 조금 있어도 괜찮아요. 오늘의 움직임으로 흐름을 다시 살려봐요.",
+        "{name}, 놓친 날은 지나갔고 오늘은 새로 채울 수 있어요. 부담 없이 가요.",
+      ]),
     });
   }
 
   if (input.remainingDays <= 10 && input.remainingDays > 0) {
     messages.push({
-      text: "남은 날이 많지 않아요. 마지막까지 부드럽고 안전한 페이스로 함께 가요.",
-      quote: "마무리는 더 세게가 아니라 더 오래 웃을 수 있게 하는 일입니다.",
+      text: pickMascotCoachText(input, "remaining-10", [
+        "{name}, 남은 날이 많지 않아요. 마지막까지 부드럽고 안전한 페이스로 함께 가요.",
+        "{name}, 마무리 구간이에요. 조금 더 다정하게 몸을 챙기며 이어가요.",
+        "{name}, 끝까지 잘 가려면 오늘도 무리 없는 선택이 좋아요. 차분히 가요.",
+      ]),
     });
   }
 
@@ -502,7 +574,6 @@ function MascotCoachBubble({ message }: { message: MascotCoachMessage }) {
   return (
     <div className="mascot-coach-bubble" role="status" aria-live="polite">
       <p className="text-[12px] font-black leading-5 text-oriwan-text sm:text-[13px]">{message.text}</p>
-      <p className="mt-1 text-[11px] font-bold leading-5 text-oriwan-text-muted sm:text-xs">{message.quote}</p>
     </div>
   );
 }
@@ -940,6 +1011,8 @@ export function DashboardClient({
   const selectedMissedDays = selectedParticipant ? Math.max(dashboard.elapsedDays.length - selectedParticipant.certifiedDays, 0) : 0;
   const selectedRemainingDays = selectedParticipant ? Math.max(CHALLENGE_DAYS - selectedParticipant.certifiedDays, 0) : 0;
   const selectedMascotCoachMessages = selectedParticipant ? makeMascotCoachMessages({
+    participantId: selectedParticipant.participant.id,
+    participantName: selectedParticipant.participant.name,
     rate: selectedParticipant.rate,
     certifiedDays: selectedParticipant.certifiedDays,
     currentStreak: selectedParticipant.currentStreak,
