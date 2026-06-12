@@ -87,7 +87,7 @@ const PUBLIC_DASHBOARD_STORAGE_TTL_MS = 5 * 60 * 1000;
 const PUBLIC_DASHBOARD_FOCUS_REFRESH_MS = 30 * 1000;
 const PERSONAL_GROWTH_BADGE_STORAGE_KEY = "oriwan-personal-growth-badges-v1";
 const ONE_PLUS_ONE_DISMISS_STORAGE_KEY = "oriwan-one-plus-one-dismissed-v1";
-const ONE_PLUS_ONE_MILESTONES = new Set([40, 50, 60, 70, 80, 90, 100]);
+const ONE_PLUS_ONE_MILESTONES = new Set([40, 50, 60, 70, 80, 90]);
 
 type StoredGrowthBadges = Record<string, string[]>;
 
@@ -290,15 +290,29 @@ function FanfareBurst({ compact = false }: { compact?: boolean }) {
   );
 }
 
+type OnePlusOneEvent = {
+  milestoneDay: number;
+  timing: "today" | "tomorrow";
+};
+
+function getOnePlusOneEvent(referenceDate: string): OnePlusOneEvent | null {
+  const dayNumber = certificationDayNumber(referenceDate);
+  if (ONE_PLUS_ONE_MILESTONES.has(dayNumber)) return { milestoneDay: dayNumber, timing: "today" };
+  if (ONE_PLUS_ONE_MILESTONES.has(dayNumber + 1)) return { milestoneDay: dayNumber + 1, timing: "tomorrow" };
+  return null;
+}
+
 function OnePlusOneEventModal({
-  milestoneDay,
+  event,
   onClose,
   onCloseToday,
 }: {
-  milestoneDay: number;
+  event: OnePlusOneEvent;
   onClose: () => void;
   onCloseToday: () => void;
 }) {
+  const timingLabel = event.timing === "today" ? "오늘" : "내일";
+
   return (
     <div
       className="fixed inset-0 z-[90] flex items-end bg-slate-950/45 px-0 py-0 backdrop-blur-sm sm:items-center sm:justify-center sm:px-4 sm:py-4"
@@ -332,15 +346,14 @@ function OnePlusOneEventModal({
 
         <div className="space-y-4 text-sm font-bold leading-6 text-oriwan-text">
           <p>
-            오늘은 스내사 챌린지 <span className="font-black text-lime-700">{milestoneDay}일차 보너스 데이</span>입니다.
+            {timingLabel}은 스내사 챌린지 <span className="font-black text-lime-700">{event.milestoneDay}일차 보너스 데이</span>입니다.
           </p>
-          <p>오늘 인증을 완료한 멤버는 아래 3가지 중 하나를 선택할 수 있어요.</p>
+          <p>이벤트 당일 오전 9시 이전 기준으로 최소 3km 이상 인증을 완료한 멤버는 아래 2가지 중 하나를 선택할 수 있어요.</p>
 
           <div className="grid gap-2">
             {[
               ["1. 거리 2배", "오늘 달린 거리를 2배로 인정"],
-              ["2. 시간 2배", "오늘 달린 시간을 2배로 인정"],
-              ["3. 놓친 날짜 채우기", "이전에 놓친 날짜 1개를 100m / 1분으로 인정"],
+              ["2. 놓친 날짜 채우기", "이전에 놓친 날짜 1개를 100m / 1분으로 인정"],
             ].map(([title, description]) => (
               <div key={title} className="rounded-2xl bg-oriwan-surface-light px-4 py-3 ring-1 ring-slate-950/5">
                 <p className="font-black text-oriwan-text">{title}</p>
@@ -353,7 +366,6 @@ function OnePlusOneEventModal({
             <p>사용할 찬스를 카톡방에 짧게 남겨주세요.</p>
             <div className="mt-2 rounded-2xl bg-slate-950 px-4 py-3 font-mono text-sm font-black leading-7 text-lime-200">
               <p>거리 2배</p>
-              <p>시간 2배</p>
               <p>놓친 날짜 05.03</p>
             </div>
           </div>
@@ -408,10 +420,7 @@ export function DashboardClient({
   const loadingRef = useRef(false);
   const lastLoadedAtRef = useRef(initialData ? Date.now() : 0);
   const motionFrameRef = useRef<number | null>(null);
-  const milestoneDay = useMemo(() => {
-    const dayNumber = certificationDayNumber(todayIso);
-    return ONE_PLUS_ONE_MILESTONES.has(dayNumber) ? dayNumber : null;
-  }, [todayIso]);
+  const onePlusOneEvent = useMemo(() => getOnePlusOneEvent(todayIso), [todayIso]);
 
   const restartMotion = useCallback(() => {
     if (motionFrameRef.current) window.cancelAnimationFrame(motionFrameRef.current);
@@ -502,13 +511,13 @@ export function DashboardClient({
   }, []);
 
   useEffect(() => {
-    if (!milestoneDay) {
+    if (!onePlusOneEvent) {
       setShowOnePlusOneEventModal(false);
       return;
     }
 
-    setShowOnePlusOneEventModal(!readDismissedOnePlusOneEvent(milestoneDay, todayIso));
-  }, [milestoneDay, todayIso]);
+    setShowOnePlusOneEventModal(!readDismissedOnePlusOneEvent(onePlusOneEvent.milestoneDay, todayIso));
+  }, [onePlusOneEvent, todayIso]);
 
   const dashboard = useMemo(() => {
     const participants = data?.participants || [];
@@ -962,12 +971,12 @@ export function DashboardClient({
           {loading ? "오늘의 기록을 데려오는 중..." : `마지막 업데이트 ${formatLastUpdated(data?.generated_at)}`}
         </p>
 
-        {showOnePlusOneEventModal && milestoneDay && (
+        {showOnePlusOneEventModal && onePlusOneEvent && (
           <OnePlusOneEventModal
-            milestoneDay={milestoneDay}
+            event={onePlusOneEvent}
             onClose={() => setShowOnePlusOneEventModal(false)}
             onCloseToday={() => {
-              writeDismissedOnePlusOneEvent(milestoneDay, todayIso);
+              writeDismissedOnePlusOneEvent(onePlusOneEvent.milestoneDay, todayIso);
               setShowOnePlusOneEventModal(false);
             }}
           />
