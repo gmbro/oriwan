@@ -352,8 +352,8 @@ function OnePlusOneEventModal({
 
           <div className="grid gap-2">
             {[
-              ["1. 거리 2배", "오늘 달린 거리를 2배로 인정"],
-              ["2. 놓친 날짜 채우기", "이전에 놓친 날짜 1개를 100m / 1분으로 인정"],
+              ["1. 거리 2배", "당일에 달린 거리 x 2배"],
+              ["2. 놓친 날짜 채우기", "당일 인증 + 이전에 놓친 날짜 1개를 100m / 1분"],
             ].map(([title, description]) => (
               <div key={title} className="rounded-2xl bg-oriwan-surface-light px-4 py-3 ring-1 ring-slate-950/5">
                 <p className="font-black text-oriwan-text">{title}</p>
