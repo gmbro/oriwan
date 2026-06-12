@@ -5,6 +5,7 @@ export const PARTICIPANT_RANK_SORT_OPTIONS = [
 ] as const;
 
 export type ParticipantRankSortMode = (typeof PARTICIPANT_RANK_SORT_OPTIONS)[number]["key"];
+export type ParticipantRankSortDirection = "desc" | "asc";
 
 type SortableParticipantRank = {
   participant: { name: string };
@@ -21,12 +22,22 @@ function compareByName<T extends SortableParticipantRank>(a: T, b: T) {
   });
 }
 
-function compareParticipantRank<T extends SortableParticipantRank>(a: T, b: T, sortMode: ParticipantRankSortMode) {
+function compareParticipantRank<T extends SortableParticipantRank>(
+  a: T,
+  b: T,
+  sortMode: ParticipantRankSortMode,
+  sortDirection: ParticipantRankSortDirection
+) {
   if (sortMode === "distance") return b.distanceKm - a.distanceKm || compareByName(a, b);
   if (sortMode === "duration") return b.durationSeconds - a.durationSeconds || compareByName(a, b);
-  return b.rate - a.rate || compareByName(a, b);
+  const rateComparison = sortDirection === "asc" ? a.rate - b.rate : b.rate - a.rate;
+  return rateComparison || compareByName(a, b);
 }
 
-export function sortParticipantRanks<T extends SortableParticipantRank>(items: readonly T[], sortMode: ParticipantRankSortMode) {
-  return [...items].sort((a, b) => compareParticipantRank(a, b, sortMode));
+export function sortParticipantRanks<T extends SortableParticipantRank>(
+  items: readonly T[],
+  sortMode: ParticipantRankSortMode,
+  sortDirection: ParticipantRankSortDirection = "desc"
+) {
+  return [...items].sort((a, b) => compareParticipantRank(a, b, sortMode, sortDirection));
 }

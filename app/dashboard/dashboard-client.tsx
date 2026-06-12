@@ -16,7 +16,7 @@ import {
   makePersonalGrowthBadges,
   type PersonalGrowthBadge,
 } from "@/lib/growth-badges";
-import { PARTICIPANT_RANK_SORT_OPTIONS, type ParticipantRankSortMode, sortParticipantRanks } from "@/lib/participant-ranking";
+import { PARTICIPANT_RANK_SORT_OPTIONS, type ParticipantRankSortDirection, type ParticipantRankSortMode, sortParticipantRanks } from "@/lib/participant-ranking";
 import type { PublicDashboardParticipant as Participant, PublicDashboardPayload as PublicDashboardData, PublicDashboardRecord as RunRecord } from "@/lib/public-dashboard-data";
 import { addDays, formatKstTime, isCertificationCountedStatus, isRecoveryCertificationRecord, secondsToTime, toIsoDate, toKstIsoDate } from "@/lib/run-records";
 
@@ -89,6 +89,10 @@ const PUBLIC_DASHBOARD_FOCUS_REFRESH_MS = 30 * 1000;
 const PERSONAL_GROWTH_BADGE_STORAGE_KEY = "oriwan-personal-growth-badges-v1";
 const ONE_PLUS_ONE_DISMISS_STORAGE_KEY = "oriwan-one-plus-one-dismissed-v1";
 const ONE_PLUS_ONE_MILESTONES = new Set([40, 50, 60, 70, 80, 90]);
+const CERTIFICATION_SORT_DIRECTION_OPTIONS: { key: ParticipantRankSortDirection; label: string }[] = [
+  { key: "desc", label: "높은순" },
+  { key: "asc", label: "낮은순" },
+];
 
 type StoredGrowthBadges = Record<string, string[]>;
 
@@ -417,6 +421,7 @@ export function DashboardClient({
   const [showOnePlusOneEventModal, setShowOnePlusOneEventModal] = useState(false);
   const [showDeferredTips, setShowDeferredTips] = useState(false);
   const [participantSortMode, setParticipantSortMode] = useState<ParticipantRankSortMode>("certification");
+  const [participantCertificationSortDirection, setParticipantCertificationSortDirection] = useState<ParticipantRankSortDirection>("desc");
   const [storedGrowthBadges, setStoredGrowthBadges] = useState<StoredGrowthBadges>({});
   const loadingRef = useRef(false);
   const lastLoadedAtRef = useRef(initialData ? Date.now() : 0);
@@ -700,8 +705,12 @@ export function DashboardClient({
   }, [dashboard.elapsedDays.length, dashboard.participantProgress]);
 
   const sortedParticipantProgress = useMemo(
-    () => sortParticipantRanks(dashboard.participantProgress, participantSortMode),
-    [dashboard.participantProgress, participantSortMode]
+    () => sortParticipantRanks(
+      dashboard.participantProgress,
+      participantSortMode,
+      participantSortMode === "certification" ? participantCertificationSortDirection : "desc"
+    ),
+    [dashboard.participantProgress, participantCertificationSortDirection, participantSortMode]
   );
   const latestWeeklyRate = dashboard.weekTrend.at(-1)?.averageRate || 0;
   const latestDailyRate = dashboard.dayTrend.at(-1)?.rate || 0;
@@ -884,6 +893,25 @@ export function DashboardClient({
                       </button>
                     ))}
                   </div>
+                  {participantSortMode === "certification" && (
+                    <div className="flex rounded-full bg-oriwan-surface-light p-1 ring-1 ring-slate-950/5">
+                      {CERTIFICATION_SORT_DIRECTION_OPTIONS.map((option) => (
+                        <button
+                          key={option.key}
+                          type="button"
+                          onClick={() => setParticipantCertificationSortDirection(option.key)}
+                          aria-pressed={participantCertificationSortDirection === option.key}
+                          className={`rounded-full px-3 py-1.5 text-[11px] font-black transition ${
+                            participantCertificationSortDirection === option.key
+                              ? "bg-lime-300 text-slate-950 shadow-sm"
+                              : "text-oriwan-text-muted hover:text-oriwan-text"
+                          }`}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                   <span className="inline-flex shrink-0 rounded-full bg-lime-300 px-3 py-1 text-[11px] font-black text-slate-950 shadow-sm shadow-lime-300/30">
                     {isInitialDashboardLoading ? "멤버 불러오는 중" : `멤버 ${dashboard.participants.length}명`}
                   </span>
