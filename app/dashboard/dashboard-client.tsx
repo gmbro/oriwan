@@ -359,6 +359,7 @@ type MascotCoachMessage = {
 type MascotCoachInput = {
   participantId: string;
   participantName: string;
+  pictogramIndex: number;
   rate: number;
   certifiedDays: number;
   currentStreak: number;
@@ -381,7 +382,7 @@ function mascotCoachHash(value: string) {
 
 function pickMascotCoachText(input: MascotCoachInput, salt: string, templates: string[]) {
   const displayName = `${input.participantName}님`;
-  const index = mascotCoachHash(`${input.participantId}:${input.participantName}:${salt}`) % templates.length;
+  const index = (mascotCoachHash(`${input.participantId}:${input.participantName}:${salt}`) + input.pictogramIndex) % templates.length;
   return templates[index].replaceAll("{name}", displayName);
 }
 
@@ -1013,6 +1014,7 @@ export function DashboardClient({
   const selectedMascotCoachMessages = selectedParticipant ? makeMascotCoachMessages({
     participantId: selectedParticipant.participant.id,
     participantName: selectedParticipant.participant.name,
+    pictogramIndex: selectedParticipant.pictogramIndex,
     rate: selectedParticipant.rate,
     certifiedDays: selectedParticipant.certifiedDays,
     currentStreak: selectedParticipant.currentStreak,
