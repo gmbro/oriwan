@@ -354,6 +354,7 @@ function FullHouseFireworks() {
 
 type MascotCoachMessage = {
   text: string;
+  priority?: "daily";
 };
 
 type MascotCoachInput = {
@@ -400,22 +401,97 @@ function pickMascotCoachText(input: MascotCoachInput, salt: string, templates: s
 function rotateMascotCoachMessages(input: MascotCoachInput, messages: MascotCoachMessage[]) {
   if (messages.length <= 1) return messages;
 
-  const flowSeed = mascotCoachHash([
-    input.participantId,
-    input.currentCertificationDate,
-    input.todayCertified ? "done" : "open",
-    input.currentStreak,
-    input.certifiedDays,
-    input.missedDays,
-    input.recoveryUsageCount,
-  ].join(":")) + input.pictogramIndex;
-  const startIndex = flowSeed % messages.length;
+  const rotate = (items: MascotCoachMessage[], salt: string) => {
+    if (items.length <= 1) return items;
+    const flowSeed = mascotCoachHash([
+      input.participantId,
+      input.currentCertificationDate,
+      input.todayCertified ? "done" : "open",
+      input.currentStreak,
+      input.certifiedDays,
+      input.missedDays,
+      input.recoveryUsageCount,
+      salt,
+    ].join(":")) + input.pictogramIndex;
+    const startIndex = flowSeed % items.length;
 
-  return [...messages.slice(startIndex), ...messages.slice(0, startIndex)];
+    return [...items.slice(startIndex), ...items.slice(0, startIndex)];
+  };
+  const dailyMessages = messages.filter((message) => message.priority === "daily");
+  const regularMessages = messages.filter((message) => message.priority !== "daily");
+
+  return [
+    ...rotate(dailyMessages, "daily"),
+    ...rotate(regularMessages, "regular"),
+  ];
 }
 
 function makeMascotCoachMessages(input: MascotCoachInput) {
   const messages: MascotCoachMessage[] = [];
+
+  if (input.todayCertified) {
+    messages.push({
+      priority: "daily",
+      text: pickMascotCoachText(input, "today-done", [
+        "{name}, 오늘 인증까지 잘 채웠어요. 몸이 기억할 만큼 좋은 흐름이에요.",
+        "{name}, 오늘 칸이 예쁘게 채워졌어요. 스스로에게 다정하게 칭찬해줘도 좋아요.",
+        "{name}, 오늘도 해냈어요. 작은 성실함이 아주 잘 쌓이고 있어요.",
+        "{name}, 오늘 기록까지 확인됐어요. 컨디션 관리도 함께 잘 챙겨주세요.",
+      ]),
+    });
+  } else {
+    messages.push({
+      priority: "daily",
+      text: pickMascotCoachText(input, "today-empty", [
+        "{name}, 오늘은 아직 비어 있어요. 컨디션을 먼저 보고 가능한 만큼만 움직여요.",
+        "{name}, 아직 오늘 칸이 기다리고 있어요. 무리 없는 거리로 부드럽게 시작해요.",
+        "{name}, 오늘 기록은 천천히 채워도 괜찮아요. 몸 상태를 먼저 살펴주세요.",
+        "{name}, 가능하다면 가볍게 한 번 움직여봐요. 작은 인증도 흐름을 지켜줘요.",
+      ]),
+    });
+  }
+
+  if (input.todayCertified && input.currentStreak <= 1 && input.certifiedDays > 1) {
+    messages.push({
+      priority: "daily",
+      text: pickMascotCoachText(input, "daily-comeback", [
+        "{name}, 오늘 인증으로 흐름을 다시 붙였어요. 다시 시작한 하루가 아주 좋아요.",
+        "{name}, 오늘 칸을 채우면서 다시 리듬이 열렸어요. 부담 없이 이어가면 돼요.",
+        "{name}, 오늘 인증이 좋은 재시작점이 됐어요. 차분하게 다음 하루로 넘겨봐요.",
+        "{name}, 끊겼던 흐름도 오늘 다시 이어졌어요. 다시 돌아온 힘이 충분히 좋아요.",
+      ]),
+    });
+  } else if (input.todayCertified && input.currentStreak >= 2) {
+    messages.push({
+      priority: "daily",
+      text: pickMascotCoachText(input, "daily-streak", [
+        "{name}, 오늘 인증으로 연속 흐름이 이어졌어요. 지금 페이스를 편안히 지켜봐요.",
+        "{name}, 오늘도 흐름을 놓치지 않았어요. 몸이 지치지 않게 부드럽게 이어가요.",
+        "{name}, 연속 인증에 오늘 기록이 하나 더 쌓였어요. 안정적인 리듬이에요.",
+        "{name}, 오늘까지 잘 이어졌어요. 이런 차분한 반복이 오래 가는 힘이 돼요.",
+      ]),
+    });
+  } else if (!input.todayCertified && input.currentStreak === 0 && input.certifiedDays > 0) {
+    messages.push({
+      priority: "daily",
+      text: pickMascotCoachText(input, "daily-pending-reset", [
+        "{name}, 오늘은 아직 흐름이 비어 있어요. 가볍게라도 채우면 다시 리듬이 살아나요.",
+        "{name}, 오늘 칸이 기다리고 있어요. 짧고 편한 러닝으로 다시 이어붙여도 좋아요.",
+        "{name}, 아직 늦지 않았어요. 오늘 가능한 만큼만 움직여도 흐름을 되살릴 수 있어요.",
+        "{name}, 오늘은 부담을 낮춰도 괜찮아요. 인증 한 칸이 다시 출발점이 될 수 있어요.",
+      ]),
+    });
+  } else if (!input.todayCertified && input.currentStreak > 0) {
+    messages.push({
+      priority: "daily",
+      text: pickMascotCoachText(input, "daily-pending-streak", [
+        "{name}, 이어온 흐름이 있어요. 오늘도 무리 없는 인증으로 그 리듬을 지켜봐요.",
+        "{name}, 지금까지의 연속 흐름이 좋아요. 오늘 칸도 편안하게 채워보면 좋겠어요.",
+        "{name}, 좋은 리듬이 이어지고 있어요. 오늘은 몸 상태에 맞춰 부드럽게 가요.",
+        "{name}, 오늘 인증만 더해지면 흐름이 계속 살아나요. 천천히 준비해도 괜찮아요.",
+      ]),
+    });
+  }
 
   if (input.rate >= 100) {
     messages.push({
@@ -478,64 +554,6 @@ function makeMascotCoachMessages(input: MascotCoachInput) {
         "{name}, 오늘은 부담 없이 몸을 움직여보는 날로 잡아도 좋아요.",
         "{name}, 시작은 크게 하지 않아도 괜찮아요. 편안한 첫 걸음이면 충분해요.",
         "{name}, 아직 늦지 않았어요. 작게 시작해서 내 리듬을 천천히 찾아봐요.",
-      ]),
-    });
-  }
-
-  if (input.todayCertified) {
-    messages.push({
-      text: pickMascotCoachText(input, "today-done", [
-        "{name}, 오늘 인증까지 잘 채웠어요. 몸이 기억할 만큼 좋은 흐름이에요.",
-        "{name}, 오늘 칸이 예쁘게 채워졌어요. 스스로에게 다정하게 칭찬해줘도 좋아요.",
-        "{name}, 오늘도 해냈어요. 작은 성실함이 아주 잘 쌓이고 있어요.",
-        "{name}, 오늘 기록까지 확인됐어요. 컨디션 관리도 함께 잘 챙겨주세요.",
-      ]),
-    });
-  } else {
-    messages.push({
-      text: pickMascotCoachText(input, "today-empty", [
-        "{name}, 오늘은 아직 비어 있어요. 컨디션을 먼저 보고 가능한 만큼만 움직여요.",
-        "{name}, 아직 오늘 칸이 기다리고 있어요. 무리 없는 거리로 부드럽게 시작해요.",
-        "{name}, 오늘 기록은 천천히 채워도 괜찮아요. 몸 상태를 먼저 살펴주세요.",
-        "{name}, 가능하다면 가볍게 한 번 움직여봐요. 작은 인증도 흐름을 지켜줘요.",
-      ]),
-    });
-  }
-
-  if (input.todayCertified && input.currentStreak <= 1 && input.certifiedDays > 1) {
-    messages.push({
-      text: pickMascotCoachText(input, "daily-comeback", [
-        "{name}, 오늘 인증으로 흐름을 다시 붙였어요. 다시 시작한 하루가 아주 좋아요.",
-        "{name}, 오늘 칸을 채우면서 다시 리듬이 열렸어요. 부담 없이 이어가면 돼요.",
-        "{name}, 오늘 인증이 좋은 재시작점이 됐어요. 차분하게 다음 하루로 넘겨봐요.",
-        "{name}, 끊겼던 흐름도 오늘 다시 이어졌어요. 다시 돌아온 힘이 충분히 좋아요.",
-      ]),
-    });
-  } else if (input.todayCertified && input.currentStreak >= 2) {
-    messages.push({
-      text: pickMascotCoachText(input, "daily-streak", [
-        "{name}, 오늘 인증으로 연속 흐름이 이어졌어요. 지금 페이스를 편안히 지켜봐요.",
-        "{name}, 오늘도 흐름을 놓치지 않았어요. 몸이 지치지 않게 부드럽게 이어가요.",
-        "{name}, 연속 인증에 오늘 기록이 하나 더 쌓였어요. 안정적인 리듬이에요.",
-        "{name}, 오늘까지 잘 이어졌어요. 이런 차분한 반복이 오래 가는 힘이 돼요.",
-      ]),
-    });
-  } else if (!input.todayCertified && input.currentStreak === 0 && input.certifiedDays > 0) {
-    messages.push({
-      text: pickMascotCoachText(input, "daily-pending-reset", [
-        "{name}, 오늘은 아직 흐름이 비어 있어요. 가볍게라도 채우면 다시 리듬이 살아나요.",
-        "{name}, 오늘 칸이 기다리고 있어요. 짧고 편한 러닝으로 다시 이어붙여도 좋아요.",
-        "{name}, 아직 늦지 않았어요. 오늘 가능한 만큼만 움직여도 흐름을 되살릴 수 있어요.",
-        "{name}, 오늘은 부담을 낮춰도 괜찮아요. 인증 한 칸이 다시 출발점이 될 수 있어요.",
-      ]),
-    });
-  } else if (!input.todayCertified && input.currentStreak > 0) {
-    messages.push({
-      text: pickMascotCoachText(input, "daily-pending-streak", [
-        "{name}, 이어온 흐름이 있어요. 오늘도 무리 없는 인증으로 그 리듬을 지켜봐요.",
-        "{name}, 지금까지의 연속 흐름이 좋아요. 오늘 칸도 편안하게 채워보면 좋겠어요.",
-        "{name}, 좋은 리듬이 이어지고 있어요. 오늘은 몸 상태에 맞춰 부드럽게 가요.",
-        "{name}, 오늘 인증만 더해지면 흐름이 계속 살아나요. 천천히 준비해도 괜찮아요.",
       ]),
     });
   }
