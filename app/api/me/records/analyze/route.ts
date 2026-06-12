@@ -290,7 +290,7 @@ export async function POST(request: NextRequest) {
           excludeRecordId: existingRecord?.id || null,
         });
         if (recoveryUsageCount >= RECOVERY_CERTIFICATION_LIMIT) {
-          failed.push({ file_name: image.name, error: `리커버리 인증 ${RECOVERY_CERTIFICATION_LIMIT}회를 이미 사용했어요.`, extracted });
+          failed.push({ file_name: image.name, error: `${RECOVERY_CERTIFICATION_NOTE} ${RECOVERY_CERTIFICATION_LIMIT}회를 이미 사용했어요.`, extracted });
           continue;
         }
       }

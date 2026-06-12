@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { IconCalendar, IconCheck, IconRun, IconSync, IconTarget, IconTrash, IconX } from "@/components/icons";
 import { buildMemberPictogramMap, MemberPictogram } from "@/components/member-pictogram";
-import { RecoveryBadgeStrip } from "@/components/recovery-badge-strip";
+import { RecoveryShieldStrip } from "@/components/recovery-shield-strip";
 import { ACTUAL_CERTIFICATION_START_DATE, CHALLENGE_DAYS, CHALLENGE_START_DATE, clampToChallengeWindow } from "@/lib/challenge";
 import { imageFileToOptimizedDataUrl } from "@/lib/image-client";
 import { PARTICIPANT_RANK_SORT_OPTIONS, type ParticipantRankSortMode, sortParticipantRanks } from "@/lib/participant-ranking";
@@ -479,6 +479,9 @@ export default function AdminPage() {
     () => participants.find((participant) => participant.id === selectedRecordsParticipantId) || null,
     [participants, selectedRecordsParticipantId]
   );
+  const selectedRecordsParticipantRecoveryUsageCount = useMemo(() => (
+    participantProgress.find((row) => row.participant.id === selectedRecordsParticipantId)?.recoveryUsageCount || 0
+  ), [participantProgress, selectedRecordsParticipantId]);
 
   const selectedParticipantRecords = useMemo(() => (
     records
@@ -1207,7 +1210,6 @@ export default function AdminPage() {
                             <span className="text-[8px] font-extrabold text-oriwan-text-muted">시간</span>
                             {secondsToTime(row.durationSeconds)}
                           </span>
-                          <RecoveryBadgeStrip usedCount={row.recoveryUsageCount} />
                         </div>
                       </div>
                     </div>
@@ -1457,6 +1459,7 @@ export default function AdminPage() {
                     <h2 className="truncate text-2xl font-black leading-tight text-oriwan-text">
                       {selectedRecordsParticipant.name}
                     </h2>
+                    <RecoveryShieldStrip usedCount={selectedRecordsParticipantRecoveryUsageCount} className="mt-1" />
                   </div>
                 </div>
                 <button

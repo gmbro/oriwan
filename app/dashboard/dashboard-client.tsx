@@ -6,7 +6,7 @@ import type { CSSProperties } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { IconCalendar, IconDna, IconDroplet, IconFlame, IconHeart, IconMountain, IconMuscle, IconRun, IconSprout, IconSync, IconTarget, IconX } from "@/components/icons";
 import { buildMemberPictogramMap, MemberPictogram } from "@/components/member-pictogram";
-import { RecoveryBadgeStrip } from "@/components/recovery-badge-strip";
+import { RecoveryShieldStrip } from "@/components/recovery-shield-strip";
 import { ACTUAL_CERTIFICATION_START_DATE, CERTIFICATION_DISPLAY_START_DATE, CHALLENGE_DAYS } from "@/lib/challenge";
 import {
   getBestWeekdayMorningProgress,
@@ -931,7 +931,6 @@ export function DashboardClient({
                             <span className="text-[8px] font-extrabold text-oriwan-text-muted">총시간</span>
                             {secondsToTime(row.durationSeconds)}
                           </span>
-                          <RecoveryBadgeStrip usedCount={row.recoveryUsageCount} />
                         </div>
                         <div className="mt-2 h-2 overflow-hidden rounded-full bg-oriwan-surface-light">
                           <div
@@ -1021,7 +1020,7 @@ export function DashboardClient({
                 <div className="mt-2 flex min-w-0 items-center gap-2">
                   <MemberPictogram index={selectedParticipant.pictogramIndex} participantName={selectedParticipant.participant.name} size="lg" />
                   <h3 className="min-w-0 truncate text-2xl font-black leading-tight text-oriwan-text">{selectedParticipant.participant.name}</h3>
-                  <RecoveryBadgeStrip usedCount={selectedParticipant.recoveryUsageCount} />
+                  <RecoveryShieldStrip usedCount={selectedParticipant.recoveryUsageCount} />
                 </div>
                 {selectedParticipant.participant.nickname && (
                   <p className="mt-3 w-full whitespace-pre-line break-keep rounded-2xl bg-oriwan-surface-light px-4 py-3 text-sm font-bold leading-6 text-oriwan-text">

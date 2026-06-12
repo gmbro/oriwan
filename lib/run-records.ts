@@ -1,6 +1,7 @@
 export type RecordStatus = "certified" | "needs_review" | "missing" | "rejected";
 
-export const RECOVERY_CERTIFICATION_NOTE = "리커버리 인증";
+export const RECOVERY_CERTIFICATION_NOTE = "리커버리 쉴드";
+export const RECOVERY_CERTIFICATION_LEGACY_NOTE = "리커버리 인증";
 export const RECOVERY_CERTIFICATION_SOURCE = "recovery_certification";
 export const RECOVERY_CERTIFICATION_DISTANCE_KM = 3;
 export const RECOVERY_CERTIFICATION_DURATION_SECONDS = 20 * 60;
@@ -16,7 +17,11 @@ function normalizeRecoveryText(value: unknown) {
 
 export function hasRecoveryCertificationText(value: unknown) {
   const normalized = normalizeRecoveryText(value);
-  return normalized.includes("리커버리인증") || normalized.includes(RECOVERY_CERTIFICATION_SOURCE);
+  return (
+    normalized.includes(normalizeRecoveryText(RECOVERY_CERTIFICATION_NOTE)) ||
+    normalized.includes(normalizeRecoveryText(RECOVERY_CERTIFICATION_LEGACY_NOTE)) ||
+    normalized.includes(RECOVERY_CERTIFICATION_SOURCE)
+  );
 }
 
 export function isRecoveryCertificationFlag(value: unknown) {

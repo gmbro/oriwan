@@ -491,7 +491,7 @@ export async function POST(request: NextRequest) {
         });
         if (recoveryUsageCount >= RECOVERY_CERTIFICATION_LIMIT) {
           status = "needs_review";
-          recoveryLimitNote = `리커버리 인증 ${RECOVERY_CERTIFICATION_LIMIT}회를 이미 사용했어요.`;
+          recoveryLimitNote = `${RECOVERY_CERTIFICATION_NOTE} ${RECOVERY_CERTIFICATION_LIMIT}회를 이미 사용했어요.`;
         }
       }
 
