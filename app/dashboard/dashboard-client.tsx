@@ -352,6 +352,161 @@ function FullHouseFireworks() {
   );
 }
 
+type MascotCoachMessage = {
+  text: string;
+  quote: string;
+};
+
+type MascotCoachInput = {
+  rate: number;
+  certifiedDays: number;
+  currentStreak: number;
+  longestStreak: number;
+  recoveryUsageCount: number;
+  todayCertified: boolean;
+  missedDays: number;
+  remainingDays: number;
+};
+
+const DEFAULT_MASCOT_COACH_MESSAGE: MascotCoachMessage = {
+  text: "오늘의 몸 상태를 먼저 살피고, 가능한 만큼만 부드럽게 이어가요.",
+  quote: "꾸준함은 나를 다그치는 힘보다 나를 돌보는 힘에 더 가깝습니다.",
+};
+
+function makeMascotCoachMessages(input: MascotCoachInput) {
+  const messages: MascotCoachMessage[] = [];
+
+  if (input.rate >= 100) {
+    messages.push({
+      text: "끝까지 해낸 기록이에요. 빠르기보다 오래 지켜낸 마음이 정말 멋져요.",
+      quote: "완주는 속도가 아니라 멈추지 않은 마음의 결과입니다.",
+    });
+  } else if (input.rate >= 90) {
+    messages.push({
+      text: "마지막 구간까지 아주 가까이 왔어요. 오늘은 몸을 아끼며 차분히 마무리해요.",
+      quote: "끝에 가까울수록 더 다정한 페이스가 필요합니다.",
+    });
+  } else if (input.rate >= 70) {
+    messages.push({
+      text: "꾸준함이 눈에 보이는 구간이에요. 지금 리듬을 편안하게 지켜가요.",
+      quote: "잘 쌓인 하루들은 조용히 자신감을 만들어줍니다.",
+    });
+  } else if (input.rate >= 50) {
+    messages.push({
+      text: "절반을 넘긴 힘이 이미 안에 있어요. 오늘도 비교보다 내 호흡에 맞춰가요.",
+      quote: "오래 가는 사람은 자기 속도를 존중하는 사람입니다.",
+    });
+  } else if (input.rate >= 30) {
+    messages.push({
+      text: "조금씩 리듬이 돌아오고 있어요. 완벽하지 않아도 이어가는 쪽이 더 강해요.",
+      quote: "작은 반복은 결국 나를 믿는 근거가 됩니다.",
+    });
+  } else if (input.certifiedDays > 0) {
+    messages.push({
+      text: "괜찮아요. 다시 시작하기에 늦은 날은 없어요. 오늘 한 칸만 부드럽게 채워봐요.",
+      quote: "가장 작은 시작도 방향을 바꿀 수 있습니다.",
+    });
+  } else {
+    messages.push({
+      text: "첫 칸은 언제나 가장 조용하지만 가장 중요해요. 가볍게 시작해도 충분해요.",
+      quote: "시작은 크게 보이지 않아도 흐름을 여는 문입니다.",
+    });
+  }
+
+  if (input.todayCertified) {
+    messages.push({
+      text: "오늘 인증까지 잘 채웠어요. 몸이 기억할 만큼 충분히 좋은 흐름이에요.",
+      quote: "오늘의 한 칸은 내일의 부담을 조금 덜어줍니다.",
+    });
+  } else {
+    messages.push({
+      text: "오늘은 아직 비어 있어요. 컨디션을 먼저 보고, 가능한 만큼만 천천히 움직여요.",
+      quote: "좋은 기록은 몸을 이긴 날보다 몸을 들은 날에 더 오래 남습니다.",
+    });
+  }
+
+  if (input.currentStreak >= 10) {
+    messages.push({
+      text: "연속 인증이 단단하게 이어지고 있어요. 지금은 무리보다 회복을 섞는 지혜가 좋아요.",
+      quote: "강한 습관은 쉬어야 할 때도 알고 있습니다.",
+    });
+  } else if (input.currentStreak >= 5) {
+    messages.push({
+      text: "며칠째 흐름이 이어지고 있어요. 아주 잘하고 있으니 오늘도 편안히 지켜봐요.",
+      quote: "반복은 작아 보여도 마음의 근육을 키웁니다.",
+    });
+  } else if (input.longestStreak >= 7) {
+    messages.push({
+      text: "이미 길게 이어본 힘이 있어요. 다시 리듬을 찾을 수 있는 사람이라는 증거예요.",
+      quote: "한 번 만든 길은 다시 걸을 때 조금 더 익숙합니다.",
+    });
+  }
+
+  if (input.recoveryUsageCount >= 3) {
+    messages.push({
+      text: "회복이 필요한 순간들을 잘 골라냈어요. 쉬는 선택도 챌린지를 지키는 방식이에요.",
+      quote: "몸을 돌보는 사람만이 오래 달릴 수 있습니다.",
+    });
+  } else if (input.recoveryUsageCount > 0) {
+    messages.push({
+      text: "리커버리 쉴드를 쓴 날도 잘 지킨 날이에요. 안전하게 이어가는 선택이 좋아요.",
+      quote: "멈춤은 포기가 아니라 다음 걸음을 위한 준비가 될 수 있습니다.",
+    });
+  }
+
+  if (input.missedDays >= 10) {
+    messages.push({
+      text: "빈칸이 있어도 괜찮아요. 기록은 혼내기보다 돌아올 길을 보여주려고 있어요.",
+      quote: "다시 돌아온 하루가 지난 빈칸보다 더 큰 의미를 가집니다.",
+    });
+  } else if (input.missedDays > 0) {
+    messages.push({
+      text: "몇 칸 비어 있어도 지금 채우는 한 칸이 제일 중요해요. 충분히 다시 이어갈 수 있어요.",
+      quote: "꾸준함은 빈칸이 없는 상태가 아니라 다시 이어가는 태도입니다.",
+    });
+  }
+
+  if (input.remainingDays <= 10 && input.remainingDays > 0) {
+    messages.push({
+      text: "남은 날이 많지 않아요. 마지막까지 부드럽고 안전한 페이스로 함께 가요.",
+      quote: "마무리는 더 세게가 아니라 더 오래 웃을 수 있게 하는 일입니다.",
+    });
+  }
+
+  return messages;
+}
+
+function MascotCoachButton({
+  pictogramIndex,
+  participantName,
+  onNext,
+}: {
+  pictogramIndex: number;
+  participantName: string;
+  onNext: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onNext}
+      className="mascot-coach-button"
+      aria-label={`${participantName} 응원 멘트 바꾸기`}
+      title="응원 멘트 바꾸기"
+    >
+      <MemberPictogram index={pictogramIndex} participantName={participantName} size="lg" />
+    </button>
+  );
+}
+
+function MascotCoachBubble({ message }: { message: MascotCoachMessage }) {
+  return (
+    <div className="mascot-coach-bubble" role="status" aria-live="polite">
+      <p className="text-[12px] font-black leading-5 text-oriwan-text sm:text-[13px]">{message.text}</p>
+      <p className="mt-1 text-[11px] font-bold leading-5 text-oriwan-text-muted sm:text-xs">{message.quote}</p>
+    </div>
+  );
+}
+
 type OnePlusOneEvent = {
   milestoneDay: number;
   timing: "today" | "tomorrow";
@@ -480,6 +635,7 @@ export function DashboardClient({
   const [showFullHouseFireworks, setShowFullHouseFireworks] = useState(false);
   const [participantSortMode, setParticipantSortMode] = useState<ParticipantRankSortMode>("certification");
   const [participantCertificationSortDirection, setParticipantCertificationSortDirection] = useState<ParticipantRankSortDirection>("desc");
+  const [mascotCoachMessageIndex, setMascotCoachMessageIndex] = useState(0);
   const [storedGrowthBadges, setStoredGrowthBadges] = useState<StoredGrowthBadges>({});
   const loadingRef = useRef(false);
   const lastLoadedAtRef = useRef(initialData ? Date.now() : 0);
@@ -780,6 +936,22 @@ export function DashboardClient({
       .map((record) => [record.record_date as string, record])
   );
   const selectedDailyRecord = selectedDailyRecordDate ? selectedRecordByDate.get(selectedDailyRecordDate) : null;
+  const selectedTodayCertified = selectedParticipant ? selectedStampedDates.has(dashboard.currentCertificationDate) : false;
+  const selectedMissedDays = selectedParticipant ? Math.max(dashboard.elapsedDays.length - selectedParticipant.certifiedDays, 0) : 0;
+  const selectedRemainingDays = selectedParticipant ? Math.max(CHALLENGE_DAYS - selectedParticipant.certifiedDays, 0) : 0;
+  const selectedMascotCoachMessages = selectedParticipant ? makeMascotCoachMessages({
+    rate: selectedParticipant.rate,
+    certifiedDays: selectedParticipant.certifiedDays,
+    currentStreak: selectedParticipant.currentStreak,
+    longestStreak: selectedParticipant.longestStreak,
+    recoveryUsageCount: selectedParticipant.recoveryUsageCount,
+    todayCertified: selectedTodayCertified,
+    missedDays: selectedMissedDays,
+    remainingDays: selectedRemainingDays,
+  }) : [DEFAULT_MASCOT_COACH_MESSAGE];
+  const selectedMascotCoachMessage = selectedMascotCoachMessages.length
+    ? selectedMascotCoachMessages[mascotCoachMessageIndex % selectedMascotCoachMessages.length] ?? DEFAULT_MASCOT_COACH_MESSAGE
+    : DEFAULT_MASCOT_COACH_MESSAGE;
   const persistedGrowthBadgeKeysByParticipant = useMemo(() => {
     const badgeKeysByParticipant = new Map<string, Set<string>>();
     const add = (participantId: string | null | undefined, badgeKey: string | null | undefined) => {
@@ -819,6 +991,11 @@ export function DashboardClient({
   }) : [];
   const unlockedSelectedBadgeCount = selectedPersonalGrowthBadges.filter((badge) => badge.unlocked).length;
   const remainingSeasonDays = Math.max(CHALLENGE_DAYS - dashboard.elapsedDays.length, 0);
+
+  useEffect(() => {
+    setMascotCoachMessageIndex(0);
+  }, [selectedParticipantId]);
+
   const trendItems = trendModal === "weekly"
     ? dashboard.weekTrend.map((week) => ({
       label: week.label,
@@ -1125,10 +1302,22 @@ export function DashboardClient({
                     <IconX size={18} />
                   </button>
                 </div>
-                <div className="mt-2 flex min-w-0 items-center gap-2">
-                  <MemberPictogram index={selectedParticipant.pictogramIndex} participantName={selectedParticipant.participant.name} size="lg" />
-                  <h3 className="min-w-0 truncate text-2xl font-black leading-tight text-oriwan-text">{selectedParticipant.participant.name}</h3>
-                  <RecoveryShieldStrip usedCount={selectedParticipant.recoveryUsageCount} />
+                <div className="mt-2 grid gap-2">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <MascotCoachButton
+                      pictogramIndex={selectedParticipant.pictogramIndex}
+                      participantName={selectedParticipant.participant.name}
+                      onNext={() => setMascotCoachMessageIndex((current) => current + 1)}
+                    />
+                    <div className="flex min-w-0 flex-wrap items-center gap-2">
+                      <h3 className="min-w-0 truncate text-2xl font-black leading-tight text-oriwan-text">{selectedParticipant.participant.name}</h3>
+                      <RecoveryShieldStrip usedCount={selectedParticipant.recoveryUsageCount} />
+                    </div>
+                  </div>
+                  <MascotCoachBubble
+                    key={`${selectedParticipant.participant.id}-${mascotCoachMessageIndex}`}
+                    message={selectedMascotCoachMessage}
+                  />
                 </div>
                 {selectedParticipant.participant.nickname && (
                   <p className="mt-3 w-full whitespace-pre-line break-keep rounded-2xl bg-oriwan-surface-light px-4 py-3 text-sm font-bold leading-6 text-oriwan-text">

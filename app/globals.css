@@ -367,6 +367,21 @@ img { -webkit-user-drag: none; user-select: none; }
   }
 }
 
+@keyframes mascot-coach-float {
+  0%, 100% { transform: translateY(0) rotate(-1.5deg) scale(1); }
+  50% { transform: translateY(-4px) rotate(1.5deg) scale(1.02); }
+}
+
+@keyframes mascot-coach-ring {
+  0%, 100% { opacity: 0.28; transform: scale(0.92); }
+  50% { opacity: 0.6; transform: scale(1.08); }
+}
+
+@keyframes mascot-coach-bubble-in {
+  from { opacity: 0; transform: translateY(7px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
 .animate-fade-up { animation: fade-up 0.45s ease-out forwards; }
 .dashboard-card-reveal {
   animation: dashboard-card-reveal 0.48s cubic-bezier(0.2, 0.8, 0.2, 1) both;
@@ -604,11 +619,74 @@ img { -webkit-user-drag: none; user-select: none; }
   height: 8px;
   animation-duration: 0.9s;
 }
+.mascot-coach-button {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  transition: transform 0.2s ease, filter 0.2s ease;
+}
+.mascot-coach-button > span {
+  position: relative;
+  z-index: 1;
+  animation: mascot-coach-float 2.7s ease-in-out infinite;
+  transform-origin: center bottom;
+}
+.mascot-coach-button::after {
+  content: "";
+  position: absolute;
+  inset: 5px;
+  border-radius: 999px;
+  background: rgba(190, 242, 100, 0.34);
+  animation: mascot-coach-ring 2.7s ease-in-out infinite;
+}
+.mascot-coach-button:hover {
+  transform: translateY(-1px) scale(1.03);
+  filter: saturate(1.08);
+}
+.mascot-coach-button:focus-visible {
+  outline: 3px solid rgba(190, 242, 100, 0.75);
+  outline-offset: 3px;
+}
+.mascot-coach-bubble {
+  position: relative;
+  width: 100%;
+  max-width: 34rem;
+  overflow-wrap: anywhere;
+  border-radius: 18px;
+  background: linear-gradient(180deg, #f8fafc 0%, #eef6e7 100%);
+  padding: 10px 12px;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.08);
+  animation: mascot-coach-bubble-in 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.mascot-coach-bubble::before {
+  content: "";
+  position: absolute;
+  left: 22px;
+  top: -6px;
+  width: 12px;
+  height: 12px;
+  background: #f8fafc;
+  transform: rotate(45deg);
+  border-radius: 3px;
+}
+@media (min-width: 640px) {
+  .mascot-coach-bubble {
+    margin-left: 3.5rem;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   .silent-cheer-ripple,
   .silent-cheer-particles,
   .full-house-fireworks {
     display: none;
+  }
+  .mascot-coach-button > span,
+  .mascot-coach-button::after,
+  .mascot-coach-bubble {
+    animation: none !important;
   }
   *, ::before, ::after {
     animation-duration: 0.01ms !important;
