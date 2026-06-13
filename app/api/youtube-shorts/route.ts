@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   getCuratedYoutubeShortTips,
-  isTipCategory,
+  isRecoveryYoutubeTipCategory,
   tipCategoryLabels,
   youtubeThumbnailUrl,
 } from "@/lib/youtube-shorts";
@@ -15,10 +15,13 @@ const SEARCH_SIZE = 50;
 const MAX_SEEN_IDS = 240;
 
 const categoryQueries: Record<TipCategory, string> = {
-  running: "러닝 자세 초보 러너 팁 shorts",
-  stretching: "러닝 전 스트레칭 워밍업 shorts",
+  running: "러닝 후 회복 리커버리 스트레칭 shorts",
+  stretching: "러닝 후 스트레칭 쿨다운 하체 종아리 회복 shorts",
   recovery: "러닝 후 회복 리커버리 스트레칭 shorts",
 };
+
+const recoveryIncludePattern = /러닝\s*후|달리기\s*후|운동\s*후|쿨다운|회복|리커버리|스트레칭|폼롤러|종아리|햄스트링|발목|무릎|하체|피로|근막|마사지/i;
+const recoveryBlockPattern = /러닝\s*전|달리기\s*전|운동\s*전|워밍업|준비운동|드릴|자세교정|착지|페이스/i;
 
 type YoutubeSearchItem = {
   id?: { videoId?: string };
@@ -80,6 +83,11 @@ function sanitizeText(value?: string) {
     .trim();
 }
 
+function isRecoveryRelevantTitle(value: string) {
+  const normalized = value.replace(/\s+/g, " ");
+  return recoveryIncludePattern.test(normalized) && !recoveryBlockPattern.test(normalized);
+}
+
 async function fetchYoutubeShorts(category: TipCategory, limit: number, pageToken: string | null, seenIds: Set<string>) {
   const apiKey = process.env.YOUTUBE_API_KEY || process.env.GOOGLE_YOUTUBE_API_KEY;
   if (!apiKey) return { tips: [] as YoutubeShortTip[], nextPageToken: "" };
@@ -123,6 +131,7 @@ async function fetchYoutubeShorts(category: TipCategory, limit: number, pageToke
       .filter((item) => item.id)
       .filter((item) => item.status?.embeddable !== false)
       .filter((item) => parseIsoDurationSeconds(item.contentDetails?.duration) <= 120)
+      .filter((item) => isRecoveryRelevantTitle(sanitizeText(item.snippet?.title)))
       .map((item): YoutubeShortTip => {
         const id = item.id || "";
         return {
@@ -150,7 +159,7 @@ async function fetchYoutubeShorts(category: TipCategory, limit: number, pageToke
 export async function GET(request: NextRequest) {
   const params = request.nextUrl.searchParams;
   const requestedCategory = params.get("category");
-  const category: TipCategory = isTipCategory(requestedCategory) ? requestedCategory : "running";
+  const category: TipCategory = isRecoveryYoutubeTipCategory(requestedCategory) ? requestedCategory : "recovery";
   const seed = parseSeed(params.get("seed"));
   const limit = parseLimit(params.get("limit"));
   const pageToken = params.get("cursor");

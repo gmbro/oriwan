@@ -7,7 +7,7 @@ import { toKstIsoDate } from "@/lib/run-records";
 import { getCuratedYoutubeShortTips, tipCategoryLabels, youtubeEmbedUrl, youtubeThumbnailUrl, youtubeWatchUrl } from "@/lib/youtube-shorts";
 import type { TipCategory, YoutubeShortTip } from "@/lib/youtube-shorts";
 
-const categoryOptions: TipCategory[] = ["running", "stretching", "recovery"];
+const categoryOptions: TipCategory[] = ["recovery", "stretching"];
 const TIP_LIMIT = 10;
 const SHORTS_SEEN_STORAGE_KEY = "oriwan-youtube-shorts-seen-v2";
 
@@ -66,11 +66,11 @@ function appendUniqueIds(current: string[], nextTips: YoutubeShortTip[]) {
 export function YoutubeShortsSection({ initialDayKey }: { initialDayKey: string }) {
   const seenIdsRef = useRef<Record<TipCategory, string[]>>(makeEmptySeenIds());
   const cursorRef = useRef<Record<TipCategory, string>>(makeEmptyCursors());
-  const [category, setCategory] = useState<TipCategory>("running");
+  const [category, setCategory] = useState<TipCategory>("recovery");
   const [refreshSeed, setRefreshSeed] = useState(0);
   const [dayKey, setDayKey] = useState(initialDayKey);
   const [selectedTip, setSelectedTip] = useState<YoutubeShortTip | null>(null);
-  const [tips, setTips] = useState<YoutubeShortTip[]>(() => getCuratedYoutubeShortTips("running", dateSeed(initialDayKey), TIP_LIMIT));
+  const [tips, setTips] = useState<YoutubeShortTip[]>(() => getCuratedYoutubeShortTips("recovery", dateSeed(initialDayKey), TIP_LIMIT));
   const [loading, setLoading] = useState(false);
   const [brokenThumbnailIds, setBrokenThumbnailIds] = useState<string[]>([]);
 
@@ -157,7 +157,7 @@ export function YoutubeShortsSection({ initialDayKey }: { initialDayKey: string 
     <section className="card mobile-page-card mt-4 overflow-hidden p-4 sm:p-5">
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h3 className="text-lg font-black leading-tight text-oriwan-text">오늘의 러닝상식</h3>
+          <h3 className="text-lg font-black leading-tight text-oriwan-text">러닝 후 리커버리</h3>
         </div>
         <div className="flex min-w-0 items-center gap-2">
           <div className="flex min-w-0 overflow-x-auto rounded-full bg-oriwan-surface-light p-1 ring-1 ring-slate-950/5">
@@ -265,8 +265,8 @@ export function YoutubeShortsSection({ initialDayKey }: { initialDayKey: string 
                 src={youtubeEmbedUrl(selectedTip.id)}
                 title={selectedTip.title}
                 className="h-full w-full"
-                loading="lazy"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                loading="eager"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
                 referrerPolicy="strict-origin-when-cross-origin"
                 allowFullScreen
               />

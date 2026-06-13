@@ -272,6 +272,7 @@ export const youtubeShortTips: YoutubeShortTip[] = [
 ];
 
 const tipCategories: TipCategory[] = ["running", "recovery", "stretching"];
+export const recoveryYoutubeTipCategories: TipCategory[] = ["recovery", "stretching"];
 const blockedYoutubeShortIds = new Set([
   // Removed from YouTube thumbnails; keeping it out prevents repeated 404s.
   "MtTo3e06K3I",
@@ -279,6 +280,10 @@ const blockedYoutubeShortIds = new Set([
 
 export function isTipCategory(value: string | null): value is TipCategory {
   return Boolean(value && tipCategories.includes(value as TipCategory));
+}
+
+export function isRecoveryYoutubeTipCategory(value: string | null): value is TipCategory {
+  return Boolean(value && recoveryYoutubeTipCategories.includes(value as TipCategory));
 }
 
 export function youtubeThumbnailUrl(id: string) {
@@ -304,10 +309,20 @@ export function seededShuffle<T>(items: T[], seed: number) {
   return shuffled;
 }
 
+function isPostRunRecoveryTip(tip: YoutubeShortTip) {
+  if (tip.category === "recovery") return true;
+  if (tip.category !== "stretching") return false;
+
+  const value = `${tip.title} ${tip.tag}`.replace(/\s/g, "");
+  if (/러닝전|달리기전|운동전|워밍업|준비운동|드릴|몸을깨우/.test(value)) return false;
+  return /러닝후|달리기후|운동후|쿨다운|회복|리커버리|피로|풀기|스트레칭|종아리|하체|발목|무릎|전신/.test(value);
+}
+
 export function getCuratedYoutubeShortTips(category: TipCategory, seed = 0, limit = 10) {
   return seededShuffle(
     youtubeShortTips
       .filter((tip) => tip.category === category)
+      .filter(isPostRunRecoveryTip)
       .filter((tip) => !blockedYoutubeShortIds.has(tip.id))
       .map((tip) => ({ ...tip, thumbnailUrl: tip.thumbnailUrl || youtubeThumbnailUrl(tip.id) })),
     seed
@@ -315,7 +330,7 @@ export function getCuratedYoutubeShortTips(category: TipCategory, seed = 0, limi
 }
 
 export function youtubeEmbedUrl(id: string) {
-  return `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&rel=0&modestbranding=1&playsinline=1`;
+  return `https://www.youtube.com/embed/${id}?autoplay=1&playsinline=1&enablejsapi=1&rel=0&modestbranding=1&controls=1&fs=1`;
 }
 
 export function youtubeWatchUrl(id: string) {
