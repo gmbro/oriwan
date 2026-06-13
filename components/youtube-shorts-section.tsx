@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import Image from "next/image";
 import { IconX, IconYoutube } from "@/components/icons";
 import { toKstIsoDate } from "@/lib/run-records";
@@ -66,21 +67,69 @@ function appendUniqueIds(current: string[], nextTips: YoutubeShortTip[]) {
 export function YoutubeShortsSection({ initialDayKey }: { initialDayKey: string }) {
   const seenIdsRef = useRef<Record<TipCategory, string[]>>(makeEmptySeenIds());
   const cursorRef = useRef<Record<TipCategory, string>>(makeEmptyCursors());
+  const playerFrameRef = useRef<HTMLIFrameElement | null>(null);
   const [category, setCategory] = useState<TipCategory>("recovery");
   const [refreshSeed, setRefreshSeed] = useState(0);
   const [dayKey, setDayKey] = useState(initialDayKey);
+  const [mounted, setMounted] = useState(false);
   const [selectedTip, setSelectedTip] = useState<YoutubeShortTip | null>(null);
+  const [shortsPlaying, setShortsPlaying] = useState(false);
   const [tips, setTips] = useState<YoutubeShortTip[]>(() => getCuratedYoutubeShortTips("recovery", dateSeed(initialDayKey), TIP_LIMIT));
   const [loading, setLoading] = useState(false);
   const [brokenThumbnailIds, setBrokenThumbnailIds] = useState<string[]>([]);
 
+  function sendYoutubeCommand(command: "playVideo" | "pauseVideo") {
+    playerFrameRef.current?.contentWindow?.postMessage(
+      JSON.stringify({
+        event: "command",
+        func: command,
+        args: [],
+      }),
+      "https://www.youtube.com",
+    );
+  }
+
+  function openTip(tip: YoutubeShortTip) {
+    setSelectedTip(tip);
+    setShortsPlaying(true);
+  }
+
+  function closeTip() {
+    sendYoutubeCommand("pauseVideo");
+    setShortsPlaying(false);
+    setSelectedTip(null);
+  }
+
+  function togglePlayback() {
+    const nextPlaying = !shortsPlaying;
+    sendYoutubeCommand(nextPlaying ? "playVideo" : "pauseVideo");
+    setShortsPlaying(nextPlaying);
+  }
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   useEffect(() => {
     if (!selectedTip) return;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setSelectedTip(null);
+      if (event.key === "Escape") {
+        sendYoutubeCommand("pauseVideo");
+        setShortsPlaying(false);
+        setSelectedTip(null);
+      }
     };
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
+  }, [selectedTip]);
+
+  useEffect(() => {
+    if (!selectedTip) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
   }, [selectedTip]);
 
   useEffect(() => {
@@ -194,7 +243,7 @@ export function YoutubeShortsSection({ initialDayKey }: { initialDayKey: string 
           <button
             key={tip.id}
             type="button"
-            onClick={() => setSelectedTip(tip)}
+            onClick={() => openTip(tip)}
             className="group min-w-[210px] max-w-[210px] snap-start overflow-hidden rounded-[24px] bg-slate-950 text-left text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-xl hover:shadow-slate-950/10 sm:min-w-[240px] sm:max-w-[240px]"
           >
             <div className="relative aspect-[9/12] overflow-hidden bg-gradient-to-br from-slate-900 via-[#26351d] to-slate-950 p-4">
@@ -236,33 +285,54 @@ export function YoutubeShortsSection({ initialDayKey }: { initialDayKey: string 
         })}
       </div>
 
-      {selectedTip && (
+      {mounted && selectedTip ? createPortal(
         <div
-          className="fixed inset-0 z-[90] flex items-end bg-slate-950/70 px-0 py-0 backdrop-blur-sm sm:items-center sm:justify-center sm:px-4 sm:py-4"
+          className="fixed inset-0 z-[120] flex items-center justify-center overflow-y-auto bg-slate-950/72 px-4 py-4 backdrop-blur-md sm:px-6 sm:py-6"
+          style={{
+            paddingTop: "max(1rem, env(safe-area-inset-top))",
+            paddingBottom: "max(1rem, env(safe-area-inset-bottom))",
+          }}
           role="dialog"
           aria-modal="true"
           aria-label={`${selectedTip.title} 영상 보기`}
-          onClick={() => setSelectedTip(null)}
+          onClick={closeTip}
         >
-          <div className="mobile-sheet w-full max-w-[420px] overflow-hidden bg-[#101522] shadow-2xl sm:rounded-[28px]" onClick={(event) => event.stopPropagation()}>
-            <div className="flex items-center justify-between gap-3 px-4 py-3 text-white">
-              <div className="min-w-0">
+          <div
+            className="w-full max-w-[460px] overflow-hidden rounded-[28px] bg-[#101522] shadow-2xl ring-1 ring-white/10"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-2 px-3 py-3 text-white sm:px-4">
+              <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-black">{selectedTip.title}</p>
                 <p className="truncate text-[11px] font-bold text-white/45">{selectedTip.channel}</p>
               </div>
-              <button
-                type="button"
-                onClick={() => setSelectedTip(null)}
-                className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-full bg-white/10 px-3 text-xs font-black text-white/75 transition hover:bg-white/15 hover:text-white"
-                aria-label="닫기"
-              >
-                <span>닫기</span>
-                <IconX size={16} />
-              </button>
+              <div className="flex shrink-0 items-center gap-2">
+                <button
+                  type="button"
+                  onClick={togglePlayback}
+                  className="inline-flex h-9 items-center justify-center rounded-full bg-lime-300 px-3 text-xs font-black text-slate-950 transition hover:bg-lime-200"
+                  aria-label={shortsPlaying ? "영상 정지" : "영상 재생"}
+                >
+                  {shortsPlaying ? "정지" : "재생"}
+                </button>
+                <button
+                  type="button"
+                  onClick={closeTip}
+                  className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-full bg-white/10 px-3 text-xs font-black text-white/75 transition hover:bg-white/15 hover:text-white"
+                  aria-label="닫기"
+                >
+                  <span>닫기</span>
+                  <IconX size={16} />
+                </button>
+              </div>
             </div>
-            <div className="aspect-[9/16] bg-black">
+            <div
+              className="mx-auto aspect-[9/16] overflow-hidden rounded-[22px] bg-black"
+              style={{ width: "min(100%, 43svh, 430px)" }}
+            >
               <iframe
                 key={selectedTip.id}
+                ref={playerFrameRef}
                 src={youtubeEmbedUrl(selectedTip.id)}
                 title={selectedTip.title}
                 className="h-full w-full"
@@ -281,8 +351,9 @@ export function YoutubeShortsSection({ initialDayKey }: { initialDayKey: string 
               YouTube Shorts로 이어보기
             </a>
           </div>
-        </div>
-      )}
+        </div>,
+        document.body,
+      ) : null}
     </section>
   );
 }
