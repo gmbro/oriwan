@@ -20,6 +20,7 @@ const categoryQueries: Record<TipCategory, string> = {
   recovery: "러닝 후 회복 리커버리 스트레칭 shorts",
 };
 
+const runningContextPattern = /러닝|달리기|마라톤|러너|running|runner|run/i;
 const recoveryIncludePattern = /러닝\s*후|달리기\s*후|운동\s*후|쿨다운|회복|리커버리|스트레칭|폼롤러|종아리|햄스트링|발목|무릎|하체|피로|근막|마사지/i;
 const recoveryBlockPattern = /러닝\s*전|달리기\s*전|운동\s*전|워밍업|준비운동|드릴|자세교정|착지|페이스/i;
 
@@ -85,7 +86,7 @@ function sanitizeText(value?: string) {
 
 function isRecoveryRelevantTitle(value: string) {
   const normalized = value.replace(/\s+/g, " ");
-  return recoveryIncludePattern.test(normalized) && !recoveryBlockPattern.test(normalized);
+  return runningContextPattern.test(normalized) && recoveryIncludePattern.test(normalized) && !recoveryBlockPattern.test(normalized);
 }
 
 async function fetchYoutubeShorts(category: TipCategory, limit: number, pageToken: string | null, seenIds: Set<string>) {
