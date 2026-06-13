@@ -330,7 +330,7 @@ export function getCuratedYoutubeShortTips(category: TipCategory, seed = 0, limi
 }
 
 export function youtubeEmbedUrl(id: string) {
-  return `https://www.youtube.com/embed/${id}?autoplay=1&playsinline=1&enablejsapi=1&rel=0&modestbranding=1&controls=1&fs=1`;
+  return `https://www.youtube.com/embed/${id}?autoplay=1&mute=1&playsinline=1&enablejsapi=1&rel=0&modestbranding=1&controls=1&fs=1`;
 }
 
 export function youtubeWatchUrl(id: string) {

@@ -253,10 +253,11 @@ export function YoutubeShortsSection({ initialDayKey }: { initialDayKey: string 
               <button
                 type="button"
                 onClick={() => setSelectedTip(null)}
-                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 text-white/70 transition hover:text-white"
+                className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-full bg-white/10 px-3 text-xs font-black text-white/75 transition hover:bg-white/15 hover:text-white"
                 aria-label="닫기"
               >
-                <IconX size={17} />
+                <span>닫기</span>
+                <IconX size={16} />
               </button>
             </div>
             <div className="aspect-[9/16] bg-black">
