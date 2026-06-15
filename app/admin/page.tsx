@@ -6,7 +6,7 @@ import Image from "next/image";
 import { IconCalendar, IconCheck, IconRun, IconSync, IconTarget, IconTrash, IconX } from "@/components/icons";
 import { buildMemberPictogramMap, MemberPictogram } from "@/components/member-pictogram";
 import { RecoveryShieldStrip } from "@/components/recovery-shield-strip";
-import { ACTUAL_CERTIFICATION_START_DATE, CHALLENGE_DAYS, CHALLENGE_START_DATE, clampToChallengeWindow } from "@/lib/challenge";
+import { ACTUAL_CERTIFICATION_START_DATE, CHALLENGE_DAYS, CHALLENGE_START_DATE, clampToChallengeWindow, isCertificationParticipant } from "@/lib/challenge";
 import { imageFileToOptimizedDataUrl } from "@/lib/image-client";
 import { PARTICIPANT_RANK_SORT_OPTIONS, type ParticipantRankSortMode, sortParticipantRanks } from "@/lib/participant-ranking";
 import { RECOVERY_CERTIFICATION_NOTE, addDays, formatKstTime, isCertificationCountedStatus, isRecoveryCertificationRecord, parseDurationToSeconds, secondsToTime, toIsoDate, toKstIsoDate } from "@/lib/run-records";
@@ -405,6 +405,11 @@ export default function AdminPage() {
   }, [authorized, loadData, mounted]);
 
   const participantPictogramById = useMemo(() => buildMemberPictogramMap(participants), [participants]);
+  const certificationParticipants = useMemo(() => participants.filter(isCertificationParticipant), [participants]);
+  const certificationParticipantIds = useMemo(
+    () => new Set(certificationParticipants.map((participant) => participant.id)),
+    [certificationParticipants]
+  );
 
   const participantProgress = useMemo(() => {
     const certifiedDaysByParticipant = new Map<string, Set<string>>();
@@ -414,6 +419,7 @@ export default function AdminPage() {
       if (
         !isCertificationCountedStatus(record.status) ||
         !record.participant_id ||
+        !certificationParticipantIds.has(record.participant_id) ||
         !record.record_date ||
         record.record_date < ACTUAL_CERTIFICATION_START_DATE ||
         record.record_date > officialCertificationEndDate
@@ -429,7 +435,7 @@ export default function AdminPage() {
       }
     });
 
-    return participants
+    return certificationParticipants
       .map((participant) => {
         const certifiedDays = certifiedDaysByParticipant.get(participant.id)?.size || 0;
         const rate = Math.min(Math.round((certifiedDays / CHALLENGE_DAYS) * 100), 100);
@@ -449,7 +455,7 @@ export default function AdminPage() {
         b.durationSeconds - a.durationSeconds ||
         a.participant.name.localeCompare(b.participant.name, "ko")
       ));
-  }, [participantPictogramById, participants, records]);
+  }, [certificationParticipantIds, certificationParticipants, participantPictogramById, records]);
   const sortedParticipantProgress = useMemo(
     () => sortParticipantRanks(participantProgress, participantSortMode),
     [participantProgress, participantSortMode]
@@ -461,9 +467,11 @@ export default function AdminPage() {
     let totalDurationSeconds = 0;
 
     records.forEach((record) => {
-      if (record.status === "needs_review") reviewCount += 1;
+      const isCertificationTargetRecord = !record.participant_id || certificationParticipantIds.has(record.participant_id);
+      if (record.status === "needs_review" && isCertificationTargetRecord) reviewCount += 1;
       if (!isCertificationCountedStatus(record.status)) return;
-      if (record.record_date === effectiveToday && record.participant_id) todayCertifiedIds.add(record.participant_id);
+      if (!record.participant_id || !certificationParticipantIds.has(record.participant_id)) return;
+      if (record.record_date === effectiveToday) todayCertifiedIds.add(record.participant_id);
       if (
         record.record_date &&
         record.record_date >= ACTUAL_CERTIFICATION_START_DATE &&
@@ -476,12 +484,12 @@ export default function AdminPage() {
 
     return {
       todayCertifiedCount: todayCertifiedIds.size,
-      todayRate: participants.length ? Math.round((todayCertifiedIds.size / participants.length) * 100) : 0,
+      todayRate: certificationParticipants.length ? Math.round((todayCertifiedIds.size / certificationParticipants.length) * 100) : 0,
       reviewCount,
       totalDistanceKm,
       totalDurationSeconds,
     };
-  }, [participants.length, records]);
+  }, [certificationParticipantIds, certificationParticipants.length, records]);
 
   const todayMissingParticipants = useMemo(() => {
     const todayCertifiedIds = new Set<string>();
@@ -490,18 +498,22 @@ export default function AdminPage() {
       if (
         record.record_date === effectiveToday &&
         record.participant_id &&
+        certificationParticipantIds.has(record.participant_id) &&
         isCertificationCountedStatus(record.status)
       ) {
         todayCertifiedIds.add(record.participant_id);
       }
     });
 
-    return participants.filter((participant) => !todayCertifiedIds.has(participant.id));
-  }, [participants, records]);
+    return certificationParticipants.filter((participant) => !todayCertifiedIds.has(participant.id));
+  }, [certificationParticipantIds, certificationParticipants, records]);
 
   const reviewRecords = useMemo(() => {
     return records
-      .filter((record) => record.status === "needs_review")
+      .filter((record) => (
+        record.status === "needs_review" &&
+        (!record.participant_id || certificationParticipantIds.has(record.participant_id))
+      ))
       .map((record) => ({
         record,
         participantName: record.participants?.name ||
@@ -513,7 +525,7 @@ export default function AdminPage() {
         (b.record.created_at || "").localeCompare(a.record.created_at || "") ||
         b.record.id.localeCompare(a.record.id)
       ));
-  }, [participants, records]);
+  }, [certificationParticipantIds, participants, records]);
 
   const selectedRecordsParticipant = useMemo(
     () => participants.find((participant) => participant.id === selectedRecordsParticipantId) || null,
@@ -1118,7 +1130,7 @@ export default function AdminPage() {
                 <div className="min-w-0">
                   <p className="text-xs font-black text-white/45">오늘 인증</p>
                   <p className="mt-1 text-[clamp(3rem,14vw,5rem)] font-black leading-none text-lime-200">{adminStats.todayRate}%</p>
-                  <p className="mt-2 text-xs font-semibold text-white/55">{adminStats.todayCertifiedCount}/{participants.length}명 인증 완료</p>
+                  <p className="mt-2 text-xs font-semibold text-white/55">{adminStats.todayCertifiedCount}/{certificationParticipants.length}명 인증 완료</p>
                 </div>
                 <div className="grid gap-2 text-right">
                   <span className="rounded-2xl bg-white/10 px-3 py-2 ring-1 ring-white/10">
@@ -1262,7 +1274,7 @@ export default function AdminPage() {
                 <h2 className="mt-1 text-xl font-black leading-tight text-oriwan-text">스내사 크루별 인증게이지</h2>
               </div>
               <span className="inline-flex w-fit shrink-0 rounded-full bg-lime-300 px-3 py-1.5 text-[11px] font-black text-slate-950 shadow-sm shadow-lime-300/30">
-                {isInitialAdminLoading ? "멤버 불러오는 중" : `멤버 ${participants.length}명`}
+                {isInitialAdminLoading ? "멤버 불러오는 중" : `인증 대상 ${certificationParticipants.length}명`}
               </span>
             </div>
             <div className="mt-4 flex overflow-x-auto rounded-full bg-oriwan-surface-light p-1 ring-1 ring-slate-950/5">
