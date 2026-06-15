@@ -9,7 +9,7 @@ import { RecoveryShieldStrip } from "@/components/recovery-shield-strip";
 import { ACTUAL_CERTIFICATION_START_DATE, CHALLENGE_DAYS, CHALLENGE_START_DATE, clampToChallengeWindow } from "@/lib/challenge";
 import { imageFileToOptimizedDataUrl } from "@/lib/image-client";
 import { PARTICIPANT_RANK_SORT_OPTIONS, type ParticipantRankSortMode, sortParticipantRanks } from "@/lib/participant-ranking";
-import { RECOVERY_CERTIFICATION_NOTE, addDays, isCertificationCountedStatus, isRecoveryCertificationRecord, parseDurationToSeconds, secondsToTime, toIsoDate, toKstIsoDate } from "@/lib/run-records";
+import { RECOVERY_CERTIFICATION_NOTE, addDays, formatKstTime, isCertificationCountedStatus, isRecoveryCertificationRecord, parseDurationToSeconds, secondsToTime, toIsoDate, toKstIsoDate } from "@/lib/run-records";
 
 type Participant = {
   id: string;
@@ -35,6 +35,7 @@ type RunRecord = {
   image_url: string | null;
   raw_extracted_text: string | null;
   notes: string | null;
+  created_at: string | null;
   participants?: { id: string; name: string } | null;
 };
 
@@ -202,6 +203,13 @@ function formatFileSize(bytes: number) {
   if (bytes >= 1_000_000) return `${(bytes / 1_000_000).toFixed(1)}MB`;
   if (bytes >= 1_000) return `${Math.round(bytes / 1_000)}KB`;
   return `${bytes}B`;
+}
+
+function formatAdminDate(date: string | null | undefined) {
+  if (!date) return "날짜 미정";
+  const [, month, day] = date.split("-");
+  if (!month || !day) return date;
+  return `${month}.${day}`;
 }
 
 function formatDistanceInput(value: number | null | undefined) {
@@ -474,6 +482,38 @@ export default function AdminPage() {
       totalDurationSeconds,
     };
   }, [participants.length, records]);
+
+  const todayMissingParticipants = useMemo(() => {
+    const todayCertifiedIds = new Set<string>();
+
+    records.forEach((record) => {
+      if (
+        record.record_date === effectiveToday &&
+        record.participant_id &&
+        isCertificationCountedStatus(record.status)
+      ) {
+        todayCertifiedIds.add(record.participant_id);
+      }
+    });
+
+    return participants.filter((participant) => !todayCertifiedIds.has(participant.id));
+  }, [participants, records]);
+
+  const reviewRecords = useMemo(() => {
+    return records
+      .filter((record) => record.status === "needs_review")
+      .map((record) => ({
+        record,
+        participantName: record.participants?.name ||
+          participants.find((participant) => participant.id === record.participant_id)?.name ||
+          "멤버 미지정",
+      }))
+      .sort((a, b) => (
+        (b.record.record_date || "").localeCompare(a.record.record_date || "") ||
+        (b.record.created_at || "").localeCompare(a.record.created_at || "") ||
+        b.record.id.localeCompare(a.record.id)
+      ));
+  }, [participants, records]);
 
   const selectedRecordsParticipant = useMemo(
     () => participants.find((participant) => participant.id === selectedRecordsParticipantId) || null,
@@ -1096,6 +1136,84 @@ export default function AdminPage() {
                 <div className="rounded-2xl bg-white/[0.08] px-3 py-3 ring-1 ring-white/10">
                   <p className="text-[10px] font-black text-white/40">누적 시간</p>
                   <p className="mt-1 text-base font-black text-white">{secondsToTime(adminStats.totalDurationSeconds)}</p>
+                </div>
+              </div>
+
+              <div className="mt-3 grid gap-2 lg:grid-cols-2">
+                <div className="rounded-2xl bg-white/[0.08] p-3 ring-1 ring-white/10">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-[10px] font-black text-white/40">오늘 미인증</p>
+                    <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-black text-white ring-1 ring-white/10">
+                      {todayMissingParticipants.length}
+                    </span>
+                  </div>
+                  <div className="mt-2 max-h-36 overflow-y-auto pr-1">
+                    {todayMissingParticipants.length ? (
+                      <div className="grid gap-1.5">
+                        {todayMissingParticipants.map((participant) => (
+                          <button
+                            key={participant.id}
+                            type="button"
+                            onClick={() => openManualRecordForDate(effectiveToday, participant.id)}
+                            className="flex min-h-10 w-full items-center justify-between gap-2 rounded-xl bg-white/[0.08] px-3 py-2 text-left ring-1 ring-white/10 transition hover:bg-white/[0.13]"
+                          >
+                            <span className="min-w-0 truncate text-sm font-black text-white">{participant.name}</span>
+                            <span className="shrink-0 text-[10px] font-black text-lime-200">{formatAdminDate(effectiveToday)}</span>
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="rounded-xl bg-lime-300/15 px-3 py-3 text-center text-xs font-black text-lime-200 ring-1 ring-lime-300/20">
+                        모두 완료
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl bg-white/[0.08] p-3 ring-1 ring-white/10">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-[10px] font-black text-white/40">검수 대기 상세</p>
+                    <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-black text-white ring-1 ring-white/10">
+                      {reviewRecords.length}
+                    </span>
+                  </div>
+                  <div className="mt-2 max-h-36 overflow-y-auto pr-1">
+                    {reviewRecords.length ? (
+                      <div className="grid gap-1.5">
+                        {reviewRecords.map(({ record, participantName }) => (
+                          <button
+                            key={record.id}
+                            type="button"
+                            onClick={() => {
+                              if (record.participant_id) openParticipantRecords(record.participant_id);
+                            }}
+                            className={`flex min-h-10 w-full items-center justify-between gap-2 rounded-xl bg-white/[0.08] px-3 py-2 text-left ring-1 ring-white/10 transition ${
+                              record.participant_id ? "hover:bg-white/[0.13]" : "cursor-default"
+                            }`}
+                          >
+                            <span className="min-w-0">
+                              <span className="block truncate text-sm font-black text-white">{participantName}</span>
+                              <span className="mt-0.5 block truncate text-[10px] font-semibold text-white/45">
+                                {record.notes || "확인 필요"}
+                              </span>
+                            </span>
+                            <span className="shrink-0 text-right">
+                              <span className="block text-[10px] font-black text-lime-200">{formatAdminDate(record.record_date)}</span>
+                              {record.created_at && (
+                                <span className="mt-0.5 block text-[10px] font-semibold text-white/45">
+                                  등록 {formatKstTime(record.created_at)}
+                                </span>
+                              )}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="rounded-xl bg-lime-300/15 px-3 py-3 text-center text-xs font-black text-lime-200 ring-1 ring-lime-300/20">
+                        대기 없음
+                      </p>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
