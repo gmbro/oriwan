@@ -2,6 +2,7 @@ export type RecordStatus = "certified" | "needs_review" | "missing" | "rejected"
 
 export const RECOVERY_CERTIFICATION_NOTE = "리커버리 쉴드";
 export const RECOVERY_CERTIFICATION_LEGACY_NOTE = "리커버리 인증";
+export const RECOVERY_CERTIFICATION_OVERRIDE_OFF_NOTE = "리커버리 쉴드 제외";
 export const RECOVERY_CERTIFICATION_SOURCE = "recovery_certification";
 export const RECOVERY_CERTIFICATION_DISTANCE_KM = 3;
 export const RECOVERY_CERTIFICATION_DURATION_SECONDS = 20 * 60;
@@ -24,6 +25,10 @@ export function hasRecoveryCertificationText(value: unknown) {
   );
 }
 
+export function hasRecoveryCertificationOverrideOffText(value: unknown) {
+  return normalizeRecoveryText(value).includes(normalizeRecoveryText(RECOVERY_CERTIFICATION_OVERRIDE_OFF_NOTE));
+}
+
 export function isRecoveryCertificationFlag(value: unknown) {
   if (typeof value === "boolean") return value;
   if (typeof value === "number") return value === 1;
@@ -38,6 +43,7 @@ export function isRecoveryCertificationRecord(record: {
   raw_extracted_text?: string | null;
   source_app?: string | null;
 }) {
+  if (hasRecoveryCertificationOverrideOffText(record.notes)) return false;
   if (record.is_recovery_certification) return true;
   return (
     hasRecoveryCertificationText(record.notes) ||

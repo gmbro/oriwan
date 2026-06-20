@@ -9,7 +9,24 @@ import { RecoveryShieldStrip } from "@/components/recovery-shield-strip";
 import { ACTUAL_CERTIFICATION_START_DATE, CHALLENGE_DAYS, CHALLENGE_START_DATE, clampToChallengeWindow, isCertificationParticipant } from "@/lib/challenge";
 import { imageFileToOptimizedDataUrl } from "@/lib/image-client";
 import { PARTICIPANT_RANK_SORT_OPTIONS, type ParticipantRankSortMode, sortParticipantRanks } from "@/lib/participant-ranking";
-import { RECOVERY_CERTIFICATION_NOTE, addDays, formatKstTime, isCertificationCountedStatus, isRecoveryCertificationRecord, parseDurationToSeconds, secondsToTime, toIsoDate, toKstIsoDate } from "@/lib/run-records";
+import {
+  RECOVERY_CERTIFICATION_DISTANCE_KM,
+  RECOVERY_CERTIFICATION_DURATION_SECONDS,
+  RECOVERY_CERTIFICATION_LIMIT,
+  RECOVERY_CERTIFICATION_NOTE,
+  RECOVERY_CERTIFICATION_OVERRIDE_OFF_NOTE,
+  RECOVERY_CERTIFICATION_SOURCE,
+  addDays,
+  formatKstTime,
+  hasRecoveryCertificationOverrideOffText,
+  hasRecoveryCertificationText,
+  isCertificationCountedStatus,
+  isRecoveryCertificationRecord,
+  parseDurationToSeconds,
+  secondsToTime,
+  toIsoDate,
+  toKstIsoDate,
+} from "@/lib/run-records";
 
 type Participant = {
   id: string;
@@ -234,8 +251,41 @@ function nextRecordNotesForStatus(status: RecordStatus, record: {
   source_app?: string | null;
 }) {
   if (status !== "certified") return record.notes ?? null;
+  if (hasRecoveryCertificationOverrideOffText(record.notes)) return record.notes ?? null;
   if (isRecoveryCertificationRecord(record)) return record.notes || RECOVERY_CERTIFICATION_NOTE;
   return null;
+}
+
+function splitRecordNotes(notes: string | null | undefined) {
+  return (notes || "")
+    .split(" / ")
+    .map((note) => note.trim())
+    .filter(Boolean);
+}
+
+function isRecoveryNoteFragment(note: string) {
+  return note === RECOVERY_CERTIFICATION_OVERRIDE_OFF_NOTE || hasRecoveryCertificationText(note);
+}
+
+function formatVisibleRecordNotes(notes: string | null | undefined) {
+  return splitRecordNotes(notes)
+    .filter((note) => note !== RECOVERY_CERTIFICATION_OVERRIDE_OFF_NOTE)
+    .join(" / ");
+}
+
+function nextRecoveryRecordNotes(notes: string | null | undefined, recoveryEnabled: boolean) {
+  const nonRecoveryNotes = splitRecordNotes(notes).filter((note) => !isRecoveryNoteFragment(note));
+  const nextNotes = recoveryEnabled
+    ? [RECOVERY_CERTIFICATION_NOTE, ...nonRecoveryNotes]
+    : [...nonRecoveryNotes, RECOVERY_CERTIFICATION_OVERRIDE_OFF_NOTE];
+
+  return nextNotes.join(" / ") || null;
+}
+
+function nextRecoverySourceApp(sourceApp: string | null | undefined, recoveryEnabled: boolean) {
+  if (recoveryEnabled) return RECOVERY_CERTIFICATION_SOURCE;
+  if (sourceApp === RECOVERY_CERTIFICATION_SOURCE || sourceApp === RECOVERY_CERTIFICATION_NOTE) return null;
+  return sourceApp || null;
 }
 
 function AdminActionButton({
@@ -943,6 +993,73 @@ export default function AdminPage() {
     }
   }, [loadData, recordDrafts]);
 
+  const toggleRecordRecovery = useCallback(async (record: RunRecord, recoveryEnabled: boolean) => {
+    const draft = recordDrafts[record.id] || {
+      distance: formatDistanceInput(record.distance_km),
+      duration: formatDurationInput(record.duration_seconds),
+    };
+    let nextDistance = draft.distance;
+    let nextDurationInput = draft.duration;
+    let durationSeconds = parseDurationToSeconds(nextDurationInput);
+
+    if (recoveryEnabled) {
+      if (!nextDistance.trim()) nextDistance = String(RECOVERY_CERTIFICATION_DISTANCE_KM);
+      if (!durationSeconds) {
+        durationSeconds = RECOVERY_CERTIFICATION_DURATION_SECONDS;
+        nextDurationInput = secondsToTime(RECOVERY_CERTIFICATION_DURATION_SECONDS);
+      }
+    }
+
+    const hasMetric = Boolean(nextDistance.trim() || durationSeconds);
+    const nextStatus: RecordStatus = record.participant_id && record.record_date && hasMetric ? "certified" : "missing";
+    const nextNotes = nextRecoveryRecordNotes(record.notes, recoveryEnabled);
+    const nextSourceApp = nextRecoverySourceApp(record.source_app, recoveryEnabled);
+    const parsedDistance = nextDistance.trim() ? Number(nextDistance) : null;
+    const nextDistanceKm = parsedDistance !== null && Number.isFinite(parsedDistance) ? parsedDistance : null;
+    setUpdatingRecordId(record.id);
+
+    try {
+      const res = await fetch(`/api/records/${record.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          distance_km: nextDistance || null,
+          duration_seconds: durationSeconds,
+          status: nextStatus,
+          source_app: nextSourceApp,
+          notes: nextNotes,
+        }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(typeof json.error === "string" ? json.error : "리커버리 표시를 저장하지 못했어요.");
+
+      setRecordDrafts((current) => ({
+        ...current,
+        [record.id]: {
+          distance: nextDistance,
+          duration: nextDurationInput,
+        },
+      }));
+      setRecords((current) => current.map((item) => (
+        item.id === record.id
+          ? {
+              ...item,
+              distance_km: nextDistanceKm,
+              duration_seconds: durationSeconds,
+              status: nextStatus,
+              source_app: nextSourceApp,
+              notes: nextNotes,
+            }
+          : item
+      )));
+      await loadData(false);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "리커버리 표시를 저장하지 못했어요.");
+    } finally {
+      setUpdatingRecordId("");
+    }
+  }, [loadData, recordDrafts]);
+
   const deleteExistingRecord = useCallback(async (record: RunRecord) => {
     if (!record.record_date) return;
     const participantName = selectedRecordsParticipant?.name || "선택한 멤버";
@@ -1613,6 +1730,13 @@ export default function AdminPage() {
                   };
                   const isSaving = updatingRecordId === record.id;
                   const isDeleting = deletingRecordId === record.id;
+                  const isRecoveryRecord = isRecoveryCertificationRecord(record);
+                  const isRecoveryLimitReached = selectedRecordsParticipantRecoveryUsageCount >= RECOVERY_CERTIFICATION_LIMIT;
+                  const recoveryToggleDisabled = isSaving || isDeleting || (!isRecoveryRecord && isRecoveryLimitReached);
+                  const recoveryToggleTitle = !isRecoveryRecord && isRecoveryLimitReached
+                    ? "리커버리 쉴드는 최대 3회까지 사용할 수 있어요."
+                    : "리커버리 쉴드";
+                  const displayNotes = formatVisibleRecordNotes(record.notes);
 
                   return (
                     <div key={record.id} className="rounded-[22px] bg-white p-3 ring-1 ring-slate-950/5">
@@ -1622,7 +1746,7 @@ export default function AdminPage() {
                           {statusLabel(record.status)}
                         </span>
                       </div>
-                      <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto_auto]">
+                      <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto_auto_auto]">
                         <input
                           value={draft.distance}
                           onChange={(event) => updateRecordDraft(record.id, "distance", event.target.value)}
@@ -1636,6 +1760,30 @@ export default function AdminPage() {
                           placeholder="시간 예: 32:10"
                           className="rounded-xl border border-oriwan-border bg-white px-3 py-2.5 text-sm font-black text-oriwan-text outline-none focus:border-oriwan-primary"
                         />
+                        <button
+                          type="button"
+                          onClick={() => toggleRecordRecovery(record, !isRecoveryRecord)}
+                          disabled={recoveryToggleDisabled}
+                          aria-pressed={isRecoveryRecord}
+                          aria-label={isRecoveryRecord ? "리커버리 쉴드 사용 해제" : "리커버리 쉴드 사용"}
+                          title={recoveryToggleTitle}
+                          className={`inline-flex min-h-[52px] items-center justify-center rounded-xl px-3 ring-1 transition disabled:opacity-40 ${
+                            isRecoveryRecord
+                              ? "bg-slate-950 text-lime-200 ring-slate-950"
+                              : "bg-lime-50 text-slate-500 ring-lime-200 hover:bg-lime-100"
+                          }`}
+                        >
+                          <span
+                            className={`inline-flex h-7 w-6 items-center justify-center text-[11px] font-black leading-none [clip-path:polygon(50%_0%,91%_14%,82%_72%,50%_100%,18%_72%,9%_14%)] ${
+                              isRecoveryRecord
+                                ? "bg-lime-300 text-slate-950 shadow-sm shadow-lime-300/30"
+                                : "bg-slate-200 text-slate-500"
+                            }`}
+                            aria-hidden="true"
+                          >
+                            R
+                          </span>
+                        </button>
                         <button
                           type="button"
                           onClick={() => saveExistingRecord(record)}
@@ -1654,7 +1802,7 @@ export default function AdminPage() {
                           {isDeleting ? "삭제 중" : "삭제"}
                         </button>
                       </div>
-                      {record.notes && <p className="mt-2 text-[11px] font-semibold leading-5 text-oriwan-text-muted">{record.notes}</p>}
+                      {displayNotes && <p className="mt-2 text-[11px] font-semibold leading-5 text-oriwan-text-muted">{displayNotes}</p>}
                     </div>
                   );
                 })}
