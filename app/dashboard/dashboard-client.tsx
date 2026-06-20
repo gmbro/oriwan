@@ -84,7 +84,7 @@ function gaugeTextClass(certifiedDays: number) {
 const officialCertificationDays = makeOfficialCertificationDays();
 const RING_CIRCUMFERENCE = 302;
 const PUBLIC_DASHBOARD_STORAGE_KEY = "oriwan-public-dashboard-cache-v2";
-const PUBLIC_DASHBOARD_STORAGE_TTL_MS = 5 * 60 * 1000;
+const PUBLIC_DASHBOARD_STORAGE_TTL_MS = 10 * 60 * 1000;
 const PUBLIC_DASHBOARD_FOCUS_REFRESH_MS = 30 * 1000;
 const PERSONAL_GROWTH_BADGE_STORAGE_KEY = "oriwan-personal-growth-badges-v1";
 const ONE_PLUS_ONE_DISMISS_STORAGE_KEY = "oriwan-one-plus-one-dismissed-v1";
@@ -850,7 +850,10 @@ export function DashboardClient({
         restartMotion();
       }
       if (!initialData) void load();
-      if (initialData) restartMotion();
+      if (initialData) {
+        writeCachedDashboardData(initialData);
+        restartMotion();
+      }
     });
     const shouldRefresh = (minimumAgeMs = PUBLIC_DASHBOARD_FOCUS_REFRESH_MS) => (
       Date.now() - lastLoadedAtRef.current > minimumAgeMs
@@ -860,10 +863,10 @@ export function DashboardClient({
       if (document.visibilityState === "visible" && shouldRefresh(45_000)) load();
     }, 60000);
     const onFocus = () => {
-      if (shouldRefresh()) load({ fresh: true });
+      if (shouldRefresh()) load();
     };
     const onVisible = () => {
-      if (document.visibilityState === "visible" && shouldRefresh()) load({ fresh: true });
+      if (document.visibilityState === "visible" && shouldRefresh()) load();
     };
     window.addEventListener("focus", onFocus);
     document.addEventListener("visibilitychange", onVisible);

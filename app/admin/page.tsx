@@ -1746,61 +1746,65 @@ export default function AdminPage() {
                           {statusLabel(record.status)}
                         </span>
                       </div>
-                      <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto_auto_auto]">
-                        <input
-                          value={draft.distance}
-                          onChange={(event) => updateRecordDraft(record.id, "distance", event.target.value)}
-                          inputMode="decimal"
-                          placeholder="거리 km"
-                          className="rounded-xl border border-oriwan-border bg-white px-3 py-2.5 text-sm font-black text-oriwan-text outline-none focus:border-oriwan-primary"
-                        />
-                        <input
-                          value={draft.duration}
-                          onChange={(event) => updateRecordDraft(record.id, "duration", event.target.value)}
-                          placeholder="시간 예: 32:10"
-                          className="rounded-xl border border-oriwan-border bg-white px-3 py-2.5 text-sm font-black text-oriwan-text outline-none focus:border-oriwan-primary"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => toggleRecordRecovery(record, !isRecoveryRecord)}
-                          disabled={recoveryToggleDisabled}
-                          aria-pressed={isRecoveryRecord}
-                          aria-label={isRecoveryRecord ? "리커버리 쉴드 사용 해제" : "리커버리 쉴드 사용"}
-                          title={recoveryToggleTitle}
-                          className={`inline-flex min-h-[52px] items-center justify-center rounded-xl px-3 ring-1 transition disabled:opacity-40 ${
-                            isRecoveryRecord
-                              ? "bg-slate-950 text-lime-200 ring-slate-950"
-                              : "bg-lime-50 text-slate-500 ring-lime-200 hover:bg-lime-100"
-                          }`}
-                        >
-                          <span
-                            className={`inline-flex h-7 w-6 items-center justify-center text-[11px] font-black leading-none [clip-path:polygon(50%_0%,91%_14%,82%_72%,50%_100%,18%_72%,9%_14%)] ${
+                      <div className="grid gap-2">
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          <input
+                            value={draft.distance}
+                            onChange={(event) => updateRecordDraft(record.id, "distance", event.target.value)}
+                            inputMode="decimal"
+                            placeholder="거리 km"
+                            className="w-full rounded-xl border border-oriwan-border bg-white px-3 py-2.5 text-sm font-black text-oriwan-text outline-none focus:border-oriwan-primary"
+                          />
+                          <input
+                            value={draft.duration}
+                            onChange={(event) => updateRecordDraft(record.id, "duration", event.target.value)}
+                            placeholder="시간 예: 32:10"
+                            className="w-full rounded-xl border border-oriwan-border bg-white px-3 py-2.5 text-sm font-black text-oriwan-text outline-none focus:border-oriwan-primary"
+                          />
+                        </div>
+                        <div className="grid grid-cols-[3rem_minmax(0,1fr)_minmax(0,1fr)] gap-2 sm:flex sm:justify-end">
+                          <button
+                            type="button"
+                            onClick={() => toggleRecordRecovery(record, !isRecoveryRecord)}
+                            disabled={recoveryToggleDisabled}
+                            aria-pressed={isRecoveryRecord}
+                            aria-label={isRecoveryRecord ? "리커버리 쉴드 사용 해제" : "리커버리 쉴드 사용"}
+                            title={recoveryToggleTitle}
+                            className={`inline-flex min-h-11 items-center justify-center rounded-xl px-3 ring-1 transition disabled:opacity-40 sm:w-12 ${
                               isRecoveryRecord
-                                ? "bg-lime-300 text-slate-950 shadow-sm shadow-lime-300/30"
-                                : "bg-slate-200 text-slate-500"
+                                ? "bg-slate-950 text-lime-200 ring-slate-950"
+                                : "bg-lime-50 text-slate-500 ring-lime-200 hover:bg-lime-100"
                             }`}
-                            aria-hidden="true"
                           >
-                            R
-                          </span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => saveExistingRecord(record)}
-                          disabled={isSaving || isDeleting}
-                          className="rounded-xl bg-slate-950 px-4 py-2.5 text-xs font-black text-lime-200 disabled:opacity-40"
-                        >
-                          {isSaving ? "저장 중" : "저장"}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => deleteExistingRecord(record)}
-                          disabled={isSaving || isDeleting}
-                          className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-rose-50 px-4 py-2.5 text-xs font-black text-rose-700 ring-1 ring-rose-100 transition hover:bg-rose-100 disabled:opacity-40"
-                        >
-                          <IconTrash size={14} />
-                          {isDeleting ? "삭제 중" : "삭제"}
-                        </button>
+                            <span
+                              className={`inline-flex h-7 w-6 items-center justify-center text-[11px] font-black leading-none [clip-path:polygon(50%_0%,91%_14%,82%_72%,50%_100%,18%_72%,9%_14%)] ${
+                                isRecoveryRecord
+                                  ? "bg-lime-300 text-slate-950 shadow-sm shadow-lime-300/30"
+                                  : "bg-slate-200 text-slate-500"
+                              }`}
+                              aria-hidden="true"
+                            >
+                              R
+                            </span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => saveExistingRecord(record)}
+                            disabled={isSaving || isDeleting}
+                            className="min-h-11 rounded-xl bg-slate-950 px-4 py-2.5 text-xs font-black text-lime-200 disabled:opacity-40"
+                          >
+                            {isSaving ? "저장 중" : "저장"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => deleteExistingRecord(record)}
+                            disabled={isSaving || isDeleting}
+                            className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-rose-50 px-4 py-2.5 text-xs font-black text-rose-700 ring-1 ring-rose-100 transition hover:bg-rose-100 disabled:opacity-40"
+                          >
+                            <IconTrash size={14} />
+                            {isDeleting ? "삭제 중" : "삭제"}
+                          </button>
+                        </div>
                       </div>
                       {displayNotes && <p className="mt-2 text-[11px] font-semibold leading-5 text-oriwan-text-muted">{displayNotes}</p>}
                     </div>

@@ -1,3 +1,4 @@
+import { unstable_cache } from "next/cache";
 import { findAdminUserId, getServiceClient } from "@/lib/admin-data";
 import { ACTUAL_CERTIFICATION_START_DATE, CERTIFICATION_DISPLAY_START_DATE, CHALLENGE_DAYS, CHALLENGE_END_DATE, CHALLENGE_START_DATE, clampToChallengeStart, isCertificationParticipant } from "@/lib/challenge";
 import {
@@ -11,8 +12,9 @@ import {
 import { addDays, isCertificationCountedStatus, isRecoveryCertificationRecord, toIsoDate, toKstIsoDate } from "@/lib/run-records";
 import { isMissingTableError, missingSchemaResponse } from "@/lib/supabase-errors";
 
-export const PUBLIC_DASHBOARD_CACHE_CONTROL = "public, max-age=0, s-maxage=5, stale-while-revalidate=30";
-const PUBLIC_DASHBOARD_MEMORY_CACHE_TTL_MS = 5_000;
+const PUBLIC_DASHBOARD_REVALIDATE_SECONDS = 60;
+export const PUBLIC_DASHBOARD_CACHE_CONTROL = `public, max-age=0, s-maxage=${PUBLIC_DASHBOARD_REVALIDATE_SECONDS}, stale-while-revalidate=300`;
+const PUBLIC_DASHBOARD_MEMORY_CACHE_TTL_MS = PUBLIC_DASHBOARD_REVALIDATE_SECONDS * 1000;
 
 export type PublicDashboardParticipant = {
   id: string;
@@ -310,6 +312,15 @@ export async function buildPublicDashboardPayload(from: string, to: string): Pro
   };
 }
 
+const getCachedPublicDashboardPayload = unstable_cache(
+  async (from: string, to: string) => buildPublicDashboardPayload(from, to),
+  ["public-dashboard-payload"],
+  {
+    revalidate: PUBLIC_DASHBOARD_REVALIDATE_SECONDS,
+    tags: ["public-dashboard"],
+  }
+);
+
 export async function getPublicDashboardPayload(cacheKey: string, from: string, to: string, bypassCache = false) {
   const now = Date.now();
   if (!bypassCache && publicDashboardCache?.key === cacheKey) {
@@ -321,7 +332,9 @@ export async function getPublicDashboardPayload(cacheKey: string, from: string, 
     }
   }
 
-  const promise = buildPublicDashboardPayload(from, to);
+  const promise = bypassCache
+    ? buildPublicDashboardPayload(from, to)
+    : getCachedPublicDashboardPayload(from, to);
   if (!bypassCache) {
     publicDashboardCache = { key: cacheKey, expiresAt: 0, payload: publicDashboardCache?.payload, promise };
   }
