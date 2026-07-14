@@ -249,6 +249,30 @@ function ratioPercentage(numerator: number, denominator: number) {
   return Math.min(Math.round((numerator / denominator) * 100), 100);
 }
 
+function maxConsecutiveRecoveryDays(dates: string[]) {
+  const sortedDates = Array.from(new Set(dates)).sort();
+  let longest = 0;
+  let current = 0;
+  let previousDate = "";
+
+  sortedDates.forEach((date) => {
+    const isNextDay = previousDate
+      ? Date.parse(`${date}T00:00:00Z`) - Date.parse(`${previousDate}T00:00:00Z`) === 86_400_000
+      : false;
+    current = isNextDay ? current + 1 : 1;
+    longest = Math.max(longest, current);
+    previousDate = date;
+  });
+
+  return longest;
+}
+
+function formatCompactMemberNames(members: Array<{ name: string }>) {
+  if (!members.length) return "해당 인원 없음";
+  const visibleNames = members.slice(0, 3).map((member) => member.name).join(", ");
+  return members.length > 3 ? `${visibleNames} 외 ${members.length - 3}명` : visibleNames;
+}
+
 function formatDistanceInput(value: number | null | undefined) {
   return value ? String(value) : "";
 }
@@ -308,56 +332,117 @@ function nextRecoverySourceApp(sourceApp: string | null | undefined, recoveryEna
   return sourceApp || null;
 }
 
-const recoveryChartTones = {
-  rose: { ring: "var(--color-oriwan-danger)", text: "text-rose-600", surface: "bg-rose-50" },
-  amber: { ring: "#f59e0b", text: "text-amber-700", surface: "bg-amber-50" },
-  sky: { ring: "#0ea5e9", text: "text-sky-700", surface: "bg-sky-50" },
-  lime: { ring: "var(--color-oriwan-success)", text: "text-lime-700", surface: "bg-lime-50" },
+const recoveryMetricTones = {
+  rose: {
+    surface: "bg-rose-50",
+    value: "text-rose-600",
+    badge: "bg-rose-100 text-rose-700",
+    progress: "bg-rose-500",
+    glow: "bg-rose-200/45",
+  },
+  blue: {
+    surface: "bg-sky-50",
+    value: "text-sky-700",
+    badge: "bg-sky-100 text-sky-700",
+    progress: "bg-sky-500",
+    glow: "bg-sky-200/45",
+  },
+  amber: {
+    surface: "bg-amber-50",
+    value: "text-amber-700",
+    badge: "bg-amber-100 text-amber-800",
+    progress: "bg-amber-400",
+    glow: "bg-amber-200/45",
+  },
+  violet: {
+    surface: "bg-violet-50",
+    value: "text-violet-700",
+    badge: "bg-violet-100 text-violet-700",
+    progress: "bg-violet-500",
+    glow: "bg-violet-200/45",
+  },
+  lime: {
+    surface: "bg-lime-50",
+    value: "text-lime-700",
+    badge: "bg-lime-100 text-lime-800",
+    progress: "bg-lime-500",
+    glow: "bg-lime-200/50",
+  },
 } as const;
 
-function RecoveryRatioChart({
+function RecoveryMetricCard({
   label,
+  eyebrow,
+  value,
+  unit,
   percentage,
-  fractionLabel,
   description,
-  formulaLabel,
+  calculationLabel,
+  membersLabel,
+  deltaLabel,
   tone,
+  large = false,
 }: {
   label: string;
+  eyebrow: string;
+  value: number;
+  unit: string;
   percentage: number;
-  fractionLabel: string;
   description: string;
-  formulaLabel: string;
-  tone: keyof typeof recoveryChartTones;
+  calculationLabel: string;
+  membersLabel?: string;
+  deltaLabel?: string;
+  tone: keyof typeof recoveryMetricTones;
+  large?: boolean;
 }) {
   const safePercentage = Math.max(0, Math.min(percentage, 100));
-  const toneStyle = recoveryChartTones[tone];
+  const toneStyle = recoveryMetricTones[tone];
 
   return (
-    <div className={`flex min-w-0 flex-col items-center rounded-[22px] px-3 py-4 text-center ring-1 ring-slate-950/5 ${toneStyle.surface}`}>
-      <div
-        role="progressbar"
-        aria-label={`${label} ${safePercentage}% · ${fractionLabel}`}
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-valuenow={safePercentage}
-        className="relative flex h-28 w-28 shrink-0 items-center justify-center rounded-full sm:h-32 sm:w-32"
-        style={{
-          background: `conic-gradient(${toneStyle.ring} ${safePercentage}%, var(--color-oriwan-surface-light) ${safePercentage}% 100%)`,
-        }}
-      >
-        <span className="absolute inset-3 rounded-full bg-white shadow-[inset_0_0_0_1px_rgba(15,23,42,0.05)]" aria-hidden="true" />
-        <span className="relative z-10 grid gap-1">
-          <span className={`text-2xl font-black leading-none sm:text-3xl ${toneStyle.text}`}>{safePercentage}%</span>
-          <span className="text-[10px] font-black text-oriwan-text-muted">{fractionLabel}</span>
-        </span>
+    <article
+      aria-label={`${label} ${value}${unit}, 전체 대비 ${safePercentage}%`}
+      className={`relative min-w-0 overflow-hidden rounded-[26px] p-4 ring-1 ring-slate-950/5 ${large ? "min-h-[210px] sm:p-6" : "min-h-[190px] sm:p-5"} ${toneStyle.surface}`}
+    >
+      <span className={`pointer-events-none absolute -right-8 -top-10 h-32 w-32 rounded-full blur-2xl ${toneStyle.glow}`} aria-hidden="true" />
+      <div className="relative flex h-full flex-col">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[10px] font-black uppercase tracking-[0.12em] text-oriwan-text-muted">{eyebrow}</p>
+            <h3 className={`mt-1 font-black leading-tight text-oriwan-text ${large ? "text-lg sm:text-xl" : "text-base"}`}>{label}</h3>
+          </div>
+          <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-black ${toneStyle.badge}`}>{safePercentage}%</span>
+        </div>
+
+        <div className={`flex items-end gap-1 ${large ? "mt-6" : "mt-5"}`}>
+          <span className={`font-black leading-none tracking-[-0.04em] ${large ? "text-5xl sm:text-6xl" : "text-4xl"} ${toneStyle.value}`}>{value}</span>
+          <span className={`pb-1 font-black text-oriwan-text ${large ? "text-xl" : "text-base"}`}>{unit}</span>
+          {deltaLabel && (
+            <span className="mb-1 ml-1 rounded-full bg-white/80 px-2 py-1 text-[10px] font-black text-oriwan-text-muted ring-1 ring-slate-950/5">
+              {deltaLabel}
+            </span>
+          )}
+        </div>
+
+        <p className="mt-2 break-keep text-[11px] font-bold leading-5 text-oriwan-text-muted">{description}</p>
+        {membersLabel && (
+          <p className="mt-1.5 truncate text-[11px] font-black text-oriwan-text">{membersLabel}</p>
+        )}
+
+        <div className="mt-auto pt-4">
+          <div
+            role="progressbar"
+            aria-label={`${label} 전체 대비 ${safePercentage}%`}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={safePercentage}
+            className="h-2 overflow-hidden rounded-full bg-white/85 ring-1 ring-slate-950/5"
+          >
+            <div className={`h-full rounded-full ${toneStyle.progress}`} style={{ width: `${Math.max(safePercentage, value ? 3 : 0)}%` }} />
+          </div>
+          <p className="mt-2 text-[9px] font-black leading-4 text-oriwan-text-muted">{calculationLabel}</p>
+        </div>
       </div>
-      <p className="mt-3 text-sm font-black leading-tight text-oriwan-text">{label}</p>
-      <p className="mt-1 break-keep text-[10px] font-bold leading-4 text-oriwan-text-muted">{description}</p>
-      <p className="mt-2 rounded-full bg-white/75 px-2.5 py-1 text-[9px] font-black leading-4 text-oriwan-text-muted ring-1 ring-slate-950/5">
-        계산: {formulaLabel}
-      </p>
-    </div>
+    </article>
   );
 }
 
@@ -380,7 +465,14 @@ function RecoveryTrendPlot({
   const plotWidth = width - margin.left - margin.right;
   const plotHeight = height - margin.top - margin.bottom;
   const maxCount = Math.max(1, ...data.map((item) => item.count));
-  const tickValues = Array.from({ length: maxCount + 1 }, (_, index) => maxCount - index);
+  const tickValues = maxCount <= 5
+    ? Array.from({ length: maxCount + 1 }, (_, index) => maxCount - index)
+    : Array.from(new Set([maxCount, Math.round((maxCount * 2) / 3), Math.round(maxCount / 3), 0])).sort((a, b) => b - a);
+  const labelIndexes = Array.from(new Set([
+    0,
+    ...data.map((_, index) => index).filter((index) => index > 0 && index % 7 === 0),
+    data.length - 1,
+  ])).filter((index) => index >= 0);
   const xAt = (index: number) => (
     data.length > 1
       ? margin.left + (index / (data.length - 1)) * plotWidth
@@ -396,9 +488,9 @@ function RecoveryTrendPlot({
       viewBox={`0 0 ${width} ${height}`}
       className={className}
     >
-      <title id={`${idPrefix}-title`}>리커버리 인증 발생일별 인원 꺾은선그래프</title>
+      <title id={`${idPrefix}-title`}>최근 7일 리커버리 고유 인원 추이</title>
       <desc id={`${idPrefix}-desc`}>
-        {`최근 리커버리 인증 발생일 ${data.length}개의 인증 인원을 표시합니다. 각 점 위 숫자는 인원, 아래 숫자는 날짜입니다.`}
+        {`각 날짜를 기준으로 직전 7일 동안 리커버리 인증을 한 고유 인원 추이를 표시합니다. 총 ${data.length}일의 흐름입니다.`}
       </desc>
       <line
         x1={margin.left}
@@ -444,7 +536,9 @@ function RecoveryTrendPlot({
         strokeLinejoin="round"
         vectorEffect="non-scaling-stroke"
       />
-      {data.map((item, index) => {
+      {labelIndexes.map((index) => {
+        const item = data[index];
+        if (!item) return null;
         const x = xAt(index);
         const y = yAt(item.count);
         const textAnchor = index === 0 ? "start" : index === data.length - 1 ? "end" : "middle";
@@ -498,10 +592,9 @@ function RecoveryTrendPlot({
 }
 
 function RecoveryTrendLineChart({ data }: { data: RecoveryTrendDatum[] }) {
-  const certificationDates = data.filter((item) => item.count > 0);
-  const desktopData = certificationDates.slice(-16);
-  const mobileData = certificationDates.slice(-7);
-  const peak = certificationDates.reduce<RecoveryTrendDatum | null>((currentPeak, item) => (
+  const desktopData = data;
+  const mobileData = data.slice(-28);
+  const peak = data.reduce<RecoveryTrendDatum | null>((currentPeak, item) => (
     !currentPeak || item.count > currentPeak.count ? item : currentPeak
   ), null);
   const latest = data[data.length - 1] || null;
@@ -510,23 +603,23 @@ function RecoveryTrendLineChart({ data }: { data: RecoveryTrendDatum[] }) {
     <div className="rounded-[22px] bg-white px-3 py-4 ring-1 ring-slate-950/5 sm:px-5 sm:py-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h3 className="text-base font-black text-oriwan-text">리커버리 인증 발생일 추이</h3>
+          <h3 className="text-base font-black text-oriwan-text">최근 7일 리커버리 인원 추이</h3>
           <p className="mt-1 max-w-2xl text-[11px] font-bold leading-5 text-oriwan-text-muted">
-            실제 인증이 발생한 날짜만 연결하고, 각 점 위에 해당 날짜의 인증 인원을 직접 표시합니다.
+            각 날짜를 기준으로 직전 7일 동안 한 번이라도 리커버리 인증한 고유 인원을 연결합니다. 0명인 날짜도 포함합니다.
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap gap-1.5">
           <span className="rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-black text-amber-800">
-            최고 {peak?.count || 0}명{peak ? ` · ${formatAdminDate(peak.date)}` : ""}
+            7일 최고 {peak?.count || 0}명{peak && peak.count > 0 ? ` · ${formatAdminDate(peak.date)}` : ""}
           </span>
           <span className="rounded-full bg-lime-100 px-2.5 py-1 text-[10px] font-black text-lime-800">
-            오늘 {latest?.count || 0}명
+            현재 {latest?.count || 0}명
           </span>
         </div>
       </div>
 
       <div className="mt-4 overflow-hidden rounded-2xl bg-white">
-        {certificationDates.length ? (
+        {data.length ? (
           <>
             <RecoveryTrendPlot
               data={mobileData}
@@ -551,7 +644,7 @@ function RecoveryTrendLineChart({ data }: { data: RecoveryTrendDatum[] }) {
         )}
       </div>
       <p className="mt-2 text-[10px] font-bold leading-4 text-oriwan-text-muted">
-        점 위 숫자는 인증 인원, 아래 숫자는 인증 날짜입니다. 인증이 없는 날짜는 선에서 제외하며 전체 이력은 아래 일자별 목록에서 확인할 수 있습니다.
+        선은 7일 이동 고유 인원, 점 위 숫자는 주간 대표값입니다. 데스크톱은 전체 경과일, 모바일은 최근 28일을 보여주며 전체 인증자는 아래 목록에서 확인할 수 있습니다.
       </p>
     </div>
   );
@@ -560,7 +653,14 @@ function RecoveryTrendLineChart({ data }: { data: RecoveryTrendDatum[] }) {
 function RecoveryParticipantBarChart({
   data,
 }: {
-  data: Array<{ id: string; name: string; count: number }>;
+  data: Array<{
+    id: string;
+    name: string;
+    count: number;
+    maxConsecutive: number;
+    symptomStartDate: string | null;
+    recoveryCompleteDate: string | null;
+  }>;
 }) {
   const maxCount = Math.max(1, ...data.map((item) => item.count));
 
@@ -570,7 +670,7 @@ function RecoveryParticipantBarChart({
         <div>
           <h3 className="text-base font-black text-oriwan-text">사용자별 누적 리커버리 인증일</h3>
           <p className="mt-1 max-w-2xl text-[11px] font-bold leading-5 text-oriwan-text-muted">
-            막대 길이는 가장 많은 사용자를 100%로 놓은 상대 비교이며, 오른쪽 숫자가 실제 누적 리커버리 인증일입니다.
+            막대는 누적 인증일을 비교합니다. 날짜 라벨은 최신 리커버리 구간의 첫날과 이후 첫 일반 인증일을 기준으로 추정합니다.
           </p>
         </div>
         <span className="w-fit shrink-0 rounded-full bg-sky-100 px-2.5 py-1 text-[10px] font-black text-sky-800">
@@ -581,22 +681,41 @@ function RecoveryParticipantBarChart({
       {data.length ? (
         <div className="mt-4 grid gap-x-6 gap-y-3 lg:grid-cols-2">
           {data.map((item) => (
-            <div key={item.id} className="grid grid-cols-[5rem_minmax(0,1fr)_2.75rem] items-center gap-2">
-              <span className="truncate text-xs font-black text-oriwan-text">{item.name}</span>
-              <div
-                role="progressbar"
-                aria-label={`${item.name} 누적 리커버리 인증 ${item.count}일`}
-                aria-valuemin={0}
-                aria-valuemax={maxCount}
-                aria-valuenow={item.count}
-                className="h-2.5 overflow-hidden rounded-full bg-oriwan-surface-light ring-1 ring-slate-950/5"
-              >
+            <div key={item.id} className="rounded-2xl bg-oriwan-surface-light/70 px-3 py-3 ring-1 ring-slate-950/5">
+              <div className="grid grid-cols-[5.5rem_minmax(0,1fr)_2.75rem] items-center gap-2">
+                <span className="truncate text-xs font-black text-oriwan-text">{item.name}</span>
                 <div
-                  className="h-full rounded-full bg-amber-400"
-                  style={{ width: `${Math.max(4, (item.count / maxCount) * 100)}%` }}
-                />
+                  role="progressbar"
+                  aria-label={`${item.name} 누적 리커버리 인증 ${item.count}일`}
+                  aria-valuemin={0}
+                  aria-valuemax={maxCount}
+                  aria-valuenow={item.count}
+                  className="h-2.5 overflow-hidden rounded-full bg-white ring-1 ring-slate-950/5"
+                >
+                  <div
+                    className="h-full rounded-full bg-amber-400"
+                    style={{ width: `${Math.max(4, (item.count / maxCount) * 100)}%` }}
+                  />
+                </div>
+                <span className="text-right text-xs font-black text-amber-700">{item.count}일</span>
               </div>
-              <span className="text-right text-xs font-black text-amber-700">{item.count}일</span>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                <span className="rounded-full bg-white px-2 py-1 text-[9px] font-black text-oriwan-text-muted ring-1 ring-slate-950/5">
+                  증상 시작일 {formatAdminDate(item.symptomStartDate)}
+                </span>
+                <span className={`rounded-full px-2 py-1 text-[9px] font-black ring-1 ${
+                  item.recoveryCompleteDate
+                    ? "bg-white text-oriwan-text-muted ring-slate-950/5"
+                    : "bg-rose-50 text-rose-700 ring-rose-200"
+                }`}>
+                  회복완료일 {item.recoveryCompleteDate ? formatAdminDate(item.recoveryCompleteDate) : "진행 중"}
+                </span>
+                {item.maxConsecutive >= 3 && (
+                  <span className="rounded-full bg-violet-100 px-2 py-1 text-[9px] font-black text-violet-700 ring-1 ring-violet-200">
+                    최장 {item.maxConsecutive}일 연속
+                  </span>
+                )}
+              </div>
             </div>
           ))}
         </div>
@@ -943,13 +1062,44 @@ export default function AdminPage() {
 
     const totalParticipants = affectedParticipantIds.size;
     const totalCertifications = rows.reduce((total, row) => total + row.participants.length, 0);
-    const recoveryActiveDays = rows.length;
-    const todayRecoveryCount = participantsByDate.get(effectiveToday)?.size || 0;
-    const dailyTrend = Array.from({ length: elapsedDays }, (_, index) => {
-      const date = toIsoDate(addDays(new Date(`${ACTUAL_CERTIFICATION_START_DATE}T00:00:00`), index));
-      return { date, count: participantsByDate.get(date)?.size || 0 };
+    const dailyDates = Array.from({ length: elapsedDays }, (_, index) => (
+      toIsoDate(addDays(new Date(`${ACTUAL_CERTIFICATION_START_DATE}T00:00:00`), index))
+    ));
+    const rollingTrend = dailyDates.map((date, index) => {
+      const rollingParticipantIds = new Set<string>();
+
+      for (let rollingIndex = Math.max(0, index - 6); rollingIndex <= index; rollingIndex += 1) {
+        participantsByDate.get(dailyDates[rollingIndex])?.forEach((_, participantId) => {
+          rollingParticipantIds.add(participantId);
+        });
+      }
+
+      return { date, count: rollingParticipantIds.size };
     });
-    const participantBarMap = new Map<string, { id: string; name: string; displayOrder: number; count: number }>();
+    const certifiedTimelineByParticipant = new Map<string, Map<string, boolean>>();
+
+    records.forEach((record) => {
+      if (
+        !record.participant_id ||
+        !record.record_date ||
+        !affectedParticipantIds.has(record.participant_id) ||
+        !isCertificationCountedStatus(record.status) ||
+        record.record_date < ACTUAL_CERTIFICATION_START_DATE ||
+        record.record_date > recoveryEndDate
+      ) return;
+
+      const timeline = certifiedTimelineByParticipant.get(record.participant_id) || new Map<string, boolean>();
+      timeline.set(record.record_date, Boolean(timeline.get(record.record_date)) || isRecoveryCertificationRecord(record));
+      certifiedTimelineByParticipant.set(record.participant_id, timeline);
+    });
+
+    const participantBarMap = new Map<string, {
+      id: string;
+      name: string;
+      displayOrder: number;
+      count: number;
+      dates: string[];
+    }>();
 
     rows.forEach((row) => {
       row.participants.forEach((participant) => {
@@ -957,48 +1107,93 @@ export default function AdminPage() {
         participantBarMap.set(participant.id, {
           ...participant,
           count: (current?.count || 0) + 1,
+          dates: [...(current?.dates || []), row.date],
         });
       });
     });
 
-    const participantBars = Array.from(participantBarMap.values()).sort((a, b) => (
+    const participantBars = Array.from(participantBarMap.values()).map((participant) => {
+      const recoveryDates = Array.from(new Set(participant.dates)).sort();
+      const timeline = Array.from(certifiedTimelineByParticipant.get(participant.id)?.entries() || [])
+        .sort(([dateA], [dateB]) => dateA.localeCompare(dateB));
+      let activeEpisodeStart: string | null = null;
+      let latestEpisodeStart: string | null = recoveryDates[0] || null;
+      let latestEpisodeEnd: string | null = null;
+
+      timeline.forEach(([date, isRecovery]) => {
+        if (isRecovery) {
+          if (!activeEpisodeStart) {
+            activeEpisodeStart = date;
+            latestEpisodeStart = date;
+            latestEpisodeEnd = null;
+          }
+          return;
+        }
+
+        if (activeEpisodeStart) {
+          latestEpisodeStart = activeEpisodeStart;
+          latestEpisodeEnd = date;
+          activeEpisodeStart = null;
+        }
+      });
+
+      if (activeEpisodeStart) {
+        latestEpisodeStart = activeEpisodeStart;
+        latestEpisodeEnd = null;
+      }
+
+      return {
+        ...participant,
+        count: recoveryDates.length,
+        dates: recoveryDates,
+        maxConsecutive: maxConsecutiveRecoveryDays(recoveryDates),
+        symptomStartDate: latestEpisodeStart,
+        recoveryCompleteDate: latestEpisodeEnd,
+      };
+    }).sort((a, b) => (
       b.count - a.count || a.displayOrder - b.displayOrder || a.name.localeCompare(b.name, "ko")
     ));
     const todayParticipants = Array.from(participantsByDate.get(effectiveToday)?.values() || []).sort((a, b) => (
       a.displayOrder - b.displayOrder || a.name.localeCompare(b.name, "ko")
     ));
     const recentWindowStart = toIsoDate(addDays(new Date(`${recoveryEndDate}T00:00:00`), -6));
-    const recentRecoveryCounts = new Map<string, number>();
+    const previousWindowEnd = toIsoDate(addDays(new Date(`${recentWindowStart}T00:00:00`), -1));
+    const previousWindowStart = toIsoDate(addDays(new Date(`${previousWindowEnd}T00:00:00`), -6));
+    const collectParticipantsBetween = (from: string, to: string) => {
+      const participantIds = new Set<string>();
 
-    rows
-      .filter((row) => row.date >= recentWindowStart && row.date <= recoveryEndDate)
-      .forEach((row) => {
-        row.participants.forEach((participant) => {
-          recentRecoveryCounts.set(participant.id, (recentRecoveryCounts.get(participant.id) || 0) + 1);
-        });
-      });
+      rows
+        .filter((row) => row.date >= from && row.date <= to)
+        .forEach((row) => row.participants.forEach((participant) => participantIds.add(participant.id)));
 
-    const repeatRecoveryParticipants = participantBars
-      .map((participant) => ({ ...participant, recentCount: recentRecoveryCounts.get(participant.id) || 0 }))
-      .filter((participant) => participant.recentCount >= 2)
-      .sort((a, b) => b.recentCount - a.recentCount || a.displayOrder - b.displayOrder || a.name.localeCompare(b.name, "ko"));
+      return participantBars.filter((participant) => participantIds.has(participant.id));
+    };
+    const recentParticipants = collectParticipantsBetween(recentWindowStart, recoveryEndDate);
+    const previousParticipants = collectParticipantsBetween(previousWindowStart, previousWindowEnd);
+    const recentNewParticipants = participantBars.filter((participant) => (
+      Boolean(participant.dates[0]) && participant.dates[0] >= recentWindowStart && participant.dates[0] <= recoveryEndDate
+    ));
+    const repeatRecoveryParticipants = participantBars.filter((participant) => participant.count >= 3);
+    const consecutiveRecoveryParticipants = participantBars.filter((participant) => participant.maxConsecutive >= 3);
 
     return {
       totalParticipants,
       totalCertifications,
-      recoveryActiveDays,
-      todayRecoveryCount,
-      elapsedDays,
-      affectedParticipantRatio: ratioPercentage(totalParticipants, certificationParticipants.length),
-      elapsedRecoveryRatio: ratioPercentage(recoveryActiveDays, elapsedDays),
-      challengeRecoveryRatio: ratioPercentage(recoveryActiveDays, CHALLENGE_DAYS),
-      todayRecoveryRatio: ratioPercentage(todayRecoveryCount, totalParticipants),
-      dailyTrend,
+      totalParticipantRatio: ratioPercentage(totalParticipants, certificationParticipants.length),
+      recentParticipantRatio: ratioPercentage(recentParticipants.length, certificationParticipants.length),
+      recentNewParticipantRatio: ratioPercentage(recentNewParticipants.length, certificationParticipants.length),
+      repeatParticipantRatio: ratioPercentage(repeatRecoveryParticipants.length, certificationParticipants.length),
+      consecutiveParticipantRatio: ratioPercentage(consecutiveRecoveryParticipants.length, certificationParticipants.length),
+      recentParticipantDelta: recentParticipants.length - previousParticipants.length,
+      rollingTrend,
       participantBars,
       todayParticipants,
+      recentParticipants,
+      recentNewParticipants,
       recentWindowStart,
       recoveryEndDate,
       repeatRecoveryParticipants,
+      consecutiveRecoveryParticipants,
       rows,
     };
   }, [certificationParticipantIds, certificationParticipants.length, participants, records]);
@@ -1911,12 +2106,12 @@ export default function AdminPage() {
           <div className="border-b border-slate-950/5 px-4 py-4 sm:px-5 sm:py-5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
               <div className="min-w-0">
-                <p className="text-[11px] font-black uppercase text-oriwan-text-muted">Recovery Impact</p>
+                <p className="text-[11px] font-black uppercase text-oriwan-text-muted">Recovery Intelligence</p>
                 <h2 id="recovery-certification-title" className="mt-1 text-xl font-black leading-tight text-oriwan-text">
-                  리커버리 · 부상 영향 현황
+                  리커버리 신호 대시보드
                 </h2>
                 <p className="mt-1 max-w-2xl text-xs font-semibold leading-5 text-oriwan-text-muted">
-                  리커버리 인증 이력을 기준으로 러닝이 어려운 인원과 회복 인증 비중을 보여줍니다.
+                  누적·최근 7일·신규·반복·연속 신호를 나눠 현재 회복 부담과 변화 방향을 한눈에 보여줍니다.
                 </p>
               </div>
               <span className="inline-flex w-fit shrink-0 rounded-full bg-slate-950 px-3 py-1.5 text-[11px] font-black text-lime-200">
@@ -1932,12 +2127,23 @@ export default function AdminPage() {
                   <span className="block h-4 w-40 rounded-full bg-oriwan-surface-light" />
                   <span className="mt-4 block h-48 rounded-2xl bg-oriwan-surface-light" />
                 </div>
-                <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
-                  {Array.from({ length: 4 }, (_, index) => (
-                    <div key={`recovery-loading-${index}`} className="flex animate-pulse flex-col items-center rounded-[22px] bg-white px-3 py-4 ring-1 ring-slate-950/5">
-                      <span className="h-28 w-28 rounded-full bg-oriwan-surface-light sm:h-32 sm:w-32" />
-                      <span className="mt-3 h-4 w-24 rounded-full bg-oriwan-surface-light" />
-                      <span className="mt-2 h-3 w-28 rounded-full bg-oriwan-surface-light" />
+                <div className="grid gap-2 md:grid-cols-2">
+                  {Array.from({ length: 2 }, (_, index) => (
+                    <div key={`recovery-loading-primary-${index}`} className="min-h-[210px] animate-pulse rounded-[26px] bg-white px-5 py-5 ring-1 ring-slate-950/5">
+                      <span className="block h-3 w-24 rounded-full bg-oriwan-surface-light" />
+                      <span className="mt-4 block h-6 w-40 rounded-full bg-oriwan-surface-light" />
+                      <span className="mt-7 block h-12 w-28 rounded-2xl bg-oriwan-surface-light" />
+                      <span className="mt-6 block h-2 rounded-full bg-oriwan-surface-light" />
+                    </div>
+                  ))}
+                </div>
+                <div className="grid gap-2 md:grid-cols-3">
+                  {Array.from({ length: 3 }, (_, index) => (
+                    <div key={`recovery-loading-secondary-${index}`} className="min-h-[190px] animate-pulse rounded-[26px] bg-white px-5 py-5 ring-1 ring-slate-950/5">
+                      <span className="block h-3 w-20 rounded-full bg-oriwan-surface-light" />
+                      <span className="mt-4 block h-5 w-32 rounded-full bg-oriwan-surface-light" />
+                      <span className="mt-6 block h-10 w-20 rounded-2xl bg-oriwan-surface-light" />
+                      <span className="mt-5 block h-2 rounded-full bg-oriwan-surface-light" />
                     </div>
                   ))}
                 </div>
@@ -1945,65 +2151,87 @@ export default function AdminPage() {
             ) : (
               <>
                 <div className="rounded-2xl bg-amber-50 px-4 py-3 text-[11px] font-bold leading-5 text-amber-900 ring-1 ring-amber-200">
-                  실제 의료 진단 인원이 아니라, 완료된 리커버리 인증 이력을 부상 영향 신호로 계산한 추정치입니다.
+                  의료 진단 수치가 아니라 완료된 리커버리 인증 이력을 기준으로 계산한 운영 신호입니다. 증상·회복 날짜도 인증 흐름으로 추정합니다.
                 </div>
 
                 <div className="mt-3">
-                  <RecoveryTrendLineChart data={recoveryCertificationSummary.dailyTrend} />
+                  <RecoveryTrendLineChart data={recoveryCertificationSummary.rollingTrend} />
                 </div>
 
-                <div className="mt-3 grid grid-cols-2 gap-2 lg:grid-cols-4">
-                  <RecoveryRatioChart
-                    label="전체 대비 부상 영향"
-                    percentage={recoveryCertificationSummary.affectedParticipantRatio}
-                    fractionLabel={`${recoveryCertificationSummary.totalParticipants}/${certificationParticipants.length}명`}
-                    description="전체 인증 대상 중 리커버리 이력 보유"
-                    formulaLabel="리커버리 이력 인원 ÷ 전체 인증 대상"
+                <div className="mt-3 grid gap-2 md:grid-cols-2">
+                  <RecoveryMetricCard
+                    eyebrow="Cumulative"
+                    label="누적 리커버리"
+                    value={recoveryCertificationSummary.totalParticipants}
+                    unit="명"
+                    percentage={recoveryCertificationSummary.totalParticipantRatio}
+                    description={`전체 인증 대상 ${certificationParticipants.length}명 중 한 번 이상 리커버리 인증을 한 고유 인원입니다.`}
+                    calculationLabel="계산: 전체 기간 리커버리 고유 인원 ÷ 전체 인증 대상"
+                    membersLabel={formatCompactMemberNames(recoveryCertificationSummary.participantBars)}
                     tone="rose"
+                    large
                   />
-                  <RecoveryRatioChart
-                    label="경과일 중 회복 발생률"
-                    percentage={recoveryCertificationSummary.elapsedRecoveryRatio}
-                    fractionLabel={`${recoveryCertificationSummary.recoveryActiveDays}/${recoveryCertificationSummary.elapsedDays}일`}
-                    description="현재까지 1명 이상 리커버리 인증이 있었던 날짜"
-                    formulaLabel="리커버리 발생일 ÷ 현재 경과일"
-                    tone="amber"
+                  <RecoveryMetricCard
+                    eyebrow="Last 7 Days"
+                    label="최근 7일 리커버리 인증 인원"
+                    value={recoveryCertificationSummary.recentParticipants.length}
+                    unit="명"
+                    percentage={recoveryCertificationSummary.recentParticipantRatio}
+                    description={`${formatAdminDate(recoveryCertificationSummary.recentWindowStart)}부터 ${formatAdminDate(recoveryCertificationSummary.recoveryEndDate)}까지 한 번 이상 인증한 고유 인원입니다.`}
+                    calculationLabel="계산: 최근 7일 리커버리 고유 인원 ÷ 전체 인증 대상"
+                    membersLabel={formatCompactMemberNames(recoveryCertificationSummary.recentParticipants)}
+                    deltaLabel={`${recoveryCertificationSummary.recentParticipantDelta >= 0 ? "+" : ""}${recoveryCertificationSummary.recentParticipantDelta}명 · 직전 7일 대비`}
+                    tone="blue"
+                    large
                   />
-                  <RecoveryRatioChart
-                    label="100일 중 회복 발생률"
-                    percentage={recoveryCertificationSummary.challengeRecoveryRatio}
-                    fractionLabel={`${recoveryCertificationSummary.recoveryActiveDays}/${CHALLENGE_DAYS}일`}
-                    description="100일 챌린지 전체 일정 기준"
-                    formulaLabel="리커버리 발생일 ÷ 100일"
-                    tone="sky"
-                  />
-                  <RecoveryRatioChart
-                    label="오늘 리커버리 중"
-                    percentage={recoveryCertificationSummary.todayRecoveryRatio}
-                    fractionLabel={`${recoveryCertificationSummary.todayRecoveryCount}/${recoveryCertificationSummary.totalParticipants}명`}
-                    description="부상 영향 추정 인원 중 오늘 회복 인증"
-                    formulaLabel="오늘 회복 인증 인원 ÷ 영향 인원"
+                </div>
+
+                <div className="mt-2 grid gap-2 md:grid-cols-3">
+                  <RecoveryMetricCard
+                    eyebrow="New Signal"
+                    label="최근 7일 신규 리커버리"
+                    value={recoveryCertificationSummary.recentNewParticipants.length}
+                    unit="명"
+                    percentage={recoveryCertificationSummary.recentNewParticipantRatio}
+                    description="최근 7일 안에 처음으로 리커버리 인증을 시작한 인원입니다."
+                    calculationLabel="계산: 최초 리커버리 인증일이 최근 7일인 고유 인원"
+                    membersLabel={formatCompactMemberNames(recoveryCertificationSummary.recentNewParticipants)}
                     tone="lime"
                   />
+                  <RecoveryMetricCard
+                    eyebrow="Repeat"
+                    label="반복 리커버리 인원"
+                    value={recoveryCertificationSummary.repeatRecoveryParticipants.length}
+                    unit="명"
+                    percentage={recoveryCertificationSummary.repeatParticipantRatio}
+                    description="전체 기간 동안 리커버리 인증을 총 3회 이상 한 인원입니다."
+                    calculationLabel="계산: 전체 기간 누적 리커버리 인증 3회 이상"
+                    membersLabel={formatCompactMemberNames(recoveryCertificationSummary.repeatRecoveryParticipants)}
+                    tone="amber"
+                  />
+                  <RecoveryMetricCard
+                    eyebrow="Consecutive"
+                    label="연속 리커버리 인원"
+                    value={recoveryCertificationSummary.consecutiveRecoveryParticipants.length}
+                    unit="명"
+                    percentage={recoveryCertificationSummary.consecutiveParticipantRatio}
+                    description="전체 기간 중 리커버리 인증이 3일 이상 연속된 인원입니다."
+                    calculationLabel="계산: 최장 연속 리커버리 인증 3일 이상"
+                    membersLabel={formatCompactMemberNames(recoveryCertificationSummary.consecutiveRecoveryParticipants)}
+                    tone="violet"
+                  />
                 </div>
 
-                <div className="mt-3 flex flex-col gap-3 rounded-[22px] bg-slate-950 px-4 py-4 text-white sm:flex-row sm:items-center sm:justify-between sm:px-5">
-                  <div className="min-w-0">
-                    <p className="text-[10px] font-black uppercase text-white/45">Current Recovery Signal</p>
-                    <p className="mt-1 text-sm font-black leading-6 text-white">
-                      {recoveryCertificationSummary.totalParticipants > 0
-                        ? `부상 영향 추정 ${recoveryCertificationSummary.totalParticipants}명 중 오늘 ${recoveryCertificationSummary.todayRecoveryCount}명이 리커버리로 인증했습니다.`
-                        : "현재까지 리커버리 인증 이력이 없어 부상 영향 추정 인원이 없습니다."}
-                    </p>
-                  </div>
-                  <div className="grid shrink-0 grid-cols-2 gap-2 text-center">
-                    <span className="rounded-2xl bg-white/10 px-3 py-2 ring-1 ring-white/10">
-                      <span className="block text-[9px] font-black text-white/45">영향 인원</span>
-                      <span className="mt-0.5 block text-lg font-black text-lime-200">{recoveryCertificationSummary.totalParticipants}명</span>
-                    </span>
-                    <span className="rounded-2xl bg-white/10 px-3 py-2 ring-1 ring-white/10">
-                      <span className="block text-[9px] font-black text-white/45">누적 회복 인증</span>
-                      <span className="mt-0.5 block text-lg font-black text-lime-200">{recoveryCertificationSummary.totalCertifications}건</span>
+                <div className="mt-3 rounded-[22px] bg-slate-950 px-4 py-4 text-white sm:px-5">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-[0.12em] text-white/45">Recovery Signal Guide</p>
+                      <p className="mt-1 text-sm font-black leading-6 text-white">
+                        누적 규모는 상단에서, 최근 증가·신규·반복·연속 신호는 하단 3개 지표와 추이선에서 함께 확인하세요.
+                      </p>
+                    </div>
+                    <span className="w-fit shrink-0 rounded-full bg-white/10 px-3 py-1.5 text-[10px] font-black text-lime-200 ring-1 ring-white/10">
+                      전체 대상 {certificationParticipants.length}명
                     </span>
                   </div>
                 </div>
@@ -2097,15 +2325,15 @@ export default function AdminPage() {
 
                     <div className="rounded-[20px] bg-white/10 px-4 py-4 ring-1 ring-white/10">
                       <div className="flex items-center justify-between gap-3">
-                        <p className="text-xs font-black text-white">2. 반복 신호 관리</p>
+                        <p className="text-xs font-black text-white">2. 반복·연속 신호 관리</p>
                         <span className="rounded-full bg-amber-400/20 px-2 py-1 text-[10px] font-black text-amber-200">
                           {recoveryCertificationSummary.repeatRecoveryParticipants.length}명
                         </span>
                       </div>
                       <p className="mt-2 break-keep text-[11px] font-semibold leading-5 text-white/65">
                         {recoveryCertificationSummary.repeatRecoveryParticipants.length
-                          ? `최근 7일 2회 이상: ${recoveryCertificationSummary.repeatRecoveryParticipants.map((participant) => `${participant.name} ${participant.recentCount}일`).join(", ")}. 개별 컨디션과 러닝 재개 일정을 분리해 관리하세요.`
-                          : "최근 7일 동안 2회 이상 반복된 리커버리 신호는 없습니다. 새 신호가 생기는지만 관찰하세요."}
+                          ? `전체 기간 3회 이상: ${recoveryCertificationSummary.repeatRecoveryParticipants.map((participant) => `${participant.name} ${participant.count}회`).join(", ")}.${recoveryCertificationSummary.consecutiveRecoveryParticipants.length ? ` 3일 이상 연속: ${recoveryCertificationSummary.consecutiveRecoveryParticipants.map((participant) => `${participant.name} ${participant.maxConsecutive}일`).join(", ")}.` : ""} 개별 컨디션과 러닝 재개 일정을 분리해 관리하세요.`
+                          : "전체 기간 3회 이상 반복된 리커버리 신호는 없습니다. 새 신호가 생기는지만 관찰하세요."}
                       </p>
                     </div>
 
