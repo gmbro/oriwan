@@ -4,6 +4,7 @@ import { calculatePaceSeconds } from "@/lib/run-records";
 import { CHALLENGE_DATE_ERROR, isWithinChallengeWindow } from "@/lib/challenge";
 import { findAdminUserId, findParticipantByRunnerName, getServiceClient } from "@/lib/admin-data";
 import { guardMutationRequest } from "@/lib/request-security";
+import { invalidatePublicDashboardCache } from "@/lib/public-dashboard-data";
 
 function sanitizeNumber(value: unknown) {
   if (value === null || value === undefined || value === "") return null;
@@ -78,6 +79,8 @@ export async function POST(request: NextRequest) {
     console.error("Participant self record save error:", saveError);
     return NextResponse.json({ error: "기록을 저장하지 못했어요. 잠시 후 다시 시도해주세요." }, { status: 500 });
   }
+
+  invalidatePublicDashboardCache();
 
   return NextResponse.json({ success: true, id: data.id, participant });
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdminUser } from "@/lib/admin-server";
 import { guardMutationRequest } from "@/lib/request-security";
+import { invalidatePublicDashboardCache } from "@/lib/public-dashboard-data";
 
 export async function PATCH(
   request: NextRequest,
@@ -36,6 +37,8 @@ export async function PATCH(
     return NextResponse.json({ error: "멤버 정보를 수정하지 못했어요." }, { status: 500 });
   }
 
+  invalidatePublicDashboardCache();
+
   return NextResponse.json({ participant: data });
 }
 
@@ -61,6 +64,8 @@ export async function DELETE(
     console.error("Participant delete error:", error);
     return NextResponse.json({ error: "멤버를 삭제하지 못했어요." }, { status: 500 });
   }
+
+  invalidatePublicDashboardCache();
 
   return NextResponse.json({ success: true });
 }

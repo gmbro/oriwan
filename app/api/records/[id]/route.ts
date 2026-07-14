@@ -4,6 +4,7 @@ import { requireAdminUser } from "@/lib/admin-server";
 import { calculatePaceSeconds } from "@/lib/run-records";
 import { CHALLENGE_DATE_ERROR, isWithinChallengeWindow } from "@/lib/challenge";
 import { guardMutationRequest } from "@/lib/request-security";
+import { invalidatePublicDashboardCache } from "@/lib/public-dashboard-data";
 
 const RECORD_STATUSES = new Set(["certified", "needs_review", "missing", "rejected"]);
 
@@ -80,6 +81,8 @@ export async function PATCH(
     return NextResponse.json({ error: "러닝 기록을 수정하지 못했어요." }, { status: 500 });
   }
 
+  invalidatePublicDashboardCache();
+
   return NextResponse.json({ success: true });
 }
 
@@ -105,6 +108,8 @@ export async function DELETE(
     console.error("Record delete error:", error);
     return NextResponse.json({ error: "러닝 기록을 삭제하지 못했어요." }, { status: 500 });
   }
+
+  invalidatePublicDashboardCache();
 
   return NextResponse.json({ success: true });
 }

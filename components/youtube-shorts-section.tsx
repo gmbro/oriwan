@@ -9,8 +9,9 @@ import { getCuratedYoutubeShortTips, tipCategoryLabels, youtubeEmbedUrl, youtube
 import type { TipCategory, YoutubeShortTip } from "@/lib/youtube-shorts";
 
 const categoryOptions: TipCategory[] = ["recovery", "stretching"];
-const TIP_LIMIT = 10;
-const SHORTS_SEEN_STORAGE_KEY = "oriwan-youtube-shorts-seen-v2";
+const TIP_LIMIT = 20;
+const SHORTS_SEEN_STORAGE_KEY = "oriwan-youtube-shorts-seen-v4";
+const LEGACY_SHORTS_SEEN_STORAGE_KEYS = ["oriwan-youtube-shorts-seen-v3", "oriwan-youtube-shorts-seen-v2"];
 
 type TipsResponse = {
   tips?: YoutubeShortTip[];
@@ -19,7 +20,7 @@ type TipsResponse = {
 };
 
 type SeenStore = {
-  dayKey: string;
+  dayKey?: string;
   seenIdsByCategory: Record<TipCategory, string[]>;
 };
 
@@ -39,33 +40,55 @@ function dateSeed(dayKey: string) {
   return Number(dayKey.replace(/\D/g, "")) || 0;
 }
 
-function loadSeenStore(dayKey: string): Record<TipCategory, string[]> {
-  if (typeof window === "undefined") return makeEmptySeenIds();
-
-  try {
-    const parsed = JSON.parse(window.localStorage.getItem(SHORTS_SEEN_STORAGE_KEY) || "{}") as Partial<SeenStore>;
-    if (parsed.dayKey !== dayKey || !parsed.seenIdsByCategory) return makeEmptySeenIds();
-    return {
-      running: parsed.seenIdsByCategory.running || [],
-      stretching: parsed.seenIdsByCategory.stretching || [],
-      recovery: parsed.seenIdsByCategory.recovery || [],
-    };
-  } catch {
-    return makeEmptySeenIds();
-  }
+function mergeSeenIds(
+  current: Record<TipCategory, string[]>,
+  next: Partial<Record<TipCategory, string[]>> | undefined
+) {
+  return {
+    running: Array.from(new Set([...current.running, ...(next?.running || [])])),
+    stretching: Array.from(new Set([...current.stretching, ...(next?.stretching || [])])),
+    recovery: Array.from(new Set([...current.recovery, ...(next?.recovery || [])])),
+  };
 }
 
-function saveSeenStore(dayKey: string, seenIdsByCategory: Record<TipCategory, string[]>) {
+function loadSeenStore(): Record<TipCategory, string[]> {
+  if (typeof window === "undefined") return makeEmptySeenIds();
+
+  let seenIdsByCategory = makeEmptySeenIds();
+  for (const key of [SHORTS_SEEN_STORAGE_KEY, ...LEGACY_SHORTS_SEEN_STORAGE_KEYS]) {
+    try {
+      const parsed = JSON.parse(window.localStorage.getItem(key) || "{}") as Partial<SeenStore>;
+      seenIdsByCategory = mergeSeenIds(seenIdsByCategory, parsed.seenIdsByCategory);
+    } catch {
+      // Ignore malformed local history and keep the rest of the seen pool.
+    }
+  }
+  return seenIdsByCategory;
+}
+
+function saveSeenStore(seenIdsByCategory: Record<TipCategory, string[]>) {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(SHORTS_SEEN_STORAGE_KEY, JSON.stringify({ dayKey, seenIdsByCategory }));
+  window.localStorage.setItem(SHORTS_SEEN_STORAGE_KEY, JSON.stringify({ seenIdsByCategory }));
 }
 
 function appendUniqueIds(current: string[], nextTips: YoutubeShortTip[]) {
   return Array.from(new Set([...current, ...nextTips.map((tip) => tip.id)])).slice(-1000);
 }
 
+function flattenSeenIds(seenIdsByCategory: Record<TipCategory, string[]>) {
+  return Array.from(new Set(Object.values(seenIdsByCategory).flat()));
+}
+
+function selectUnseenCuratedTips(category: TipCategory, seed: number, seenIds: string[]) {
+  const unseenTips = getCuratedYoutubeShortTips(category, seed, TIP_LIMIT + seenIds.length)
+    .filter((tip) => !seenIds.includes(tip.id))
+    .slice(0, TIP_LIMIT);
+
+  return unseenTips.length ? unseenTips : getCuratedYoutubeShortTips(category, seed + seenIds.length, TIP_LIMIT);
+}
+
 export function YoutubeShortsSection({ initialDayKey }: { initialDayKey: string }) {
-  const seenIdsRef = useRef<Record<TipCategory, string[]>>(makeEmptySeenIds());
+  const seenIdsRef = useRef<Record<TipCategory, string[]>>(loadSeenStore());
   const cursorRef = useRef<Record<TipCategory, string>>(makeEmptyCursors());
   const playerFrameRef = useRef<HTMLIFrameElement | null>(null);
   const [category, setCategory] = useState<TipCategory>("recovery");
@@ -74,7 +97,9 @@ export function YoutubeShortsSection({ initialDayKey }: { initialDayKey: string 
   const [mounted, setMounted] = useState(false);
   const [selectedTip, setSelectedTip] = useState<YoutubeShortTip | null>(null);
   const [shortsPlaying, setShortsPlaying] = useState(false);
-  const [tips, setTips] = useState<YoutubeShortTip[]>(() => getCuratedYoutubeShortTips("recovery", dateSeed(initialDayKey), TIP_LIMIT));
+  const [tips, setTips] = useState<YoutubeShortTip[]>(() => (
+    selectUnseenCuratedTips("recovery", dateSeed(initialDayKey), flattenSeenIds(seenIdsRef.current))
+  ));
   const [loading, setLoading] = useState(false);
   const [brokenThumbnailIds, setBrokenThumbnailIds] = useState<string[]>([]);
 
@@ -106,6 +131,11 @@ export function YoutubeShortsSection({ initialDayKey }: { initialDayKey: string 
     setShortsPlaying(nextPlaying);
   }
 
+  function showFastCuratedTips(nextCategory: TipCategory, nextSeed: number) {
+    setBrokenThumbnailIds([]);
+    setTips(selectUnseenCuratedTips(nextCategory, dateSeed(dayKey) + nextSeed, flattenSeenIds(seenIdsRef.current)));
+  }
+
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -133,27 +163,25 @@ export function YoutubeShortsSection({ initialDayKey }: { initialDayKey: string 
   }, [selectedTip]);
 
   useEffect(() => {
-    const frame = requestAnimationFrame(() => {
-      const nextSeenIds = loadSeenStore(dayKey);
-      seenIdsRef.current = nextSeenIds;
-      cursorRef.current = makeEmptyCursors();
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [dayKey]);
-
-  useEffect(() => {
     const interval = window.setInterval(() => {
       const nextDayKey = getKstDateKey();
       if (nextDayKey === dayKey) return;
-      seenIdsRef.current = makeEmptySeenIds();
       cursorRef.current = makeEmptyCursors();
-      saveSeenStore(nextDayKey, seenIdsRef.current);
       setDayKey(nextDayKey);
       setRefreshSeed((value) => value + 1);
     }, 60_000);
 
     return () => window.clearInterval(interval);
   }, [dayKey]);
+
+  useEffect(() => {
+    if (!tips.length) return;
+    seenIdsRef.current = {
+      ...seenIdsRef.current,
+      [category]: appendUniqueIds(seenIdsRef.current[category] || [], tips),
+    };
+    saveSeenStore(seenIdsRef.current);
+  }, [category, tips]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -167,7 +195,7 @@ export function YoutubeShortsSection({ initialDayKey }: { initialDayKey: string 
           limit: String(TIP_LIMIT),
           day: dayKey,
         });
-        const seenIds = seenIdsRef.current[category] || [];
+        const seenIds = flattenSeenIds(seenIdsRef.current);
         const cursor = cursorRef.current[category] || "";
         if (cursor) params.set("cursor", cursor);
         if (seenIds.length) params.set("seen", seenIds.slice(-240).join(","));
@@ -186,13 +214,11 @@ export function YoutubeShortsSection({ initialDayKey }: { initialDayKey: string 
           ...cursorRef.current,
           [category]: json.nextCursor || "",
         };
-        saveSeenStore(dayKey, seenIdsRef.current);
+        saveSeenStore(seenIdsRef.current);
         setTips(nextTips);
       } catch (error) {
         if ((error as Error).name === "AbortError") return;
-        const fallbackTips = getCuratedYoutubeShortTips(category, dateSeed(dayKey) + refreshSeed, TIP_LIMIT)
-          .filter((tip) => !(seenIdsRef.current[category] || []).includes(tip.id));
-        setTips(fallbackTips.length ? fallbackTips : getCuratedYoutubeShortTips(category, refreshSeed, TIP_LIMIT));
+        setTips(selectUnseenCuratedTips(category, dateSeed(dayKey) + refreshSeed, flattenSeenIds(seenIdsRef.current)));
       } finally {
         if (!controller.signal.aborted) setLoading(false);
       }
@@ -215,8 +241,10 @@ export function YoutubeShortsSection({ initialDayKey }: { initialDayKey: string 
                 key={option}
                 type="button"
                 onClick={() => {
+                  const nextSeed = refreshSeed + 1;
                   setCategory(option);
-                  setRefreshSeed((value) => value + 1);
+                  setRefreshSeed(nextSeed);
+                  showFastCuratedTips(option, nextSeed);
                 }}
                 className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-black transition ${
                   category === option ? "bg-slate-950 text-lime-200 shadow-sm" : "text-oriwan-text-muted hover:text-oriwan-text"
@@ -228,7 +256,11 @@ export function YoutubeShortsSection({ initialDayKey }: { initialDayKey: string 
           </div>
           <button
             type="button"
-            onClick={() => setRefreshSeed((value) => value + 1)}
+            onClick={() => {
+              const nextSeed = refreshSeed + 1;
+              setRefreshSeed(nextSeed);
+              showFastCuratedTips(category, nextSeed);
+            }}
             className="shrink-0 rounded-full bg-white px-3 py-2 text-xs font-black text-oriwan-text ring-1 ring-slate-950/5 transition hover:bg-lime-50"
           >
             {loading ? "찾는 중" : "다음 쇼츠"}

@@ -298,6 +298,28 @@ img { -webkit-user-drag: none; user-select: none; }
   100% { opacity: 1; transform: scale(1); }
 }
 
+@keyframes stamp-soft-rise {
+  from { opacity: 0; transform: translateY(4px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes stamp-soft-achieved {
+  0% { box-shadow: 0 0 0 rgba(132, 204, 22, 0); }
+  48% { box-shadow: 0 4px 12px rgba(132, 204, 22, 0.14); }
+  100% { box-shadow: 0 0 0 rgba(132, 204, 22, 0); }
+}
+
+@keyframes stamp-month-peek {
+  from { opacity: 0; transform: translateY(-2px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes badge-achieved-sheen {
+  0%, 58% { transform: translateX(0) rotate(18deg); opacity: 0; }
+  68% { opacity: 1; }
+  100% { transform: translateX(430%) rotate(18deg); opacity: 0; }
+}
+
 @keyframes fanfare-pop {
   0% {
     opacity: 0;
@@ -575,8 +597,20 @@ img { -webkit-user-drag: none; user-select: none; }
   position: relative;
   animation: modal-rise 0.34s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
+.stamp-cell {
+  animation: stamp-soft-rise 0.22s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation-delay: var(--stamp-delay, 0ms);
+  will-change: transform, opacity;
+}
 .stamp-cell-hit {
-  animation: stamp-pop 0.34s ease-out both;
+  animation:
+    stamp-soft-rise 0.22s cubic-bezier(0.2, 0.8, 0.2, 1) both,
+    stamp-soft-achieved 1.8s ease-out both;
+  animation-delay: var(--stamp-delay, 0ms), calc(var(--stamp-delay, 0ms) + 120ms);
+}
+.stamp-month-label {
+  animation: stamp-month-peek 0.2s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation-delay: calc(var(--stamp-delay, 0ms) + 80ms);
 }
 .fanfare-burst {
   pointer-events: none;
@@ -618,6 +652,15 @@ img { -webkit-user-drag: none; user-select: none; }
   width: 5px;
   height: 8px;
   animation-duration: 0.9s;
+}
+.badge-achieved-card::before {
+  content: "";
+  position: absolute;
+  inset: -35% auto -35% -45%;
+  width: 42%;
+  transform: rotate(18deg);
+  background: linear-gradient(90deg, transparent, rgba(217, 249, 157, 0.32), transparent);
+  animation: badge-achieved-sheen 2.6s ease-in-out infinite;
 }
 .mascot-coach-button {
   position: relative;

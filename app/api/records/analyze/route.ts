@@ -7,14 +7,13 @@ import { GEMINI_OCR_CONFIG, GEMINI_OCR_MODEL, buildRunImagePrompt, getGeminiErro
 import {
   RECOVERY_CERTIFICATION_DISTANCE_KM,
   RECOVERY_CERTIFICATION_DURATION_SECONDS,
-  RECOVERY_CERTIFICATION_LIMIT,
   RECOVERY_CERTIFICATION_NOTE,
   RECOVERY_CERTIFICATION_SOURCE,
   calculatePaceSeconds,
+  hasRecoveryCertificationLink,
   hasRecoveryCertificationText,
   isCertificationCountedStatus,
   isRecoveryCertificationFlag,
-  isRecoveryCertificationRecord,
 } from "@/lib/run-records";
 import { CHALLENGE_DATE_ERROR, CHALLENGE_START_DATE, isWithinChallengeWindow } from "@/lib/challenge";
 import {
@@ -30,6 +29,7 @@ import {
   validImage,
 } from "@/lib/run-image-extraction";
 import { guardMutationRequest } from "@/lib/request-security";
+import { invalidatePublicDashboardCache } from "@/lib/public-dashboard-data";
 
 type ExtractedRun = ExtractedRunBase & {
   participant_name?: string | null;
@@ -45,14 +45,6 @@ type ExistingRunRecord = {
   distance_km: number | null;
   duration_seconds: number | null;
   status: "certified" | "needs_review" | "missing" | "rejected";
-};
-
-type RecoveryUsageRecord = {
-  id: string;
-  source_app: string | null;
-  raw_extracted_text: string | null;
-  notes: string | null;
-  status: string | null;
 };
 
 const MAX_IMAGES = 20;
@@ -222,8 +214,15 @@ function duplicateResult(input: {
 
 function isRecoveryExtraction(extracted: ExtractedRun, distanceKm: number | null, durationSeconds: number | null) {
   const hasVisibleMetric = Boolean((distanceKm && distanceKm > 0) || (durationSeconds && durationSeconds > 0));
+  const hasVisibleLink = (
+    hasRecoveryCertificationLink(extracted.raw_text) ||
+    hasRecoveryCertificationLink(extracted.notes) ||
+    hasRecoveryCertificationLink(extracted.source_app)
+  );
+
   return (
     isRecoveryCertificationFlag(extracted.is_recovery_certification) ||
+    hasVisibleLink ||
     (
       hasVisibleMetric &&
       (
@@ -233,26 +232,6 @@ function isRecoveryExtraction(extracted: ExtractedRun, distanceKm: number | null
       )
     )
   );
-}
-
-async function countCertifiedRecoveryUsage(input: {
-  supabase: Awaited<ReturnType<typeof createClient>>;
-  userId: string;
-  participantId: string;
-  excludeRecordId?: string | null;
-}) {
-  const { data, error } = await input.supabase
-    .from("daily_run_records")
-    .select("id, source_app, raw_extracted_text, notes, status")
-    .eq("user_id", input.userId)
-    .eq("participant_id", input.participantId)
-    .eq("status", "certified");
-
-  if (error) throw error;
-  return ((data || []) as RecoveryUsageRecord[])
-    .filter((record) => record.id !== input.excludeRecordId)
-    .filter((record) => isRecoveryCertificationRecord(record))
-    .length;
 }
 
 export async function POST(request: NextRequest) {
@@ -481,20 +460,6 @@ export async function POST(request: NextRequest) {
         dateWasFallback,
         allowFallbackDate: Boolean(targetDate),
       });
-      let recoveryLimitNote: string | null = null;
-      if (isRecoveryCertification && participant?.id) {
-        const recoveryUsageCount = await countCertifiedRecoveryUsage({
-          supabase,
-          userId: user.id,
-          participantId: participant.id,
-          excludeRecordId: existingRecord?.id || null,
-        });
-        if (recoveryUsageCount >= RECOVERY_CERTIFICATION_LIMIT) {
-          status = "needs_review";
-          recoveryLimitNote = `${RECOVERY_CERTIFICATION_NOTE} ${RECOVERY_CERTIFICATION_LIMIT}회를 이미 사용했어요.`;
-        }
-      }
-
       if (status !== "certified") needsReviewCount += 1;
 
       const filePath = await uploadImageToStorage({
@@ -520,7 +485,6 @@ export async function POST(request: NextRequest) {
         raw_extracted_text: extracted.raw_text || null,
         notes: [
           isRecoveryCertification ? RECOVERY_CERTIFICATION_NOTE : null,
-          recoveryLimitNote,
           extracted.notes,
           usedFallbackParticipant ? fallbackParticipantNote : null,
           dateWasFallback ? "이미지에서 날짜가 보이지 않아 선택한 날짜를 임시 적용했어요." : null,
@@ -569,6 +533,8 @@ export async function POST(request: NextRequest) {
       })
       .eq("id", batch.id)
       .eq("user_id", user.id);
+
+    if (results.some((result) => result.id)) invalidatePublicDashboardCache();
 
     return NextResponse.json({ batch_id: batch.id, results });
   } catch (err) {

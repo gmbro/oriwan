@@ -14,21 +14,31 @@ export type PersonalGrowthBadgeIcon =
   | "sync"
   | "dna";
 
-export type PersonalGrowthBadgeKey =
-  | "morning-start"
-  | "three-day-rhythm"
-  | "seven-day-routine"
-  | "weekday-morning"
-  | "season-pacer"
-  | "thirty-day-root"
-  | "fifty-day-core"
-  | "seventy-day-arc"
-  | "five-k-finisher"
-  | "ten-k-finisher"
-  | "distance-fifty"
-  | "distance-hundred"
-  | "time-ten-hours"
-  | "time-twenty-hours";
+export const PERSONAL_GROWTH_BADGE_KEYS = [
+  "morning-start",
+  "three-day-rhythm",
+  "seven-day-routine",
+  "weekday-morning",
+  "season-pacer",
+  "thirty-day-root",
+  "fifty-day-core",
+  "seventy-day-arc",
+  "hundred-day-streak",
+  "five-k-finisher",
+  "ten-k-finisher",
+  "steady-five-k",
+  "long-run-maker",
+  "half-trigger",
+  "distance-fifty",
+  "distance-hundred",
+  "distance-three-hundred",
+  "distance-four-hundred",
+  "distance-five-hundred",
+  "time-ten-hours",
+  "time-twenty-hours",
+] as const;
+
+export type PersonalGrowthBadgeKey = (typeof PERSONAL_GROWTH_BADGE_KEYS)[number];
 
 export type PersonalGrowthBadge = {
   key: PersonalGrowthBadgeKey;
@@ -57,6 +67,9 @@ export type PersonalGrowthBadgeInput = {
   distanceKm: number;
   durationSeconds: number;
   maxSingleDistanceKm: number;
+  fiveKmCertificationCount: number;
+  tenKmCertificationCount: number;
+  halfMarathonCertificationCount: number;
 };
 
 export function getLongestDateStreak(dates: string[]) {
@@ -129,11 +142,24 @@ export function makePersonalGrowthBadges(input: PersonalGrowthBadgeInput): Perso
     distanceKm,
     durationSeconds,
     maxSingleDistanceKm,
+    fiveKmCertificationCount,
+    tenKmCertificationCount,
+    halfMarathonCertificationCount,
   } = input;
   const durationHours = durationSeconds / 3600;
   const bestWeekdayCount = Math.max(weekdayMorningCount, bestWeekdayMorningCount);
+  const shouldShowHundredDayStreak = longestStreak >= 70 && elapsedDayCount >= 80;
+  const hundredDayStreakBadge: PersonalGrowthBadge | null = shouldShowHundredDayStreak ? {
+    key: "hundred-day-streak",
+    label: elapsedDayCount >= 90 ? "100일 연속인증" : "???",
+    description: elapsedDayCount >= 90 ? "100일 연속 인증" : "90일차에 이름이 공개되는 히든 뱃지",
+    progress: badgeProgress(longestStreak, 100),
+    unlocked: longestStreak >= 100,
+    icon: "mountain",
+    colorClassName: "bg-slate-950 text-lime-200",
+  } : null;
 
-  return [
+  const badges: PersonalGrowthBadge[] = [
     {
       key: "morning-start",
       label: "모닝 스타터",
@@ -181,7 +207,7 @@ export function makePersonalGrowthBadges(input: PersonalGrowthBadgeInput): Perso
     },
     {
       key: "thirty-day-root",
-      label: "30일 뿌리",
+      label: "30일 연속 인증",
       description: "30일 연속 인증",
       progress: badgeProgress(longestStreak, 30),
       unlocked: longestStreak >= 30,
@@ -190,7 +216,7 @@ export function makePersonalGrowthBadges(input: PersonalGrowthBadgeInput): Perso
     },
     {
       key: "fifty-day-core",
-      label: "50일 코어",
+      label: "50일 연속 인증",
       description: "50일 연속 인증",
       progress: badgeProgress(longestStreak, 50),
       unlocked: longestStreak >= 50,
@@ -199,7 +225,7 @@ export function makePersonalGrowthBadges(input: PersonalGrowthBadgeInput): Perso
     },
     {
       key: "seventy-day-arc",
-      label: "70일 아치",
+      label: "70일 연속 인증",
       description: "70일 연속 인증",
       progress: badgeProgress(longestStreak, 70),
       unlocked: longestStreak >= 70,
@@ -225,6 +251,33 @@ export function makePersonalGrowthBadges(input: PersonalGrowthBadgeInput): Perso
       colorClassName: "bg-lime-300 text-slate-950",
     },
     {
+      key: "steady-five-k",
+      label: "스테디 5K",
+      description: "5km 이상 인증 15회",
+      progress: badgeProgress(fiveKmCertificationCount, 15, "회"),
+      unlocked: fiveKmCertificationCount >= 15,
+      icon: "target",
+      colorClassName: "bg-lime-300 text-slate-950",
+    },
+    {
+      key: "long-run-maker",
+      label: "롱런 메이커",
+      description: "10km 이상 인증 20회",
+      progress: badgeProgress(tenKmCertificationCount, 20, "회"),
+      unlocked: tenKmCertificationCount >= 20,
+      icon: "mountain",
+      colorClassName: "bg-slate-950 text-lime-200",
+    },
+    {
+      key: "half-trigger",
+      label: "하프 트리거",
+      description: "하루 21.1km 이상 3회",
+      progress: badgeProgress(halfMarathonCertificationCount, 3, "회"),
+      unlocked: halfMarathonCertificationCount >= 3,
+      icon: "flame",
+      colorClassName: "bg-rose-400 text-white",
+    },
+    {
       key: "distance-fifty",
       label: "거리 50K",
       description: "누적 50km 달성",
@@ -240,6 +293,33 @@ export function makePersonalGrowthBadges(input: PersonalGrowthBadgeInput): Perso
       progress: badgeProgress(distanceKm, 100, "km"),
       unlocked: distanceKm >= 100,
       icon: "target",
+      colorClassName: "bg-rose-400 text-white",
+    },
+    {
+      key: "distance-three-hundred",
+      label: "300K 항해자",
+      description: "누적 300km 달성",
+      progress: badgeProgress(distanceKm, 300, "km"),
+      unlocked: distanceKm >= 300,
+      icon: "mountain",
+      colorClassName: "bg-lime-300 text-slate-950",
+    },
+    {
+      key: "distance-four-hundred",
+      label: "400K 정복자",
+      description: "누적 400km 달성",
+      progress: badgeProgress(distanceKm, 400, "km"),
+      unlocked: distanceKm >= 400,
+      icon: "target",
+      colorClassName: "bg-slate-950 text-lime-200",
+    },
+    {
+      key: "distance-five-hundred",
+      label: "500K 미친자",
+      description: "누적 500km 달성",
+      progress: badgeProgress(distanceKm, 500, "km"),
+      unlocked: distanceKm >= 500,
+      icon: "flame",
       colorClassName: "bg-rose-400 text-white",
     },
     {
@@ -261,20 +341,17 @@ export function makePersonalGrowthBadges(input: PersonalGrowthBadgeInput): Perso
       colorClassName: "bg-lime-300 text-slate-950",
     },
   ];
+
+  if (hundredDayStreakBadge) {
+    const seventyDayIndex = badges.findIndex((badge) => badge.key === "seventy-day-arc");
+    badges.splice(seventyDayIndex + 1, 0, hundredDayStreakBadge);
+  }
+
+  return badges;
 }
 
 export function isKnownGrowthBadgeKey(value: string): value is PersonalGrowthBadgeKey {
-  return makePersonalGrowthBadges({
-    certifiedDays: 0,
-    certifiedDates: [],
-    currentStreak: 0,
-    longestStreak: 0,
-    weekdayMorningCount: 0,
-    elapsedDayCount: 0,
-    distanceKm: 0,
-    durationSeconds: 0,
-    maxSingleDistanceKm: 0,
-  }).some((badge) => badge.key === value);
+  return (PERSONAL_GROWTH_BADGE_KEYS as readonly string[]).includes(value);
 }
 
 export const GROWTH_BADGE_UNLOCK_START_DATE = ACTUAL_CERTIFICATION_START_DATE;

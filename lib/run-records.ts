@@ -6,7 +6,6 @@ export const RECOVERY_CERTIFICATION_OVERRIDE_OFF_NOTE = "리커버리 쉴드 제
 export const RECOVERY_CERTIFICATION_SOURCE = "recovery_certification";
 export const RECOVERY_CERTIFICATION_DISTANCE_KM = 3;
 export const RECOVERY_CERTIFICATION_DURATION_SECONDS = 20 * 60;
-export const RECOVERY_CERTIFICATION_LIMIT = 3;
 
 export function isCertificationCountedStatus(status: RecordStatus | string | null | undefined) {
   return status === "certified";
@@ -22,6 +21,25 @@ export function hasRecoveryCertificationText(value: unknown) {
     normalized.includes(normalizeRecoveryText(RECOVERY_CERTIFICATION_NOTE)) ||
     normalized.includes(normalizeRecoveryText(RECOVERY_CERTIFICATION_LEGACY_NOTE)) ||
     normalized.includes(RECOVERY_CERTIFICATION_SOURCE)
+  );
+}
+
+export function hasRecoveryCertificationLink(value: unknown) {
+  if (typeof value !== "string") return false;
+  const normalized = value.toLowerCase().replace(/\s+/g, "");
+  if (!normalized) return false;
+
+  return (
+    /https?:\/\//.test(normalized) ||
+    normalized.includes("www.") ||
+    normalized.includes("youtu.be") ||
+    normalized.includes("youtube.com") ||
+    normalized.includes("instagram.com") ||
+    normalized.includes("strava.app.link") ||
+    normalized.includes("naver.me") ||
+    normalized.includes("bit.ly") ||
+    normalized.includes("linktr.ee") ||
+    /[a-z0-9.-]+\.(com|net|org|kr|co\.kr|me|ly|io|app|link)\//.test(normalized)
   );
 }
 

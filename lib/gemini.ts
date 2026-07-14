@@ -108,7 +108,8 @@ ${targetDateGuide}
 ${participantGuide}
 리커버리 쉴드 판정:
 - 화면에 "리커버리 쉴드" 또는 "리커버리 인증" 문구가 보이고, 참가자 이름과 리커버리/걷기/스트레칭/폼롤러/재활운동 같은 활동 기록이 함께 보이면 is_recovery_certification을 true로 넣으세요.
-- 문구만 보이거나 활동 기록을 확인할 수 없으면 false로 넣으세요.
+- 화면에 URL, 공유 링크, 영상 링크, 유튜브/인스타그램/스트라바 공유 링크처럼 링크가 보이면 리커버리 쉴드 인증으로 보고 is_recovery_certification을 true로 넣으세요.
+- 링크 없이 문구만 보이거나 활동 기록을 확인할 수 없으면 false로 넣으세요.
 - true인 경우에도 이미지에 보이는 원본 거리/시간은 그대로 추출하세요. 대체 인정값 계산은 서버에서 처리합니다.
 
 앱 이름은 화면에서 추론할 수 있으면 source_app에 넣으세요. 예: Nike Run Club, Garmin, Strava, Apple Fitness.

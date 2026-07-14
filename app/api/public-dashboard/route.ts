@@ -28,10 +28,11 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const scope = searchParams.get("scope");
   const daysParam = Number(searchParams.get("days") || 30);
+  const bypassCache = searchParams.get("refresh") === "1";
   const { from, to, cacheKey } = getPublicDashboardDateRange({ scope, daysParam });
 
   try {
-    const { payload, cacheStatus } = await getPublicDashboardPayload(cacheKey, from, to);
+    const { payload, cacheStatus } = await getPublicDashboardPayload(cacheKey, from, to, bypassCache);
     return publicDashboardResponse(payload, cacheStatus);
   } catch (error) {
     console.error("Public dashboard error:", error);

@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireAdminUser } from "@/lib/admin-server";
 import { isMissingTableError, missingSchemaResponse } from "@/lib/supabase-errors";
 import { guardMutationRequest } from "@/lib/request-security";
+import { invalidatePublicDashboardCache } from "@/lib/public-dashboard-data";
 
 export async function GET() {
   const supabase = await createClient();
@@ -63,6 +64,8 @@ export async function POST(request: NextRequest) {
     }
     return NextResponse.json({ error: "멤버를 저장하지 못했어요." }, { status: 500 });
   }
+
+  invalidatePublicDashboardCache();
 
   return NextResponse.json({ participant: data });
 }

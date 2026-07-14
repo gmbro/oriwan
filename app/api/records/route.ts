@@ -5,8 +5,11 @@ import { calculatePaceSeconds } from "@/lib/run-records";
 import { isMissingTableError, missingSchemaResponse } from "@/lib/supabase-errors";
 import { CHALLENGE_DATE_ERROR, isWithinChallengeWindow } from "@/lib/challenge";
 import { guardMutationRequest } from "@/lib/request-security";
+import { invalidatePublicDashboardCache } from "@/lib/public-dashboard-data";
 
 const RECORD_STATUSES = new Set(["certified", "needs_review", "missing", "rejected"]);
+const RECORDS_PAGE_SIZE = 1000;
+type RecordsSupabaseClient = Awaited<ReturnType<typeof createClient>>;
 
 function sanitizeNumber(value: unknown) {
   if (value === null || value === undefined || value === "") return null;
@@ -27,6 +30,59 @@ function hasPositiveMetric(value: number | null) {
   return Boolean(value && value > 0);
 }
 
+async function fetchAdminRecords({
+  supabase,
+  userId,
+  from,
+  to,
+}: {
+  supabase: RecordsSupabaseClient;
+  userId: string;
+  from: string | null;
+  to: string | null;
+}) {
+  const records: unknown[] = [];
+  let offset = 0;
+
+  while (true) {
+    let query = supabase
+      .from("daily_run_records")
+      .select(`
+        id,
+        participant_id,
+        record_date,
+        distance_km,
+        duration_seconds,
+        pace_seconds_per_km,
+        source_app,
+        status,
+        confidence_score,
+        image_url,
+        raw_extracted_text,
+        notes,
+        created_at,
+        participants(id, name)
+      `)
+      .eq("user_id", userId);
+
+    if (from) query = query.gte("record_date", from);
+    if (to) query = query.lte("record_date", to);
+
+    const { data, error } = await query
+      .order("record_date", { ascending: false })
+      .order("created_at", { ascending: false })
+      .range(offset, offset + RECORDS_PAGE_SIZE - 1);
+    if (error) return { data: records, error };
+
+    const page = data || [];
+    records.push(...page);
+    if (page.length < RECORDS_PAGE_SIZE) break;
+    offset += RECORDS_PAGE_SIZE;
+  }
+
+  return { data: records, error: null };
+}
+
 export async function GET(request: NextRequest) {
   const supabase = await createClient();
   const { user, response } = await requireAdminUser(supabase);
@@ -36,32 +92,7 @@ export async function GET(request: NextRequest) {
   const from = searchParams.get("from");
   const to = searchParams.get("to");
 
-  let query = supabase
-    .from("daily_run_records")
-    .select(`
-      id,
-      participant_id,
-      record_date,
-      distance_km,
-      duration_seconds,
-      pace_seconds_per_km,
-      source_app,
-      status,
-      confidence_score,
-      image_url,
-      raw_extracted_text,
-      notes,
-      created_at,
-      participants(id, name)
-    `)
-    .eq("user_id", user.id)
-    .order("record_date", { ascending: false })
-    .order("created_at", { ascending: false });
-
-  if (from) query = query.gte("record_date", from);
-  if (to) query = query.lte("record_date", to);
-
-  const { data, error } = await query;
+  const { data, error } = await fetchAdminRecords({ supabase, userId: user.id, from, to });
 
   if (error) {
     console.error("Records query error:", error);
@@ -129,6 +160,8 @@ export async function POST(request: NextRequest) {
     }
     return NextResponse.json({ error: "러닝 기록을 저장하지 못했어요." }, { status: 500 });
   }
+
+  invalidatePublicDashboardCache();
 
   return NextResponse.json({ success: true, id: data.id });
 }

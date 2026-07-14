@@ -18,17 +18,17 @@ import {
 import {
   RECOVERY_CERTIFICATION_DISTANCE_KM,
   RECOVERY_CERTIFICATION_DURATION_SECONDS,
-  RECOVERY_CERTIFICATION_LIMIT,
   RECOVERY_CERTIFICATION_NOTE,
   RECOVERY_CERTIFICATION_SOURCE,
   calculatePaceSeconds,
+  hasRecoveryCertificationLink,
   hasRecoveryCertificationText,
   isCertificationCountedStatus,
   isRecoveryCertificationFlag,
-  isRecoveryCertificationRecord,
 } from "@/lib/run-records";
 import { createClient } from "@/lib/supabase/server";
 import { guardMutationRequest } from "@/lib/request-security";
+import { invalidatePublicDashboardCache } from "@/lib/public-dashboard-data";
 
 type ExtractedRun = ExtractedRunBase;
 
@@ -50,14 +50,6 @@ type ExistingRunRecord = {
   pace_seconds_per_km: number | null;
   source_app: string | null;
   confidence_score: number | null;
-  status: string | null;
-};
-
-type RecoveryUsageRecord = {
-  id: string;
-  source_app: string | null;
-  raw_extracted_text: string | null;
-  notes: string | null;
   status: string | null;
 };
 
@@ -132,8 +124,15 @@ async function findExistingRecord(
 
 function isRecoveryExtraction(extracted: ExtractedRun, distanceKm: number | null, durationSeconds: number | null) {
   const hasVisibleMetric = Boolean((distanceKm && distanceKm > 0) || (durationSeconds && durationSeconds > 0));
+  const hasVisibleLink = (
+    hasRecoveryCertificationLink(extracted.raw_text) ||
+    hasRecoveryCertificationLink(extracted.notes) ||
+    hasRecoveryCertificationLink(extracted.source_app)
+  );
+
   return (
     isRecoveryCertificationFlag(extracted.is_recovery_certification) ||
+    hasVisibleLink ||
     (
       hasVisibleMetric &&
       (
@@ -143,26 +142,6 @@ function isRecoveryExtraction(extracted: ExtractedRun, distanceKm: number | null
       )
     )
   );
-}
-
-async function countCertifiedRecoveryUsage(input: {
-  service: NonNullable<ReturnType<typeof getServiceClient>>;
-  adminUserId: string;
-  participantId: string;
-  excludeRecordId?: string | null;
-}) {
-  const { data, error } = await input.service
-    .from("daily_run_records")
-    .select("id, source_app, raw_extracted_text, notes, status")
-    .eq("user_id", input.adminUserId)
-    .eq("participant_id", input.participantId)
-    .eq("status", "certified");
-
-  if (error) throw error;
-  return ((data || []) as RecoveryUsageRecord[])
-    .filter((record) => record.id !== input.excludeRecordId)
-    .filter((record) => isRecoveryCertificationRecord(record))
-    .length;
 }
 
 export async function POST(request: NextRequest) {
@@ -282,19 +261,6 @@ export async function POST(request: NextRequest) {
         });
         continue;
       }
-      if (isRecoveryCertification) {
-        const recoveryUsageCount = await countCertifiedRecoveryUsage({
-          service,
-          adminUserId,
-          participantId: participant.id,
-          excludeRecordId: existingRecord?.id || null,
-        });
-        if (recoveryUsageCount >= RECOVERY_CERTIFICATION_LIMIT) {
-          failed.push({ file_name: image.name, error: `${RECOVERY_CERTIFICATION_NOTE} ${RECOVERY_CERTIFICATION_LIMIT}회를 이미 사용했어요.`, extracted });
-          continue;
-        }
-      }
-
       const paceSeconds = calculatePaceSeconds(distanceKm, durationSeconds);
       const notes = [
         isRecoveryCertification ? RECOVERY_CERTIFICATION_NOTE : null,
@@ -353,6 +319,8 @@ export async function POST(request: NextRequest) {
     if (!results.length && failed.length) {
       return NextResponse.json({ error: failed[0].error, participant, results, failed }, { status: 422 });
     }
+
+    if (results.length) invalidatePublicDashboardCache();
 
     return NextResponse.json({ success: true, participant, results, failed });
   } catch (err) {

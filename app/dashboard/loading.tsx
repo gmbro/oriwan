@@ -1,6 +1,6 @@
 import Image from "next/image";
 
-function GaugeSkeleton() {
+function ProgressSkeleton() {
   return (
     <div className="rounded-[18px] bg-white px-3 py-3 ring-1 ring-slate-950/5 sm:px-4">
       <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2.5 sm:gap-3">
@@ -69,12 +69,12 @@ export default function DashboardLoading() {
 
           <div className="p-2.5 sm:p-5">
             <div className="mb-3 flex items-center justify-between gap-3">
-              <h4 className="text-base font-black leading-tight text-oriwan-text">스내사 크루별 인증게이지</h4>
+              <h4 className="text-base font-black leading-tight text-oriwan-text">스내사 크루별 인증 현황</h4>
               <span className="h-7 w-20 animate-pulse rounded-full bg-lime-300" />
             </div>
             <div className="grid gap-2">
               {Array.from({ length: 8 }, (_, index) => (
-                <GaugeSkeleton key={index} />
+                <ProgressSkeleton key={index} />
               ))}
             </div>
           </div>

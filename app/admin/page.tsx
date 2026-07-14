@@ -5,14 +5,13 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { IconCalendar, IconCheck, IconRun, IconSync, IconTarget, IconTrash, IconX } from "@/components/icons";
 import { buildMemberPictogramMap, MemberPictogram } from "@/components/member-pictogram";
-import { RecoveryShieldStrip } from "@/components/recovery-shield-strip";
 import { ACTUAL_CERTIFICATION_START_DATE, CHALLENGE_DAYS, CHALLENGE_START_DATE, clampToChallengeWindow, isCertificationParticipant } from "@/lib/challenge";
+import { broadcastDashboardRefresh } from "@/lib/dashboard-refresh";
 import { imageFileToOptimizedDataUrl } from "@/lib/image-client";
 import { PARTICIPANT_RANK_SORT_OPTIONS, type ParticipantRankSortMode, sortParticipantRanks } from "@/lib/participant-ranking";
 import {
   RECOVERY_CERTIFICATION_DISTANCE_KM,
   RECOVERY_CERTIFICATION_DURATION_SECONDS,
-  RECOVERY_CERTIFICATION_LIMIT,
   RECOVERY_CERTIFICATION_NOTE,
   RECOVERY_CERTIFICATION_OVERRIDE_OFF_NOTE,
   RECOVERY_CERTIFICATION_SOURCE,
@@ -229,6 +228,27 @@ function formatAdminDate(date: string | null | undefined) {
   return `${month}.${day}`;
 }
 
+function formatAdminFullDate(date: string) {
+  const [year, month, day] = date.split("-");
+  if (!year || !month || !day) return date;
+
+  const weekday = new Intl.DateTimeFormat("ko-KR", { weekday: "short", timeZone: "Asia/Seoul" })
+    .format(new Date(`${date}T00:00:00+09:00`));
+  return `${year}.${month}.${day} ${weekday}`;
+}
+
+function inclusiveDateCount(from: string, to: string) {
+  if (to < from) return 0;
+  const fromTime = Date.parse(`${from}T00:00:00Z`);
+  const toTime = Date.parse(`${to}T00:00:00Z`);
+  return Math.floor((toTime - fromTime) / 86_400_000) + 1;
+}
+
+function ratioPercentage(numerator: number, denominator: number) {
+  if (!denominator) return 0;
+  return Math.min(Math.round((numerator / denominator) * 100), 100);
+}
+
 function formatDistanceInput(value: number | null | undefined) {
   return value ? String(value) : "";
 }
@@ -286,6 +306,54 @@ function nextRecoverySourceApp(sourceApp: string | null | undefined, recoveryEna
   if (recoveryEnabled) return RECOVERY_CERTIFICATION_SOURCE;
   if (sourceApp === RECOVERY_CERTIFICATION_SOURCE || sourceApp === RECOVERY_CERTIFICATION_NOTE) return null;
   return sourceApp || null;
+}
+
+const recoveryChartTones = {
+  rose: { ring: "var(--color-oriwan-danger)", text: "text-rose-600", surface: "bg-rose-50" },
+  amber: { ring: "#f59e0b", text: "text-amber-700", surface: "bg-amber-50" },
+  sky: { ring: "#0ea5e9", text: "text-sky-700", surface: "bg-sky-50" },
+  lime: { ring: "var(--color-oriwan-success)", text: "text-lime-700", surface: "bg-lime-50" },
+} as const;
+
+function RecoveryRatioChart({
+  label,
+  percentage,
+  fractionLabel,
+  description,
+  tone,
+}: {
+  label: string;
+  percentage: number;
+  fractionLabel: string;
+  description: string;
+  tone: keyof typeof recoveryChartTones;
+}) {
+  const safePercentage = Math.max(0, Math.min(percentage, 100));
+  const toneStyle = recoveryChartTones[tone];
+
+  return (
+    <div className={`flex min-w-0 flex-col items-center rounded-[22px] px-3 py-4 text-center ring-1 ring-slate-950/5 ${toneStyle.surface}`}>
+      <div
+        role="progressbar"
+        aria-label={`${label} ${safePercentage}% · ${fractionLabel}`}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={safePercentage}
+        className="relative flex h-28 w-28 shrink-0 items-center justify-center rounded-full sm:h-32 sm:w-32"
+        style={{
+          background: `conic-gradient(${toneStyle.ring} ${safePercentage}%, var(--color-oriwan-surface-light) ${safePercentage}% 100%)`,
+        }}
+      >
+        <span className="absolute inset-3 rounded-full bg-white shadow-[inset_0_0_0_1px_rgba(15,23,42,0.05)]" aria-hidden="true" />
+        <span className="relative z-10 grid gap-1">
+          <span className={`text-2xl font-black leading-none sm:text-3xl ${toneStyle.text}`}>{safePercentage}%</span>
+          <span className="text-[10px] font-black text-oriwan-text-muted">{fractionLabel}</span>
+        </span>
+      </div>
+      <p className="mt-3 text-sm font-black leading-tight text-oriwan-text">{label}</p>
+      <p className="mt-1 break-keep text-[10px] font-bold leading-4 text-oriwan-text-muted">{description}</p>
+    </div>
+  );
 }
 
 function AdminActionButton({
@@ -408,6 +476,11 @@ export default function AdminPage() {
       if (showLoading) setLoading(false);
     }
   }, []);
+
+  const refreshAfterMutation = useCallback(async (showLoading = true) => {
+    void broadcastDashboardRefresh();
+    await loadData(showLoading);
+  }, [loadData]);
 
   useEffect(() => {
     let cancelled = false;
@@ -577,6 +650,77 @@ export default function AdminPage() {
       ));
   }, [certificationParticipantIds, participants, records]);
 
+  const recoveryCertificationSummary = useMemo(() => {
+    const participantById = new Map(participants.map((participant) => [participant.id, participant]));
+    const affectedParticipantIds = new Set<string>();
+    const participantsByDate = new Map<string, Map<string, { id: string; name: string; displayOrder: number }>>();
+    const recoveryEndDate = effectiveToday < officialCertificationEndDate ? effectiveToday : officialCertificationEndDate;
+    const elapsedDays = inclusiveDateCount(ACTUAL_CERTIFICATION_START_DATE, recoveryEndDate);
+
+    records.forEach((record) => {
+      if (
+        !record.participant_id ||
+        !record.record_date ||
+        !certificationParticipantIds.has(record.participant_id) ||
+        !isCertificationCountedStatus(record.status) ||
+        record.record_date < ACTUAL_CERTIFICATION_START_DATE ||
+        record.record_date > recoveryEndDate ||
+        !isRecoveryCertificationRecord(record)
+      ) return;
+
+      const participant = participantById.get(record.participant_id);
+      const participantName = participant?.name || record.participants?.name || "이름 미확인";
+      const dailyParticipants = participantsByDate.get(record.record_date) || new Map();
+
+      dailyParticipants.set(record.participant_id, {
+        id: record.participant_id,
+        name: participantName,
+        displayOrder: participant?.display_order ?? Number.MAX_SAFE_INTEGER,
+      });
+      participantsByDate.set(record.record_date, dailyParticipants);
+      affectedParticipantIds.add(record.participant_id);
+    });
+
+    const rows = Array.from(participantsByDate, ([date, dailyParticipants]) => ({
+      date,
+      participants: Array.from(dailyParticipants.values()).sort((a, b) => (
+        a.displayOrder - b.displayOrder || a.name.localeCompare(b.name, "ko")
+      )),
+    })).sort((a, b) => b.date.localeCompare(a.date));
+
+    const affectedCertifiedDays = new Set<string>();
+    records.forEach((record) => {
+      if (
+        !record.participant_id ||
+        !record.record_date ||
+        !affectedParticipantIds.has(record.participant_id) ||
+        !isCertificationCountedStatus(record.status) ||
+        record.record_date < ACTUAL_CERTIFICATION_START_DATE ||
+        record.record_date > recoveryEndDate
+      ) return;
+      affectedCertifiedDays.add(`${record.participant_id}:${record.record_date}`);
+    });
+
+    const totalParticipants = affectedParticipantIds.size;
+    const totalCertifications = rows.reduce((total, row) => total + row.participants.length, 0);
+    const todayRecoveryCount = participantsByDate.get(effectiveToday)?.size || 0;
+    const possibleParticipantDays = totalParticipants * elapsedDays;
+
+    return {
+      totalParticipants,
+      totalCertifications,
+      todayRecoveryCount,
+      elapsedDays,
+      possibleParticipantDays,
+      affectedCertifiedDays: affectedCertifiedDays.size,
+      affectedParticipantRatio: ratioPercentage(totalParticipants, certificationParticipants.length),
+      elapsedRecoveryRatio: ratioPercentage(totalCertifications, possibleParticipantDays),
+      certifiedRecoveryRatio: ratioPercentage(totalCertifications, affectedCertifiedDays.size),
+      todayRecoveryRatio: ratioPercentage(todayRecoveryCount, totalParticipants),
+      rows,
+    };
+  }, [certificationParticipantIds, certificationParticipants.length, participants, records]);
+
   const selectedRecordsParticipant = useMemo(
     () => participants.find((participant) => participant.id === selectedRecordsParticipantId) || null,
     [participants, selectedRecordsParticipantId]
@@ -600,11 +744,11 @@ export default function AdminPage() {
     if (res.ok) {
       setNewName("");
       setNewNickname("");
-      await loadData();
+      await refreshAfterMutation();
     } else {
       alert("멤버를 저장하지 못했어요. 이름을 다시 확인해주세요.");
     }
-  }, [loadData, newName, newNickname]);
+  }, [newName, newNickname, refreshAfterMutation]);
 
   const editingParticipant = useMemo(
     () => participants.find((participant) => participant.id === editingParticipantId) || null,
@@ -657,22 +801,22 @@ export default function AdminPage() {
 
     if (res.ok) {
       resetParticipantForm();
-      await loadData();
+      await refreshAfterMutation();
     } else {
       alert("멤버 정보를 수정하지 못했어요.");
     }
-  }, [addParticipant, editingParticipantId, loadData, newName, newNickname, resetParticipantForm]);
+  }, [addParticipant, editingParticipantId, newName, newNickname, refreshAfterMutation, resetParticipantForm]);
 
   const deleteParticipant = useCallback(async (participantId: string) => {
     if (!window.confirm("이 멤버를 목록에서 제외할까요? 기존 러닝 기록은 그대로 보관됩니다.")) return;
     const res = await fetch(`/api/participants/${participantId}`, { method: "DELETE" });
     if (res.ok) {
       if (editingParticipantId === participantId) resetParticipantForm();
-      await loadData();
+      await refreshAfterMutation();
     } else {
       alert("멤버를 삭제하지 못했어요.");
     }
-  }, [editingParticipantId, loadData, resetParticipantForm]);
+  }, [editingParticipantId, refreshAfterMutation, resetParticipantForm]);
 
   const addUploadParticipant = useCallback(async () => {
     const name = uploadNewName.trim();
@@ -706,13 +850,13 @@ export default function AdminPage() {
         setUploadNewName("");
         setAnalysisMessage(`${participant.name}님을 추가했어요.`);
       }
-      await loadData(false);
+      await refreshAfterMutation(false);
     } catch (err) {
       setAnalysisMessage(err instanceof Error ? err.message : "멤버를 저장하지 못했어요.");
     } finally {
       setAddingUploadParticipant(false);
     }
-  }, [loadData, participants, uploadNewName]);
+  }, [participants, refreshAfterMutation, uploadNewName]);
 
   const postAnalyzeImages = useCallback(async (images: PendingAnalyzeImage[]) => {
     const results: AnalysisResult[] = [];
@@ -806,13 +950,13 @@ export default function AdminPage() {
       const duplicate = results.filter((result) => result.duplicate || result.status === "duplicate").length;
       const review = results.length - certified - duplicate;
       setAnalysisMessage(`${results.length}장 정리 완료 · 인증 반영 ${certified}건 · 이미 인증 ${duplicate}건 · 보류 ${review}건`);
-      await loadData();
+      await refreshAfterMutation();
     } catch (err) {
       setAnalysisMessage(err instanceof Error ? err.message : "이미지를 읽지 못했어요. 흐린 이미지는 직접 입력으로 가볍게 보완해주세요.");
     } finally {
       setAnalyzing(false);
     }
-  }, [analyzing, files, loadData, postAnalyzeImages]);
+  }, [analyzing, files, postAnalyzeImages, refreshAfterMutation]);
 
   const handleUploadDragOver = useCallback((event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
@@ -866,13 +1010,13 @@ export default function AdminPage() {
           : item
       )));
       setAnalysisMessage(`${participant.name}님으로 연결했어요.`);
-      await loadData(false);
+      await refreshAfterMutation(false);
     } catch (err) {
       setAnalysisMessage(err instanceof Error ? err.message : "멤버를 저장하지 못했어요.");
     } finally {
       setUpdatingAnalysisKey("");
     }
-  }, [analysisResults, loadData, participants]);
+  }, [analysisResults, participants, refreshAfterMutation]);
 
   const updateAnalysisDraft = useCallback((resultIndex: number, field: "edit_distance" | "edit_duration", value: string) => {
     setAnalysisResults((current) => current.map((item, index) => (
@@ -926,13 +1070,13 @@ export default function AdminPage() {
           : item
       )));
       setAnalysisMessage(nextStatus === "certified" ? "거리와 시간을 저장했어요." : "보류 상태로 저장했어요. 멤버, 거리, 시간을 확인해주세요.");
-      await loadData(false);
+      await refreshAfterMutation(false);
     } catch (err) {
       setAnalysisMessage(err instanceof Error ? err.message : "기록을 수정하지 못했어요.");
     } finally {
       setUpdatingAnalysisKey("");
     }
-  }, [analysisResults, loadData]);
+  }, [analysisResults, refreshAfterMutation]);
 
   const openParticipantRecords = useCallback((participantId: string) => {
     const drafts = records
@@ -985,13 +1129,13 @@ export default function AdminPage() {
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(typeof json.error === "string" ? json.error : "기록을 수정하지 못했어요.");
 
-      await loadData(false);
+      await refreshAfterMutation(false);
     } catch (err) {
       alert(err instanceof Error ? err.message : "기록을 수정하지 못했어요.");
     } finally {
       setUpdatingRecordId("");
     }
-  }, [loadData, recordDrafts]);
+  }, [recordDrafts, refreshAfterMutation]);
 
   const toggleRecordRecovery = useCallback(async (record: RunRecord, recoveryEnabled: boolean) => {
     const draft = recordDrafts[record.id] || {
@@ -1052,13 +1196,13 @@ export default function AdminPage() {
             }
           : item
       )));
-      await loadData(false);
+      await refreshAfterMutation(false);
     } catch (err) {
       alert(err instanceof Error ? err.message : "리커버리 표시를 저장하지 못했어요.");
     } finally {
       setUpdatingRecordId("");
     }
-  }, [loadData, recordDrafts]);
+  }, [recordDrafts, refreshAfterMutation]);
 
   const deleteExistingRecord = useCallback(async (record: RunRecord) => {
     if (!record.record_date) return;
@@ -1076,13 +1220,13 @@ export default function AdminPage() {
         delete next[record.id];
         return next;
       });
-      await loadData(false);
+      await refreshAfterMutation(false);
     } catch (err) {
       alert(err instanceof Error ? err.message : "기록을 삭제하지 못했어요.");
     } finally {
       setDeletingRecordId("");
     }
-  }, [loadData, selectedRecordsParticipant?.name]);
+  }, [refreshAfterMutation, selectedRecordsParticipant?.name]);
 
   const saveManualRecord = useCallback(async () => {
     const duration = parseDurationToSeconds(manualDuration);
@@ -1103,11 +1247,11 @@ export default function AdminPage() {
       setManualDistance("");
       setManualDuration("");
       setAdminModal(null);
-      await loadData();
+      await refreshAfterMutation();
     } else {
       alert(typeof json.error === "string" ? json.error : "기록을 저장하지 못했어요.");
     }
-  }, [loadData, manualDate, manualDistance, manualDuration, manualParticipantId]);
+  }, [manualDate, manualDistance, manualDuration, manualParticipantId, refreshAfterMutation]);
 
   const sendAdminCode = useCallback(async () => {
     setSendingCode(true);
@@ -1480,6 +1624,151 @@ export default function AdminPage() {
             </div>
           </div>
         </section>
+
+        <section className="card mobile-page-card overflow-hidden p-0" aria-labelledby="recovery-certification-title">
+          <div className="border-b border-slate-950/5 px-4 py-4 sm:px-5 sm:py-5">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+              <div className="min-w-0">
+                <p className="text-[11px] font-black uppercase text-oriwan-text-muted">Recovery Impact</p>
+                <h2 id="recovery-certification-title" className="mt-1 text-xl font-black leading-tight text-oriwan-text">
+                  리커버리 · 부상 영향 현황
+                </h2>
+                <p className="mt-1 max-w-2xl text-xs font-semibold leading-5 text-oriwan-text-muted">
+                  리커버리 인증 이력을 기준으로 러닝이 어려운 인원과 회복 인증 비중을 보여줍니다.
+                </p>
+              </div>
+              <span className="inline-flex w-fit shrink-0 rounded-full bg-slate-950 px-3 py-1.5 text-[11px] font-black text-lime-200">
+                {formatAdminFullDate(effectiveToday)} 기준
+              </span>
+            </div>
+          </div>
+
+          <div className="p-3 sm:p-5">
+            {isInitialAdminLoading ? (
+              <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+                {Array.from({ length: 4 }, (_, index) => (
+                  <div key={`recovery-loading-${index}`} className="flex animate-pulse flex-col items-center rounded-[22px] bg-white px-3 py-4 ring-1 ring-slate-950/5">
+                    <span className="h-28 w-28 rounded-full bg-oriwan-surface-light sm:h-32 sm:w-32" />
+                    <span className="mt-3 h-4 w-24 rounded-full bg-oriwan-surface-light" />
+                    <span className="mt-2 h-3 w-28 rounded-full bg-oriwan-surface-light" />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <>
+                <div className="rounded-2xl bg-amber-50 px-4 py-3 text-[11px] font-bold leading-5 text-amber-900 ring-1 ring-amber-200">
+                  실제 의료 진단 인원이 아니라, 완료된 리커버리 인증 이력을 부상 영향 신호로 계산한 추정치입니다.
+                </div>
+
+                <div className="mt-3 grid grid-cols-2 gap-2 lg:grid-cols-4">
+                  <RecoveryRatioChart
+                    label="전체 대비 부상 영향"
+                    percentage={recoveryCertificationSummary.affectedParticipantRatio}
+                    fractionLabel={`${recoveryCertificationSummary.totalParticipants}/${certificationParticipants.length}명`}
+                    description="전체 인증 대상 중 리커버리 이력 보유"
+                    tone="rose"
+                  />
+                  <RecoveryRatioChart
+                    label="현재까지 회복일 비율"
+                    percentage={recoveryCertificationSummary.elapsedRecoveryRatio}
+                    fractionLabel={`${recoveryCertificationSummary.totalCertifications}/${recoveryCertificationSummary.possibleParticipantDays}일`}
+                    description={`${recoveryCertificationSummary.elapsedDays}일 × 영향 인원 기준`}
+                    tone="amber"
+                  />
+                  <RecoveryRatioChart
+                    label="인증 중 회복 대체율"
+                    percentage={recoveryCertificationSummary.certifiedRecoveryRatio}
+                    fractionLabel={`${recoveryCertificationSummary.totalCertifications}/${recoveryCertificationSummary.affectedCertifiedDays}일`}
+                    description="영향 인원의 전체 인증일 중 리커버리"
+                    tone="sky"
+                  />
+                  <RecoveryRatioChart
+                    label="오늘 리커버리 중"
+                    percentage={recoveryCertificationSummary.todayRecoveryRatio}
+                    fractionLabel={`${recoveryCertificationSummary.todayRecoveryCount}/${recoveryCertificationSummary.totalParticipants}명`}
+                    description="부상 영향 추정 인원 중 오늘 회복 인증"
+                    tone="lime"
+                  />
+                </div>
+
+                <div className="mt-3 flex flex-col gap-3 rounded-[22px] bg-slate-950 px-4 py-4 text-white sm:flex-row sm:items-center sm:justify-between sm:px-5">
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-black uppercase text-white/45">Current Recovery Signal</p>
+                    <p className="mt-1 text-sm font-black leading-6 text-white">
+                      {recoveryCertificationSummary.totalParticipants > 0
+                        ? `부상 영향 추정 ${recoveryCertificationSummary.totalParticipants}명 중 오늘 ${recoveryCertificationSummary.todayRecoveryCount}명이 리커버리로 인증했습니다.`
+                        : "현재까지 리커버리 인증 이력이 없어 부상 영향 추정 인원이 없습니다."}
+                    </p>
+                  </div>
+                  <div className="grid shrink-0 grid-cols-2 gap-2 text-center">
+                    <span className="rounded-2xl bg-white/10 px-3 py-2 ring-1 ring-white/10">
+                      <span className="block text-[9px] font-black text-white/45">영향 인원</span>
+                      <span className="mt-0.5 block text-lg font-black text-lime-200">{recoveryCertificationSummary.totalParticipants}명</span>
+                    </span>
+                    <span className="rounded-2xl bg-white/10 px-3 py-2 ring-1 ring-white/10">
+                      <span className="block text-[9px] font-black text-white/45">누적 회복일</span>
+                      <span className="mt-0.5 block text-lg font-black text-lime-200">{recoveryCertificationSummary.totalCertifications}일</span>
+                    </span>
+                  </div>
+                </div>
+
+                <div className="mt-5 flex items-end justify-between gap-3">
+                  <div>
+                    <h3 className="text-base font-black text-oriwan-text">일자별 리커버리 인증</h3>
+                    <p className="mt-0.5 text-[11px] font-bold text-oriwan-text-muted">최신 날짜부터 사용자별로 확인할 수 있어요.</p>
+                  </div>
+                  <span className="shrink-0 rounded-full bg-lime-100 px-3 py-1 text-[11px] font-black text-lime-800">
+                    총 {recoveryCertificationSummary.totalCertifications}일
+                  </span>
+                </div>
+
+                {recoveryCertificationSummary.rows.length ? (
+                  <div className="mt-3 overflow-hidden rounded-[22px] bg-white ring-1 ring-slate-950/5">
+                    <div className="hidden grid-cols-[9rem_4rem_minmax(0,1fr)] gap-3 bg-slate-950 px-4 py-2.5 text-[10px] font-black text-white/55 sm:grid">
+                      <span>인증 일자</span>
+                      <span>인원</span>
+                      <span>사용자</span>
+                    </div>
+                    <div className="divide-y divide-slate-950/5">
+                      {recoveryCertificationSummary.rows.map((row) => (
+                        <div key={row.date} className="grid gap-3 px-4 py-4 sm:grid-cols-[9rem_4rem_minmax(0,1fr)] sm:items-start">
+                          <div className="flex items-center justify-between gap-3 sm:block">
+                            <p className="text-sm font-black text-oriwan-text">{formatAdminFullDate(row.date)}</p>
+                            <span className="rounded-full bg-lime-100 px-2.5 py-1 text-[11px] font-black text-lime-800 sm:hidden">
+                              {row.participants.length}명
+                            </span>
+                          </div>
+                          <span className="hidden w-fit rounded-full bg-lime-100 px-2.5 py-1 text-[11px] font-black text-lime-800 sm:inline-flex">
+                            {row.participants.length}명
+                          </span>
+                          <div className="flex flex-wrap gap-1.5">
+                            {row.participants.map((participant) => (
+                              <button
+                                key={participant.id}
+                                type="button"
+                                onClick={() => openParticipantRecords(participant.id)}
+                                className="inline-flex min-h-8 items-center gap-1.5 rounded-full bg-oriwan-surface-light px-2.5 py-1 text-xs font-black text-oriwan-text ring-1 ring-slate-950/5 transition hover:bg-slate-950 hover:text-lime-200"
+                                aria-label={`${participant.name} 인증 기록 보기`}
+                              >
+                                <span className="h-1.5 w-1.5 rounded-full bg-lime-400" aria-hidden="true" />
+                                {participant.name}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-3 rounded-[22px] bg-white px-4 py-10 text-center ring-1 ring-slate-950/5">
+                    <p className="text-sm font-black text-oriwan-text">아직 완료된 리커버리 인증이 없어요.</p>
+                    <p className="mt-1 text-xs font-semibold text-oriwan-text-muted">리커버리 인증이 완료되면 비율과 날짜별 현황이 함께 표시됩니다.</p>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </section>
         {adminModal === "upload" && (
           <div
             className="fixed inset-0 z-[80] flex items-end bg-slate-950/45 px-0 py-0 backdrop-blur-sm sm:items-center sm:justify-center sm:px-4 sm:py-4"
@@ -1706,7 +1995,11 @@ export default function AdminPage() {
                     <h2 className="truncate text-2xl font-black leading-tight text-oriwan-text">
                       {selectedRecordsParticipant.name}
                     </h2>
-                    <RecoveryShieldStrip usedCount={selectedRecordsParticipantRecoveryUsageCount} className="mt-1" />
+                    {selectedRecordsParticipantRecoveryUsageCount > 0 && (
+                      <p className="mt-1 inline-flex max-w-full items-center rounded-full bg-sky-50 px-2.5 py-1 text-[11px] font-black text-sky-700 shadow-[inset_0_0_0_1px_rgba(14,165,233,0.16)]">
+                        + 리커버리 {selectedRecordsParticipantRecoveryUsageCount}일
+                      </p>
+                    )}
                   </div>
                 </div>
                 <button
@@ -1731,11 +2024,8 @@ export default function AdminPage() {
                   const isSaving = updatingRecordId === record.id;
                   const isDeleting = deletingRecordId === record.id;
                   const isRecoveryRecord = isRecoveryCertificationRecord(record);
-                  const isRecoveryLimitReached = selectedRecordsParticipantRecoveryUsageCount >= RECOVERY_CERTIFICATION_LIMIT;
-                  const recoveryToggleDisabled = isSaving || isDeleting || (!isRecoveryRecord && isRecoveryLimitReached);
-                  const recoveryToggleTitle = !isRecoveryRecord && isRecoveryLimitReached
-                    ? "리커버리 쉴드는 최대 3회까지 사용할 수 있어요."
-                    : "리커버리 쉴드";
+                  const recoveryToggleDisabled = isSaving || isDeleting;
+                  const recoveryToggleTitle = isRecoveryRecord ? "리커버리 쉴드 사용 해제" : "리커버리 쉴드 사용";
                   const displayNotes = formatVisibleRecordNotes(record.notes);
 
                   return (
@@ -1762,7 +2052,7 @@ export default function AdminPage() {
                             className="w-full rounded-xl border border-oriwan-border bg-white px-3 py-2.5 text-sm font-black text-oriwan-text outline-none focus:border-oriwan-primary"
                           />
                         </div>
-                        <div className="grid grid-cols-[3rem_minmax(0,1fr)_minmax(0,1fr)] gap-2 sm:flex sm:justify-end">
+                        <div className="grid grid-cols-[5.25rem_minmax(0,1fr)_minmax(0,1fr)] gap-2 sm:flex sm:justify-end">
                           <button
                             type="button"
                             onClick={() => toggleRecordRecovery(record, !isRecoveryRecord)}
@@ -1770,22 +2060,13 @@ export default function AdminPage() {
                             aria-pressed={isRecoveryRecord}
                             aria-label={isRecoveryRecord ? "리커버리 쉴드 사용 해제" : "리커버리 쉴드 사용"}
                             title={recoveryToggleTitle}
-                            className={`inline-flex min-h-11 items-center justify-center rounded-xl px-3 ring-1 transition disabled:opacity-40 sm:w-12 ${
+                            className={`inline-flex min-h-11 items-center justify-center rounded-xl px-3 text-xs font-black ring-1 transition disabled:opacity-40 ${
                               isRecoveryRecord
                                 ? "bg-slate-950 text-lime-200 ring-slate-950"
                                 : "bg-lime-50 text-slate-500 ring-lime-200 hover:bg-lime-100"
                             }`}
                           >
-                            <span
-                              className={`inline-flex h-7 w-6 items-center justify-center text-[11px] font-black leading-none [clip-path:polygon(50%_0%,91%_14%,82%_72%,50%_100%,18%_72%,9%_14%)] ${
-                                isRecoveryRecord
-                                  ? "bg-lime-300 text-slate-950 shadow-sm shadow-lime-300/30"
-                                  : "bg-slate-200 text-slate-500"
-                              }`}
-                              aria-hidden="true"
-                            >
-                              R
-                            </span>
+                            {isRecoveryRecord ? "회복 ON" : "회복"}
                           </button>
                           <button
                             type="button"

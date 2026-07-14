@@ -6,8 +6,8 @@ import type { CSSProperties } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { IconCalendar, IconDna, IconDroplet, IconFlame, IconHeart, IconMountain, IconMuscle, IconRun, IconSprout, IconSync, IconTarget, IconX } from "@/components/icons";
 import { buildMemberPictogramMap, MemberPictogram } from "@/components/member-pictogram";
-import { RecoveryShieldStrip } from "@/components/recovery-shield-strip";
 import { ACTUAL_CERTIFICATION_START_DATE, CERTIFICATION_DISPLAY_START_DATE, CHALLENGE_DAYS } from "@/lib/challenge";
+import { DASHBOARD_REFRESH_CHANNEL, DASHBOARD_REFRESH_EVENT } from "@/lib/dashboard-refresh";
 import {
   getBestWeekdayMorningProgress,
   getCurrentDateStreak,
@@ -16,11 +16,21 @@ import {
   makePersonalGrowthBadges,
   type PersonalGrowthBadge,
 } from "@/lib/growth-badges";
-import { PARTICIPANT_RANK_SORT_OPTIONS, type ParticipantRankSortDirection, type ParticipantRankSortMode, sortParticipantRanks } from "@/lib/participant-ranking";
+import { type ParticipantRankSortDirection, type ParticipantRankSortMode, sortParticipantRanks } from "@/lib/participant-ranking";
 import type { PublicDashboardParticipant as Participant, PublicDashboardPayload as PublicDashboardData, PublicDashboardRecord as RunRecord } from "@/lib/public-dashboard-data";
 import { addDays, formatKstTime, isCertificationCountedStatus, isRecoveryCertificationRecord, secondsToTime, toIsoDate, toKstIsoDate } from "@/lib/run-records";
+import { createClient } from "@/lib/supabase/client";
 
 type TrendModal = "weekly" | "daily" | null;
+
+type ParticipantGrowthMetrics = {
+  distanceKm: number;
+  durationSeconds: number;
+  maxSingleDistanceKm: number;
+  fiveKmCertificationCount: number;
+  tenKmCertificationCount: number;
+  halfMarathonCertificationCount: number;
+};
 
 const LazyYoutubeShortsSection = dynamic(
   () => import("@/components/youtube-shorts-section").then((mod) => mod.YoutubeShortsSection),
@@ -52,6 +62,21 @@ function shortDate(value: string) {
   return value.slice(5).replace("-", ".");
 }
 
+function formatCompactNumber(value: number, maximumFractionDigits = 0) {
+  return value.toLocaleString("ko-KR", {
+    maximumFractionDigits,
+  });
+}
+
+function formatTeamDuration(seconds: number) {
+  const totalMinutes = Math.round(seconds / 60);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (!hours) return `${minutes}분`;
+  if (!minutes) return `${formatCompactNumber(hours)}시간`;
+  return `${formatCompactNumber(hours)}시간 ${minutes}분`;
+}
+
 function makeDaysFrom(startDate: string, days = CHALLENGE_DAYS) {
   const start = new Date(`${startDate}T00:00:00`);
   return Array.from({ length: days }, (_, index) => toIsoDate(addDays(start, index)));
@@ -67,6 +92,17 @@ function makeDaysThrough(startDate: string, endDate: string) {
 function makeOfficialCertificationDays() {
   return makeDaysFrom(ACTUAL_CERTIFICATION_START_DATE)
     .filter((day) => day <= actualCertificationEndDate);
+}
+
+function makeEmptyGrowthMetrics(): ParticipantGrowthMetrics {
+  return {
+    distanceKm: 0,
+    durationSeconds: 0,
+    maxSingleDistanceKm: 0,
+    fiveKmCertificationCount: 0,
+    tenKmCertificationCount: 0,
+    halfMarathonCertificationCount: 0,
+  };
 }
 
 function gaugeColorClass(certifiedDays: number) {
@@ -86,14 +122,25 @@ const RING_CIRCUMFERENCE = 302;
 const PUBLIC_DASHBOARD_STORAGE_KEY = "oriwan-public-dashboard-cache-v2";
 const PUBLIC_DASHBOARD_STORAGE_TTL_MS = 10 * 60 * 1000;
 const PUBLIC_DASHBOARD_FOCUS_REFRESH_MS = 30 * 1000;
-const PERSONAL_GROWTH_BADGE_STORAGE_KEY = "oriwan-personal-growth-badges-v1";
+const PUBLIC_DASHBOARD_LIVE_REFRESH_MS = 30 * 1000;
+const PUBLIC_DASHBOARD_BOOTSTRAP_REFRESH_STALE_MS = 45 * 1000;
+const PUBLIC_DASHBOARD_DEFERRED_TIPS_DELAY_MS = 600;
+const PERSONAL_GROWTH_BADGE_STORAGE_KEY = "oriwan-personal-growth-badges-v2";
 const ONE_PLUS_ONE_DISMISS_STORAGE_KEY = "oriwan-one-plus-one-dismissed-v1";
 const FULL_HOUSE_FIREWORKS_STORAGE_KEY = "oriwan-full-house-fireworks-v1";
 const FULL_HOUSE_FIREWORKS_DURATION_MS = 1900;
 const ONE_PLUS_ONE_MILESTONES = new Set([40, 50, 60, 70, 80, 90]);
+const STAMP_DOUBLE_EVENT_MILESTONES = ONE_PLUS_ONE_MILESTONES;
+const FINAL_REPORT_MILESTONE_DAY = CHALLENGE_DAYS;
+const JOURNEY_REPORT_DAY_COUNT = 50;
+const JOURNEY_REPORT_TRIGGER_LABEL = "D-50";
 const CERTIFICATION_SORT_DIRECTION_OPTIONS: { key: ParticipantRankSortDirection; label: string }[] = [
   { key: "desc", label: "높은순" },
   { key: "asc", label: "낮은순" },
+];
+const PARTICIPANT_METRIC_SORT_OPTIONS: { key: Exclude<ParticipantRankSortMode, "certification">; label: string }[] = [
+  { key: "distance", label: "거리순" },
+  { key: "duration", label: "시간순" },
 ];
 const FULL_HOUSE_FIREWORK_BURSTS = [
   { x: "18%", y: "22%", delay: 0, hue: 82 },
@@ -133,6 +180,13 @@ function writeCachedDashboardData(data: PublicDashboardData) {
   } catch {
     // Storage can fail in private mode. Network refresh still keeps the dashboard usable.
   }
+}
+
+function dashboardDataAgeMs(data: PublicDashboardData | null | undefined) {
+  if (!data?.generated_at) return Number.POSITIVE_INFINITY;
+  const generatedAt = new Date(data.generated_at).getTime();
+  if (!Number.isFinite(generatedAt)) return Number.POSITIVE_INFINITY;
+  return Date.now() - generatedAt;
 }
 
 function readStoredGrowthBadges(): StoredGrowthBadges {
@@ -230,6 +284,85 @@ function GrowthBadgeIcon({ icon }: { icon: PersonalGrowthBadge["icon"] }) {
   return <IconRun size={16} className={iconClassName} />;
 }
 
+const BADGE_ACHIEVEMENT_BORDER_CLASS_BY_KEY: Partial<Record<PersonalGrowthBadge["key"], string>> = {
+  "distance-four-hundred": "border-amber-300 ring-2 ring-amber-300/70 shadow-amber-300/25",
+  "distance-five-hundred": "border-amber-300 ring-2 ring-amber-300/70 shadow-amber-300/25",
+  "hundred-day-streak": "border-amber-300 ring-2 ring-amber-300/80 shadow-amber-300/30",
+  "long-run-maker": "border-rose-400 ring-2 ring-rose-400/70 shadow-rose-400/25",
+  "half-trigger": "border-rose-400 ring-2 ring-rose-400/70 shadow-rose-400/25",
+  "season-pacer": "border-yellow-300 ring-2 ring-yellow-300/70 shadow-yellow-300/25",
+  "fifty-day-core": "border-yellow-300 ring-2 ring-yellow-300/70 shadow-yellow-300/25",
+  "seventy-day-arc": "border-yellow-300 ring-2 ring-yellow-300/70 shadow-yellow-300/25",
+};
+
+const BADGE_PREVIEW_BORDER_CLASS_BY_KEY: Partial<Record<PersonalGrowthBadge["key"], string>> = {
+  "distance-four-hundred": "border-amber-300/75 ring-1 ring-amber-200/60",
+  "distance-five-hundred": "border-amber-300/75 ring-1 ring-amber-200/60",
+  "hundred-day-streak": "border-amber-300/80 ring-1 ring-amber-200/70",
+  "long-run-maker": "border-rose-300/75 ring-1 ring-rose-200/60",
+  "half-trigger": "border-rose-300/75 ring-1 ring-rose-200/60",
+  "season-pacer": "border-yellow-300/80 ring-1 ring-yellow-200/60",
+  "fifty-day-core": "border-yellow-300/80 ring-1 ring-yellow-200/60",
+  "seventy-day-arc": "border-yellow-300/80 ring-1 ring-yellow-200/60",
+};
+
+function badgeCardBorderClass(key: PersonalGrowthBadge["key"], unlocked: boolean) {
+  if (unlocked) {
+    return BADGE_ACHIEVEMENT_BORDER_CLASS_BY_KEY[key] || "border-lime-300 ring-2 ring-lime-300/80 shadow-lime-300/15";
+  }
+
+  return BADGE_PREVIEW_BORDER_CLASS_BY_KEY[key] || "border-transparent ring-1 ring-slate-950/5";
+}
+
+const RECENT_BADGE_DISPLAY_ORDER: PersonalGrowthBadge["key"][] = [
+  "morning-start",
+  "three-day-rhythm",
+  "seven-day-routine",
+  "weekday-morning",
+  "season-pacer",
+  "thirty-day-root",
+  "fifty-day-core",
+  "seventy-day-arc",
+  "hundred-day-streak",
+  "five-k-finisher",
+  "ten-k-finisher",
+  "steady-five-k",
+  "long-run-maker",
+  "half-trigger",
+  "distance-fifty",
+  "distance-hundred",
+  "distance-three-hundred",
+  "distance-four-hundred",
+  "distance-five-hundred",
+  "time-ten-hours",
+  "time-twenty-hours",
+];
+
+const RECENT_BADGE_LABEL_CLASS_BY_KEY: Partial<Record<PersonalGrowthBadge["key"], string>> = {
+  "hundred-day-streak": "border-amber-300 bg-amber-50 text-amber-800 shadow-amber-200/40",
+  "distance-four-hundred": "border-amber-300 bg-amber-50 text-amber-800 shadow-amber-200/40",
+  "distance-five-hundred": "border-amber-300 bg-amber-50 text-amber-800 shadow-amber-200/40",
+  "long-run-maker": "border-rose-300 bg-rose-50 text-rose-700 shadow-rose-200/40",
+  "half-trigger": "border-rose-300 bg-rose-50 text-rose-700 shadow-rose-200/40",
+  "season-pacer": "border-yellow-300 bg-yellow-50 text-yellow-800 shadow-yellow-200/40",
+  "fifty-day-core": "border-yellow-300 bg-yellow-50 text-yellow-800 shadow-yellow-200/40",
+  "seventy-day-arc": "border-yellow-300 bg-yellow-50 text-yellow-800 shadow-yellow-200/40",
+};
+
+function badgeDisplayOrderIndex(key: PersonalGrowthBadge["key"]) {
+  const index = RECENT_BADGE_DISPLAY_ORDER.indexOf(key);
+  return index === -1 ? 0 : index;
+}
+
+function recentBadgeLabelClass(key: PersonalGrowthBadge["key"]) {
+  return RECENT_BADGE_LABEL_CLASS_BY_KEY[key] || "border-lime-300 bg-white text-slate-950 shadow-lime-200/35";
+}
+
+function isRecoveryGrowthBadge(badge: PersonalGrowthBadge) {
+  const text = `${badge.key} ${badge.label} ${badge.description}`.toLowerCase();
+  return text.includes("recovery") || text.includes("리커버리") || text.includes("회복");
+}
+
 function makeGraphPath(items: { value: number }[], width = 320, height = 150, padding = 24) {
   if (!items.length) return { path: "", areaPath: "", points: [] as { x: number; y: number }[], width, height, padding };
 
@@ -281,42 +414,6 @@ function AnimatedNumber({
   }, [duration, value]);
 
   return <span className={`dashboard-number-pop ${className}`.trim()}>{displayValue}{suffix}</span>;
-}
-
-function AnimatedMetricNumber({
-  value,
-  suffix = "",
-  decimals = 1,
-}: {
-  value: number;
-  suffix?: string;
-  decimals?: number;
-}) {
-  const [displayValue, setDisplayValue] = useState(0);
-
-  useEffect(() => {
-    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (reduceMotion) {
-      const frame = requestAnimationFrame(() => setDisplayValue(value));
-      return () => cancelAnimationFrame(frame);
-    }
-
-    let animationFrame = 0;
-    const startedAt = performance.now();
-    const duration = 850;
-
-    const tick = (now: number) => {
-      const progress = Math.min((now - startedAt) / duration, 1);
-      const eased = 1 - Math.pow(1 - progress, 3);
-      setDisplayValue(value * eased);
-      if (progress < 1) animationFrame = requestAnimationFrame(tick);
-    };
-
-    animationFrame = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(animationFrame);
-  }, [value]);
-
-  return <span className="dashboard-number-pop">{displayValue.toFixed(decimals)}{suffix}</span>;
 }
 
 function FanfareBurst({ compact = false }: { compact?: boolean }) {
@@ -584,15 +681,7 @@ function makeMascotCoachMessages(input: MascotCoachInput) {
     });
   }
 
-  if (input.recoveryUsageCount >= 3) {
-    messages.push({
-      text: pickMascotCoachText(input, "recovery-3", [
-        "{name}, 회복이 필요한 순간들을 잘 골라냈어요. 쉬는 선택도 챌린지를 지키는 방식이에요.",
-        "{name}, 몸을 챙기며 이어온 점이 좋아요. 안전하게 오래 가는 게 제일 중요해요.",
-        "{name}, 리커버리를 잘 활용했어요. 무리보다 회복을 택한 것도 좋은 기록이에요.",
-      ]),
-    });
-  } else if (input.recoveryUsageCount > 0) {
+  if (input.recoveryUsageCount > 0) {
     messages.push({
       text: pickMascotCoachText(input, "recovery-1", [
         "{name}, 리커버리 쉴드를 쓴 날도 잘 지킨 날이에요. 안전하게 이어가는 선택이 좋아요.",
@@ -784,15 +873,18 @@ export function DashboardClient({
   const [animationRun, setAnimationRun] = useState(0);
   const [selectedParticipantId, setSelectedParticipantId] = useState("");
   const [selectedDailyRecordDate, setSelectedDailyRecordDate] = useState("");
+  const [showParticipantIntro, setShowParticipantIntro] = useState(false);
   const [trendModal, setTrendModal] = useState<TrendModal>(null);
   const [showSeasonReportModal, setShowSeasonReportModal] = useState(false);
+  const [showJourneyReportModal, setShowJourneyReportModal] = useState(false);
   const [showOnePlusOneEventModal, setShowOnePlusOneEventModal] = useState(false);
+  const [showFinalReportPreviewModal, setShowFinalReportPreviewModal] = useState(false);
   const [showDeferredTips, setShowDeferredTips] = useState(false);
   const [showFullHouseFireworks, setShowFullHouseFireworks] = useState(false);
   const [participantSortMode, setParticipantSortMode] = useState<ParticipantRankSortMode>("certification");
   const [participantCertificationSortDirection, setParticipantCertificationSortDirection] = useState<ParticipantRankSortDirection>("desc");
   const [mascotCoachMessageIndex, setMascotCoachMessageIndex] = useState(0);
-  const [storedGrowthBadges, setStoredGrowthBadges] = useState<StoredGrowthBadges>({});
+  const [, setStoredGrowthBadges] = useState<StoredGrowthBadges>({});
   const loadingRef = useRef(false);
   const lastLoadedAtRef = useRef(initialData ? Date.now() : 0);
   const motionFrameRef = useRef<number | null>(null);
@@ -820,7 +912,8 @@ export function DashboardClient({
     loadingRef.current = true;
     try {
       setTodayIso(toKstIsoDate());
-      const response = await fetch("/api/public-dashboard?scope=all", {
+      const query = options?.fresh ? `?scope=all&refresh=1&at=${Date.now()}` : "?scope=all";
+      const response = await fetch(`/api/public-dashboard${query}`, {
         cache: options?.fresh ? "no-store" : "default",
       });
       const json = await response.json().catch(() => ({ error: "팀 보드 응답을 읽지 못했어요." })) as PublicDashboardData;
@@ -849,10 +942,13 @@ export function DashboardClient({
         lastLoadedAtRef.current = Date.now();
         restartMotion();
       }
-      if (!initialData) void load();
+      if (!initialData) void load({ fresh: true });
       if (initialData) {
         writeCachedDashboardData(initialData);
         restartMotion();
+        if (dashboardDataAgeMs(initialData) > PUBLIC_DASHBOARD_BOOTSTRAP_REFRESH_STALE_MS) {
+          void load({ fresh: true });
+        }
       }
     });
     const shouldRefresh = (minimumAgeMs = PUBLIC_DASHBOARD_FOCUS_REFRESH_MS) => (
@@ -860,13 +956,13 @@ export function DashboardClient({
     );
 
     const interval = window.setInterval(() => {
-      if (document.visibilityState === "visible" && shouldRefresh(45_000)) load();
-    }, 60000);
+      if (document.visibilityState === "visible" && shouldRefresh(PUBLIC_DASHBOARD_LIVE_REFRESH_MS)) load({ fresh: true });
+    }, PUBLIC_DASHBOARD_LIVE_REFRESH_MS);
     const onFocus = () => {
-      if (shouldRefresh()) load();
+      if (shouldRefresh()) load({ fresh: true });
     };
     const onVisible = () => {
-      if (document.visibilityState === "visible" && shouldRefresh()) load();
+      if (document.visibilityState === "visible" && shouldRefresh()) load({ fresh: true });
     };
     window.addEventListener("focus", onFocus);
     document.addEventListener("visibilitychange", onVisible);
@@ -879,14 +975,47 @@ export function DashboardClient({
   }, [initialData, load, restartMotion]);
 
   useEffect(() => {
+    try {
+      const supabase = createClient();
+      const channel = supabase
+        .channel(DASHBOARD_REFRESH_CHANNEL)
+        .on("broadcast", { event: DASHBOARD_REFRESH_EVENT }, () => {
+          void load({ fresh: true });
+        })
+        .subscribe();
+
+      return () => {
+        void supabase.removeChannel(channel);
+      };
+    } catch {
+      return;
+    }
+  }, [load]);
+
+  useEffect(() => {
     return () => {
       if (motionFrameRef.current) window.cancelAnimationFrame(motionFrameRef.current);
     };
   }, []);
 
   useEffect(() => {
-    const timeout = window.setTimeout(() => setShowDeferredTips(true), 1200);
-    return () => window.clearTimeout(timeout);
+    const idleWindow = window as Window & {
+      requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number;
+      cancelIdleCallback?: (handle: number) => void;
+    };
+    let idleId: number | null = null;
+    const timeout = window.setTimeout(() => {
+      if (idleWindow.requestIdleCallback) {
+        idleId = idleWindow.requestIdleCallback(() => setShowDeferredTips(true), { timeout: 2500 });
+        return;
+      }
+      setShowDeferredTips(true);
+    }, PUBLIC_DASHBOARD_DEFERRED_TIPS_DELAY_MS);
+
+    return () => {
+      window.clearTimeout(timeout);
+      if (idleId !== null) idleWindow.cancelIdleCallback?.(idleId);
+    };
   }, []);
 
   useEffect(() => {
@@ -903,11 +1032,17 @@ export function DashboardClient({
     const records = data?.records || [];
     const effectiveToday = todayIso > actualCertificationEndDate ? actualCertificationEndDate : todayIso;
     const certifiedRecords = records.filter((record) => isCertificationCountedStatus(record.status));
-    const officialCertifiedRecords = certifiedRecords.filter(
-      (record) => Boolean(record.record_date && record.record_date >= ACTUAL_CERTIFICATION_START_DATE && record.record_date <= actualCertificationEndDate)
+    const officialCertificationRecords = certifiedRecords.filter(
+      (record) => Boolean(
+        record.record_date &&
+        record.record_date >= ACTUAL_CERTIFICATION_START_DATE &&
+        record.record_date <= actualCertificationEndDate
+      )
     );
+    const officialCertifiedRecords = officialCertificationRecords.filter((record) => !isRecoveryCertificationRecord(record));
+    const officialRecoveryRecords = officialCertificationRecords.filter(isRecoveryCertificationRecord);
     const currentCertificationDate = effectiveToday;
-    const currentDateRecords = officialCertifiedRecords.filter((record) => record.record_date === currentCertificationDate);
+    const currentDateRecords = officialCertificationRecords.filter((record) => record.record_date === currentCertificationDate);
     const currentDateCertifiedIds = new Set(
       currentDateRecords
         .filter((record) => record.participant_id)
@@ -915,37 +1050,61 @@ export function DashboardClient({
     );
 
     const completionRate = participants.length ? Math.round((currentDateCertifiedIds.size / participants.length) * 100) : 0;
+    const pictogramByParticipantId = buildMemberPictogramMap(participants);
 
     const certifiedIdsByDay = new Map<string, Set<string>>();
     const certifiedDaysByParticipant = new Map<string, Set<string>>();
-    const officialMetricsByParticipant = new Map<string, { distanceKm: number; durationSeconds: number; maxSingleDistanceKm: number }>();
+    const runningCertifiedDaysByParticipant = new Map<string, Set<string>>();
+    const officialMetricsByParticipant = new Map<string, ParticipantGrowthMetrics>();
+    const growthMetricsByParticipant = new Map<string, ParticipantGrowthMetrics>();
     const recoveryUsageByParticipant = new Map<string, number>();
 
-    officialCertifiedRecords.forEach((record) => {
+    officialCertificationRecords.forEach((record) => {
       if (!record.participant_id || !record.record_date) return;
       if (!certifiedIdsByDay.has(record.record_date)) certifiedIdsByDay.set(record.record_date, new Set());
       certifiedIdsByDay.get(record.record_date)?.add(record.participant_id);
 
       if (!certifiedDaysByParticipant.has(record.participant_id)) certifiedDaysByParticipant.set(record.participant_id, new Set());
       certifiedDaysByParticipant.get(record.participant_id)?.add(record.record_date);
+    });
 
-      const metrics = officialMetricsByParticipant.get(record.participant_id) || { distanceKm: 0, durationSeconds: 0, maxSingleDistanceKm: 0 };
-      metrics.distanceKm += record.distance_km || 0;
+    officialCertificationRecords.forEach((record) => {
+      if (!record.participant_id || !record.record_date) return;
+
+      const distanceKm = record.distance_km || 0;
+      const metrics = officialMetricsByParticipant.get(record.participant_id) || makeEmptyGrowthMetrics();
+      metrics.distanceKm += distanceKm;
       metrics.durationSeconds += record.duration_seconds || 0;
-      metrics.maxSingleDistanceKm = Math.max(metrics.maxSingleDistanceKm, record.distance_km || 0);
+      metrics.maxSingleDistanceKm = Math.max(metrics.maxSingleDistanceKm, distanceKm);
+      if (distanceKm >= 5) metrics.fiveKmCertificationCount += 1;
+      if (distanceKm >= 10) metrics.tenKmCertificationCount += 1;
+      if (distanceKm >= 21.1) metrics.halfMarathonCertificationCount += 1;
       officialMetricsByParticipant.set(record.participant_id, metrics);
-      if (isRecoveryCertificationRecord(record)) {
-        recoveryUsageByParticipant.set(record.participant_id, (recoveryUsageByParticipant.get(record.participant_id) || 0) + 1);
-      }
+    });
+
+    officialCertifiedRecords.forEach((record) => {
+      if (!record.participant_id || !record.record_date) return;
+      if (!runningCertifiedDaysByParticipant.has(record.participant_id)) runningCertifiedDaysByParticipant.set(record.participant_id, new Set());
+      runningCertifiedDaysByParticipant.get(record.participant_id)?.add(record.record_date);
+
+      const distanceKm = record.distance_km || 0;
+      const metrics = growthMetricsByParticipant.get(record.participant_id) || makeEmptyGrowthMetrics();
+      metrics.distanceKm += distanceKm;
+      metrics.durationSeconds += record.duration_seconds || 0;
+      metrics.maxSingleDistanceKm = Math.max(metrics.maxSingleDistanceKm, distanceKm);
+      if (distanceKm >= 5) metrics.fiveKmCertificationCount += 1;
+      if (distanceKm >= 10) metrics.tenKmCertificationCount += 1;
+      if (distanceKm >= 21.1) metrics.halfMarathonCertificationCount += 1;
+      growthMetricsByParticipant.set(record.participant_id, metrics);
+    });
+
+    officialRecoveryRecords.forEach((record) => {
+      if (!record.participant_id) return;
+      recoveryUsageByParticipant.set(record.participant_id, (recoveryUsageByParticipant.get(record.participant_id) || 0) + 1);
     });
 
     const stampDatesByParticipant = new Map<string, Set<string>>();
     const stampRecordsByParticipant = new Map<string, Map<string, RunRecord>>();
-    const latestStampDate = certifiedRecords.reduce((latest, record) => {
-      if (!record.record_date) return latest;
-      return record.record_date > latest ? record.record_date : latest;
-    }, currentCertificationDate > CERTIFICATION_DISPLAY_START_DATE ? currentCertificationDate : CERTIFICATION_DISPLAY_START_DATE);
-
     certifiedRecords.forEach((record) => {
       if (!record.participant_id || !record.record_date) return;
       if (!stampDatesByParticipant.has(record.participant_id)) stampDatesByParticipant.set(record.participant_id, new Set());
@@ -966,7 +1125,7 @@ export function DashboardClient({
       return { index, weekDays };
     }).filter((week) => week.weekDays[0] && week.weekDays[0] <= currentCertificationDate);
     const weekTrend = visibleOfficialWeeks.map(({ index, weekDays }) => {
-      const weekRecords = officialCertifiedRecords.filter((record) => Boolean(record.record_date && weekDays.includes(record.record_date)));
+      const weekCertificationRecords = officialCertificationRecords.filter((record) => Boolean(record.record_date && weekDays.includes(record.record_date)));
       const elapsedWeekDays = weekDays.filter((day) => day <= currentCertificationDate);
       const certifiedSlots = weekDays.reduce((sum, day) => sum + (certifiedCountByDay.get(day) || 0), 0);
       const possibleSlots = weekDays.length * participants.length;
@@ -974,7 +1133,7 @@ export function DashboardClient({
       const elapsedCertifiedSlots = elapsedWeekDays.reduce((sum, day) => sum + (certifiedCountByDay.get(day) || 0), 0);
       const elapsedPossibleSlots = elapsedWeekDays.length * participants.length;
       const reportRate = elapsedPossibleSlots ? Math.round((elapsedCertifiedSlots / elapsedPossibleSlots) * 100) : 0;
-      const activeParticipantCount = new Set(weekRecords.map((record) => record.participant_id).filter(Boolean)).size;
+      const activeParticipantCount = new Set(weekCertificationRecords.map((record) => record.participant_id).filter(Boolean)).size;
       return {
         label: `${index + 1}주`,
         from: weekDays[0] || "",
@@ -985,28 +1144,34 @@ export function DashboardClient({
         elapsedCertifiedSlots,
         reportRate,
         activeParticipantCount,
-        distanceKm: weekRecords.reduce((sum, record) => sum + (record.distance_km || 0), 0),
-        durationSeconds: weekRecords.reduce((sum, record) => sum + (record.duration_seconds || 0), 0),
+        distanceKm: weekCertificationRecords.reduce((sum, record) => sum + (record.distance_km || 0), 0),
+        durationSeconds: weekCertificationRecords.reduce((sum, record) => sum + (record.duration_seconds || 0), 0),
       };
     });
-    const pictogramByParticipantId = buildMemberPictogramMap(participants);
     const participantProgress = participants
       .map((participant) => {
         const certifiedDates = Array.from(certifiedDaysByParticipant.get(participant.id) || []).sort();
+        const runningCertifiedDates = Array.from(runningCertifiedDaysByParticipant.get(participant.id) || []).sort();
         const stampedDates = Array.from(stampDatesByParticipant.get(participant.id) || []).sort();
         const stampedRecords = Array.from(stampRecordsByParticipant.get(participant.id)?.values() || [])
           .sort((a, b) => (a.record_date || "").localeCompare(b.record_date || ""));
-        const metrics = officialMetricsByParticipant.get(participant.id) || { distanceKm: 0, durationSeconds: 0, maxSingleDistanceKm: 0 };
+        const metrics = officialMetricsByParticipant.get(participant.id) || makeEmptyGrowthMetrics();
+        const growthMetrics = growthMetricsByParticipant.get(participant.id) || makeEmptyGrowthMetrics();
         const certifiedDays = certifiedDates.length;
         const rate = Math.min(Math.round((certifiedDays / CHALLENGE_DAYS) * 100), 100);
         const currentStreak = getCurrentDateStreak(certifiedDates, currentCertificationDate);
         const longestStreak = getLongestDateStreak(certifiedDates);
         const weekdayMorningCount = getWeekdayMorningProgress(certifiedDates, currentCertificationDate);
         const bestWeekdayMorningCount = getBestWeekdayMorningProgress(certifiedDates);
+        const runningCurrentStreak = getCurrentDateStreak(runningCertifiedDates, currentCertificationDate);
+        const runningLongestStreak = getLongestDateStreak(runningCertifiedDates);
+        const runningWeekdayMorningCount = getWeekdayMorningProgress(runningCertifiedDates, currentCertificationDate);
+        const runningBestWeekdayMorningCount = getBestWeekdayMorningProgress(runningCertifiedDates);
         return {
           participant,
           pictogramIndex: pictogramByParticipantId.get(participant.id) ?? 0,
           certifiedDates,
+          runningCertifiedDates,
           stampedDates,
           stampedRecords,
           certifiedDays,
@@ -1014,8 +1179,19 @@ export function DashboardClient({
           longestStreak,
           weekdayMorningCount,
           bestWeekdayMorningCount,
+          runningCertifiedDays: runningCertifiedDates.length,
+          runningCurrentStreak,
+          runningLongestStreak,
+          runningWeekdayMorningCount,
+          runningBestWeekdayMorningCount,
           rate,
           recoveryUsageCount: recoveryUsageByParticipant.get(participant.id) || 0,
+          growthDistanceKm: growthMetrics.distanceKm,
+          growthDurationSeconds: growthMetrics.durationSeconds,
+          growthMaxSingleDistanceKm: growthMetrics.maxSingleDistanceKm,
+          growthFiveKmCertificationCount: growthMetrics.fiveKmCertificationCount,
+          growthTenKmCertificationCount: growthMetrics.tenKmCertificationCount,
+          growthHalfMarathonCertificationCount: growthMetrics.halfMarathonCertificationCount,
           ...metrics,
         };
       })
@@ -1035,7 +1211,7 @@ export function DashboardClient({
       dayTrend,
       weekTrend,
       participantProgress,
-      stampDays: makeDaysThrough(CERTIFICATION_DISPLAY_START_DATE, latestStampDate),
+      stampDays: makeDaysThrough(CERTIFICATION_DISPLAY_START_DATE, actualCertificationEndDate),
     };
   }, [data, todayIso]);
 
@@ -1050,16 +1226,19 @@ export function DashboardClient({
 
       dashboard.participantProgress.forEach((row) => {
         const unlockedKeys = makePersonalGrowthBadges({
-          certifiedDays: row.certifiedDays,
-          certifiedDates: row.certifiedDates,
-          currentStreak: row.currentStreak,
-          longestStreak: row.longestStreak,
-          weekdayMorningCount: row.weekdayMorningCount,
-          bestWeekdayMorningCount: row.bestWeekdayMorningCount,
+          certifiedDays: row.runningCertifiedDays,
+          certifiedDates: row.runningCertifiedDates,
+          currentStreak: row.runningCurrentStreak,
+          longestStreak: row.runningLongestStreak,
+          weekdayMorningCount: row.runningWeekdayMorningCount,
+          bestWeekdayMorningCount: row.runningBestWeekdayMorningCount,
           elapsedDayCount: dashboard.elapsedDays.length,
-          distanceKm: row.distanceKm,
-          durationSeconds: row.durationSeconds,
-          maxSingleDistanceKm: row.maxSingleDistanceKm,
+          distanceKm: row.growthDistanceKm,
+          durationSeconds: row.growthDurationSeconds,
+          maxSingleDistanceKm: row.growthMaxSingleDistanceKm,
+          fiveKmCertificationCount: row.growthFiveKmCertificationCount,
+          tenKmCertificationCount: row.growthTenKmCertificationCount,
+          halfMarathonCertificationCount: row.growthHalfMarathonCertificationCount,
         }).filter((badge) => badge.unlocked).map((badge) => badge.key);
 
         if (!unlockedKeys.length) return;
@@ -1081,7 +1260,7 @@ export function DashboardClient({
     () => sortParticipantRanks(
       dashboard.participantProgress,
       participantSortMode,
-      participantSortMode === "certification" ? participantCertificationSortDirection : "desc"
+      participantCertificationSortDirection
     ),
     [dashboard.participantProgress, participantCertificationSortDirection, participantSortMode]
   );
@@ -1125,26 +1304,63 @@ export function DashboardClient({
     };
 
     data?.growth_badges?.forEach((badge) => add(badge.participant_id, badge.badge_key));
-    Object.entries(storedGrowthBadges).forEach(([participantId, badgeKeys]) => {
-      badgeKeys.forEach((badgeKey) => add(participantId, badgeKey));
+    return badgeKeysByParticipant;
+  }, [data?.growth_badges]);
+  const latestGrowthBadgeByParticipant = useMemo(() => {
+    const earnedAtByParticipant = new Map<string, Map<string, string>>();
+    data?.growth_badges?.forEach((badge) => {
+      if (!badge.participant_id || !badge.badge_key || !badge.earned_at) return;
+      if (!earnedAtByParticipant.has(badge.participant_id)) earnedAtByParticipant.set(badge.participant_id, new Map());
+      earnedAtByParticipant.get(badge.participant_id)?.set(badge.badge_key, badge.earned_at);
     });
 
-    return badgeKeysByParticipant;
-  }, [data?.growth_badges, storedGrowthBadges]);
+    return dashboard.participantProgress.reduce((latestByParticipant, row) => {
+      const persistedBadgeKeys = persistedGrowthBadgeKeysByParticipant.get(row.participant.id) || new Set<string>();
+      const earnedAtByBadgeKey = earnedAtByParticipant.get(row.participant.id) || new Map<string, string>();
+      const recentBadge = makePersonalGrowthBadges({
+        certifiedDays: row.runningCertifiedDays,
+        certifiedDates: row.runningCertifiedDates,
+        currentStreak: row.runningCurrentStreak,
+        longestStreak: row.runningLongestStreak,
+        weekdayMorningCount: row.runningWeekdayMorningCount,
+        bestWeekdayMorningCount: row.runningBestWeekdayMorningCount,
+        elapsedDayCount: dashboard.elapsedDays.length,
+        distanceKm: row.growthDistanceKm,
+        durationSeconds: row.growthDurationSeconds,
+        maxSingleDistanceKm: row.growthMaxSingleDistanceKm,
+        fiveKmCertificationCount: row.growthFiveKmCertificationCount,
+        tenKmCertificationCount: row.growthTenKmCertificationCount,
+        halfMarathonCertificationCount: row.growthHalfMarathonCertificationCount,
+      })
+        .filter((badge) => (badge.unlocked || persistedBadgeKeys.has(badge.key)) && !isRecoveryGrowthBadge(badge))
+        .sort((left, right) => {
+          const leftTime = Date.parse(earnedAtByBadgeKey.get(left.key) || "") || 0;
+          const rightTime = Date.parse(earnedAtByBadgeKey.get(right.key) || "") || 0;
+          if (leftTime !== rightTime) return rightTime - leftTime;
+          return badgeDisplayOrderIndex(right.key) - badgeDisplayOrderIndex(left.key);
+        })[0];
+
+      if (recentBadge) latestByParticipant.set(row.participant.id, recentBadge);
+      return latestByParticipant;
+    }, new Map<string, PersonalGrowthBadge>());
+  }, [dashboard.elapsedDays.length, dashboard.participantProgress, data?.growth_badges, persistedGrowthBadgeKeysByParticipant]);
   const selectedPersistedGrowthBadgeKeys = selectedParticipant
     ? persistedGrowthBadgeKeysByParticipant.get(selectedParticipant.participant.id) || new Set<string>()
     : new Set<string>();
   const selectedPersonalGrowthBadges = selectedParticipant ? makePersonalGrowthBadges({
-    certifiedDays: selectedParticipant.certifiedDays,
-    certifiedDates: selectedParticipant.certifiedDates,
-    currentStreak: selectedParticipant.currentStreak,
-    longestStreak: selectedParticipant.longestStreak,
-    weekdayMorningCount: selectedParticipant.weekdayMorningCount,
-    bestWeekdayMorningCount: selectedParticipant.bestWeekdayMorningCount,
+    certifiedDays: selectedParticipant.runningCertifiedDays,
+    certifiedDates: selectedParticipant.runningCertifiedDates,
+    currentStreak: selectedParticipant.runningCurrentStreak,
+    longestStreak: selectedParticipant.runningLongestStreak,
+    weekdayMorningCount: selectedParticipant.runningWeekdayMorningCount,
+    bestWeekdayMorningCount: selectedParticipant.runningBestWeekdayMorningCount,
     elapsedDayCount: dashboard.elapsedDays.length,
-    distanceKm: selectedParticipant.distanceKm,
-    durationSeconds: selectedParticipant.durationSeconds,
-    maxSingleDistanceKm: selectedParticipant.maxSingleDistanceKm,
+    distanceKm: selectedParticipant.growthDistanceKm,
+    durationSeconds: selectedParticipant.growthDurationSeconds,
+    maxSingleDistanceKm: selectedParticipant.growthMaxSingleDistanceKm,
+    fiveKmCertificationCount: selectedParticipant.growthFiveKmCertificationCount,
+    tenKmCertificationCount: selectedParticipant.growthTenKmCertificationCount,
+    halfMarathonCertificationCount: selectedParticipant.growthHalfMarathonCertificationCount,
   }).map((badge) => {
     const persistentlyUnlocked = selectedPersistedGrowthBadgeKeys.has(badge.key);
     return {
@@ -1155,10 +1371,204 @@ export function DashboardClient({
   }) : [];
   const unlockedSelectedBadgeCount = selectedPersonalGrowthBadges.filter((badge) => badge.unlocked).length;
   const remainingSeasonDays = Math.max(CHALLENGE_DAYS - dashboard.elapsedDays.length, 0);
+  const showJourneyReportLabel = (
+    dashboard.currentCertificationDate === todayIso &&
+    certificationDayLabel(dashboard.currentCertificationDate) === JOURNEY_REPORT_TRIGGER_LABEL &&
+    dashboard.elapsedDays.length >= JOURNEY_REPORT_DAY_COUNT
+  );
+  const journeyReport = useMemo(() => {
+    const reportDays = officialCertificationDays
+      .slice(0, JOURNEY_REPORT_DAY_COUNT)
+      .filter((day) => day <= dashboard.currentCertificationDate);
+    const reportDaySet = new Set(reportDays);
+    const reportTrend = dashboard.dayTrend.filter((day) => reportDaySet.has(day.day));
+    const certificationRecords = (data?.records || []).filter((record) => (
+      isCertificationCountedStatus(record.status) &&
+      Boolean(record.record_date && reportDaySet.has(record.record_date))
+    ));
+    const officialRecords = certificationRecords;
+    const certifiedSlots = reportTrend.reduce((sum, day) => sum + day.certifiedCount, 0);
+    const possibleSlots = reportDays.length * dashboard.participants.length;
+    const teamRate = possibleSlots ? Math.round((certifiedSlots / possibleSlots) * 100) : 0;
+    const totalDistanceKm = officialRecords.reduce((sum, record) => sum + (record.distance_km || 0), 0);
+    const totalDurationSeconds = officialRecords.reduce((sum, record) => sum + (record.duration_seconds || 0), 0);
+    const certifiedDateByParticipant = new Map<string, Set<string>>();
+    const recordsByParticipant = new Map<string, RunRecord[]>();
+    const spaceTotals = new Map<string, {
+      label: string;
+      count: number;
+      distanceKm: number;
+      durationSeconds: number;
+      participantIds: Set<string>;
+    }>();
+
+    certificationRecords.forEach((record) => {
+      if (!record.participant_id || !record.record_date) return;
+      if (!certifiedDateByParticipant.has(record.participant_id)) certifiedDateByParticipant.set(record.participant_id, new Set());
+      certifiedDateByParticipant.get(record.participant_id)?.add(record.record_date);
+    });
+
+    officialRecords.forEach((record) => {
+      if (!record.participant_id || !record.record_date) return;
+      if (!recordsByParticipant.has(record.participant_id)) recordsByParticipant.set(record.participant_id, []);
+      recordsByParticipant.get(record.participant_id)?.push(record);
+
+      if (record.space_label) {
+        const space = spaceTotals.get(record.space_label) || {
+          label: record.space_label,
+          count: 0,
+          distanceKm: 0,
+          durationSeconds: 0,
+          participantIds: new Set<string>(),
+        };
+        space.count += 1;
+        space.distanceKm += record.distance_km || 0;
+        space.durationSeconds += record.duration_seconds || 0;
+        space.participantIds.add(record.participant_id);
+        spaceTotals.set(record.space_label, space);
+      }
+    });
+
+    const participantStats = dashboard.participants.map((participant) => {
+      const participantRecords = recordsByParticipant.get(participant.id) || [];
+      const certifiedDates = Array.from(certifiedDateByParticipant.get(participant.id) || []).sort();
+      const distanceKm = participantRecords.reduce((sum, record) => sum + (record.distance_km || 0), 0);
+      const durationSeconds = participantRecords.reduce((sum, record) => sum + (record.duration_seconds || 0), 0);
+      const maxSingleDistanceKm = participantRecords.reduce((max, record) => Math.max(max, record.distance_km || 0), 0);
+      const tenKmCount = participantRecords.filter((record) => (record.distance_km || 0) >= 10).length;
+      const halfCount = participantRecords.filter((record) => (record.distance_km || 0) >= 21.1).length;
+      return {
+        participant,
+        certifiedDays: certifiedDates.length,
+        distanceKm,
+        durationSeconds,
+        maxSingleDistanceKm,
+        tenKmCount,
+        halfCount,
+        longestStreak: getLongestDateStreak(certifiedDates),
+      };
+    });
+    const averageCertifiedDays = dashboard.participants.length
+      ? Math.round(certifiedSlots / dashboard.participants.length)
+      : 0;
+    const sortByName = (a: { participant: Participant }, b: { participant: Participant }) => a.participant.name.localeCompare(b.participant.name, "ko");
+    const topBy = (value: (stat: typeof participantStats[number]) => number) => (
+      [...participantStats]
+        .filter((stat) => value(stat) > 0)
+        .sort((a, b) => value(b) - value(a) || sortByName(a, b))[0] || null
+    );
+    const topGroupBy = (value: (stat: typeof participantStats[number]) => number) => {
+      const candidates = participantStats.filter((stat) => value(stat) > 0);
+      const topValue = candidates.reduce((max, stat) => Math.max(max, value(stat)), 0);
+      return candidates
+        .filter((stat) => value(stat) === topValue)
+        .sort(sortByName);
+    };
+    const leaderNames = (stats: typeof participantStats) => stats.map((stat) => stat.participant.name).join(", ");
+    const certifiedLeaders = topGroupBy((stat) => stat.certifiedDays);
+    const streakLeaders = topGroupBy((stat) => stat.longestStreak);
+    const distanceLeader = topBy((stat) => stat.distanceKm);
+    const durationLeader = topBy((stat) => stat.durationSeconds);
+    const singleDistanceLeader = topBy((stat) => stat.maxSingleDistanceKm);
+    const tenKmLeader = topBy((stat) => stat.tenKmCount);
+    const leaderCards = [
+      certifiedLeaders.length && {
+        label: "최대 인증",
+        name: leaderNames(certifiedLeaders),
+        value: `${certifiedLeaders[0]?.certifiedDays || 0}/${reportDays.length}회`,
+        detail: `${certifiedLeaders.length > 1 ? `동률 ${certifiedLeaders.length}명 · ` : ""}50일 중 미인증 ${reportDays.length - (certifiedLeaders[0]?.certifiedDays || 0)}회`,
+      },
+      distanceLeader && {
+        label: "누적 거리 1등",
+        name: distanceLeader.participant.name,
+        value: `${formatCompactNumber(distanceLeader.distanceKm, 1)}km`,
+        detail: `팀 거리의 ${totalDistanceKm ? Math.round((distanceLeader.distanceKm / totalDistanceKm) * 100) : 0}%`,
+      },
+      durationLeader && {
+        label: "누적 시간 1등",
+        name: durationLeader.participant.name,
+        value: formatTeamDuration(durationLeader.durationSeconds),
+        detail: "가장 오래 루틴을 붙잡은 멤버",
+      },
+      streakLeaders.length && {
+        label: "연속 인증",
+        name: leaderNames(streakLeaders),
+        value: `${streakLeaders[0]?.longestStreak || 0}일`,
+        detail: `${streakLeaders.length > 1 ? `동률 ${streakLeaders.length}명 · ` : ""}가장 길게 끊기지 않은 흐름`,
+      },
+      singleDistanceLeader && {
+        label: "하루 최장거리 1등",
+        name: singleDistanceLeader.participant.name,
+        value: `${formatCompactNumber(singleDistanceLeader.maxSingleDistanceKm, 1)}km`,
+        detail: "하루에 가장 멀리 달린 기록",
+      },
+      tenKmLeader && {
+        label: "롱런 1등",
+        name: tenKmLeader.participant.name,
+        value: `${tenKmLeader.tenKmCount}회`,
+        detail: "10km 이상 인증 횟수 기준",
+      },
+    ].filter(Boolean) as { label: string; name: string; value: string; detail: string }[];
+    const effortCards = [...participantStats]
+      .filter((stat) => stat.certifiedDays < reportDays.length)
+      .sort((a, b) => a.certifiedDays - b.certifiedDays || a.distanceKm - b.distanceKm || sortByName(a, b))
+      .slice(0, 1)
+      .map((stat) => {
+        const gapToAverage = Math.max(averageCertifiedDays - stat.certifiedDays, 0);
+        const missedDays = Math.max(reportDays.length - stat.certifiedDays, 0);
+        const rate = reportDays.length ? Math.round((stat.certifiedDays / reportDays.length) * 100) : 0;
+        return {
+          name: stat.participant.name,
+          value: `${rate}%`,
+          detail: gapToAverage
+            ? `${stat.certifiedDays}/${reportDays.length}회 · 팀 평균까지 ${gapToAverage}회`
+            : `${stat.certifiedDays}/${reportDays.length}회 · 미인증 ${missedDays}회`,
+        };
+      });
+    const spaceGroups = Array.from(spaceTotals.values())
+      .sort((a, b) => b.count - a.count || b.distanceKm - a.distanceKm || a.label.localeCompare(b.label, "ko"))
+      .slice(0, 8)
+      .map((space) => ({
+        label: space.label,
+        count: space.count,
+        distanceKm: space.distanceKm,
+        participantCount: space.participantIds.size,
+      }));
+    const perfectMemberCount = dashboard.participants.filter((participant) => (
+      (certifiedDateByParticipant.get(participant.id)?.size || 0) >= reportDays.length &&
+      reportDays.length >= JOURNEY_REPORT_DAY_COUNT
+    )).length;
+
+    return {
+      averageCertifiedDays,
+      certifiedSlots,
+      effortCards,
+      from: reportDays[0] || dashboard.currentCertificationDate,
+      leaderCards,
+      perfectMemberCount,
+      possibleSlots,
+      reportDays,
+      spaceGroups,
+      teamRate,
+      to: reportDays.at(-1) || dashboard.currentCertificationDate,
+      totalDistanceKm,
+      totalDurationSeconds,
+    };
+  }, [
+    dashboard.currentCertificationDate,
+    dashboard.dayTrend,
+    dashboard.participants,
+    data?.records,
+  ]);
 
   useEffect(() => {
     setMascotCoachMessageIndex(0);
+    setShowParticipantIntro(false);
   }, [selectedParticipantId]);
+
+  useEffect(() => {
+    if (!showJourneyReportLabel) setShowJourneyReportModal(false);
+  }, [showJourneyReportLabel]);
 
   const trendItems = trendModal === "weekly"
     ? dashboard.weekTrend.map((week) => ({
@@ -1214,9 +1624,22 @@ export function DashboardClient({
           <div className="overflow-hidden bg-[#101522] px-4 py-5 text-white sm:p-7">
             <div className="mx-auto max-w-6xl">
               <div className="mb-5 flex min-w-0 items-center justify-between gap-3 sm:mb-6">
-                <h2 className="max-w-full whitespace-nowrap text-[clamp(2.05rem,8.8vw,3.75rem)] font-black leading-[1.04] text-white">
-                  오늘의 인증
-                </h2>
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
+                  <h2 className="max-w-full whitespace-nowrap text-[clamp(2.05rem,8.8vw,3.75rem)] font-black leading-[1.04] text-white">
+                    오늘의 인증
+                  </h2>
+                  {showJourneyReportLabel && (
+                    <button
+                      type="button"
+                      onClick={() => setShowJourneyReportModal(true)}
+                      className="inline-flex shrink-0 items-center gap-1 rounded-full bg-lime-300 px-3 py-1.5 text-[10px] font-black text-slate-950 shadow-sm shadow-lime-300/30 ring-1 ring-lime-200 transition hover:-translate-y-0.5 hover:bg-lime-200 sm:text-xs"
+                      aria-label="50일 간의 여정 열기"
+                    >
+                      <span className="h-1.5 w-1.5 rounded-full bg-slate-950" />
+                      50일 간의 여정
+                    </button>
+                  )}
+                </div>
                 <div className="flex shrink-0 flex-nowrap items-center justify-end gap-1.5 sm:gap-2">
                   <p className="inline-flex shrink-0 whitespace-nowrap rounded-full bg-white/10 px-3 py-1.5 text-[10px] font-black text-lime-200 ring-1 ring-white/10 sm:px-4 sm:text-xs">
                     {shortDate(dashboard.currentCertificationDate)}
@@ -1294,19 +1717,22 @@ export function DashboardClient({
             <div>
               <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div className="min-w-0">
-                  <h4 className="text-base font-black leading-tight text-oriwan-text">스내사 크루별 인증게이지</h4>
+                  <h4 className="text-base font-black leading-tight text-oriwan-text">스내사 크루별 인증 현황</h4>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <div className="flex rounded-full bg-oriwan-surface-light p-1 ring-1 ring-slate-950/5">
-                    {PARTICIPANT_RANK_SORT_OPTIONS.map((option) => (
+                    {CERTIFICATION_SORT_DIRECTION_OPTIONS.map((option) => (
                       <button
                         key={option.key}
                         type="button"
-                        onClick={() => setParticipantSortMode(option.key)}
-                        aria-pressed={participantSortMode === option.key}
+                        onClick={() => {
+                          setParticipantSortMode("certification");
+                          setParticipantCertificationSortDirection(option.key);
+                        }}
+                        aria-pressed={participantSortMode === "certification" && participantCertificationSortDirection === option.key}
                         className={`rounded-full px-3 py-1.5 text-[11px] font-black transition ${
-                          participantSortMode === option.key
-                            ? "bg-slate-950 text-lime-200 shadow-sm"
+                          participantSortMode === "certification" && participantCertificationSortDirection === option.key
+                            ? "bg-lime-300 text-slate-950 shadow-sm"
                             : "text-oriwan-text-muted hover:text-oriwan-text"
                         }`}
                       >
@@ -1314,25 +1740,23 @@ export function DashboardClient({
                       </button>
                     ))}
                   </div>
-                  {participantSortMode === "certification" && (
-                    <div className="flex rounded-full bg-oriwan-surface-light p-1 ring-1 ring-slate-950/5">
-                      {CERTIFICATION_SORT_DIRECTION_OPTIONS.map((option) => (
-                        <button
-                          key={option.key}
-                          type="button"
-                          onClick={() => setParticipantCertificationSortDirection(option.key)}
-                          aria-pressed={participantCertificationSortDirection === option.key}
-                          className={`rounded-full px-3 py-1.5 text-[11px] font-black transition ${
-                            participantCertificationSortDirection === option.key
-                              ? "bg-lime-300 text-slate-950 shadow-sm"
-                              : "text-oriwan-text-muted hover:text-oriwan-text"
-                          }`}
-                        >
-                          {option.label}
-                        </button>
-                      ))}
-                    </div>
-                  )}
+                  <div className="flex rounded-full bg-oriwan-surface-light p-1 ring-1 ring-slate-950/5">
+                    {PARTICIPANT_METRIC_SORT_OPTIONS.map((option) => (
+                      <button
+                        key={option.key}
+                        type="button"
+                        onClick={() => setParticipantSortMode(option.key)}
+                        aria-pressed={participantSortMode === option.key}
+                        className={`rounded-full px-3 py-1.5 text-[11px] font-black transition ${
+                          participantSortMode === option.key
+                            ? "bg-lime-300 text-slate-950 shadow-sm"
+                            : "text-oriwan-text-muted hover:text-oriwan-text"
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
                   <span className="inline-flex shrink-0 rounded-full bg-lime-300 px-3 py-1 text-[11px] font-black text-slate-950 shadow-sm shadow-lime-300/30">
                     {isInitialDashboardLoading ? "멤버 불러오는 중" : `멤버 ${dashboard.participants.length}명`}
                   </span>
@@ -1354,6 +1778,7 @@ export function DashboardClient({
                   </div>
                 ))}
                 {sortedParticipantProgress.map((row, index) => {
+                  const latestBadge = latestGrowthBadgeByParticipant.get(row.participant.id);
                   return (
                   <button
                     key={row.participant.id}
@@ -1361,6 +1786,7 @@ export function DashboardClient({
                     onClick={() => {
                       setSelectedParticipantId(row.participant.id);
                       setSelectedDailyRecordDate("");
+                      setShowFinalReportPreviewModal(false);
                     }}
                     className={`relative overflow-hidden rounded-[18px] bg-white px-3 py-3 text-left ring-1 ring-slate-950/5 transition hover:-translate-y-0.5 hover:ring-lime-300 sm:px-4 ${
                     row.rate >= 100 ? "gauge-complete-card" : "dashboard-gauge-card"
@@ -1368,19 +1794,30 @@ export function DashboardClient({
                   >
                     {row.rate >= 100 && <FanfareBurst compact />}
                     <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2.5 sm:gap-3">
-                      <MemberPictogram index={row.pictogramIndex} participantName={row.participant.name} className="!h-9 !w-9 sm:!h-10 sm:!w-10" />
+                      <div className="relative flex min-w-[44px] shrink-0 justify-center pt-2">
+                        {latestBadge && (
+                          <span className={`absolute left-1/2 top-0 z-10 max-w-[72px] -translate-x-1/2 truncate rounded-full border px-1.5 py-0.5 text-[8px] font-black leading-none shadow-sm sm:max-w-[84px] ${recentBadgeLabelClass(latestBadge.key)}`}>
+                            {latestBadge.label}
+                          </span>
+                        )}
+                        <MemberPictogram index={row.pictogramIndex} participantName={row.participant.name} className="!h-9 !w-9 sm:!h-10 sm:!w-10" />
+                      </div>
                       <div className="min-w-0">
                         <div className="flex min-w-0 flex-wrap items-center gap-1.5">
                           <p className="truncate text-sm font-black leading-tight text-oriwan-text sm:text-base">{row.participant.name}</p>
-                          <span className="inline-flex items-baseline gap-1 rounded-full bg-oriwan-surface-light px-2 py-0.5 text-[10px] font-black leading-none text-oriwan-text shadow-[inset_0_0_0_1px_rgba(16,21,34,0.05)]">
-                            <span className="text-[8px] font-extrabold text-oriwan-text-muted">총거리</span>
-                            <AnimatedMetricNumber key={`distance-${animationRun}-${row.participant.id}`} value={row.distanceKm} suffix="km" />
-                          </span>
-                          <span className="inline-flex items-baseline gap-1 rounded-full bg-oriwan-surface-light px-2 py-0.5 text-[10px] font-black leading-none text-oriwan-text shadow-[inset_0_0_0_1px_rgba(16,21,34,0.05)]">
-                            <span className="text-[8px] font-extrabold text-oriwan-text-muted">총시간</span>
-                            {secondsToTime(row.durationSeconds)}
+                          <span className="inline-flex max-w-full flex-wrap items-center gap-x-1.5 gap-y-0.5 rounded-full bg-oriwan-surface-light px-2 py-0.5 text-[10px] font-black leading-none text-oriwan-text shadow-[inset_0_0_0_1px_rgba(16,21,34,0.05)]">
+                            <span className="text-[8px] font-extrabold text-oriwan-text-muted">거리</span>
+                            <span>{row.distanceKm.toFixed(1)}km</span>
+                            <span className="text-[8px] font-extrabold text-oriwan-text-muted">시간</span>
+                            <span>{secondsToTime(row.durationSeconds)}</span>
                           </span>
                         </div>
+                        {row.recoveryUsageCount > 0 && (
+                          <span className="mt-1 inline-flex max-w-full flex-wrap items-center gap-x-1.5 gap-y-0.5 rounded-full bg-sky-50 px-2 py-1 text-[10px] font-black leading-none text-sky-700 shadow-[inset_0_0_0_1px_rgba(14,165,233,0.16)]">
+                            <span className="truncate">회복을 잘 활용한 멤버</span>
+                            <span className="shrink-0 text-slate-950">+ 리커버리 {row.recoveryUsageCount}일</span>
+                          </span>
+                        )}
                         <div className="mt-2 h-2 overflow-hidden rounded-full bg-oriwan-surface-light">
                           <div
                             className={`gauge-fill-flow h-full rounded-full transition-all duration-[900ms] ease-out ${gaugeColorClass(row.certifiedDays)}`}
@@ -1400,7 +1837,7 @@ export function DashboardClient({
                 })}
                 {!dashboard.participantProgress.length && !loading && (
                   <p className="rounded-2xl bg-white px-4 py-8 text-center text-sm text-oriwan-text-muted">
-                    멤버가 추가되면 인증게이지가 바로 채워집니다.
+                    멤버가 추가되면 인증 현황이 바로 채워집니다.
                   </p>
                 )}
               </div>
@@ -1437,12 +1874,144 @@ export function DashboardClient({
           />
         )}
 
+        {showJourneyReportModal && showJourneyReportLabel && (
+          <div
+            className="fixed inset-0 z-[80] flex items-end bg-slate-950/45 px-0 py-0 backdrop-blur-sm sm:items-center sm:justify-center sm:px-4 sm:py-4"
+            onClick={() => setShowJourneyReportModal(false)}
+            role="dialog"
+            aria-modal="true"
+            aria-label="50일 간의 여정"
+          >
+            <div className="card mobile-sheet modal-rise w-full max-w-4xl overflow-y-auto p-4 sm:max-h-[88vh] sm:p-6" onClick={(event) => event.stopPropagation()}>
+              <div className="mb-5 flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="inline-flex rounded-full bg-lime-300 px-3 py-1 text-[11px] font-black text-slate-950">
+                      오늘만 공개
+                    </span>
+                    <span className="inline-flex rounded-full bg-oriwan-surface-light px-3 py-1 text-[11px] font-black text-oriwan-text-muted">
+                      {shortDate(journeyReport.from)}-{shortDate(journeyReport.to)}
+                    </span>
+                  </div>
+                  <h3 className="mt-3 text-2xl font-black leading-tight text-oriwan-text sm:text-3xl">
+                    50일 간의 여정
+                  </h3>
+                  <p className="mt-2 max-w-2xl text-sm font-bold leading-6 text-oriwan-text-muted">
+                    첫 50일 동안 스내사 크루가 함께 쌓은 인증 흐름, 거리, 시간을 한 번에 모았습니다.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowJourneyReportModal(false)}
+                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-oriwan-surface-light text-oriwan-text-muted transition hover:bg-slate-950 hover:text-lime-200"
+                  aria-label="닫기"
+                >
+                  <IconX size={18} />
+                </button>
+              </div>
+
+              <div className="grid gap-2 sm:grid-cols-4">
+                {[
+                  ["팀 인증률", `${journeyReport.teamRate}%`],
+                  ["누적 거리", `${formatCompactNumber(journeyReport.totalDistanceKm, 1)}km`],
+                  ["누적 시간", formatTeamDuration(journeyReport.totalDurationSeconds)],
+                  ["50일 완주", `${journeyReport.perfectMemberCount}명`],
+                ].map(([label, value]) => (
+                  <div key={label} className="rounded-2xl bg-slate-950 px-4 py-3 text-white">
+                    <p className="text-[11px] font-black text-white/50">{label}</p>
+                    <p className="mt-1 truncate text-xl font-black leading-tight text-lime-200">{value}</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-3 grid gap-3 lg:grid-cols-[1.25fr_0.75fr]">
+                <section className="rounded-[26px] bg-oriwan-surface-light p-4 ring-1 ring-slate-950/5">
+                  <div className="mb-3 flex items-end justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-black text-oriwan-text">오늘의 1등</p>
+                      <p className="mt-0.5 text-[11px] font-bold text-oriwan-text-muted">50일 리포트 기준 분야별 리더입니다.</p>
+                    </div>
+                    <span className="shrink-0 rounded-full bg-slate-950 px-2.5 py-1 text-[10px] font-black text-lime-200">
+                      {journeyReport.leaderCards.length}개 분야
+                    </span>
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {journeyReport.leaderCards.map((leader) => (
+                      <div key={leader.label} className="rounded-2xl bg-white px-3 py-3 ring-1 ring-slate-950/5">
+                        <p className="text-[10px] font-black text-oriwan-text-muted">{leader.label}</p>
+                        <div className="mt-1 flex items-start justify-between gap-2">
+                          <p className="min-w-0 break-keep text-base font-black leading-snug text-oriwan-text">{leader.name}</p>
+                          <p className="shrink-0 text-sm font-black text-lime-700">{leader.value}</p>
+                        </div>
+                        <p className="mt-1 break-keep text-[10px] font-bold leading-4 text-oriwan-text-muted">{leader.detail}</p>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+
+                <section className="rounded-[26px] bg-rose-50 p-4 ring-1 ring-rose-100">
+                  <div className="mb-3">
+                    <p className="text-sm font-black text-rose-950">더 끌어올릴 멤버</p>
+                    <p className="mt-0.5 text-[11px] font-bold text-rose-700/70">50일 인증률 기준으로 한 명만 보여줍니다.</p>
+                  </div>
+                  <div className="grid gap-2">
+                    {journeyReport.effortCards.map((member, index) => (
+                      <div key={member.name} className="rounded-2xl bg-white px-3 py-2.5 ring-1 ring-rose-100">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="truncate text-sm font-black text-oriwan-text">{index + 1}. {member.name}</p>
+                          <p className="shrink-0 rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-black text-rose-700">{member.value}</p>
+                        </div>
+                        <p className="mt-1 text-[10px] font-bold leading-4 text-oriwan-text-muted">{member.detail}</p>
+                      </div>
+                    ))}
+                    {!journeyReport.effortCards.length && (
+                      <p className="rounded-2xl bg-white px-3 py-4 text-center text-xs font-bold text-oriwan-text-muted ring-1 ring-rose-100">
+                        모두 50일 인증을 채웠습니다.
+                      </p>
+                    )}
+                  </div>
+                </section>
+              </div>
+
+              <div className="mt-3">
+                <section className="rounded-[26px] bg-white p-4 ring-1 ring-slate-950/5">
+                  <div className="mb-3 flex items-end justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-black text-oriwan-text">러닝 지역 분포</p>
+                      <p className="mt-0.5 text-[11px] font-bold text-oriwan-text-muted">
+                        OCR에서 서울 성수, 남양주처럼 확인되는 지역만 분류하고, 불명확한 기록은 기타로 둡니다.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {journeyReport.spaceGroups.map((space) => (
+                      <div key={space.label} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-2xl bg-oriwan-surface-light px-3 py-2.5">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-black text-oriwan-text">{space.label}</p>
+                          <p className="mt-0.5 text-[10px] font-bold text-oriwan-text-muted">{space.participantCount}명 · {formatCompactNumber(space.distanceKm, 1)}km</p>
+                        </div>
+                        <p className="shrink-0 rounded-full bg-slate-950 px-2.5 py-1 text-[10px] font-black text-lime-200">{space.count}회</p>
+                      </div>
+                    ))}
+                    {!journeyReport.spaceGroups.length && (
+                      <p className="rounded-2xl bg-oriwan-surface-light px-3 py-4 text-center text-xs font-bold text-oriwan-text-muted">
+                        OCR에서 확인 가능한 지역 정보가 아직 없습니다.
+                      </p>
+                    )}
+                  </div>
+                </section>
+              </div>
+            </div>
+          </div>
+        )}
+
         {selectedParticipant && (
           <div
             className="fixed inset-0 z-[80] flex items-end bg-slate-950/45 px-0 py-0 backdrop-blur-sm sm:items-center sm:justify-center sm:px-4 sm:py-4"
             onClick={() => {
               setSelectedParticipantId("");
               setSelectedDailyRecordDate("");
+              setShowFinalReportPreviewModal(false);
             }}
           >
             <div className="card mobile-sheet modal-rise w-full max-w-2xl overflow-y-auto p-4 sm:max-h-[88vh] sm:p-6" onClick={(event) => event.stopPropagation()}>
@@ -1459,6 +2028,7 @@ export function DashboardClient({
                     onClick={() => {
                       setSelectedParticipantId("");
                       setSelectedDailyRecordDate("");
+                      setShowFinalReportPreviewModal(false);
                     }}
                     className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-oriwan-surface-light text-oriwan-text-muted transition hover:bg-slate-950 hover:text-lime-200"
                     aria-label="닫기"
@@ -1474,108 +2044,308 @@ export function DashboardClient({
                       onNext={() => setMascotCoachMessageIndex((current) => current + 1)}
                     />
                     <div className="flex min-w-0 flex-wrap items-center gap-2">
-                      <h3 className="min-w-0 truncate text-2xl font-black leading-tight text-oriwan-text">{selectedParticipant.participant.name}</h3>
-                      <RecoveryShieldStrip usedCount={selectedParticipant.recoveryUsageCount} />
+                      {selectedParticipant.participant.nickname ? (
+                        <button
+                          type="button"
+                          onClick={() => setShowParticipantIntro((current) => !current)}
+                          className="group inline-flex min-w-0 items-center gap-2 text-left"
+                          aria-expanded={showParticipantIntro}
+                          aria-controls={`participant-intro-${selectedParticipant.participant.id}`}
+                        >
+                          <span className="min-w-0 truncate text-2xl font-black leading-tight text-oriwan-text group-hover:underline">
+                            {selectedParticipant.participant.name}
+                          </span>
+                          <span className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-black leading-none ${
+                            showParticipantIntro ? "bg-slate-950 text-lime-200" : "bg-oriwan-surface-light text-oriwan-text-muted"
+                          }`}>
+                            {showParticipantIntro ? "접기" : "소개"}
+                          </span>
+                        </button>
+                      ) : (
+                        <h3 className="min-w-0 truncate text-2xl font-black leading-tight text-oriwan-text">{selectedParticipant.participant.name}</h3>
+                      )}
                     </div>
                   </div>
+                  {selectedParticipant.recoveryUsageCount > 0 && (
+                    <p className="inline-flex w-fit max-w-full flex-wrap items-center gap-x-1.5 gap-y-0.5 rounded-full bg-sky-50 px-3 py-1.5 text-[11px] font-black leading-none text-sky-700 shadow-[inset_0_0_0_1px_rgba(14,165,233,0.16)]">
+                      <span className="truncate">회복을 잘 활용한 멤버</span>
+                      <span className="shrink-0 text-slate-950">+ 리커버리 {selectedParticipant.recoveryUsageCount}일</span>
+                    </p>
+                  )}
                   <MascotCoachBubble
                     key={`${selectedParticipant.participant.id}-${mascotCoachMessageIndex}`}
                     message={selectedMascotCoachMessage}
                   />
                 </div>
-                {selectedParticipant.participant.nickname && (
-                  <p className="mt-3 w-full whitespace-pre-line break-keep rounded-2xl bg-oriwan-surface-light px-4 py-3 text-sm font-bold leading-6 text-oriwan-text">
+                {selectedParticipant.participant.nickname && showParticipantIntro && (
+                  <p id={`participant-intro-${selectedParticipant.participant.id}`} className="mt-3 w-full whitespace-pre-line break-keep rounded-2xl bg-oriwan-surface-light px-4 py-3 text-sm font-bold leading-6 text-oriwan-text">
                     {selectedParticipant.participant.nickname}
                   </p>
                 )}
               </div>
-              <div className="grid grid-cols-7 gap-1.5 sm:gap-1.5">
-                {dashboard.stampDays.map((day) => {
+              <div className="grid grid-cols-7 gap-1 sm:gap-1.5">
+                {dashboard.stampDays.map((day, index) => {
                   const stamped = selectedStampedDates.has(day);
                   const dayRecord = selectedRecordByDate.get(day);
+                  const isRecoveryStamp = Boolean(dayRecord && isRecoveryCertificationRecord(dayRecord));
                   const isSelected = selectedDailyRecordDate === day;
+                  const month = Number(day.slice(5, 7));
+                  const date = Number(day.slice(8, 10));
+                  const milestoneDay = certificationDayNumber(day);
+                  const isDoubleEventStampDay = STAMP_DOUBLE_EVENT_MILESTONES.has(milestoneDay);
+                  const isFinalReportStampDay = milestoneDay === FINAL_REPORT_MILESTONE_DAY;
+                  const isFutureStampDay = day > dashboard.currentCertificationDate;
+                  const previousDay = dashboard.stampDays[index - 1] || "";
+                  const showMonthLabel = index === 0 || previousDay.slice(5, 7) !== day.slice(5, 7);
+                  const stampStatusLabel = isFutureStampDay ? "예정일" : dayRecord ? (isRecoveryStamp ? "리커버리 인증" : "본 인증") : "미인증";
+                  const doubleEventLabel = isDoubleEventStampDay ? ` · ${milestoneDay}일차 2배 이벤트` : "";
+                  const finalReportLabel = isFinalReportStampDay ? " · 100일차 개인별 최종 리포트" : "";
+                  const stampDateTextClass = isFutureStampDay ? "text-slate-300" : "text-slate-950";
+                  const stampSubTextClass = isFutureStampDay ? "text-slate-400" : "text-slate-700";
+                  const stampCellToneClass = isRecoveryStamp
+                    ? `stamp-cell-hit bg-sky-50 ${isDoubleEventStampDay ? "border-amber-400" : "border-sky-200"}`
+                    : isDoubleEventStampDay
+                      ? "border-amber-400 bg-white"
+                      : stamped || isFinalReportStampDay
+                        ? "stamp-cell-hit border-lime-300 bg-white"
+                        : "border-slate-100 bg-white text-slate-300";
                   return (
                     <button
                       key={day}
                       type="button"
-                      disabled={!stamped}
+                      disabled={!stamped && !isFinalReportStampDay}
                       onClick={() => {
+                        if (isFinalReportStampDay) {
+                          setSelectedDailyRecordDate("");
+                          setShowFinalReportPreviewModal(true);
+                          return;
+                        }
                         if (stamped) setSelectedDailyRecordDate(day);
                       }}
-                      title={day}
-                      className={`stamp-cell flex aspect-square flex-col items-center justify-center rounded-xl border text-[10px] font-black transition sm:rounded-2xl ${
-                        stamped
-                          ? "stamp-cell-hit border-lime-300 bg-lime-300 text-slate-950 shadow-sm shadow-lime-300/40"
-                          : "border-slate-950/10 bg-white text-oriwan-text-muted/45"
-                      } ${isSelected ? "scale-105 ring-2 ring-slate-950" : ""}`}
+                      title={`${day}${doubleEventLabel}${finalReportLabel}`}
+                      aria-label={`${day} ${stampStatusLabel}${doubleEventLabel}${finalReportLabel}`}
+                      style={{ "--stamp-delay": `${Math.min(index * 8, 360)}ms` } as CSSProperties}
+                      className={`stamp-cell relative isolate flex h-12 min-w-0 flex-col items-center justify-center overflow-hidden rounded-xl border text-[10px] font-black leading-none text-slate-950 transition enabled:hover:-translate-y-0.5 disabled:cursor-default sm:h-14 sm:rounded-2xl ${stampCellToneClass} ${isSelected ? "scale-[1.02] ring-2 ring-slate-950 ring-offset-1 ring-offset-white" : ""}`}
                     >
-                      <span>{shortDate(day)}</span>
-                      <span className="mt-0.5 text-xs">{dayRecord ? "✓" : "·"}</span>
+                      {isDoubleEventStampDay && (
+                        <span className="absolute left-1 top-1 z-10 rounded-full bg-amber-300 px-1.5 py-[1px] text-[7px] font-black leading-none text-slate-950 shadow-sm ring-1 ring-amber-400/70">
+                          1+1
+                        </span>
+                      )}
+                      {showMonthLabel && (
+                        <span className="stamp-month-label absolute left-1 top-1 z-10 rounded-full bg-lime-200 px-1.5 py-[1px] text-[7px] font-black leading-none text-slate-950 shadow-sm ring-1 ring-lime-300/70">
+                          {month}월
+                        </span>
+                      )}
+                      {isFinalReportStampDay ? (
+                        <>
+                          <span className="absolute left-1 top-1 z-10 rounded-full bg-lime-300 px-1.5 py-[1px] text-[7px] font-black leading-none text-slate-950 shadow-sm">
+                            FINAL
+                          </span>
+                          <span className={`relative z-10 text-xs font-black leading-none sm:text-sm ${stampDateTextClass}`}>100</span>
+                          <span className={`relative z-10 mt-0.5 text-[8px] font-black leading-none sm:text-[9px] ${stampSubTextClass}`}>리포트</span>
+                        </>
+                      ) : (
+                        <span className={`relative z-10 text-xs font-black leading-none sm:text-sm ${stampDateTextClass}`}>{date}</span>
+                      )}
+                      {dayRecord && !isFinalReportStampDay && (
+                        <span className="relative z-10 mt-0.5 text-[9px] font-black leading-none text-slate-950 sm:text-[10px]">
+                          {isRecoveryStamp ? "회복" : "✓"}
+                        </span>
+                      )}
                     </button>
                   );
                 })}
               </div>
               <div className="mt-4 rounded-[22px] bg-oriwan-surface-light p-3 ring-1 ring-slate-950/5 sm:rounded-[24px] sm:p-4">
-                {selectedDailyRecord ? (
-                  <>
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-sm font-black text-oriwan-text">{selectedDailyRecordDate} 러닝 기록</p>
-                      <span className="rounded-full bg-white px-3 py-1 text-[10px] font-black text-oriwan-text-muted">
-                        {selectedDailyRecord.status === "certified" ? "인증" : "확인 중"}
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <div>
+                    <p className="text-sm font-black text-oriwan-text">개인 성장 뱃지</p>
+                    <p className="mt-0.5 text-[11px] font-bold text-oriwan-text-muted">오전 러닝과 꾸준한 인증을 기준으로 열려요.</p>
+                  </div>
+                  <span className={`shrink-0 rounded-full px-3 py-1 text-[10px] font-black ${
+                    unlockedSelectedBadgeCount
+                      ? "bg-slate-950 text-lime-200 shadow-sm shadow-lime-300/20"
+                      : "bg-white text-oriwan-text-muted"
+                  }`}>
+                    {unlockedSelectedBadgeCount
+                      ? `${unlockedSelectedBadgeCount}개 달성`
+                      : `0/${selectedPersonalGrowthBadges.length}`}
+                  </span>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {selectedPersonalGrowthBadges.map((badge) => (
+                    <div
+                      key={badge.key}
+                      className={`relative flex items-center gap-3 overflow-hidden rounded-2xl border-2 px-3 py-2.5 transition ${
+                        badge.unlocked
+                          ? `badge-achieved-card bg-slate-950 text-white shadow-lg ${badgeCardBorderClass(badge.key, true)}`
+                          : `bg-white/60 text-oriwan-text-muted ${badgeCardBorderClass(badge.key, false)}`
+                      }`}
+                    >
+                      {badge.unlocked && <FanfareBurst compact />}
+                      <span className={`relative z-10 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${
+                        badge.unlocked ? "bg-lime-300 text-slate-950 shadow-sm shadow-lime-300/40" : "bg-white text-oriwan-text-muted ring-1 ring-slate-950/5"
+                      }`}>
+                        <GrowthBadgeIcon icon={badge.icon} />
+                      </span>
+                      <span className="relative z-10 min-w-0 flex-1">
+                        <span className="flex min-w-0 items-center gap-1.5">
+                          <span className="block truncate text-xs font-black">{badge.label}</span>
+                          {badge.unlocked && (
+                            <span className="shrink-0 rounded-full bg-lime-300 px-2 py-0.5 text-[9px] font-black leading-none text-slate-950">
+                              달성!
+                            </span>
+                          )}
+                        </span>
+                        <span className={`mt-0.5 block truncate text-[10px] font-bold ${
+                          badge.unlocked ? "text-white/70" : "opacity-70"
+                        }`}>{badge.description}</span>
+                      </span>
+                      <span className={`relative z-10 shrink-0 rounded-full px-2 py-1 text-[10px] font-black ${
+                        badge.unlocked
+                          ? "bg-lime-300 text-slate-950 shadow-sm shadow-lime-300/30"
+                          : "bg-oriwan-surface-light text-oriwan-text-muted"
+                      }`}>
+                        {badge.unlocked ? "획득 완료" : badge.progress}
                       </span>
                     </div>
-                    <div className="mt-3 grid grid-cols-2 gap-2">
-                      <div className="rounded-2xl bg-white px-4 py-3">
-                        <p className="text-[10px] font-black text-oriwan-text-muted">거리</p>
-                        <p className="mt-1 text-2xl font-black leading-tight text-oriwan-text">
-                          {selectedDailyRecord.distance_km ? `${selectedDailyRecord.distance_km.toFixed(2)}km` : "-"}
-                        </p>
-                      </div>
-                      <div className="rounded-2xl bg-white px-4 py-3">
-                        <p className="text-[10px] font-black text-oriwan-text-muted">시간</p>
-                        <p className="mt-1 text-2xl font-black leading-tight text-oriwan-text">
-                          {secondsToTime(selectedDailyRecord.duration_seconds)}
-                        </p>
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div className="mb-3 flex items-center justify-between gap-2">
-                      <div>
-                        <p className="text-sm font-black text-oriwan-text">개인 성장 뱃지</p>
-                        <p className="mt-0.5 text-[11px] font-bold text-oriwan-text-muted">오전 러닝과 꾸준한 인증을 기준으로 열려요.</p>
-                      </div>
-                      <span className="shrink-0 rounded-full bg-white px-3 py-1 text-[10px] font-black text-oriwan-text-muted">
-                        {unlockedSelectedBadgeCount}/{selectedPersonalGrowthBadges.length}
-                      </span>
-                    </div>
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      {selectedPersonalGrowthBadges.map((badge) => (
-                        <div
-                          key={badge.key}
-                          className={`flex items-center gap-3 rounded-2xl px-3 py-2.5 ring-1 ring-slate-950/5 ${
-                            badge.unlocked ? "bg-white text-oriwan-text" : "bg-white/60 text-oriwan-text-muted"
-                          }`}
-                        >
-                          <span className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl ${
-                            badge.unlocked ? badge.colorClassName : "bg-white text-oriwan-text-muted ring-1 ring-slate-950/5"
-                          }`}>
-                            <GrowthBadgeIcon icon={badge.icon} />
-                          </span>
-                          <span className="min-w-0 flex-1">
-                            <span className="block truncate text-xs font-black">{badge.label}</span>
-                            <span className="mt-0.5 block truncate text-[10px] font-bold opacity-70">{badge.description}</span>
-                          </span>
-                          <span className="shrink-0 rounded-full bg-oriwan-surface-light px-2 py-1 text-[10px] font-black text-oriwan-text-muted">
-                            {badge.progress}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </>
-                )}
+                  ))}
+                </div>
               </div>
+            </div>
+          </div>
+        )}
+
+        {selectedDailyRecord && selectedParticipant && (
+          <div
+            className="fixed inset-0 z-[90] flex items-end bg-slate-950/55 px-0 py-0 backdrop-blur-sm sm:items-center sm:justify-center sm:px-4 sm:py-4"
+            onClick={() => setSelectedDailyRecordDate("")}
+            role="dialog"
+            aria-modal="true"
+            aria-label={`${selectedParticipant.participant.name} ${selectedDailyRecordDate} 러닝 기록`}
+          >
+            <div className="card mobile-sheet modal-rise w-full max-w-md overflow-y-auto p-4 sm:max-h-[86vh] sm:p-5" onClick={(event) => event.stopPropagation()}>
+              <div className="mb-4 flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="inline-flex rounded-full bg-slate-950 px-3 py-1 text-[11px] font-black text-lime-200">
+                      러닝 기록
+                    </span>
+                    <span className="inline-flex rounded-full bg-oriwan-surface-light px-3 py-1 text-[11px] font-black text-oriwan-text-muted">
+                      {isRecoveryCertificationRecord(selectedDailyRecord) ? "리커버리" : selectedDailyRecord.status === "certified" ? "본 인증" : "확인 중"}
+                    </span>
+                  </div>
+                  <h3 className="mt-3 text-2xl font-black leading-tight text-oriwan-text">
+                    {selectedDailyRecordDate}
+                  </h3>
+                  <p className="mt-1 text-sm font-bold text-oriwan-text-muted">
+                    {selectedParticipant.participant.name}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedDailyRecordDate("")}
+                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-oriwan-surface-light text-oriwan-text-muted transition hover:bg-slate-950 hover:text-lime-200"
+                  aria-label="닫기"
+                >
+                  <IconX size={18} />
+                </button>
+              </div>
+
+              {isRecoveryCertificationRecord(selectedDailyRecord) && (
+                <p className="mb-3 rounded-2xl bg-sky-50 px-3 py-2 text-[11px] font-bold leading-5 text-sky-700">
+                  회복으로 이어간 날이에요. 총 인증률과 누적 거리, 누적 시간에는 포함되고 성장 뱃지는 본 인증 기준으로 열립니다.
+                </p>
+              )}
+
+              <div className="grid grid-cols-2 gap-2">
+                <div className="rounded-2xl bg-oriwan-surface-light px-4 py-3 ring-1 ring-slate-950/5">
+                  <p className="text-[10px] font-black text-oriwan-text-muted">거리</p>
+                  <p className="mt-1 text-2xl font-black leading-tight text-oriwan-text">
+                    {selectedDailyRecord.distance_km ? `${selectedDailyRecord.distance_km.toFixed(2)}km` : "-"}
+                  </p>
+                </div>
+                <div className="rounded-2xl bg-oriwan-surface-light px-4 py-3 ring-1 ring-slate-950/5">
+                  <p className="text-[10px] font-black text-oriwan-text-muted">시간</p>
+                  <p className="mt-1 text-2xl font-black leading-tight text-oriwan-text">
+                    {secondsToTime(selectedDailyRecord.duration_seconds)}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-2 rounded-2xl bg-white px-4 py-3 shadow-sm shadow-slate-950/5">
+                <p className="text-[10px] font-black text-oriwan-text-muted">러닝 공간</p>
+                <p className="mt-1 text-sm font-black leading-5 text-oriwan-text">
+                  {selectedDailyRecord.space_label || "기타"}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showFinalReportPreviewModal && selectedParticipant && (
+          <div
+            className="fixed inset-0 z-[90] flex items-end bg-slate-950/55 px-0 py-0 backdrop-blur-sm sm:items-center sm:justify-center sm:px-4 sm:py-4"
+            onClick={() => setShowFinalReportPreviewModal(false)}
+            role="dialog"
+            aria-modal="true"
+            aria-label={`${selectedParticipant.participant.name} 개인별 최종 리포트 안내`}
+          >
+            <div className="card mobile-sheet modal-rise w-full max-w-xl overflow-y-auto p-4 sm:max-h-[86vh] sm:p-6" onClick={(event) => event.stopPropagation()}>
+              <div className="mb-4 flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="inline-flex rounded-full bg-slate-950 px-3 py-1 text-[11px] font-black text-lime-200">
+                    100일차 최종 리포트
+                  </p>
+                  <h3 className="mt-3 text-2xl font-black leading-tight text-oriwan-text">
+                    {selectedParticipant.participant.name}님의 개인별 최종 리포트가 열릴 예정이에요
+                  </h3>
+                  <p className="mt-2 text-sm font-bold leading-6 text-oriwan-text-muted">
+                    시즌이 끝나면 인증률, 누적 거리와 시간, 연속 인증, 리커버리 활용, 획득 뱃지를 한 장의 개인 리포트로 보여줄 수 있어요.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowFinalReportPreviewModal(false)}
+                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-oriwan-surface-light text-oriwan-text-muted transition hover:bg-slate-950 hover:text-lime-200"
+                  aria-label="닫기"
+                >
+                  <IconX size={18} />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  ["현재 인증률", `${selectedParticipant.rate}%`],
+                  ["남은 인증", `${selectedRemainingDays}일`],
+                  ["누적 거리", `${formatCompactNumber(selectedParticipant.distanceKm, 1)}km`],
+                  ["누적 시간", formatTeamDuration(selectedParticipant.durationSeconds)],
+                ].map(([label, value]) => (
+                  <div key={label} className="rounded-2xl bg-oriwan-surface-light px-4 py-3 ring-1 ring-slate-950/5">
+                    <p className="text-[10px] font-black text-oriwan-text-muted">{label}</p>
+                    <p className="mt-1 truncate text-xl font-black leading-tight text-oriwan-text">{value}</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-3 grid gap-2">
+                {[
+                  ["인증 하이라이트", `${selectedParticipant.certifiedDays}/${CHALLENGE_DAYS}일 인증, 최장 ${selectedParticipant.longestStreak}일 연속 인증`],
+                  ["러닝 누적", `${formatCompactNumber(selectedParticipant.distanceKm, 1)}km · ${formatTeamDuration(selectedParticipant.durationSeconds)}`],
+                  ["회복 활용", selectedParticipant.recoveryUsageCount > 0 ? `리커버리 ${selectedParticipant.recoveryUsageCount}일 활용` : "리커버리 없이 본 인증 중심으로 진행"],
+                  ["성장 뱃지", unlockedSelectedBadgeCount > 0 ? `${unlockedSelectedBadgeCount}개 달성 뱃지 정리` : "시즌 종료 시점의 뱃지 현황 정리"],
+                ].map(([title, description]) => (
+                  <div key={title} className="rounded-2xl bg-white px-4 py-3 shadow-sm shadow-slate-950/5">
+                    <p className="text-sm font-black text-oriwan-text">{title}</p>
+                    <p className="mt-1 text-xs font-bold leading-5 text-oriwan-text-muted">{description}</p>
+                  </div>
+                ))}
+              </div>
+
+              <p className="mt-3 rounded-2xl bg-lime-50 px-4 py-3 text-xs font-black leading-5 text-lime-800 ring-1 ring-lime-200/70">
+                100일차 칩은 보너스 데이가 아니라, 시즌 종료 후 개인별 최종 리포트를 여는 입구로 사용됩니다.
+              </p>
             </div>
           </div>
         )}
