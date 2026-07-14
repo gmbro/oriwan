@@ -320,12 +320,14 @@ function RecoveryRatioChart({
   percentage,
   fractionLabel,
   description,
+  formulaLabel,
   tone,
 }: {
   label: string;
   percentage: number;
   fractionLabel: string;
   description: string;
+  formulaLabel: string;
   tone: keyof typeof recoveryChartTones;
 }) {
   const safePercentage = Math.max(0, Math.min(percentage, 100));
@@ -352,6 +354,178 @@ function RecoveryRatioChart({
       </div>
       <p className="mt-3 text-sm font-black leading-tight text-oriwan-text">{label}</p>
       <p className="mt-1 break-keep text-[10px] font-bold leading-4 text-oriwan-text-muted">{description}</p>
+      <p className="mt-2 rounded-full bg-white/75 px-2.5 py-1 text-[9px] font-black leading-4 text-oriwan-text-muted ring-1 ring-slate-950/5">
+        계산: {formulaLabel}
+      </p>
+    </div>
+  );
+}
+
+function RecoveryTrendLineChart({ data }: { data: Array<{ date: string; count: number }> }) {
+  const width = 760;
+  const height = 250;
+  const margin = { top: 24, right: 20, bottom: 42, left: 42 };
+  const plotWidth = width - margin.left - margin.right;
+  const plotHeight = height - margin.top - margin.bottom;
+  const maxCount = Math.max(1, ...data.map((item) => item.count));
+  const xAt = (index: number) => (
+    data.length > 1
+      ? margin.left + (index / (data.length - 1)) * plotWidth
+      : margin.left + plotWidth / 2
+  );
+  const yAt = (count: number) => margin.top + plotHeight - (count / maxCount) * plotHeight;
+  const points = data.map((item, index) => `${xAt(index)},${yAt(item.count)}`).join(" ");
+  const tickValues = Array.from(new Set([maxCount, Math.round(maxCount / 2), 0])).sort((a, b) => b - a);
+  const labelIndexes = Array.from(new Set([0, Math.floor((data.length - 1) / 2), data.length - 1]))
+    .filter((index) => index >= 0);
+  const peak = data.reduce<{ date: string; count: number } | null>((currentPeak, item) => (
+    !currentPeak || item.count > currentPeak.count ? item : currentPeak
+  ), null);
+  const latest = data[data.length - 1] || null;
+
+  return (
+    <div className="rounded-[22px] bg-white px-3 py-4 ring-1 ring-slate-950/5 sm:px-5 sm:py-5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h3 className="text-base font-black text-oriwan-text">일자별 리커버리 인증 추이</h3>
+          <p className="mt-1 max-w-2xl text-[11px] font-bold leading-5 text-oriwan-text-muted">
+            점은 날짜별 리커버리 인증 인원입니다. 선이 높을수록 같은 날 회복 인증을 선택한 사람이 많습니다.
+          </p>
+        </div>
+        <div className="flex shrink-0 flex-wrap gap-1.5">
+          <span className="rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-black text-amber-800">
+            최고 {peak?.count || 0}명{peak ? ` · ${formatAdminDate(peak.date)}` : ""}
+          </span>
+          <span className="rounded-full bg-lime-100 px-2.5 py-1 text-[10px] font-black text-lime-800">
+            오늘 {latest?.count || 0}명
+          </span>
+        </div>
+      </div>
+
+      <div className="mt-3 overflow-hidden rounded-2xl bg-oriwan-surface-light px-1 py-2 sm:px-3">
+        <svg
+          role="img"
+          aria-labelledby="recovery-trend-title recovery-trend-desc"
+          viewBox={`0 0 ${width} ${height}`}
+          className="block h-auto w-full"
+        >
+          <title id="recovery-trend-title">일자별 리커버리 인증 인원 꺾은선그래프</title>
+          <desc id="recovery-trend-desc">
+            {`인증 시작일부터 오늘까지 날짜별 리커버리 인증 인원을 표시합니다. 최고 ${peak?.count || 0}명, 오늘 ${latest?.count || 0}명입니다.`}
+          </desc>
+          {tickValues.map((tick) => {
+            const y = yAt(tick);
+            return (
+              <g key={`recovery-trend-y-${tick}`}>
+                <line x1={margin.left} y1={y} x2={width - margin.right} y2={y} stroke="rgba(15,23,42,0.12)" strokeWidth="1" />
+                <text x={margin.left - 10} y={y + 4} textAnchor="end" fill="rgba(71,85,105,0.82)" fontSize="11" fontWeight="800">
+                  {tick}명
+                </text>
+              </g>
+            );
+          })}
+          {data.length > 0 && (
+            <>
+              <polyline
+                points={points}
+                fill="none"
+                stroke="var(--color-oriwan-danger)"
+                strokeWidth="4"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                vectorEffect="non-scaling-stroke"
+              />
+              {data.map((item, index) => item.count > 0 && (
+                <circle
+                  key={`recovery-trend-point-${item.date}`}
+                  cx={xAt(index)}
+                  cy={yAt(item.count)}
+                  r="4"
+                  fill="white"
+                  stroke="var(--color-oriwan-danger)"
+                  strokeWidth="3"
+                  vectorEffect="non-scaling-stroke"
+                >
+                  <title>{`${formatAdminFullDate(item.date)} · ${item.count}명`}</title>
+                </circle>
+              ))}
+            </>
+          )}
+          {labelIndexes.map((index) => {
+            const item = data[index];
+            if (!item) return null;
+            const textAnchor = index === 0 ? "start" : index === data.length - 1 ? "end" : "middle";
+            return (
+              <text
+                key={`recovery-trend-x-${item.date}`}
+                x={xAt(index)}
+                y={height - 13}
+                textAnchor={textAnchor}
+                fill="rgba(71,85,105,0.82)"
+                fontSize="11"
+                fontWeight="800"
+              >
+                {formatAdminDate(item.date)}
+              </text>
+            );
+          })}
+        </svg>
+      </div>
+      <p className="mt-2 text-[10px] font-bold leading-4 text-oriwan-text-muted">
+        가로축은 인증 일자, 세로축은 해당 날짜에 리커버리로 인증한 사용자 수입니다. 아래 일자별 목록에서 정확한 사용자도 확인할 수 있습니다.
+      </p>
+    </div>
+  );
+}
+
+function RecoveryParticipantBarChart({
+  data,
+}: {
+  data: Array<{ id: string; name: string; count: number }>;
+}) {
+  const maxCount = Math.max(1, ...data.map((item) => item.count));
+
+  return (
+    <div className="rounded-[22px] bg-white px-4 py-4 ring-1 ring-slate-950/5 sm:px-5 sm:py-5">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h3 className="text-base font-black text-oriwan-text">사용자별 누적 리커버리 인증일</h3>
+          <p className="mt-1 max-w-2xl text-[11px] font-bold leading-5 text-oriwan-text-muted">
+            막대 길이는 가장 많은 사용자를 100%로 놓은 상대 비교이며, 오른쪽 숫자가 실제 누적 리커버리 인증일입니다.
+          </p>
+        </div>
+        <span className="w-fit shrink-0 rounded-full bg-sky-100 px-2.5 py-1 text-[10px] font-black text-sky-800">
+          기준 최고 {data[0]?.count || 0}일
+        </span>
+      </div>
+
+      {data.length ? (
+        <div className="mt-4 grid gap-x-6 gap-y-3 lg:grid-cols-2">
+          {data.map((item) => (
+            <div key={item.id} className="grid grid-cols-[5rem_minmax(0,1fr)_2.75rem] items-center gap-2">
+              <span className="truncate text-xs font-black text-oriwan-text">{item.name}</span>
+              <div
+                role="progressbar"
+                aria-label={`${item.name} 누적 리커버리 인증 ${item.count}일`}
+                aria-valuemin={0}
+                aria-valuemax={maxCount}
+                aria-valuenow={item.count}
+                className="h-2.5 overflow-hidden rounded-full bg-oriwan-surface-light ring-1 ring-slate-950/5"
+              >
+                <div
+                  className="h-full rounded-full bg-amber-400"
+                  style={{ width: `${Math.max(4, (item.count / maxCount) * 100)}%` }}
+                />
+              </div>
+              <span className="text-right text-xs font-black text-amber-700">{item.count}일</span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="mt-4 rounded-2xl bg-oriwan-surface-light px-4 py-7 text-center text-xs font-bold text-oriwan-text-muted">
+          리커버리 인증이 쌓이면 사용자별 누적 막대가 표시됩니다.
+        </p>
+      )}
     </div>
   );
 }
@@ -705,6 +879,43 @@ export default function AdminPage() {
     const totalCertifications = rows.reduce((total, row) => total + row.participants.length, 0);
     const todayRecoveryCount = participantsByDate.get(effectiveToday)?.size || 0;
     const possibleParticipantDays = totalParticipants * elapsedDays;
+    const dailyTrend = Array.from({ length: elapsedDays }, (_, index) => {
+      const date = toIsoDate(addDays(new Date(`${ACTUAL_CERTIFICATION_START_DATE}T00:00:00`), index));
+      return { date, count: participantsByDate.get(date)?.size || 0 };
+    });
+    const participantBarMap = new Map<string, { id: string; name: string; displayOrder: number; count: number }>();
+
+    rows.forEach((row) => {
+      row.participants.forEach((participant) => {
+        const current = participantBarMap.get(participant.id);
+        participantBarMap.set(participant.id, {
+          ...participant,
+          count: (current?.count || 0) + 1,
+        });
+      });
+    });
+
+    const participantBars = Array.from(participantBarMap.values()).sort((a, b) => (
+      b.count - a.count || a.displayOrder - b.displayOrder || a.name.localeCompare(b.name, "ko")
+    ));
+    const todayParticipants = Array.from(participantsByDate.get(effectiveToday)?.values() || []).sort((a, b) => (
+      a.displayOrder - b.displayOrder || a.name.localeCompare(b.name, "ko")
+    ));
+    const recentWindowStart = toIsoDate(addDays(new Date(`${recoveryEndDate}T00:00:00`), -6));
+    const recentRecoveryCounts = new Map<string, number>();
+
+    rows
+      .filter((row) => row.date >= recentWindowStart && row.date <= recoveryEndDate)
+      .forEach((row) => {
+        row.participants.forEach((participant) => {
+          recentRecoveryCounts.set(participant.id, (recentRecoveryCounts.get(participant.id) || 0) + 1);
+        });
+      });
+
+    const repeatRecoveryParticipants = participantBars
+      .map((participant) => ({ ...participant, recentCount: recentRecoveryCounts.get(participant.id) || 0 }))
+      .filter((participant) => participant.recentCount >= 2)
+      .sort((a, b) => b.recentCount - a.recentCount || a.displayOrder - b.displayOrder || a.name.localeCompare(b.name, "ko"));
 
     return {
       totalParticipants,
@@ -717,6 +928,12 @@ export default function AdminPage() {
       elapsedRecoveryRatio: ratioPercentage(totalCertifications, possibleParticipantDays),
       certifiedRecoveryRatio: ratioPercentage(totalCertifications, affectedCertifiedDays.size),
       todayRecoveryRatio: ratioPercentage(todayRecoveryCount, totalParticipants),
+      dailyTrend,
+      participantBars,
+      todayParticipants,
+      recentWindowStart,
+      recoveryEndDate,
+      repeatRecoveryParticipants,
       rows,
     };
   }, [certificationParticipantIds, certificationParticipants.length, participants, records]);
@@ -1645,19 +1862,29 @@ export default function AdminPage() {
 
           <div className="p-3 sm:p-5">
             {isInitialAdminLoading ? (
-              <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
-                {Array.from({ length: 4 }, (_, index) => (
-                  <div key={`recovery-loading-${index}`} className="flex animate-pulse flex-col items-center rounded-[22px] bg-white px-3 py-4 ring-1 ring-slate-950/5">
-                    <span className="h-28 w-28 rounded-full bg-oriwan-surface-light sm:h-32 sm:w-32" />
-                    <span className="mt-3 h-4 w-24 rounded-full bg-oriwan-surface-light" />
-                    <span className="mt-2 h-3 w-28 rounded-full bg-oriwan-surface-light" />
-                  </div>
-                ))}
+              <div className="space-y-3">
+                <div className="animate-pulse rounded-[22px] bg-white px-4 py-5 ring-1 ring-slate-950/5">
+                  <span className="block h-4 w-40 rounded-full bg-oriwan-surface-light" />
+                  <span className="mt-4 block h-48 rounded-2xl bg-oriwan-surface-light" />
+                </div>
+                <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+                  {Array.from({ length: 4 }, (_, index) => (
+                    <div key={`recovery-loading-${index}`} className="flex animate-pulse flex-col items-center rounded-[22px] bg-white px-3 py-4 ring-1 ring-slate-950/5">
+                      <span className="h-28 w-28 rounded-full bg-oriwan-surface-light sm:h-32 sm:w-32" />
+                      <span className="mt-3 h-4 w-24 rounded-full bg-oriwan-surface-light" />
+                      <span className="mt-2 h-3 w-28 rounded-full bg-oriwan-surface-light" />
+                    </div>
+                  ))}
+                </div>
               </div>
             ) : (
               <>
                 <div className="rounded-2xl bg-amber-50 px-4 py-3 text-[11px] font-bold leading-5 text-amber-900 ring-1 ring-amber-200">
                   실제 의료 진단 인원이 아니라, 완료된 리커버리 인증 이력을 부상 영향 신호로 계산한 추정치입니다.
+                </div>
+
+                <div className="mt-3">
+                  <RecoveryTrendLineChart data={recoveryCertificationSummary.dailyTrend} />
                 </div>
 
                 <div className="mt-3 grid grid-cols-2 gap-2 lg:grid-cols-4">
@@ -1666,6 +1893,7 @@ export default function AdminPage() {
                     percentage={recoveryCertificationSummary.affectedParticipantRatio}
                     fractionLabel={`${recoveryCertificationSummary.totalParticipants}/${certificationParticipants.length}명`}
                     description="전체 인증 대상 중 리커버리 이력 보유"
+                    formulaLabel="리커버리 이력 인원 ÷ 전체 인증 대상"
                     tone="rose"
                   />
                   <RecoveryRatioChart
@@ -1673,6 +1901,7 @@ export default function AdminPage() {
                     percentage={recoveryCertificationSummary.elapsedRecoveryRatio}
                     fractionLabel={`${recoveryCertificationSummary.totalCertifications}/${recoveryCertificationSummary.possibleParticipantDays}일`}
                     description={`${recoveryCertificationSummary.elapsedDays}일 × 영향 인원 기준`}
+                    formulaLabel="누적 회복일 ÷ (영향 인원 × 경과일)"
                     tone="amber"
                   />
                   <RecoveryRatioChart
@@ -1680,6 +1909,7 @@ export default function AdminPage() {
                     percentage={recoveryCertificationSummary.certifiedRecoveryRatio}
                     fractionLabel={`${recoveryCertificationSummary.totalCertifications}/${recoveryCertificationSummary.affectedCertifiedDays}일`}
                     description="영향 인원의 전체 인증일 중 리커버리"
+                    formulaLabel="누적 회복일 ÷ 영향 인원의 전체 인증일"
                     tone="sky"
                   />
                   <RecoveryRatioChart
@@ -1687,6 +1917,7 @@ export default function AdminPage() {
                     percentage={recoveryCertificationSummary.todayRecoveryRatio}
                     fractionLabel={`${recoveryCertificationSummary.todayRecoveryCount}/${recoveryCertificationSummary.totalParticipants}명`}
                     description="부상 영향 추정 인원 중 오늘 회복 인증"
+                    formulaLabel="오늘 회복 인증 인원 ÷ 영향 인원"
                     tone="lime"
                   />
                 </div>
@@ -1710,6 +1941,10 @@ export default function AdminPage() {
                       <span className="mt-0.5 block text-lg font-black text-lime-200">{recoveryCertificationSummary.totalCertifications}일</span>
                     </span>
                   </div>
+                </div>
+
+                <div className="mt-3">
+                  <RecoveryParticipantBarChart data={recoveryCertificationSummary.participantBars} />
                 </div>
 
                 <div className="mt-5 flex items-end justify-between gap-3">
@@ -1765,6 +2000,65 @@ export default function AdminPage() {
                     <p className="mt-1 text-xs font-semibold text-oriwan-text-muted">리커버리 인증이 완료되면 비율과 날짜별 현황이 함께 표시됩니다.</p>
                   </div>
                 )}
+
+                <div className="mt-5 rounded-[24px] bg-slate-950 px-4 py-5 text-white sm:px-5 sm:py-6">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                    <div>
+                      <p className="text-[10px] font-black uppercase text-lime-200/60">Recovery Action Plan</p>
+                      <h3 className="mt-1 text-lg font-black">운영 솔루션</h3>
+                      <p className="mt-1 max-w-2xl text-[11px] font-bold leading-5 text-white/55">
+                        현재 리커버리 신호를 오늘 확인, 반복 대상 관리, 안전한 복귀 안내 순서로 실행하세요.
+                      </p>
+                    </div>
+                    <span className="w-fit shrink-0 rounded-full bg-white/10 px-3 py-1.5 text-[10px] font-black text-lime-200 ring-1 ring-white/10">
+                      최근 7일 {formatAdminDate(recoveryCertificationSummary.recentWindowStart)}–{formatAdminDate(recoveryCertificationSummary.recoveryEndDate)}
+                    </span>
+                  </div>
+
+                  <div className="mt-4 grid gap-2 lg:grid-cols-3">
+                    <div className="rounded-[20px] bg-white/10 px-4 py-4 ring-1 ring-white/10">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-xs font-black text-white">1. 오늘 즉시 확인</p>
+                        <span className="rounded-full bg-rose-400/20 px-2 py-1 text-[10px] font-black text-rose-200">
+                          {recoveryCertificationSummary.todayParticipants.length}명
+                        </span>
+                      </div>
+                      <p className="mt-2 break-keep text-[11px] font-semibold leading-5 text-white/65">
+                        {recoveryCertificationSummary.todayParticipants.length
+                          ? `${recoveryCertificationSummary.todayParticipants.map((participant) => participant.name).join(", ")}님의 통증·보행 불편 여부를 확인하고 오늘은 러닝보다 회복 상태 기록을 우선 안내하세요.`
+                          : "오늘 리커버리 인증자는 없습니다. 기존 영향 대상의 컨디션 변화를 정기적으로 확인하세요."}
+                      </p>
+                    </div>
+
+                    <div className="rounded-[20px] bg-white/10 px-4 py-4 ring-1 ring-white/10">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-xs font-black text-white">2. 반복 신호 관리</p>
+                        <span className="rounded-full bg-amber-400/20 px-2 py-1 text-[10px] font-black text-amber-200">
+                          {recoveryCertificationSummary.repeatRecoveryParticipants.length}명
+                        </span>
+                      </div>
+                      <p className="mt-2 break-keep text-[11px] font-semibold leading-5 text-white/65">
+                        {recoveryCertificationSummary.repeatRecoveryParticipants.length
+                          ? `최근 7일 2회 이상: ${recoveryCertificationSummary.repeatRecoveryParticipants.map((participant) => `${participant.name} ${participant.recentCount}일`).join(", ")}. 개별 컨디션과 러닝 재개 일정을 분리해 관리하세요.`
+                          : "최근 7일 동안 2회 이상 반복된 리커버리 신호는 없습니다. 새 신호가 생기는지만 관찰하세요."}
+                      </p>
+                    </div>
+
+                    <div className="rounded-[20px] bg-white/10 px-4 py-4 ring-1 ring-white/10">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-xs font-black text-white">3. 안전한 복귀 안내</p>
+                        <span className="rounded-full bg-lime-300/20 px-2 py-1 text-[10px] font-black text-lime-200">공통</span>
+                      </div>
+                      <p className="mt-2 break-keep text-[11px] font-semibold leading-5 text-white/65">
+                        통증이 있으면 러닝을 중단하고, 증상이 지속되거나 붓기·보행 불편이 있으면 의료진 상담을 안내하세요. 복귀는 통증이 가라앉고 기능이 회복된 뒤 단계적으로 진행합니다.
+                      </p>
+                    </div>
+                  </div>
+
+                  <p className="mt-3 text-[10px] font-bold leading-4 text-white/40">
+                    운영 참고용 리커버리 신호이며 의학적 진단을 대신하지 않습니다.
+                  </p>
+                </div>
               </>
             )}
           </div>
