@@ -472,7 +472,11 @@ function RecoveryTrendPlot({
     : Array.from(new Set([maxCount, Math.round((maxCount * 2) / 3), Math.round(maxCount / 3), 0])).sort((a, b) => b - a);
   const labelIndexes = Array.from(new Set([
     0,
-    ...data.map((_, index) => index).filter((index) => index > 0 && index % labelStep === 0),
+    ...data.map((_, index) => index).filter((index) => (
+      index > 0 &&
+      index % labelStep === 0 &&
+      data.length - 1 - index >= 5
+    )),
     data.length - 1,
   ])).filter((index) => index >= 0);
   const xAt = (index: number) => (
@@ -490,9 +494,9 @@ function RecoveryTrendPlot({
       viewBox={`0 0 ${width} ${height}`}
       className={className}
     >
-      <title id={`${idPrefix}-title`}>전체 리커버리 추이 · 7일 이동 고유 인원</title>
+      <title id={`${idPrefix}-title`}>전체 리커버리 추이 · 일별 고유 인원</title>
       <desc id={`${idPrefix}-desc`}>
-        {`각 날짜를 기준으로 직전 7일 동안 리커버리 인증을 한 고유 인원 추이를 표시합니다. 총 ${data.length}일의 흐름입니다.`}
+        {`각 날짜에 리커버리 인증을 완료한 고유 인원 추이를 표시합니다. 인증이 없었던 날도 포함한 총 ${data.length}일의 흐름입니다.`}
       </desc>
       <line
         x1={margin.left}
@@ -607,15 +611,15 @@ function RecoveryTrendLineChart({ data }: { data: RecoveryTrendDatum[] }) {
         <div>
           <h3 className="text-base font-black text-oriwan-text">전체 리커버리 추이</h3>
           <p className="mt-1 max-w-2xl text-[11px] font-bold leading-5 text-oriwan-text-muted">
-            챌린지 시작일부터 현재까지 전체 흐름을 보여줍니다. 각 날짜의 값은 직전 7일 동안 한 번이라도 인증한 고유 인원이며 0명인 날짜도 포함합니다.
+            챌린지 시작일부터 현재까지 각 날짜에 리커버리 인증을 완료한 고유 인원을 보여줍니다. 같은 날 여러 기록이 있어도 1명으로 계산하며 0명인 날짜도 포함합니다.
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap gap-1.5">
           <span className="rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-black text-amber-800">
-            전체 구간 최고 {peak?.count || 0}명{peak && peak.count > 0 ? ` · ${formatAdminDate(peak.date)}` : ""}
+            하루 최고 {peak?.count || 0}명{peak && peak.count > 0 ? ` · ${formatAdminDate(peak.date)}` : ""}
           </span>
           <span className="rounded-full bg-lime-100 px-2.5 py-1 text-[10px] font-black text-lime-800">
-            현재 {latest?.count || 0}명
+            최근 일자 {latest?.count || 0}명{latest ? ` · ${formatAdminDate(latest.date)}` : ""}
           </span>
         </div>
       </div>
@@ -647,7 +651,7 @@ function RecoveryTrendLineChart({ data }: { data: RecoveryTrendDatum[] }) {
         )}
       </div>
       <p className="mt-2 text-[10px] font-bold leading-4 text-oriwan-text-muted">
-        가로축은 전체 챌린지 경과일, 선은 7일 이동 고유 인원입니다. 모든 화면에서 전체 기간을 보여주며 정확한 인증자는 아래 목록에서 확인할 수 있습니다.
+        가로축은 전체 챌린지 경과일, 선은 날짜별 당일 고유 인증 인원입니다. 모든 화면에서 전체 기간을 보여주며 정확한 인증자는 아래 목록에서 확인할 수 있습니다.
       </p>
     </div>
   );
@@ -1068,17 +1072,10 @@ export default function AdminPage() {
     const dailyDates = Array.from({ length: elapsedDays }, (_, index) => (
       toIsoDate(addDays(new Date(`${ACTUAL_CERTIFICATION_START_DATE}T00:00:00`), index))
     ));
-    const rollingTrend = dailyDates.map((date, index) => {
-      const rollingParticipantIds = new Set<string>();
-
-      for (let rollingIndex = Math.max(0, index - 6); rollingIndex <= index; rollingIndex += 1) {
-        participantsByDate.get(dailyDates[rollingIndex])?.forEach((_, participantId) => {
-          rollingParticipantIds.add(participantId);
-        });
-      }
-
-      return { date, count: rollingParticipantIds.size };
-    });
+    const dailyTrend = dailyDates.map((date) => ({
+      date,
+      count: participantsByDate.get(date)?.size || 0,
+    }));
     const certifiedTimelineByParticipant = new Map<string, Map<string, boolean>>();
 
     records.forEach((record) => {
@@ -1188,7 +1185,7 @@ export default function AdminPage() {
       repeatParticipantRatio: ratioPercentage(repeatRecoveryParticipants.length, certificationParticipants.length),
       consecutiveParticipantRatio: ratioPercentage(consecutiveRecoveryParticipants.length, certificationParticipants.length),
       recentParticipantDelta: recentParticipants.length - previousParticipants.length,
-      rollingTrend,
+      dailyTrend,
       participantBars,
       todayParticipants,
       recentParticipants,
@@ -2158,7 +2155,7 @@ export default function AdminPage() {
                 </div>
 
                 <div className="mt-3">
-                  <RecoveryTrendLineChart data={recoveryCertificationSummary.rollingTrend} />
+                  <RecoveryTrendLineChart data={recoveryCertificationSummary.dailyTrend} />
                 </div>
 
                 <div className="mt-3 grid gap-2 md:grid-cols-2">
