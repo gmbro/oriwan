@@ -72,6 +72,14 @@ export type PersonalGrowthBadgeInput = {
   halfMarathonCertificationCount: number;
 };
 
+export type GrowthBadgeAchievementRecord = {
+  recordDate: string;
+  distanceKm: number;
+  durationSeconds: number;
+};
+
+export type PersonalGrowthBadgeEarnedDates = Record<PersonalGrowthBadgeKey, string | null>;
+
 export function getLongestDateStreak(dates: string[]) {
   const dateSet = new Set(dates);
   return dates.reduce((longest, day) => {
@@ -124,6 +132,104 @@ export function getBestWeekdayMorningProgress(dates: string[]) {
       .filter((weekday) => dateSet.has(weekday)).length;
     return Math.max(best, count);
   }, 0);
+}
+
+function getStreakAchievementDate(dates: string[], target: number) {
+  const sortedDates = Array.from(new Set(dates)).sort();
+  let streak = 0;
+  let previousDate = "";
+
+  for (const date of sortedDates) {
+    const isConsecutive = previousDate
+      ? toIsoDate(addDays(new Date(`${previousDate}T00:00:00`), 1)) === date
+      : false;
+    streak = isConsecutive ? streak + 1 : 1;
+    if (streak >= target) return date;
+    previousDate = date;
+  }
+
+  return null;
+}
+
+function getWeekdayMorningAchievementDate(dates: string[]) {
+  const weekdayDatesByWeek = new Map<string, Set<string>>();
+
+  for (const date of Array.from(new Set(dates)).sort()) {
+    const current = new Date(`${date}T00:00:00`);
+    const day = current.getDay();
+    if (day === 0 || day === 6) continue;
+
+    const monday = toIsoDate(addDays(current, 1 - day));
+    const weekdayDates = weekdayDatesByWeek.get(monday) || new Set<string>();
+    weekdayDates.add(date);
+    weekdayDatesByWeek.set(monday, weekdayDates);
+    if (weekdayDates.size >= 5) return date;
+  }
+
+  return null;
+}
+
+function getNthMatchingRecordDate(
+  records: GrowthBadgeAchievementRecord[],
+  target: number,
+  matches: (record: GrowthBadgeAchievementRecord) => boolean
+) {
+  let count = 0;
+
+  for (const record of records) {
+    if (!matches(record)) continue;
+    count += 1;
+    if (count >= target) return record.recordDate;
+  }
+
+  return null;
+}
+
+function getCumulativeAchievementDate(
+  records: GrowthBadgeAchievementRecord[],
+  target: number,
+  valueOf: (record: GrowthBadgeAchievementRecord) => number
+) {
+  let total = 0;
+
+  for (const record of records) {
+    total += Math.max(valueOf(record), 0);
+    if (total >= target) return record.recordDate;
+  }
+
+  return null;
+}
+
+export function getPersonalGrowthBadgeEarnedDates(
+  records: GrowthBadgeAchievementRecord[]
+): PersonalGrowthBadgeEarnedDates {
+  const sortedRecords = [...records].sort((left, right) => left.recordDate.localeCompare(right.recordDate));
+  const certifiedDates = Array.from(new Set(sortedRecords.map((record) => record.recordDate))).sort();
+  const firstCertifiedDate = certifiedDates[0] || null;
+
+  return {
+    "morning-start": firstCertifiedDate,
+    "three-day-rhythm": getStreakAchievementDate(certifiedDates, 3),
+    "seven-day-routine": getStreakAchievementDate(certifiedDates, 7),
+    "weekday-morning": getWeekdayMorningAchievementDate(certifiedDates),
+    "season-pacer": firstCertifiedDate === ACTUAL_CERTIFICATION_START_DATE ? firstCertifiedDate : null,
+    "thirty-day-root": getStreakAchievementDate(certifiedDates, 30),
+    "fifty-day-core": getStreakAchievementDate(certifiedDates, 50),
+    "seventy-day-arc": getStreakAchievementDate(certifiedDates, 70),
+    "hundred-day-streak": getStreakAchievementDate(certifiedDates, 100),
+    "five-k-finisher": getNthMatchingRecordDate(sortedRecords, 1, (record) => record.distanceKm >= 5),
+    "ten-k-finisher": getNthMatchingRecordDate(sortedRecords, 1, (record) => record.distanceKm >= 10),
+    "steady-five-k": getNthMatchingRecordDate(sortedRecords, 15, (record) => record.distanceKm >= 5),
+    "long-run-maker": getNthMatchingRecordDate(sortedRecords, 20, (record) => record.distanceKm >= 10),
+    "half-trigger": getNthMatchingRecordDate(sortedRecords, 3, (record) => record.distanceKm >= 21.1),
+    "distance-fifty": getCumulativeAchievementDate(sortedRecords, 50, (record) => record.distanceKm),
+    "distance-hundred": getCumulativeAchievementDate(sortedRecords, 100, (record) => record.distanceKm),
+    "distance-three-hundred": getCumulativeAchievementDate(sortedRecords, 300, (record) => record.distanceKm),
+    "distance-four-hundred": getCumulativeAchievementDate(sortedRecords, 400, (record) => record.distanceKm),
+    "distance-five-hundred": getCumulativeAchievementDate(sortedRecords, 500, (record) => record.distanceKm),
+    "time-ten-hours": getCumulativeAchievementDate(sortedRecords, 10 * 3600, (record) => record.durationSeconds),
+    "time-twenty-hours": getCumulativeAchievementDate(sortedRecords, 20 * 3600, (record) => record.durationSeconds),
+  };
 }
 
 function badgeProgress(current: number, target: number, suffix = "") {

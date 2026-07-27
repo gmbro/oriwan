@@ -3,19 +3,16 @@ import type { PostgrestError, SupabaseClient } from "@supabase/supabase-js";
 import { findAdminUserId, getServiceClient } from "@/lib/admin-data";
 import { ACTUAL_CERTIFICATION_START_DATE, CERTIFICATION_DISPLAY_START_DATE, CHALLENGE_DAYS, CHALLENGE_END_DATE, CHALLENGE_START_DATE, clampToChallengeStart, isCertificationParticipant } from "@/lib/challenge";
 import {
-  getBestWeekdayMorningProgress,
-  getCurrentDateStreak,
-  getLongestDateStreak,
-  getWeekdayMorningProgress,
+  getPersonalGrowthBadgeEarnedDates,
   isKnownGrowthBadgeKey,
-  makePersonalGrowthBadges,
+  PERSONAL_GROWTH_BADGE_KEYS,
   type GrowthBadgeUnlock,
 } from "@/lib/growth-badges";
 import { addDays, isCertificationCountedStatus, isRecoveryCertificationRecord, toIsoDate, toKstIsoDate } from "@/lib/run-records";
 import { isMissingTableError, missingSchemaResponse } from "@/lib/supabase-errors";
 
 const PUBLIC_DASHBOARD_REVALIDATE_SECONDS = 60;
-const PUBLIC_DASHBOARD_PAYLOAD_VERSION = "growth-badge-hundred-streak-v1";
+const PUBLIC_DASHBOARD_PAYLOAD_VERSION = "growth-badge-earned-date-v2";
 export const PUBLIC_DASHBOARD_CACHE_TAG = "public-dashboard";
 export const PUBLIC_DASHBOARD_CACHE_CONTROL = "private, no-store, max-age=0, must-revalidate";
 const PUBLIC_DASHBOARD_MEMORY_CACHE_TTL_MS = PUBLIC_DASHBOARD_REVALIDATE_SECONDS * 1000;
@@ -75,15 +72,6 @@ type FetchedDashboardRecord = PublicDashboardRecord & {
   notes?: string | null;
 };
 
-type ParticipantGrowthMetrics = {
-  distanceKm: number;
-  durationSeconds: number;
-  maxSingleDistanceKm: number;
-  fiveKmCertificationCount: number;
-  tenKmCertificationCount: number;
-  halfMarathonCertificationCount: number;
-};
-
 const RUN_LOCATION_PATTERNS = [
   { label: "서울 성수", patterns: [/seongsu|seoul forest/i], compactPatterns: [/성수(?:동|역)?|서울숲/] },
   { label: "서울 여의도", patterns: [/yeouido|yeouinaru/i], compactPatterns: [/여의도|여의나루|샛강/] },
@@ -112,23 +100,6 @@ const RUN_LOCATION_PATTERNS = [
 
 let publicDashboardCache: PublicDashboardCacheEntry | null = null;
 const actualCertificationEndDate = toIsoDate(addDays(new Date(`${ACTUAL_CERTIFICATION_START_DATE}T00:00:00`), CHALLENGE_DAYS - 1));
-
-function makeOfficialCertificationDays() {
-  const start = new Date(`${ACTUAL_CERTIFICATION_START_DATE}T00:00:00`);
-  return Array.from({ length: CHALLENGE_DAYS }, (_, index) => toIsoDate(addDays(start, index)))
-    .filter((day) => day <= actualCertificationEndDate);
-}
-
-function makeEmptyGrowthMetrics(): ParticipantGrowthMetrics {
-  return {
-    distanceKm: 0,
-    durationSeconds: 0,
-    maxSingleDistanceKm: 0,
-    fiveKmCertificationCount: 0,
-    tenKmCertificationCount: 0,
-    halfMarathonCertificationCount: 0,
-  };
-}
 
 function makeRecordSpaceLabel(record: FetchedDashboardRecord) {
   if (isRecoveryCertificationRecord(record)) return "기타";
@@ -193,7 +164,7 @@ async function fetchDashboardRecords({
   return { data: records, error: null };
 }
 
-function makeEligibleGrowthBadgeRows({
+function makeCalculatedGrowthBadgeRows({
   adminUserId,
   participants,
   records,
@@ -204,56 +175,44 @@ function makeEligibleGrowthBadgeRows({
   records: PublicDashboardRecord[];
   to: string;
 }) {
-  const earnedAt = new Date().toISOString();
-  const effectiveToday = to > actualCertificationEndDate ? actualCertificationEndDate : to;
-  const elapsedDayCount = makeOfficialCertificationDays().filter((day) => day <= effectiveToday).length;
   const certifiedRecords = records.filter((record) => (
     isCertificationCountedStatus(record.status) &&
     !isRecoveryCertificationRecord(record) &&
     Boolean(record.participant_id && record.record_date && record.record_date >= ACTUAL_CERTIFICATION_START_DATE && record.record_date <= actualCertificationEndDate)
   ));
-  const certifiedDaysByParticipant = new Map<string, Set<string>>();
-  const metricsByParticipant = new Map<string, ParticipantGrowthMetrics>();
+  const recordsByParticipant = new Map<string, PublicDashboardRecord[]>();
 
   certifiedRecords.forEach((record) => {
     if (!record.participant_id || !record.record_date) return;
-    if (!certifiedDaysByParticipant.has(record.participant_id)) certifiedDaysByParticipant.set(record.participant_id, new Set());
-    certifiedDaysByParticipant.get(record.participant_id)?.add(record.record_date);
-
-    const distanceKm = record.distance_km || 0;
-    const metrics = metricsByParticipant.get(record.participant_id) || makeEmptyGrowthMetrics();
-    metrics.distanceKm += distanceKm;
-    metrics.durationSeconds += record.duration_seconds || 0;
-    metrics.maxSingleDistanceKm = Math.max(metrics.maxSingleDistanceKm, distanceKm);
-    if (distanceKm >= 5) metrics.fiveKmCertificationCount += 1;
-    if (distanceKm >= 10) metrics.tenKmCertificationCount += 1;
-    if (distanceKm >= 21.1) metrics.halfMarathonCertificationCount += 1;
-    metricsByParticipant.set(record.participant_id, metrics);
+    const participantRecords = recordsByParticipant.get(record.participant_id) || [];
+    participantRecords.push(record);
+    recordsByParticipant.set(record.participant_id, participantRecords);
   });
 
   return participants.flatMap((participant) => {
-    const certifiedDates = Array.from(certifiedDaysByParticipant.get(participant.id) || []).sort();
-    const metrics = metricsByParticipant.get(participant.id) || makeEmptyGrowthMetrics();
-    const longestStreak = getLongestDateStreak(certifiedDates);
-    const badges = makePersonalGrowthBadges({
-      certifiedDays: certifiedDates.length,
-      certifiedDates,
-      currentStreak: getCurrentDateStreak(certifiedDates, effectiveToday),
-      longestStreak,
-      weekdayMorningCount: getWeekdayMorningProgress(certifiedDates, effectiveToday),
-      bestWeekdayMorningCount: getBestWeekdayMorningProgress(certifiedDates),
-      elapsedDayCount,
-      ...metrics,
-    });
+    const earnedDates = getPersonalGrowthBadgeEarnedDates(
+      (recordsByParticipant.get(participant.id) || []).flatMap((record) => (
+        record.record_date
+          ? [{
+              recordDate: record.record_date,
+              distanceKm: record.distance_km || 0,
+              durationSeconds: record.duration_seconds || 0,
+            }]
+          : []
+      ))
+    );
 
-    return badges
-      .filter((badge) => badge.unlocked)
-      .map((badge): GrowthBadgeInsertRow => ({
+    return PERSONAL_GROWTH_BADGE_KEYS.flatMap((badgeKey): GrowthBadgeInsertRow[] => {
+      const earnedDate = earnedDates[badgeKey];
+      if (!earnedDate || earnedDate > to) return [];
+
+      return [{
         user_id: adminUserId,
         participant_id: participant.id,
-        badge_key: badge.key,
-        earned_at: earnedAt,
-      }));
+        badge_key: badgeKey,
+        earned_at: new Date(`${earnedDate}T12:00:00+09:00`).toISOString(),
+      }];
+    });
   });
 }
 
@@ -272,12 +231,14 @@ async function syncGrowthBadgeRows({
   adminUserId,
   participants,
   records,
+  from,
   to,
 }: {
   supabase: ReturnType<typeof getServiceClient>;
   adminUserId: string;
   participants: PublicDashboardParticipant[];
   records: PublicDashboardRecord[];
+  from: string;
   to: string;
 }) {
   if (!supabase) return [];
@@ -295,41 +256,43 @@ async function syncGrowthBadgeRows({
   }
 
   const existingGrowthBadges = (existingRows || []) as GrowthBadgeUnlock[];
-  const existingKeys = new Set(existingGrowthBadges.map((row) => `${row.participant_id}:${row.badge_key}`));
-  const eligibleRows = makeEligibleGrowthBadgeRows({ adminUserId, participants, records, to });
+  if (from > ACTUAL_CERTIFICATION_START_DATE) {
+    return mergeGrowthBadgeRows(existingGrowthBadges);
+  }
+
+  const calculatedRows = makeCalculatedGrowthBadgeRows({ adminUserId, participants, records, to });
   const existingGrowthBadgesByKey = new Map(
     existingGrowthBadges.map((row) => [`${row.participant_id}:${row.badge_key}`, row])
   );
-  const eligibleGrowthBadges = eligibleRows.map((row) => {
+  const changedRows = calculatedRows.filter((row) => {
     const key = `${row.participant_id}:${row.badge_key}`;
-    return existingGrowthBadgesByKey.get(key) || {
-      participant_id: row.participant_id,
-      badge_key: row.badge_key,
-      earned_at: row.earned_at,
-    };
+    const existingRow = existingGrowthBadgesByKey.get(key);
+    if (!existingRow?.earned_at) return true;
+    return Date.parse(existingRow.earned_at) !== Date.parse(row.earned_at);
   });
-  const newRows = eligibleRows.filter((row) => !existingKeys.has(`${row.participant_id}:${row.badge_key}`));
 
-  if (!newRows.length) return mergeGrowthBadgeRows(eligibleGrowthBadges);
+  if (!changedRows.length) {
+    return mergeGrowthBadgeRows([...calculatedRows, ...existingGrowthBadges]);
+  }
 
-  const { data: insertedRows, error: insertError } = await supabase
+  const { data: updatedRows, error: updateError } = await supabase
     .from("participant_growth_badges")
-    .upsert(newRows, {
+    .upsert(changedRows, {
       onConflict: "user_id,participant_id,badge_key",
-      ignoreDuplicates: true,
     })
     .select("participant_id, badge_key, earned_at");
 
-  if (insertError) {
-    if (!isMissingTableError(insertError)) {
-      console.warn("Growth badge persistence skipped:", insertError);
+  if (updateError) {
+    if (!isMissingTableError(updateError)) {
+      console.warn("Growth badge persistence skipped:", updateError);
     }
-    return mergeGrowthBadgeRows(eligibleGrowthBadges);
+    return mergeGrowthBadgeRows([...calculatedRows, ...existingGrowthBadges]);
   }
 
   return mergeGrowthBadgeRows([
-    ...eligibleGrowthBadges,
-    ...((insertedRows || []) as GrowthBadgeUnlock[]),
+    ...calculatedRows,
+    ...((updatedRows || []) as GrowthBadgeUnlock[]),
+    ...existingGrowthBadges,
   ]);
 }
 
@@ -407,6 +370,7 @@ export async function buildPublicDashboardPayload(from: string, to: string): Pro
     adminUserId,
     participants,
     records,
+    from,
     to,
   })).filter((badge) => Boolean(badge.participant_id && visibleParticipantIds.has(badge.participant_id)));
 
