@@ -3,7 +3,17 @@ import { createClient as createSupabaseAdmin } from "@supabase/supabase-js";
 import { GoogleGenAI } from "@google/genai";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdminUser } from "@/lib/admin-server";
-import { GEMINI_OCR_CONFIG, GEMINI_OCR_MODEL, buildRunImagePrompt, getGeminiErrorDebug, getGeminiErrorMessage, isGeminiBillingError, resolveGeminiOcrModels } from "@/lib/gemini";
+import {
+  GEMINI_OCR_MODEL,
+  buildRunImagePrompt,
+  getGeminiErrorDebug,
+  getGeminiErrorMessage,
+  getGeminiOcrConfig,
+  getGeminiOcrFallbackReasons,
+  isGeminiBillingError,
+  logGeminiOcrUsage,
+  resolveGeminiOcrModels,
+} from "@/lib/gemini";
 import {
   RECOVERY_CERTIFICATION_DISTANCE_KM,
   RECOVERY_CERTIFICATION_DURATION_SECONDS,
@@ -97,7 +107,14 @@ async function analyzeImage(image: UploadedImage, knownNames: string[], targetDa
   });
 
   const errors: string[] = [];
-  for (const model of resolveGeminiOcrModels()) {
+  const models = resolveGeminiOcrModels();
+  let bestEffort: {
+    extracted: ExtractedRun;
+    mimeType: string;
+    base64: string;
+  } | null = null;
+
+  for (const [modelIndex, model] of models.entries()) {
     try {
       const response = await ai.models.generateContent({
         model,
@@ -110,22 +127,40 @@ async function analyzeImage(image: UploadedImage, knownNames: string[], targetDa
             ],
           },
         ],
-        config: GEMINI_OCR_CONFIG,
+        config: getGeminiOcrConfig(model),
       });
+      logGeminiOcrUsage(model, response);
+
       const text = response.text || "";
       if (!text.trim()) throw new Error("empty response");
-
-      return {
+      const analyzed = {
         extracted: parseJsonObject<ExtractedRun>(text),
         mimeType,
         base64,
       };
+      const fallbackReasons = getGeminiOcrFallbackReasons(analyzed.extracted, {
+        requireParticipantName: true,
+        requireRecordDate: !targetDate,
+      });
+
+      if (fallbackReasons.length && modelIndex < models.length - 1) {
+        bestEffort = analyzed;
+        console.info("Gemini OCR quality fallback", {
+          from_model: model,
+          to_model: models[modelIndex + 1],
+          reasons: fallbackReasons,
+        });
+        continue;
+      }
+
+      return analyzed;
     } catch (error) {
       if (isGeminiBillingError(error)) throw error;
       errors.push(`${model}: ${getGeminiErrorDebug(error)}`);
     }
   }
 
+  if (bestEffort) return bestEffort;
   throw new Error(`OCR attempts failed - ${errors.join(" | ")}`);
 }
 

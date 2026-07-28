@@ -30,3 +30,6 @@ Supabase SQL Editor에서 `docs/supabase-schema.sql`을 실행하세요.
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `GEMINI_API_KEY`
+- `GEMINI_OCR_MODEL` (선택, 기본값 `gemini-3.1-flash-lite`)
+- `GEMINI_OCR_FALLBACK_MODEL` (선택, 기본값 `gemini-3.5-flash`)
+- `GEMINI_OCR_FALLBACK_CONFIDENCE` (선택, 기본값 `0.8`)

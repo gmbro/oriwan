@@ -1,19 +1,18 @@
-import { Type, type GenerateContentConfig } from "@google/genai";
+import {
+  ThinkingLevel,
+  Type,
+  type GenerateContentConfig,
+  type GenerateContentResponse,
+} from "@google/genai";
+import type { ExtractedRunBase } from "@/lib/run-image-extraction";
 
-export const GEMINI_OCR_MODEL = process.env.GEMINI_OCR_MODEL || "gemini-3.5-flash";
+const DEFAULT_GEMINI_OCR_MODEL = "gemini-3.1-flash-lite";
+const DEFAULT_GEMINI_OCR_FALLBACK_MODEL = "gemini-3.5-flash";
+const DEFAULT_GEMINI_OCR_FALLBACK_CONFIDENCE = 0.8;
 
-const GEMINI_OCR_MODEL_FALLBACKS = [
-  "gemini-3.5-flash",
-  "gemini-2.5-flash",
-  "gemini-2.5-flash-lite",
-  "gemini-3-flash-preview",
-  "gemini-flash-latest",
-  "gemini-flash-lite-latest",
-  "gemini-2.0-flash",
-];
+export const GEMINI_OCR_MODEL = process.env.GEMINI_OCR_MODEL || DEFAULT_GEMINI_OCR_MODEL;
 
 const GEMINI_OCR_MODEL_ALIASES: Record<string, string> = {
-  "gemini-3.1-flash": "gemini-2.5-flash",
   "gemini-3-flash": "gemini-3-flash-preview",
 };
 
@@ -22,23 +21,22 @@ function normalizeGeminiOcrModel(model: string) {
 }
 
 export function resolveGeminiOcrModels() {
-  const configuredFallbacks = (process.env.GEMINI_OCR_MODEL_FALLBACKS || "")
+  const configuredFallback = (
+    process.env.GEMINI_OCR_FALLBACK_MODEL ||
+    process.env.GEMINI_OCR_MODEL_FALLBACKS ||
+    DEFAULT_GEMINI_OCR_FALLBACK_MODEL
+  )
     .split(",")
     .map((model) => model.trim())
-    .filter(Boolean);
+    .find(Boolean);
 
   return Array.from(new Set([
     GEMINI_OCR_MODEL,
-    ...configuredFallbacks,
-    ...GEMINI_OCR_MODEL_FALLBACKS,
-  ].filter(Boolean).map(normalizeGeminiOcrModel)));
+    configuredFallback,
+  ]
+    .filter((model): model is string => Boolean(model))
+    .map(normalizeGeminiOcrModel)));
 }
-
-export const GEMINI_OCR_CONFIG: GenerateContentConfig = {
-  responseMimeType: "application/json",
-  temperature: 0.1,
-  maxOutputTokens: 1200,
-};
 
 export const RUN_IMAGE_RESPONSE_SCHEMA = {
   type: Type.OBJECT,
@@ -51,7 +49,12 @@ export const RUN_IMAGE_RESPONSE_SCHEMA = {
     pace_text: { type: Type.STRING, nullable: true },
     source_app: { type: Type.STRING, nullable: true },
     raw_text: { type: Type.STRING },
-    confidence_score: { type: Type.NUMBER },
+    confidence_score: {
+      type: Type.NUMBER,
+      minimum: 0,
+      maximum: 1,
+      description: "Extraction confidence from 0 to 1",
+    },
     notes: { type: Type.STRING, nullable: true },
     is_recovery_certification: { type: Type.BOOLEAN },
   },
@@ -81,6 +84,100 @@ export const RUN_IMAGE_RESPONSE_SCHEMA = {
     "is_recovery_certification",
   ],
 } as const;
+
+const GEMINI_OCR_BASE_CONFIG: GenerateContentConfig = {
+  responseMimeType: "application/json",
+  responseSchema: RUN_IMAGE_RESPONSE_SCHEMA,
+  maxOutputTokens: 800,
+};
+
+export function getGeminiOcrConfig(model: string): GenerateContentConfig {
+  const normalizedModel = normalizeGeminiOcrModel(model);
+
+  return {
+    ...GEMINI_OCR_BASE_CONFIG,
+    thinkingConfig: normalizedModel.startsWith("gemini-2.5")
+      ? { thinkingBudget: 0 }
+      : { thinkingLevel: ThinkingLevel.MINIMAL },
+  };
+}
+
+type GeminiOcrExtractionCandidate = ExtractedRunBase & {
+  participant_name?: string | null;
+};
+
+function parseConfidenceThreshold(value: string | undefined) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0 || parsed > 1) {
+    return DEFAULT_GEMINI_OCR_FALLBACK_CONFIDENCE;
+  }
+  return parsed;
+}
+
+function hasPositiveOcrMetric(value: string | number | null | undefined) {
+  if (typeof value === "number") return Number.isFinite(value) && value > 0;
+  if (typeof value !== "string") return false;
+  const numeric = Number(value.replace(",", ".").replace(/[^\d.]/g, ""));
+  return Number.isFinite(numeric) && numeric > 0;
+}
+
+function isRecoveryOcrCandidate(extracted: GeminiOcrExtractionCandidate) {
+  const flag = extracted.is_recovery_certification;
+  if (flag === true || flag === 1) return true;
+  if (typeof flag === "string" && ["1", "true", "yes"].includes(flag.trim().toLowerCase())) return true;
+
+  return [extracted.raw_text, extracted.notes, extracted.source_app]
+    .filter((value): value is string => typeof value === "string")
+    .some((value) => /리커버리|recovery/i.test(value));
+}
+
+export function getGeminiOcrFallbackReasons(
+  extracted: GeminiOcrExtractionCandidate,
+  options: {
+    requireParticipantName: boolean;
+    requireRecordDate: boolean;
+  },
+) {
+  const reasons: string[] = [];
+  const confidence = Number(extracted.confidence_score);
+  const confidenceThreshold = parseConfidenceThreshold(process.env.GEMINI_OCR_FALLBACK_CONFIDENCE);
+
+  if (!Number.isFinite(confidence) || confidence < 0 || confidence > 1) {
+    reasons.push("invalid_confidence");
+  } else if (confidence < confidenceThreshold) {
+    reasons.push("low_confidence");
+  }
+
+  if (options.requireParticipantName && !extracted.participant_name?.trim()) {
+    reasons.push("missing_participant_name");
+  }
+  if (options.requireRecordDate && !/^\d{4}-\d{2}-\d{2}$/.test(extracted.record_date?.trim() || "")) {
+    reasons.push("missing_record_date");
+  }
+
+  const hasMetric = (
+    hasPositiveOcrMetric(extracted.distance_km) ||
+    hasPositiveOcrMetric(extracted.duration_seconds) ||
+    hasPositiveOcrMetric(extracted.duration_text)
+  );
+  if (!hasMetric && !isRecoveryOcrCandidate(extracted)) {
+    reasons.push("missing_run_metric");
+  }
+
+  return reasons;
+}
+
+export function logGeminiOcrUsage(requestedModel: string, response: GenerateContentResponse) {
+  const usage = response.usageMetadata;
+  console.info("Gemini OCR usage", {
+    requested_model: requestedModel,
+    model_version: response.modelVersion || requestedModel,
+    prompt_tokens: usage?.promptTokenCount ?? null,
+    candidate_tokens: usage?.candidatesTokenCount ?? null,
+    thought_tokens: usage?.thoughtsTokenCount ?? null,
+    total_tokens: usage?.totalTokenCount ?? null,
+  });
+}
 
 export function buildRunImagePrompt(input: {
   challengeYear: string;
@@ -113,6 +210,7 @@ ${participantGuide}
 - true인 경우에도 이미지에 보이는 원본 거리/시간은 그대로 추출하세요. 대체 인정값 계산은 서버에서 처리합니다.
 
 앱 이름은 화면에서 추론할 수 있으면 source_app에 넣으세요. 예: Nike Run Club, Garmin, Strava, Apple Fitness.
+confidence_score는 이미지에서 필요한 값을 얼마나 확실히 읽었는지 0부터 1 사이 숫자로 넣으세요.
 반드시 스키마에 맞는 JSON 객체만 반환하세요.`;
 }
 

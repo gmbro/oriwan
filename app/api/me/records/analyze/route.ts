@@ -2,7 +2,17 @@ import { GoogleGenAI } from "@google/genai";
 import { NextRequest, NextResponse } from "next/server";
 import { findAdminUserId, findParticipantByRunnerName, getServiceClient } from "@/lib/admin-data";
 import { CHALLENGE_DATE_ERROR, CHALLENGE_START_DATE, isWithinChallengeWindow } from "@/lib/challenge";
-import { GEMINI_OCR_CONFIG, GEMINI_OCR_MODEL, buildRunImagePrompt, getGeminiErrorDebug, getGeminiErrorMessage, isGeminiBillingError, resolveGeminiOcrModels } from "@/lib/gemini";
+import {
+  GEMINI_OCR_MODEL,
+  buildRunImagePrompt,
+  getGeminiErrorDebug,
+  getGeminiErrorMessage,
+  getGeminiOcrConfig,
+  getGeminiOcrFallbackReasons,
+  isGeminiBillingError,
+  logGeminiOcrUsage,
+  resolveGeminiOcrModels,
+} from "@/lib/gemini";
 import {
   ExtractedRunBase,
   UploadedImage,
@@ -64,7 +74,10 @@ async function analyzeImage(image: UploadedImage, targetDate?: string | null) {
   });
 
   const errors: string[] = [];
-  for (const model of resolveGeminiOcrModels()) {
+  const models = resolveGeminiOcrModels();
+  let bestEffort: ExtractedRun | null = null;
+
+  for (const [modelIndex, model] of models.entries()) {
     try {
       const response = await ai.models.generateContent({
         model,
@@ -77,18 +90,36 @@ async function analyzeImage(image: UploadedImage, targetDate?: string | null) {
             ],
           },
         ],
-        config: GEMINI_OCR_CONFIG,
+        config: getGeminiOcrConfig(model),
       });
+      logGeminiOcrUsage(model, response);
 
       const text = response.text || "";
       if (!text.trim()) throw new Error("empty response");
-      return parseJsonObject<ExtractedRun>(text);
+      const extracted = parseJsonObject<ExtractedRun>(text);
+      const fallbackReasons = getGeminiOcrFallbackReasons(extracted, {
+        requireParticipantName: false,
+        requireRecordDate: !targetDate,
+      });
+
+      if (fallbackReasons.length && modelIndex < models.length - 1) {
+        bestEffort = extracted;
+        console.info("Gemini OCR quality fallback", {
+          from_model: model,
+          to_model: models[modelIndex + 1],
+          reasons: fallbackReasons,
+        });
+        continue;
+      }
+
+      return extracted;
     } catch (error) {
       if (isGeminiBillingError(error)) throw error;
       errors.push(`${model}: ${getGeminiErrorDebug(error)}`);
     }
   }
 
+  if (bestEffort) return bestEffort;
   throw new Error(`OCR attempts failed - ${errors.join(" | ")}`);
 }
 
