@@ -8,11 +8,11 @@ import {
   PERSONAL_GROWTH_BADGE_KEYS,
   type GrowthBadgeUnlock,
 } from "@/lib/growth-badges";
-import { addDays, isCertificationCountedStatus, isRecoveryCertificationRecord, toIsoDate, toKstIsoDate } from "@/lib/run-records";
+import { addDays, getCertificationCreditMetrics, isCertificationCountedStatus, isRecoveryCertificationRecord, toIsoDate, toKstIsoDate } from "@/lib/run-records";
 import { isMissingTableError, missingSchemaResponse } from "@/lib/supabase-errors";
 
 const PUBLIC_DASHBOARD_REVALIDATE_SECONDS = 60;
-const PUBLIC_DASHBOARD_PAYLOAD_VERSION = "growth-badge-earned-date-v2";
+const PUBLIC_DASHBOARD_PAYLOAD_VERSION = "recovery-growth-credit-v1";
 export const PUBLIC_DASHBOARD_CACHE_TAG = "public-dashboard";
 export const PUBLIC_DASHBOARD_CACHE_CONTROL = "private, no-store, max-age=0, must-revalidate";
 const PUBLIC_DASHBOARD_MEMORY_CACHE_TTL_MS = PUBLIC_DASHBOARD_REVALIDATE_SECONDS * 1000;
@@ -177,7 +177,6 @@ function makeCalculatedGrowthBadgeRows({
 }) {
   const certifiedRecords = records.filter((record) => (
     isCertificationCountedStatus(record.status) &&
-    !isRecoveryCertificationRecord(record) &&
     Boolean(record.participant_id && record.record_date && record.record_date >= ACTUAL_CERTIFICATION_START_DATE && record.record_date <= actualCertificationEndDate)
   ));
   const recordsByParticipant = new Map<string, PublicDashboardRecord[]>();
@@ -355,16 +354,19 @@ export async function buildPublicDashboardPayload(from: string, to: string): Pro
   const visibleParticipantIds = new Set(participants.map((participant) => participant.id));
   const records = ((recordsResult.data || []) as FetchedDashboardRecord[])
     .filter((record) => Boolean(record.participant_id && visibleParticipantIds.has(record.participant_id)))
-    .map((record) => ({
-      id: record.id,
-      participant_id: record.participant_id,
-      record_date: record.record_date,
-      distance_km: record.distance_km,
-      duration_seconds: record.duration_seconds,
-      status: record.status,
-      space_label: makeRecordSpaceLabel(record),
-      is_recovery_certification: isRecoveryCertificationRecord(record),
-    }));
+    .map((record) => {
+      const creditMetrics = getCertificationCreditMetrics(record);
+      return {
+        id: record.id,
+        participant_id: record.participant_id,
+        record_date: record.record_date,
+        distance_km: creditMetrics.distanceKm,
+        duration_seconds: creditMetrics.durationSeconds,
+        status: record.status,
+        space_label: makeRecordSpaceLabel(record),
+        is_recovery_certification: creditMetrics.isRecoveryCertification,
+      };
+    });
   const growthBadges = (await syncGrowthBadgeRows({
     supabase,
     adminUserId,

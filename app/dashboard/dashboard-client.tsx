@@ -6,6 +6,7 @@ import type { CSSProperties } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { IconCalendar, IconDna, IconDroplet, IconFlame, IconHeart, IconMountain, IconMuscle, IconRun, IconSprout, IconSync, IconTarget, IconX } from "@/components/icons";
 import { buildMemberPictogramMap, MemberPictogram } from "@/components/member-pictogram";
+import { RecoverySignalMetricsGrid, RecoveryTrendLineChart } from "@/components/recovery-trend-line-chart";
 import { ACTUAL_CERTIFICATION_START_DATE, CERTIFICATION_DISPLAY_START_DATE, CHALLENGE_DAYS } from "@/lib/challenge";
 import { DASHBOARD_REFRESH_CHANNEL, DASHBOARD_REFRESH_EVENT } from "@/lib/dashboard-refresh";
 import {
@@ -105,6 +106,24 @@ function makeEmptyGrowthMetrics(): ParticipantGrowthMetrics {
   };
 }
 
+function maxConsecutiveRecoveryDays(dates: string[]) {
+  const sortedDates = Array.from(new Set(dates)).sort();
+  let longest = 0;
+  let current = 0;
+  let previousDate = "";
+
+  sortedDates.forEach((date) => {
+    const isNextDay = previousDate
+      ? Date.parse(`${date}T00:00:00Z`) - Date.parse(`${previousDate}T00:00:00Z`) === 86_400_000
+      : false;
+    current = isNextDay ? current + 1 : 1;
+    longest = Math.max(longest, current);
+    previousDate = date;
+  });
+
+  return longest;
+}
+
 function gaugeColorClass(certifiedDays: number) {
   if (certifiedDays <= 10) return "bg-rose-400";
   if (certifiedDays <= 50) return "bg-amber-300";
@@ -119,13 +138,12 @@ function gaugeTextClass(certifiedDays: number) {
 
 const officialCertificationDays = makeOfficialCertificationDays();
 const RING_CIRCUMFERENCE = 302;
-const PUBLIC_DASHBOARD_STORAGE_KEY = "oriwan-public-dashboard-cache-v2";
+const PUBLIC_DASHBOARD_STORAGE_KEY = "oriwan-public-dashboard-cache-v4";
 const PUBLIC_DASHBOARD_STORAGE_TTL_MS = 10 * 60 * 1000;
 const PUBLIC_DASHBOARD_FOCUS_REFRESH_MS = 30 * 1000;
 const PUBLIC_DASHBOARD_LIVE_REFRESH_MS = 30 * 1000;
-const PUBLIC_DASHBOARD_BOOTSTRAP_REFRESH_STALE_MS = 45 * 1000;
 const PUBLIC_DASHBOARD_DEFERRED_TIPS_DELAY_MS = 600;
-const PERSONAL_GROWTH_BADGE_STORAGE_KEY = "oriwan-personal-growth-badges-v2";
+const PERSONAL_GROWTH_BADGE_STORAGE_KEY = "oriwan-personal-growth-badges-v3";
 const ONE_PLUS_ONE_DISMISS_STORAGE_KEY = "oriwan-one-plus-one-dismissed-v1";
 const FULL_HOUSE_FIREWORKS_STORAGE_KEY = "oriwan-full-house-fireworks-v1";
 const FULL_HOUSE_FIREWORKS_DURATION_MS = 1900;
@@ -180,13 +198,6 @@ function writeCachedDashboardData(data: PublicDashboardData) {
   } catch {
     // Storage can fail in private mode. Network refresh still keeps the dashboard usable.
   }
-}
-
-function dashboardDataAgeMs(data: PublicDashboardData | null | undefined) {
-  if (!data?.generated_at) return Number.POSITIVE_INFINITY;
-  const generatedAt = new Date(data.generated_at).getTime();
-  if (!Number.isFinite(generatedAt)) return Number.POSITIVE_INFINITY;
-  return Date.now() - generatedAt;
 }
 
 function readStoredGrowthBadges(): StoredGrowthBadges {
@@ -946,9 +957,7 @@ export function DashboardClient({
       if (initialData) {
         writeCachedDashboardData(initialData);
         restartMotion();
-        if (dashboardDataAgeMs(initialData) > PUBLIC_DASHBOARD_BOOTSTRAP_REFRESH_STALE_MS) {
-          void load({ fresh: true });
-        }
+        void load({ fresh: true });
       }
     });
     const shouldRefresh = (minimumAgeMs = PUBLIC_DASHBOARD_FOCUS_REFRESH_MS) => (
@@ -1039,7 +1048,6 @@ export function DashboardClient({
         record.record_date <= actualCertificationEndDate
       )
     );
-    const officialCertifiedRecords = officialCertificationRecords.filter((record) => !isRecoveryCertificationRecord(record));
     const officialRecoveryRecords = officialCertificationRecords.filter(isRecoveryCertificationRecord);
     const currentCertificationDate = effectiveToday;
     const currentDateRecords = officialCertificationRecords.filter((record) => record.record_date === currentCertificationDate);
@@ -1054,10 +1062,10 @@ export function DashboardClient({
 
     const certifiedIdsByDay = new Map<string, Set<string>>();
     const certifiedDaysByParticipant = new Map<string, Set<string>>();
-    const runningCertifiedDaysByParticipant = new Map<string, Set<string>>();
     const officialMetricsByParticipant = new Map<string, ParticipantGrowthMetrics>();
-    const growthMetricsByParticipant = new Map<string, ParticipantGrowthMetrics>();
     const recoveryUsageByParticipant = new Map<string, number>();
+    const recoveryIdsByDay = new Map<string, Set<string>>();
+    const recoveryDatesByParticipant = new Map<string, Set<string>>();
 
     officialCertificationRecords.forEach((record) => {
       if (!record.participant_id || !record.record_date) return;
@@ -1082,25 +1090,13 @@ export function DashboardClient({
       officialMetricsByParticipant.set(record.participant_id, metrics);
     });
 
-    officialCertifiedRecords.forEach((record) => {
-      if (!record.participant_id || !record.record_date) return;
-      if (!runningCertifiedDaysByParticipant.has(record.participant_id)) runningCertifiedDaysByParticipant.set(record.participant_id, new Set());
-      runningCertifiedDaysByParticipant.get(record.participant_id)?.add(record.record_date);
-
-      const distanceKm = record.distance_km || 0;
-      const metrics = growthMetricsByParticipant.get(record.participant_id) || makeEmptyGrowthMetrics();
-      metrics.distanceKm += distanceKm;
-      metrics.durationSeconds += record.duration_seconds || 0;
-      metrics.maxSingleDistanceKm = Math.max(metrics.maxSingleDistanceKm, distanceKm);
-      if (distanceKm >= 5) metrics.fiveKmCertificationCount += 1;
-      if (distanceKm >= 10) metrics.tenKmCertificationCount += 1;
-      if (distanceKm >= 21.1) metrics.halfMarathonCertificationCount += 1;
-      growthMetricsByParticipant.set(record.participant_id, metrics);
-    });
-
     officialRecoveryRecords.forEach((record) => {
-      if (!record.participant_id) return;
+      if (!record.participant_id || !record.record_date) return;
       recoveryUsageByParticipant.set(record.participant_id, (recoveryUsageByParticipant.get(record.participant_id) || 0) + 1);
+      if (!recoveryIdsByDay.has(record.record_date)) recoveryIdsByDay.set(record.record_date, new Set());
+      recoveryIdsByDay.get(record.record_date)?.add(record.participant_id);
+      if (!recoveryDatesByParticipant.has(record.participant_id)) recoveryDatesByParticipant.set(record.participant_id, new Set());
+      recoveryDatesByParticipant.get(record.participant_id)?.add(record.record_date);
     });
 
     const stampDatesByParticipant = new Map<string, Set<string>>();
@@ -1119,6 +1115,51 @@ export function DashboardClient({
       const rate = participants.length ? Math.round((certifiedCount / participants.length) * 100) : 0;
       return { day, certifiedCount, rate };
     });
+    const recoveryDailyTrend = elapsedDays.map((date) => ({
+      date,
+      count: recoveryIdsByDay.get(date)?.size || 0,
+    }));
+    const recoveryMembers = participants
+      .map((participant) => {
+        const dates = Array.from(recoveryDatesByParticipant.get(participant.id) || []).sort();
+        return {
+          id: participant.id,
+          name: participant.name,
+          displayOrder: participant.display_order ?? Number.MAX_SAFE_INTEGER,
+          dates,
+          count: dates.length,
+          maxConsecutive: maxConsecutiveRecoveryDays(dates),
+        };
+      })
+      .filter((participant) => participant.count > 0)
+      .sort((a, b) => (
+        b.count - a.count ||
+        a.displayOrder - b.displayOrder ||
+        a.name.localeCompare(b.name, "ko")
+      ));
+    const recentWindowStart = toIsoDate(addDays(new Date(`${currentCertificationDate}T00:00:00`), -6));
+    const previousWindowEnd = toIsoDate(addDays(new Date(`${recentWindowStart}T00:00:00`), -1));
+    const previousWindowStart = toIsoDate(addDays(new Date(`${previousWindowEnd}T00:00:00`), -6));
+    const membersBetween = (from: string, to: string) => (
+      recoveryMembers.filter((participant) => participant.dates.some((date) => date >= from && date <= to))
+    );
+    const recentRecoveryMembers = membersBetween(recentWindowStart, currentCertificationDate);
+    const previousRecoveryMembers = membersBetween(previousWindowStart, previousWindowEnd);
+    const recoverySignalMetrics = {
+      targetCount: participants.length,
+      totalMembers: recoveryMembers,
+      recentMembers: recentRecoveryMembers,
+      recentNewMembers: recoveryMembers.filter((participant) => (
+        Boolean(participant.dates[0]) &&
+        participant.dates[0] >= recentWindowStart &&
+        participant.dates[0] <= currentCertificationDate
+      )),
+      repeatMembers: recoveryMembers.filter((participant) => participant.count >= 3),
+      consecutiveMembers: recoveryMembers.filter((participant) => participant.maxConsecutive >= 3),
+      recentDelta: recentRecoveryMembers.length - previousRecoveryMembers.length,
+      recentWindowStart,
+      recoveryEndDate: currentCertificationDate,
+    };
     const certifiedCountByDay = new Map(dayTrend.map((day) => [day.day, day.certifiedCount]));
     const visibleOfficialWeeks = Array.from({ length: Math.ceil(officialCertificationDays.length / 7) }, (_, index) => {
       const weekDays = officialCertificationDays.slice(index * 7, index * 7 + 7);
@@ -1151,27 +1192,20 @@ export function DashboardClient({
     const participantProgress = participants
       .map((participant) => {
         const certifiedDates = Array.from(certifiedDaysByParticipant.get(participant.id) || []).sort();
-        const runningCertifiedDates = Array.from(runningCertifiedDaysByParticipant.get(participant.id) || []).sort();
         const stampedDates = Array.from(stampDatesByParticipant.get(participant.id) || []).sort();
         const stampedRecords = Array.from(stampRecordsByParticipant.get(participant.id)?.values() || [])
           .sort((a, b) => (a.record_date || "").localeCompare(b.record_date || ""));
         const metrics = officialMetricsByParticipant.get(participant.id) || makeEmptyGrowthMetrics();
-        const growthMetrics = growthMetricsByParticipant.get(participant.id) || makeEmptyGrowthMetrics();
         const certifiedDays = certifiedDates.length;
         const rate = Math.min(Math.round((certifiedDays / CHALLENGE_DAYS) * 100), 100);
         const currentStreak = getCurrentDateStreak(certifiedDates, currentCertificationDate);
         const longestStreak = getLongestDateStreak(certifiedDates);
         const weekdayMorningCount = getWeekdayMorningProgress(certifiedDates, currentCertificationDate);
         const bestWeekdayMorningCount = getBestWeekdayMorningProgress(certifiedDates);
-        const runningCurrentStreak = getCurrentDateStreak(runningCertifiedDates, currentCertificationDate);
-        const runningLongestStreak = getLongestDateStreak(runningCertifiedDates);
-        const runningWeekdayMorningCount = getWeekdayMorningProgress(runningCertifiedDates, currentCertificationDate);
-        const runningBestWeekdayMorningCount = getBestWeekdayMorningProgress(runningCertifiedDates);
         return {
           participant,
           pictogramIndex: pictogramByParticipantId.get(participant.id) ?? 0,
           certifiedDates,
-          runningCertifiedDates,
           stampedDates,
           stampedRecords,
           certifiedDays,
@@ -1179,19 +1213,8 @@ export function DashboardClient({
           longestStreak,
           weekdayMorningCount,
           bestWeekdayMorningCount,
-          runningCertifiedDays: runningCertifiedDates.length,
-          runningCurrentStreak,
-          runningLongestStreak,
-          runningWeekdayMorningCount,
-          runningBestWeekdayMorningCount,
           rate,
           recoveryUsageCount: recoveryUsageByParticipant.get(participant.id) || 0,
-          growthDistanceKm: growthMetrics.distanceKm,
-          growthDurationSeconds: growthMetrics.durationSeconds,
-          growthMaxSingleDistanceKm: growthMetrics.maxSingleDistanceKm,
-          growthFiveKmCertificationCount: growthMetrics.fiveKmCertificationCount,
-          growthTenKmCertificationCount: growthMetrics.tenKmCertificationCount,
-          growthHalfMarathonCertificationCount: growthMetrics.halfMarathonCertificationCount,
           ...metrics,
         };
       })
@@ -1209,6 +1232,8 @@ export function DashboardClient({
       completionRate,
       elapsedDays,
       dayTrend,
+      recoveryDailyTrend,
+      recoverySignalMetrics,
       weekTrend,
       participantProgress,
       stampDays: makeDaysThrough(CERTIFICATION_DISPLAY_START_DATE, actualCertificationEndDate),
@@ -1226,19 +1251,19 @@ export function DashboardClient({
 
       dashboard.participantProgress.forEach((row) => {
         const unlockedKeys = makePersonalGrowthBadges({
-          certifiedDays: row.runningCertifiedDays,
-          certifiedDates: row.runningCertifiedDates,
-          currentStreak: row.runningCurrentStreak,
-          longestStreak: row.runningLongestStreak,
-          weekdayMorningCount: row.runningWeekdayMorningCount,
-          bestWeekdayMorningCount: row.runningBestWeekdayMorningCount,
+          certifiedDays: row.certifiedDays,
+          certifiedDates: row.certifiedDates,
+          currentStreak: row.currentStreak,
+          longestStreak: row.longestStreak,
+          weekdayMorningCount: row.weekdayMorningCount,
+          bestWeekdayMorningCount: row.bestWeekdayMorningCount,
           elapsedDayCount: dashboard.elapsedDays.length,
-          distanceKm: row.growthDistanceKm,
-          durationSeconds: row.growthDurationSeconds,
-          maxSingleDistanceKm: row.growthMaxSingleDistanceKm,
-          fiveKmCertificationCount: row.growthFiveKmCertificationCount,
-          tenKmCertificationCount: row.growthTenKmCertificationCount,
-          halfMarathonCertificationCount: row.growthHalfMarathonCertificationCount,
+          distanceKm: row.distanceKm,
+          durationSeconds: row.durationSeconds,
+          maxSingleDistanceKm: row.maxSingleDistanceKm,
+          fiveKmCertificationCount: row.fiveKmCertificationCount,
+          tenKmCertificationCount: row.tenKmCertificationCount,
+          halfMarathonCertificationCount: row.halfMarathonCertificationCount,
         }).filter((badge) => badge.unlocked).map((badge) => badge.key);
 
         if (!unlockedKeys.length) return;
@@ -1318,19 +1343,19 @@ export function DashboardClient({
       const persistedBadgeKeys = persistedGrowthBadgeKeysByParticipant.get(row.participant.id) || new Set<string>();
       const earnedAtByBadgeKey = earnedAtByParticipant.get(row.participant.id) || new Map<string, string>();
       const recentBadge = makePersonalGrowthBadges({
-        certifiedDays: row.runningCertifiedDays,
-        certifiedDates: row.runningCertifiedDates,
-        currentStreak: row.runningCurrentStreak,
-        longestStreak: row.runningLongestStreak,
-        weekdayMorningCount: row.runningWeekdayMorningCount,
-        bestWeekdayMorningCount: row.runningBestWeekdayMorningCount,
+        certifiedDays: row.certifiedDays,
+        certifiedDates: row.certifiedDates,
+        currentStreak: row.currentStreak,
+        longestStreak: row.longestStreak,
+        weekdayMorningCount: row.weekdayMorningCount,
+        bestWeekdayMorningCount: row.bestWeekdayMorningCount,
         elapsedDayCount: dashboard.elapsedDays.length,
-        distanceKm: row.growthDistanceKm,
-        durationSeconds: row.growthDurationSeconds,
-        maxSingleDistanceKm: row.growthMaxSingleDistanceKm,
-        fiveKmCertificationCount: row.growthFiveKmCertificationCount,
-        tenKmCertificationCount: row.growthTenKmCertificationCount,
-        halfMarathonCertificationCount: row.growthHalfMarathonCertificationCount,
+        distanceKm: row.distanceKm,
+        durationSeconds: row.durationSeconds,
+        maxSingleDistanceKm: row.maxSingleDistanceKm,
+        fiveKmCertificationCount: row.fiveKmCertificationCount,
+        tenKmCertificationCount: row.tenKmCertificationCount,
+        halfMarathonCertificationCount: row.halfMarathonCertificationCount,
       })
         .filter((badge) => (badge.unlocked || persistedBadgeKeys.has(badge.key)) && !isRecoveryGrowthBadge(badge))
         .sort((left, right) => {
@@ -1348,19 +1373,19 @@ export function DashboardClient({
     ? persistedGrowthBadgeKeysByParticipant.get(selectedParticipant.participant.id) || new Set<string>()
     : new Set<string>();
   const selectedPersonalGrowthBadges = selectedParticipant ? makePersonalGrowthBadges({
-    certifiedDays: selectedParticipant.runningCertifiedDays,
-    certifiedDates: selectedParticipant.runningCertifiedDates,
-    currentStreak: selectedParticipant.runningCurrentStreak,
-    longestStreak: selectedParticipant.runningLongestStreak,
-    weekdayMorningCount: selectedParticipant.runningWeekdayMorningCount,
-    bestWeekdayMorningCount: selectedParticipant.runningBestWeekdayMorningCount,
+    certifiedDays: selectedParticipant.certifiedDays,
+    certifiedDates: selectedParticipant.certifiedDates,
+    currentStreak: selectedParticipant.currentStreak,
+    longestStreak: selectedParticipant.longestStreak,
+    weekdayMorningCount: selectedParticipant.weekdayMorningCount,
+    bestWeekdayMorningCount: selectedParticipant.bestWeekdayMorningCount,
     elapsedDayCount: dashboard.elapsedDays.length,
-    distanceKm: selectedParticipant.growthDistanceKm,
-    durationSeconds: selectedParticipant.growthDurationSeconds,
-    maxSingleDistanceKm: selectedParticipant.growthMaxSingleDistanceKm,
-    fiveKmCertificationCount: selectedParticipant.growthFiveKmCertificationCount,
-    tenKmCertificationCount: selectedParticipant.growthTenKmCertificationCount,
-    halfMarathonCertificationCount: selectedParticipant.growthHalfMarathonCertificationCount,
+    distanceKm: selectedParticipant.distanceKm,
+    durationSeconds: selectedParticipant.durationSeconds,
+    maxSingleDistanceKm: selectedParticipant.maxSingleDistanceKm,
+    fiveKmCertificationCount: selectedParticipant.fiveKmCertificationCount,
+    tenKmCertificationCount: selectedParticipant.tenKmCertificationCount,
+    halfMarathonCertificationCount: selectedParticipant.halfMarathonCertificationCount,
   }).map((badge) => {
     const persistentlyUnlocked = selectedPersistedGrowthBadgeKeys.has(badge.key);
     return {
@@ -1812,12 +1837,6 @@ export function DashboardClient({
                             <span>{secondsToTime(row.durationSeconds)}</span>
                           </span>
                         </div>
-                        {row.recoveryUsageCount > 0 && (
-                          <span className="mt-1 inline-flex max-w-full flex-wrap items-center gap-x-1.5 gap-y-0.5 rounded-full bg-sky-50 px-2 py-1 text-[10px] font-black leading-none text-sky-700 shadow-[inset_0_0_0_1px_rgba(14,165,233,0.16)]">
-                            <span className="truncate">회복을 잘 활용한 멤버</span>
-                            <span className="shrink-0 text-slate-950">+ 리커버리 {row.recoveryUsageCount}일</span>
-                          </span>
-                        )}
                         <div className="mt-2 h-2 overflow-hidden rounded-full bg-oriwan-surface-light">
                           <div
                             className={`gauge-fill-flow h-full rounded-full transition-all duration-[900ms] ease-out ${gaugeColorClass(row.certifiedDays)}`}
@@ -1858,6 +1877,11 @@ export function DashboardClient({
         )}
 
         {showDeferredTips && <LazyYoutubeShortsSection initialDayKey={todayIso} />}
+
+        <section className="card mobile-page-card mt-4 overflow-hidden bg-oriwan-surface-light p-3 sm:p-5" aria-label="전체 리커버리 추이">
+          <RecoveryTrendLineChart data={dashboard.recoveryDailyTrend} />
+          <RecoverySignalMetricsGrid metrics={dashboard.recoverySignalMetrics} />
+        </section>
 
         <p className="py-6 text-center text-[11px] font-semibold text-oriwan-text-muted">
           {loading ? "오늘의 기록을 데려오는 중..." : `마지막 업데이트 ${formatLastUpdated(data?.generated_at)}`}
@@ -2066,12 +2090,6 @@ export function DashboardClient({
                       )}
                     </div>
                   </div>
-                  {selectedParticipant.recoveryUsageCount > 0 && (
-                    <p className="inline-flex w-fit max-w-full flex-wrap items-center gap-x-1.5 gap-y-0.5 rounded-full bg-sky-50 px-3 py-1.5 text-[11px] font-black leading-none text-sky-700 shadow-[inset_0_0_0_1px_rgba(14,165,233,0.16)]">
-                      <span className="truncate">회복을 잘 활용한 멤버</span>
-                      <span className="shrink-0 text-slate-950">+ 리커버리 {selectedParticipant.recoveryUsageCount}일</span>
-                    </p>
-                  )}
                   <MascotCoachBubble
                     key={`${selectedParticipant.participant.id}-${mascotCoachMessageIndex}`}
                     message={selectedMascotCoachMessage}

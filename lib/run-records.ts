@@ -70,6 +70,27 @@ export function isRecoveryCertificationRecord(record: {
   );
 }
 
+export function getCertificationCreditMetrics(record: {
+  distance_km?: number | null;
+  duration_seconds?: number | null;
+  is_recovery_certification?: boolean | null;
+  notes?: string | null;
+  raw_extracted_text?: string | null;
+  source_app?: string | null;
+}) {
+  const isRecoveryCertification = isRecoveryCertificationRecord(record);
+
+  return {
+    isRecoveryCertification,
+    distanceKm: isRecoveryCertification
+      ? RECOVERY_CERTIFICATION_DISTANCE_KM
+      : record.distance_km ?? null,
+    durationSeconds: isRecoveryCertification
+      ? RECOVERY_CERTIFICATION_DURATION_SECONDS
+      : record.duration_seconds ?? null,
+  };
+}
+
 export function secondsToTime(seconds: number | null | undefined) {
   if (!seconds || seconds <= 0) return "-";
   const h = Math.floor(seconds / 3600);
