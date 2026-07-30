@@ -265,12 +265,6 @@ function ratioPercentage(numerator: number, denominator: number) {
   return Math.min(Math.round((numerator / denominator) * 100), 100);
 }
 
-function formatCompactMemberNames(members: RecoverySignalMember[]) {
-  if (!members.length) return "해당 인원 없음";
-  const visibleNames = members.slice(0, 3).map((member) => member.name).join(", ");
-  return members.length > 3 ? `${visibleNames} 외 ${members.length - 3}명` : visibleNames;
-}
-
 function RecoveryMetricCard({
   label,
   mobileLabel,
@@ -280,7 +274,6 @@ function RecoveryMetricCard({
   description,
   mobileDescription,
   calculationLabel,
-  membersLabel,
   deltaLabel,
   tone,
   large = false,
@@ -293,7 +286,6 @@ function RecoveryMetricCard({
   description: string;
   mobileDescription?: string;
   calculationLabel: string;
-  membersLabel: string;
   deltaLabel?: string;
   tone: keyof typeof recoveryMetricTones;
   large?: boolean;
@@ -333,7 +325,6 @@ function RecoveryMetricCard({
           {mobileDescription || description}
         </p>
         <p className="mt-2 hidden break-keep text-[11px] font-bold leading-5 text-oriwan-text-muted sm:block">{description}</p>
-        <p className="mt-1 break-keep text-[10px] font-black leading-4 text-oriwan-text sm:mt-1.5 sm:truncate sm:text-[11px]">{membersLabel}</p>
 
         <div className="mt-auto pt-2 sm:pt-4">
           <div
@@ -371,7 +362,6 @@ export function RecoverySignalMetricsGrid({ metrics }: { metrics: RecoverySignal
           description={`전체 인증 대상 ${metrics.targetCount}명 중 한 번 이상 리커버리 인증을 한 고유 인원입니다.`}
           mobileDescription="한 번 이상 리커버리 인증한 고유 인원"
           calculationLabel="계산: 전체 기간 리커버리 고유 인원 ÷ 전체 인증 대상"
-          membersLabel={formatCompactMemberNames(metrics.totalMembers)}
           tone="rose"
           large
         />
@@ -384,7 +374,6 @@ export function RecoverySignalMetricsGrid({ metrics }: { metrics: RecoverySignal
           description={`${formatRecoveryDate(metrics.recentWindowStart)}부터 ${formatRecoveryDate(metrics.recoveryEndDate)}까지 한 번 이상 인증한 고유 인원입니다.`}
           mobileDescription={`${formatRecoveryDate(metrics.recentWindowStart)}–${formatRecoveryDate(metrics.recoveryEndDate)} 인증 고유 인원`}
           calculationLabel="계산: 최근 7일 리커버리 고유 인원 ÷ 전체 인증 대상"
-          membersLabel={formatCompactMemberNames(metrics.recentMembers)}
           deltaLabel={`${metrics.recentDelta >= 0 ? "+" : ""}${metrics.recentDelta}명 · 직전 7일 대비`}
           tone="blue"
           large
@@ -401,7 +390,6 @@ export function RecoverySignalMetricsGrid({ metrics }: { metrics: RecoverySignal
           description="최근 7일 안에 처음으로 리커버리 인증을 시작한 인원입니다."
           mobileDescription="최근 7일에 처음 인증한 인원"
           calculationLabel="계산: 최초 리커버리 인증일이 최근 7일인 고유 인원"
-          membersLabel={formatCompactMemberNames(metrics.recentNewMembers)}
           tone="lime"
         />
         <RecoveryMetricCard
@@ -413,7 +401,6 @@ export function RecoverySignalMetricsGrid({ metrics }: { metrics: RecoverySignal
           description="전체 기간 동안 리커버리 인증을 총 3회 이상 한 인원입니다."
           mobileDescription="전체 기간 3회 이상 인증한 인원"
           calculationLabel="계산: 전체 기간 누적 리커버리 인증 3회 이상"
-          membersLabel={formatCompactMemberNames(metrics.repeatMembers)}
           tone="amber"
         />
         <RecoveryMetricCard
@@ -425,7 +412,6 @@ export function RecoverySignalMetricsGrid({ metrics }: { metrics: RecoverySignal
           description="전체 기간 중 리커버리 인증이 3일 이상 연속된 인원입니다."
           mobileDescription="3일 이상 연속으로 인증한 인원"
           calculationLabel="계산: 최장 연속 리커버리 인증 3일 이상"
-          membersLabel={formatCompactMemberNames(metrics.consecutiveMembers)}
           tone="violet"
         />
       </div>
