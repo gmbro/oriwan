@@ -450,8 +450,7 @@ export function makePersonalGrowthBadges(input: PersonalGrowthBadgeInput): Perso
   ];
 
   if (hundredDayStreakBadge) {
-    const seventyDayIndex = badges.findIndex((badge) => badge.key === "seventy-day-arc");
-    badges.splice(seventyDayIndex + 1, 0, hundredDayStreakBadge);
+    badges.unshift(hundredDayStreakBadge);
   }
 
   return badges;
