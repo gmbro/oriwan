@@ -3,6 +3,7 @@ import { addDays, toIsoDate } from "@/lib/run-records";
 
 export type PersonalGrowthBadgeIcon =
   | "run"
+  | "crown"
   | "flame"
   | "target"
   | "calendar"
@@ -261,8 +262,8 @@ export function makePersonalGrowthBadges(input: PersonalGrowthBadgeInput): Perso
     description: elapsedDayCount >= 90 ? "100일 연속 인증" : "90일차에 이름이 공개되는 히든 뱃지",
     progress: badgeProgress(longestStreak, 100),
     unlocked: longestStreak >= 100,
-    icon: "mountain",
-    colorClassName: "bg-slate-950 text-lime-200",
+    icon: "crown",
+    colorClassName: "bg-sky-100 text-blue-950",
   } : null;
 
   const badges: PersonalGrowthBadge[] = [

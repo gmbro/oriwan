@@ -282,6 +282,7 @@ function writeShownFullHouseFireworks(date: string) {
 
 function GrowthBadgeIcon({ icon }: { icon: PersonalGrowthBadge["icon"] }) {
   const iconClassName = "h-4 w-4";
+  if (icon === "crown") return <span aria-hidden="true" className="text-lg leading-none">👑</span>;
   if (icon === "flame") return <IconFlame size={16} className={iconClassName} />;
   if (icon === "target") return <IconTarget size={16} className={iconClassName} />;
   if (icon === "calendar") return <IconCalendar size={16} className={iconClassName} />;
@@ -298,7 +299,7 @@ function GrowthBadgeIcon({ icon }: { icon: PersonalGrowthBadge["icon"] }) {
 const BADGE_ACHIEVEMENT_BORDER_CLASS_BY_KEY: Partial<Record<PersonalGrowthBadge["key"], string>> = {
   "distance-four-hundred": "border-amber-300 ring-2 ring-amber-300/70 shadow-amber-300/25",
   "distance-five-hundred": "border-amber-300 ring-2 ring-amber-300/70 shadow-amber-300/25",
-  "hundred-day-streak": "border-amber-300 ring-2 ring-amber-300/80 shadow-amber-300/30",
+  "hundred-day-streak": "border-sky-400 ring-2 ring-sky-400/80 shadow-sky-500/30",
   "long-run-maker": "border-rose-400 ring-2 ring-rose-400/70 shadow-rose-400/25",
   "half-trigger": "border-rose-400 ring-2 ring-rose-400/70 shadow-rose-400/25",
   "season-pacer": "border-yellow-300 ring-2 ring-yellow-300/70 shadow-yellow-300/25",
@@ -309,7 +310,7 @@ const BADGE_ACHIEVEMENT_BORDER_CLASS_BY_KEY: Partial<Record<PersonalGrowthBadge[
 const BADGE_PREVIEW_BORDER_CLASS_BY_KEY: Partial<Record<PersonalGrowthBadge["key"], string>> = {
   "distance-four-hundred": "border-amber-300/75 ring-1 ring-amber-200/60",
   "distance-five-hundred": "border-amber-300/75 ring-1 ring-amber-200/60",
-  "hundred-day-streak": "border-amber-300/80 ring-1 ring-amber-200/70",
+  "hundred-day-streak": "border-sky-400/90 ring-2 ring-sky-300/55 shadow-sky-200/45",
   "long-run-maker": "border-rose-300/75 ring-1 ring-rose-200/60",
   "half-trigger": "border-rose-300/75 ring-1 ring-rose-200/60",
   "season-pacer": "border-yellow-300/80 ring-1 ring-yellow-200/60",
@@ -350,7 +351,7 @@ const RECENT_BADGE_DISPLAY_ORDER: PersonalGrowthBadge["key"][] = [
 ];
 
 const RECENT_BADGE_LABEL_CLASS_BY_KEY: Partial<Record<PersonalGrowthBadge["key"], string>> = {
-  "hundred-day-streak": "border-amber-300 bg-amber-50 text-amber-800 shadow-amber-200/40",
+  "hundred-day-streak": "border-sky-400 bg-gradient-to-r from-sky-100 to-blue-100 text-blue-950 shadow-sky-300/50",
   "distance-four-hundred": "border-amber-300 bg-amber-50 text-amber-800 shadow-amber-200/40",
   "distance-five-hundred": "border-amber-300 bg-amber-50 text-amber-800 shadow-amber-200/40",
   "long-run-maker": "border-rose-300 bg-rose-50 text-rose-700 shadow-rose-200/40",
@@ -367,6 +368,42 @@ function badgeDisplayOrderIndex(key: PersonalGrowthBadge["key"]) {
 
 function recentBadgeLabelClass(key: PersonalGrowthBadge["key"]) {
   return RECENT_BADGE_LABEL_CLASS_BY_KEY[key] || "border-lime-300 bg-white text-slate-950 shadow-lime-200/35";
+}
+
+function badgeCardSurfaceClass(badge: PersonalGrowthBadge) {
+  if (badge.key === "hundred-day-streak") {
+    return badge.unlocked
+      ? `badge-achieved-card bg-gradient-to-br from-sky-950 via-blue-900 to-indigo-900 text-white shadow-xl ${badgeCardBorderClass(badge.key, true)}`
+      : `bg-gradient-to-r from-sky-50 via-blue-50 to-indigo-50 text-blue-950 shadow-md ${badgeCardBorderClass(badge.key, false)}`;
+  }
+
+  return badge.unlocked
+    ? `badge-achieved-card bg-slate-950 text-white shadow-lg ${badgeCardBorderClass(badge.key, true)}`
+    : `bg-white/60 text-oriwan-text-muted ${badgeCardBorderClass(badge.key, false)}`;
+}
+
+function badgeIconSurfaceClass(badge: PersonalGrowthBadge) {
+  if (badge.key === "hundred-day-streak") {
+    return badge.unlocked
+      ? "bg-sky-300 text-blue-950 shadow-md shadow-sky-400/40"
+      : "bg-white text-blue-950 ring-1 ring-sky-300 shadow-sm shadow-sky-200/50";
+  }
+
+  return badge.unlocked
+    ? "bg-lime-300 text-slate-950 shadow-sm shadow-lime-300/40"
+    : "bg-white text-oriwan-text-muted ring-1 ring-slate-950/5";
+}
+
+function badgeStatusClass(badge: PersonalGrowthBadge) {
+  if (badge.key === "hundred-day-streak") {
+    return badge.unlocked
+      ? "bg-sky-300 text-blue-950 shadow-sm shadow-sky-400/30"
+      : "bg-sky-100 text-blue-950 ring-1 ring-sky-200";
+  }
+
+  return badge.unlocked
+    ? "bg-lime-300 text-slate-950 shadow-sm shadow-lime-300/30"
+    : "bg-oriwan-surface-light text-oriwan-text-muted";
 }
 
 function isRecoveryGrowthBadge(badge: PersonalGrowthBadge) {
@@ -1821,8 +1858,11 @@ export function DashboardClient({
                     <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2.5 sm:gap-3">
                       <div className="relative flex min-w-[44px] shrink-0 justify-center pt-2">
                         {latestBadge && (
-                          <span className={`absolute left-1/2 top-0 z-10 max-w-[72px] -translate-x-1/2 truncate rounded-full border px-1.5 py-0.5 text-[8px] font-black leading-none shadow-sm sm:max-w-[84px] ${recentBadgeLabelClass(latestBadge.key)}`}>
-                            {latestBadge.label}
+                          <span className={`absolute left-1/2 top-0 z-10 inline-flex -translate-x-1/2 items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-[8px] font-black leading-none shadow-sm ${
+                            latestBadge.key === "hundred-day-streak" ? "max-w-[98px] sm:max-w-[112px]" : "max-w-[72px] sm:max-w-[84px]"
+                          } ${recentBadgeLabelClass(latestBadge.key)}`}>
+                            {latestBadge.key === "hundred-day-streak" && <span aria-hidden="true">👑</span>}
+                            <span className="truncate">{latestBadge.label}</span>
                           </span>
                         )}
                         <MemberPictogram index={row.pictogramIndex} participantName={row.participant.name} className="!h-9 !w-9 sm:!h-10 sm:!w-10" />
@@ -2195,23 +2235,19 @@ export function DashboardClient({
                   {selectedPersonalGrowthBadges.map((badge) => (
                     <div
                       key={badge.key}
-                      className={`relative flex items-center gap-3 overflow-hidden rounded-2xl border-2 px-3 py-2.5 transition ${
-                        badge.unlocked
-                          ? `badge-achieved-card bg-slate-950 text-white shadow-lg ${badgeCardBorderClass(badge.key, true)}`
-                          : `bg-white/60 text-oriwan-text-muted ${badgeCardBorderClass(badge.key, false)}`
-                      }`}
+                      className={`relative flex items-center gap-3 overflow-hidden rounded-2xl border-2 px-3 py-2.5 transition ${badgeCardSurfaceClass(badge)}`}
                     >
                       {badge.unlocked && <FanfareBurst compact />}
-                      <span className={`relative z-10 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${
-                        badge.unlocked ? "bg-lime-300 text-slate-950 shadow-sm shadow-lime-300/40" : "bg-white text-oriwan-text-muted ring-1 ring-slate-950/5"
-                      }`}>
+                      <span className={`relative z-10 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${badgeIconSurfaceClass(badge)}`}>
                         <GrowthBadgeIcon icon={badge.icon} />
                       </span>
                       <span className="relative z-10 min-w-0 flex-1">
                         <span className="flex min-w-0 items-center gap-1.5">
                           <span className="block truncate text-xs font-black">{badge.label}</span>
                           {badge.unlocked && (
-                            <span className="shrink-0 rounded-full bg-lime-300 px-2 py-0.5 text-[9px] font-black leading-none text-slate-950">
+                            <span className={`shrink-0 rounded-full px-2 py-0.5 text-[9px] font-black leading-none ${
+                              badge.key === "hundred-day-streak" ? "bg-sky-300 text-blue-950" : "bg-lime-300 text-slate-950"
+                            }`}>
                               달성!
                             </span>
                           )}
@@ -2220,11 +2256,7 @@ export function DashboardClient({
                           badge.unlocked ? "text-white/70" : "opacity-70"
                         }`}>{badge.description}</span>
                       </span>
-                      <span className={`relative z-10 shrink-0 rounded-full px-2 py-1 text-[10px] font-black ${
-                        badge.unlocked
-                          ? "bg-lime-300 text-slate-950 shadow-sm shadow-lime-300/30"
-                          : "bg-oriwan-surface-light text-oriwan-text-muted"
-                      }`}>
+                      <span className={`relative z-10 shrink-0 rounded-full px-2 py-1 text-[10px] font-black ${badgeStatusClass(badge)}`}>
                         {badge.unlocked ? "획득 완료" : badge.progress}
                       </span>
                     </div>
