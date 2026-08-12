@@ -403,6 +403,8 @@ export function invalidatePublicDashboardCache() {
   revalidateTag(PUBLIC_DASHBOARD_CACHE_TAG, { expire: 0 });
   revalidatePath("/dashboard");
   revalidatePath("/api/public-dashboard");
+  revalidatePath("/dashboard/report");
+  revalidatePath("/dashboard/report/[participantId]", "page");
 }
 
 export async function getPublicDashboardPayload(cacheKey: string, from: string, to: string, bypassCache = false) {

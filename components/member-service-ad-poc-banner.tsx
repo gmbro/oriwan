@@ -3,7 +3,7 @@ import Image from "next/image";
 const BONANZA_INSTAGRAM_URL = "https://www.instagram.com/bonanzacoffee_korea/";
 
 const bannerFrameClassName =
-  "relative aspect-[1718/802] min-h-[138px] overflow-hidden rounded-[22px] bg-slate-800 shadow-lg shadow-slate-950/15 ring-1 ring-slate-950/10 sm:aspect-[5/2] sm:rounded-[28px] lg:aspect-[3/1]";
+  "relative aspect-[1718/802] min-h-[138px] overflow-hidden rounded-[22px] bg-slate-800 shadow-lg shadow-slate-950/15 ring-1 ring-slate-950/10 sm:aspect-[5/2] sm:rounded-[28px] lg:h-80 lg:aspect-auto";
 
 export function MemberServiceAdPocBanner() {
   return (

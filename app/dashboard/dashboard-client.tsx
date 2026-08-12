@@ -939,12 +939,14 @@ export function DashboardClient({
   initialError = "",
   initialTodayIso,
   announcementsEnabled = true,
+  liveDataEnabled = true,
   topSlot,
 }: {
   initialData?: PublicDashboardData | null;
   initialError?: string;
   initialTodayIso: string;
   announcementsEnabled?: boolean;
+  liveDataEnabled?: boolean;
   topSlot?: ReactNode;
 }) {
   const [data, setData] = useState<PublicDashboardData | null>(initialData);
@@ -1026,6 +1028,15 @@ export function DashboardClient({
   }, [restartMotion]);
 
   useEffect(() => {
+    if (!liveDataEnabled) {
+      queueMicrotask(() => {
+        setStoredGrowthBadges(readStoredGrowthBadges());
+        lastLoadedAtRef.current = Date.now();
+        restartMotion();
+      });
+      return;
+    }
+
     queueMicrotask(() => {
       setStoredGrowthBadges(readStoredGrowthBadges());
       const cachedData = readCachedDashboardData();
@@ -1065,9 +1076,11 @@ export function DashboardClient({
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [initialData, load, restartMotion]);
+  }, [initialData, liveDataEnabled, load, restartMotion]);
 
   useEffect(() => {
+    if (!liveDataEnabled) return;
+
     try {
       const supabase = createClient();
       const channel = supabase
@@ -1083,7 +1096,7 @@ export function DashboardClient({
     } catch {
       return;
     }
-  }, [load]);
+  }, [liveDataEnabled, load]);
 
   useEffect(() => {
     return () => {
@@ -1364,7 +1377,7 @@ export function DashboardClient({
   }, [data, todayIso]);
 
   useEffect(() => {
-    if (!dashboard.participantProgress.length) return;
+    if (!liveDataEnabled || !dashboard.participantProgress.length) return;
 
     let cancelled = false;
     queueMicrotask(() => {
@@ -1410,7 +1423,7 @@ export function DashboardClient({
     return () => {
       cancelled = true;
     };
-  }, [dashboard.elapsedDays.length, dashboard.participantProgress]);
+  }, [dashboard.elapsedDays.length, dashboard.participantProgress, liveDataEnabled]);
 
   const sortedParticipantProgress = useMemo(
     () => sortParticipantRanks(
