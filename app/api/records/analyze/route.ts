@@ -487,7 +487,7 @@ export async function POST(request: NextRequest) {
       }
 
       const paceSeconds = calculatePaceSeconds(distanceKm, durationSeconds);
-      let status = decideStatus({
+      const status = decideStatus({
         participantId: participant?.id,
         recordDate,
         distanceKm,

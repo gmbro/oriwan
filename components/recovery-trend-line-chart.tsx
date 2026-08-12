@@ -433,3 +433,18 @@ export function RecoverySignalMetricsGrid({ metrics }: { metrics: RecoverySignal
     </>
   );
 }
+
+export function RecoveryDashboardDetails({
+  data,
+  metrics,
+}: {
+  data: RecoveryTrendDatum[];
+  metrics: RecoverySignalMetrics;
+}) {
+  return (
+    <>
+      <RecoveryTrendLineChart data={data} />
+      <RecoverySignalMetricsGrid metrics={metrics} />
+    </>
+  );
+}

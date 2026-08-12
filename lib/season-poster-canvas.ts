@@ -118,7 +118,7 @@ function drawStat(
   drawText(context, value, x, 412, size, INK, 900);
 }
 
-function drawMonthlyDistanceChart(context: CanvasRenderingContext2D, member: SeasonMemberReport) {
+function drawMonthlyDistanceChart(context: CanvasRenderingContext2D, member: Pick<SeasonMemberReport, "months">) {
   const left = 72;
   const right = 1008;
   const top = 548;
@@ -148,7 +148,10 @@ function drawMonthlyDistanceChart(context: CanvasRenderingContext2D, member: Sea
   });
 }
 
-export async function renderSeasonPosterBlob(member: SeasonMemberReport, characterSvgMarkup = "") {
+export async function renderSeasonPosterBlob(
+  member: Pick<SeasonMemberReport, "name" | "cheerMessage" | "certifiedDays" | "durationSeconds" | "months" | "badges">,
+  characterSvgMarkup = "",
+) {
   const width = 1080;
   const height = 1080;
   const outputScale = 2;

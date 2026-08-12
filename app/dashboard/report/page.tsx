@@ -86,6 +86,7 @@ export default async function SeasonReportPage() {
               <Link
                 key={member.id}
                 href={`/dashboard/report/${member.id}`}
+                prefetch={false}
                 className="group relative flex min-w-0 flex-col overflow-hidden rounded-[22px] p-3 text-white shadow-sm transition hover:-translate-y-1 hover:shadow-xl"
                 style={{ background: `linear-gradient(145deg, ${member.theme.background}, ${member.theme.surface})` }}
               >

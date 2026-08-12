@@ -122,17 +122,19 @@ export function SeasonMonthlyDistanceBars({
 }) {
   const maxDistance = Math.max(...months.map((month) => month.distanceKm), 1);
   return (
-    <div className="flex h-full min-h-0 items-end gap-3" aria-label="월별 총 거리 그래프">
+    <div className="grid h-full min-h-0 grid-cols-4 gap-3" aria-label="월별 총 거리 그래프">
       {months.map((month) => {
         const height = Math.max((month.distanceKm / maxDistance) * 100, 5);
         return (
-          <div key={month.key} className="flex h-full min-w-0 flex-1 flex-col items-center justify-end">
+          <div key={month.key} className="grid h-full min-h-0 min-w-0 grid-rows-[auto_minmax(0,1fr)_auto] text-center">
             <span className="mb-1 text-[8px] font-black tabular-nums text-slate-500 sm:text-[10px]">{month.distanceKm.toFixed(0)}</span>
-            <span
-              className="w-full max-w-12 rounded-t-[6px]"
-              style={{ height: `${height}%`, backgroundColor: accent }}
-              title={`${month.label} 총 거리 ${month.distanceKm.toFixed(1)}km`}
-            />
+            <span className="flex min-h-0 items-end justify-center overflow-hidden">
+              <span
+                className="block w-full max-w-12 rounded-t-[6px]"
+                style={{ height: `${height}%`, backgroundColor: accent }}
+                title={`${month.label} 총 거리 ${month.distanceKm.toFixed(1)}km`}
+              />
+            </span>
             <span className="mt-1 text-[8px] font-black text-slate-400 sm:text-[10px]">{month.label}</span>
           </div>
         );

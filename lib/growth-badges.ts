@@ -246,7 +246,6 @@ export function makePersonalGrowthBadges(input: PersonalGrowthBadgeInput): Perso
   const {
     certifiedDays,
     certifiedDates,
-    currentStreak,
     longestStreak,
     weekdayMorningCount,
     bestWeekdayMorningCount = weekdayMorningCount,

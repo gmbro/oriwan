@@ -4,10 +4,9 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import type { CSSProperties } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { IconCalendar, IconDna, IconDroplet, IconFlame, IconHeart, IconMountain, IconMuscle, IconRun, IconSprout, IconSync, IconTarget, IconX } from "@/components/icons";
+import { IconArrowRight, IconCalendar, IconDna, IconDroplet, IconFlame, IconHeart, IconMountain, IconMuscle, IconRun, IconSprout, IconSync, IconTarget, IconVideo, IconX } from "@/components/icons";
 import { DashboardSiteHeader } from "@/components/dashboard-site-header";
 import { buildMemberPictogramMap, MemberPictogram } from "@/components/member-pictogram";
-import { RecoverySignalMetricsGrid, RecoveryTrendLineChart } from "@/components/recovery-trend-line-chart";
 import { ACTUAL_CERTIFICATION_START_DATE, CERTIFICATION_DISPLAY_START_DATE, CHALLENGE_DAYS } from "@/lib/challenge";
 import { DASHBOARD_REFRESH_CHANNEL, DASHBOARD_REFRESH_EVENT } from "@/lib/dashboard-refresh";
 import {
@@ -38,6 +37,11 @@ type ParticipantGrowthMetrics = {
 const LazyYoutubeShortsSection = dynamic(
   () => import("@/components/youtube-shorts-section").then((mod) => mod.YoutubeShortsSection),
   { ssr: false }
+);
+
+const LazyRecoveryDashboardDetails = dynamic(
+  () => import("@/components/recovery-trend-line-chart").then((mod) => mod.RecoveryDashboardDetails),
+  { loading: () => <div className="h-28 animate-pulse rounded-2xl bg-white/70" aria-label="리커버리 추이 불러오는 중" /> }
 );
 
 const actualCertificationEndDate = toIsoDate(addDays(new Date(`${ACTUAL_CERTIFICATION_START_DATE}T00:00:00`), CHALLENGE_DAYS - 1));
@@ -144,7 +148,6 @@ const PUBLIC_DASHBOARD_STORAGE_KEY = "oriwan-public-dashboard-cache-v4";
 const PUBLIC_DASHBOARD_STORAGE_TTL_MS = 10 * 60 * 1000;
 const PUBLIC_DASHBOARD_FOCUS_REFRESH_MS = 30 * 1000;
 const PUBLIC_DASHBOARD_LIVE_REFRESH_MS = 30 * 1000;
-const PUBLIC_DASHBOARD_DEFERRED_TIPS_DELAY_MS = 600;
 const PERSONAL_GROWTH_BADGE_STORAGE_KEY = "oriwan-personal-growth-badges-v3";
 const ONE_PLUS_ONE_DISMISS_STORAGE_KEY = "oriwan-one-plus-one-dismissed-v1";
 const FULL_HOUSE_FIREWORKS_STORAGE_KEY = "oriwan-full-house-fireworks-v1";
@@ -930,14 +933,15 @@ export function DashboardClient({
   const [showJourneyReportModal, setShowJourneyReportModal] = useState(false);
   const [showOnePlusOneEventModal, setShowOnePlusOneEventModal] = useState(false);
   const [showFinalReportPreviewModal, setShowFinalReportPreviewModal] = useState(false);
-  const [showDeferredTips, setShowDeferredTips] = useState(false);
+  const [showRecoveryVideos, setShowRecoveryVideos] = useState(false);
+  const [showRecoveryTrend, setShowRecoveryTrend] = useState(false);
   const [showFullHouseFireworks, setShowFullHouseFireworks] = useState(false);
   const [participantSortMode, setParticipantSortMode] = useState<ParticipantRankSortMode>("certification");
   const [participantCertificationSortDirection, setParticipantCertificationSortDirection] = useState<ParticipantRankSortDirection>("desc");
   const [mascotCoachMessageIndex, setMascotCoachMessageIndex] = useState(0);
   const [, setStoredGrowthBadges] = useState<StoredGrowthBadges>({});
   const loadingRef = useRef(false);
-  const lastLoadedAtRef = useRef(initialData ? Date.now() : 0);
+  const lastLoadedAtRef = useRef(0);
   const motionFrameRef = useRef<number | null>(null);
   const onePlusOneEvent = useMemo(() => getOnePlusOneEvent(todayIso), [todayIso]);
 
@@ -995,6 +999,7 @@ export function DashboardClient({
       }
       if (!initialData) void load({ fresh: true });
       if (initialData) {
+        lastLoadedAtRef.current = Date.now();
         writeCachedDashboardData(initialData);
         restartMotion();
         void load({ fresh: true });
@@ -1048,32 +1053,20 @@ export function DashboardClient({
   }, []);
 
   useEffect(() => {
-    const idleWindow = window as Window & {
-      requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number;
-      cancelIdleCallback?: (handle: number) => void;
-    };
-    let idleId: number | null = null;
-    const timeout = window.setTimeout(() => {
-      if (idleWindow.requestIdleCallback) {
-        idleId = idleWindow.requestIdleCallback(() => setShowDeferredTips(true), { timeout: 2500 });
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      if (!onePlusOneEvent) {
+        setShowOnePlusOneEventModal(false);
         return;
       }
-      setShowDeferredTips(true);
-    }, PUBLIC_DASHBOARD_DEFERRED_TIPS_DELAY_MS);
+
+      setShowOnePlusOneEventModal(!readDismissedOnePlusOneEvent(onePlusOneEvent.milestoneDay, todayIso));
+    });
 
     return () => {
-      window.clearTimeout(timeout);
-      if (idleId !== null) idleWindow.cancelIdleCallback?.(idleId);
+      cancelled = true;
     };
-  }, []);
-
-  useEffect(() => {
-    if (!onePlusOneEvent) {
-      setShowOnePlusOneEventModal(false);
-      return;
-    }
-
-    setShowOnePlusOneEventModal(!readDismissedOnePlusOneEvent(onePlusOneEvent.milestoneDay, todayIso));
   }, [onePlusOneEvent, todayIso]);
 
   const dashboard = useMemo(() => {
@@ -1283,42 +1276,50 @@ export function DashboardClient({
   useEffect(() => {
     if (!dashboard.participantProgress.length) return;
 
-    setStoredGrowthBadges((current) => {
-      let changed = false;
-      const next: StoredGrowthBadges = Object.fromEntries(
-        Object.entries(current).map(([participantId, badgeKeys]) => [participantId, [...badgeKeys]])
-      );
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      setStoredGrowthBadges((current) => {
+        let changed = false;
+        const next: StoredGrowthBadges = Object.fromEntries(
+          Object.entries(current).map(([participantId, badgeKeys]) => [participantId, [...badgeKeys]])
+        );
 
-      dashboard.participantProgress.forEach((row) => {
-        const unlockedKeys = makePersonalGrowthBadges({
-          certifiedDays: row.certifiedDays,
-          certifiedDates: row.certifiedDates,
-          currentStreak: row.currentStreak,
-          longestStreak: row.longestStreak,
-          weekdayMorningCount: row.weekdayMorningCount,
-          bestWeekdayMorningCount: row.bestWeekdayMorningCount,
-          elapsedDayCount: dashboard.elapsedDays.length,
-          distanceKm: row.distanceKm,
-          durationSeconds: row.durationSeconds,
-          maxSingleDistanceKm: row.maxSingleDistanceKm,
-          fiveKmCertificationCount: row.fiveKmCertificationCount,
-          tenKmCertificationCount: row.tenKmCertificationCount,
-          halfMarathonCertificationCount: row.halfMarathonCertificationCount,
-        }).filter((badge) => badge.unlocked).map((badge) => badge.key);
+        dashboard.participantProgress.forEach((row) => {
+          const unlockedKeys = makePersonalGrowthBadges({
+            certifiedDays: row.certifiedDays,
+            certifiedDates: row.certifiedDates,
+            currentStreak: row.currentStreak,
+            longestStreak: row.longestStreak,
+            weekdayMorningCount: row.weekdayMorningCount,
+            bestWeekdayMorningCount: row.bestWeekdayMorningCount,
+            elapsedDayCount: dashboard.elapsedDays.length,
+            distanceKm: row.distanceKm,
+            durationSeconds: row.durationSeconds,
+            maxSingleDistanceKm: row.maxSingleDistanceKm,
+            fiveKmCertificationCount: row.fiveKmCertificationCount,
+            tenKmCertificationCount: row.tenKmCertificationCount,
+            halfMarathonCertificationCount: row.halfMarathonCertificationCount,
+          }).filter((badge) => badge.unlocked).map((badge) => badge.key);
 
-        if (!unlockedKeys.length) return;
-        const badgeKeySet = new Set(next[row.participant.id] || []);
-        unlockedKeys.forEach((badgeKey) => {
-          if (badgeKeySet.has(badgeKey)) return;
-          badgeKeySet.add(badgeKey);
-          changed = true;
+          if (!unlockedKeys.length) return;
+          const badgeKeySet = new Set(next[row.participant.id] || []);
+          unlockedKeys.forEach((badgeKey) => {
+            if (badgeKeySet.has(badgeKey)) return;
+            badgeKeySet.add(badgeKey);
+            changed = true;
+          });
+          next[row.participant.id] = Array.from(badgeKeySet);
         });
-        next[row.participant.id] = Array.from(badgeKeySet);
-      });
 
-      if (changed) writeStoredGrowthBadges(next);
-      return changed ? next : current;
+        if (changed) writeStoredGrowthBadges(next);
+        return changed ? next : current;
+      });
     });
+
+    return () => {
+      cancelled = true;
+    };
   }, [dashboard.elapsedDays.length, dashboard.participantProgress]);
 
   const sortedParticipantProgress = useMemo(
@@ -1627,12 +1628,29 @@ export function DashboardClient({
   ]);
 
   useEffect(() => {
-    setMascotCoachMessageIndex(0);
-    setShowParticipantIntro(false);
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      setMascotCoachMessageIndex(0);
+      setShowParticipantIntro(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, [selectedParticipantId]);
 
   useEffect(() => {
-    if (!showJourneyReportLabel) setShowJourneyReportModal(false);
+    if (showJourneyReportLabel) return;
+
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) setShowJourneyReportModal(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, [showJourneyReportLabel]);
 
   const trendItems = trendModal === "weekly"
@@ -1658,10 +1676,18 @@ export function DashboardClient({
     );
     if (!fullHouseAchieved || readShownFullHouseFireworks(todayIso)) return;
 
-    writeShownFullHouseFireworks(todayIso);
-    setShowFullHouseFireworks(true);
-    const timeout = window.setTimeout(() => setShowFullHouseFireworks(false), FULL_HOUSE_FIREWORKS_DURATION_MS);
-    return () => window.clearTimeout(timeout);
+    let hideTimeout: number | undefined;
+    const showTimeout = window.setTimeout(() => {
+      if (readShownFullHouseFireworks(todayIso)) return;
+      writeShownFullHouseFireworks(todayIso);
+      setShowFullHouseFireworks(true);
+      hideTimeout = window.setTimeout(() => setShowFullHouseFireworks(false), FULL_HOUSE_FIREWORKS_DURATION_MS);
+    }, 0);
+
+    return () => {
+      window.clearTimeout(showTimeout);
+      if (hideTimeout !== undefined) window.clearTimeout(hideTimeout);
+    };
   }, [
     dashboard.completionRate,
     dashboard.currentCertificationDate,
@@ -1835,6 +1861,7 @@ export function DashboardClient({
                 ))}
                 {sortedParticipantProgress.map((row, index) => {
                   const latestBadge = latestGrowthBadgeByParticipant.get(row.participant.id);
+                  const latestBadgeLabel = latestBadge?.key === "hundred-day-streak" ? "100일 인증" : latestBadge?.label;
                   return (
                   <button
                     key={row.participant.id}
@@ -1852,11 +1879,16 @@ export function DashboardClient({
                     <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2.5 sm:gap-3">
                       <div className="relative flex min-w-[44px] shrink-0 justify-center pt-2">
                         {latestBadge && (
-                          <span className={`absolute left-1/2 top-0 z-10 inline-flex -translate-x-1/2 items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-[8px] font-black leading-none shadow-sm ${
-                            latestBadge.key === "hundred-day-streak" ? "max-w-[98px] sm:max-w-[112px]" : "max-w-[72px] sm:max-w-[84px]"
-                          } ${recentBadgeLabelClass(latestBadge.key)}`}>
+                          <span
+                            title={latestBadge.label}
+                            className={`absolute left-1/2 top-0 z-10 inline-flex -translate-x-1/2 items-center rounded-full border py-0.5 font-black leading-none shadow-sm ${
+                              latestBadge.key === "hundred-day-streak"
+                                ? "max-w-[60px] gap-0 px-1 text-[7px] sm:max-w-[82px] sm:gap-0.5 sm:px-1.5 sm:text-[8px]"
+                                : "max-w-[72px] gap-0.5 px-1.5 text-[8px] sm:max-w-[84px]"
+                            } ${recentBadgeLabelClass(latestBadge.key)}`}
+                          >
                             {latestBadge.key === "hundred-day-streak" && <span aria-hidden="true">👑</span>}
-                            <span className="truncate">{latestBadge.label}</span>
+                            <span className="truncate">{latestBadgeLabel}</span>
                           </span>
                         )}
                         <MemberPictogram index={row.pictogramIndex} participantName={row.participant.name} className="!h-9 !w-9 sm:!h-10 sm:!w-10" />
@@ -1910,12 +1942,58 @@ export function DashboardClient({
           </div>
         )}
 
-        {showDeferredTips && <LazyYoutubeShortsSection initialDayKey={todayIso} />}
-
-        <section className="card mobile-page-card mt-4 overflow-hidden bg-oriwan-surface-light p-3 sm:p-5" aria-label="전체 리커버리 추이">
-          <RecoveryTrendLineChart data={dashboard.recoveryDailyTrend} />
-          <RecoverySignalMetricsGrid metrics={dashboard.recoverySignalMetrics} />
+        <section className="mt-4 grid gap-2 sm:grid-cols-2" aria-label="리커버리 콘텐츠">
+          <button
+            type="button"
+            onClick={() => setShowRecoveryVideos((current) => !current)}
+            aria-expanded={showRecoveryVideos}
+            aria-controls="dashboard-recovery-videos"
+            className="card mobile-page-card flex min-h-20 items-center justify-between gap-3 px-4 py-3 text-left transition hover:ring-lime-300 sm:px-5"
+          >
+            <span className="flex min-w-0 items-center gap-3">
+              <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-rose-50 text-rose-500"><IconVideo size={19} /></span>
+              <span className="min-w-0">
+                <span id="dashboard-recovery-videos-label" className="block text-sm font-black text-oriwan-text">리커버리 영상</span>
+                <span className="mt-0.5 block truncate text-[10px] font-bold text-oriwan-text-muted">회복·스트레칭 영상 모아보기</span>
+              </span>
+            </span>
+            <span className="inline-flex shrink-0 items-center gap-1 text-[11px] font-black text-lime-700">
+              {showRecoveryVideos ? "접기" : "펼치기"}
+              <IconArrowRight size={14} className={`transition-transform ${showRecoveryVideos ? "rotate-90" : ""}`} />
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowRecoveryTrend((current) => !current)}
+            aria-expanded={showRecoveryTrend}
+            aria-controls="dashboard-recovery-trend"
+            className="card mobile-page-card flex min-h-20 items-center justify-between gap-3 px-4 py-3 text-left transition hover:ring-lime-300 sm:px-5"
+          >
+            <span className="flex min-w-0 items-center gap-3">
+              <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-sky-50 text-sky-600"><IconHeart size={19} /></span>
+              <span className="min-w-0">
+                <span id="dashboard-recovery-trend-label" className="block text-sm font-black text-oriwan-text">리커버리 추이</span>
+                <span className="mt-0.5 block truncate text-[10px] font-bold text-oriwan-text-muted">일자별 흐름과 회복 신호 보기</span>
+              </span>
+            </span>
+            <span className="inline-flex shrink-0 items-center gap-1 text-[11px] font-black text-lime-700">
+              {showRecoveryTrend ? "접기" : "펼치기"}
+              <IconArrowRight size={14} className={`transition-transform ${showRecoveryTrend ? "rotate-90" : ""}`} />
+            </span>
+          </button>
         </section>
+
+        {showRecoveryVideos && (
+          <div id="dashboard-recovery-videos" role="region" aria-labelledby="dashboard-recovery-videos-label">
+            <LazyYoutubeShortsSection initialDayKey={todayIso} />
+          </div>
+        )}
+
+        {showRecoveryTrend && (
+          <section id="dashboard-recovery-trend" role="region" aria-labelledby="dashboard-recovery-trend-label" className="card mobile-page-card mt-4 overflow-hidden bg-oriwan-surface-light p-3 sm:p-5">
+            <LazyRecoveryDashboardDetails data={dashboard.recoveryDailyTrend} metrics={dashboard.recoverySignalMetrics} />
+          </section>
+        )}
 
         <p className="py-6 text-center text-[11px] font-semibold text-oriwan-text-muted">
           {loading ? "오늘의 기록을 데려오는 중..." : `마지막 업데이트 ${formatLastUpdated(data?.generated_at)}`}

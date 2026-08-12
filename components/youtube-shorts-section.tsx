@@ -9,7 +9,7 @@ import { getCuratedYoutubeShortTips, tipCategoryLabels, youtubeEmbedUrl, youtube
 import type { TipCategory, YoutubeShortTip } from "@/lib/youtube-shorts";
 
 const categoryOptions: TipCategory[] = ["recovery", "stretching"];
-const TIP_LIMIT = 20;
+const TIP_LIMIT = 8;
 const SHORTS_SEEN_STORAGE_KEY = "oriwan-youtube-shorts-seen-v4";
 const LEGACY_SHORTS_SEEN_STORAGE_KEYS = ["oriwan-youtube-shorts-seen-v3", "oriwan-youtube-shorts-seen-v2"];
 
@@ -88,17 +88,17 @@ function selectUnseenCuratedTips(category: TipCategory, seed: number, seenIds: s
 }
 
 export function YoutubeShortsSection({ initialDayKey }: { initialDayKey: string }) {
-  const seenIdsRef = useRef<Record<TipCategory, string[]>>(loadSeenStore());
+  const [initialSeenIds] = useState(loadSeenStore);
+  const seenIdsRef = useRef<Record<TipCategory, string[]>>(initialSeenIds);
   const cursorRef = useRef<Record<TipCategory, string>>(makeEmptyCursors());
   const playerFrameRef = useRef<HTMLIFrameElement | null>(null);
   const [category, setCategory] = useState<TipCategory>("recovery");
   const [refreshSeed, setRefreshSeed] = useState(0);
   const [dayKey, setDayKey] = useState(initialDayKey);
-  const [mounted, setMounted] = useState(false);
   const [selectedTip, setSelectedTip] = useState<YoutubeShortTip | null>(null);
   const [shortsPlaying, setShortsPlaying] = useState(false);
   const [tips, setTips] = useState<YoutubeShortTip[]>(() => (
-    selectUnseenCuratedTips("recovery", dateSeed(initialDayKey), flattenSeenIds(seenIdsRef.current))
+    selectUnseenCuratedTips("recovery", dateSeed(initialDayKey), flattenSeenIds(initialSeenIds))
   ));
   const [loading, setLoading] = useState(false);
   const [brokenThumbnailIds, setBrokenThumbnailIds] = useState<string[]>([]);
@@ -135,10 +135,6 @@ export function YoutubeShortsSection({ initialDayKey }: { initialDayKey: string 
     setBrokenThumbnailIds([]);
     setTips(selectUnseenCuratedTips(nextCategory, dateSeed(dayKey) + nextSeed, flattenSeenIds(seenIdsRef.current)));
   }
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   useEffect(() => {
     if (!selectedTip) return;
@@ -317,7 +313,7 @@ export function YoutubeShortsSection({ initialDayKey }: { initialDayKey: string 
         })}
       </div>
 
-      {mounted && selectedTip ? createPortal(
+      {selectedTip ? createPortal(
         <div
           className="fixed inset-0 z-[120] flex items-center justify-center overflow-y-auto bg-slate-950/72 px-4 py-4 backdrop-blur-md sm:px-6 sm:py-6"
           style={{

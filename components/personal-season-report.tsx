@@ -10,29 +10,37 @@ import {
   selectRecentSeasonBadges,
   type SeasonMemberReport,
 } from "@/lib/season-report";
-import { renderSeasonPosterBlob } from "@/lib/season-poster-canvas";
 
-type MemberNavigatorItem = Pick<SeasonMemberReport, "id" | "name" | "pictogramIndex" | "theme" | "hasHundredDayBadge">;
+type PersonalSeasonReportMember = Pick<
+  SeasonMemberReport,
+  "id" | "name" | "pictogramIndex" | "cheerMessage" | "certifiedDays" | "durationSeconds" | "months" | "badges"
+>;
+
+type MemberNavigatorItem = Pick<SeasonMemberReport, "id" | "name" | "pictogramIndex">;
 
 function safeFileName(value: string) {
   return value.replace(/[\\/:*?"<>|]/g, "_");
 }
 
-export function PersonalSeasonReport({ member, members }: { member: SeasonMemberReport; members: MemberNavigatorItem[] }) {
+export function PersonalSeasonReport({ member, members }: { member: PersonalSeasonReportMember; members: MemberNavigatorItem[] }) {
   const characterRef = useRef<HTMLDivElement>(null);
-  const [busyAction, setBusyAction] = useState<"download" | "share" | null>(null);
+  const downloadInFlightRef = useRef(false);
+  const [downloading, setDownloading] = useState(false);
   const [notice, setNotice] = useState("");
 
   const createPoster = async () => {
+    const { renderSeasonPosterBlob } = await import("@/lib/season-poster-canvas");
     const svg = characterRef.current?.querySelector("svg");
     const svgMarkup = svg ? new XMLSerializer().serializeToString(svg) : "";
     return renderSeasonPosterBlob(member, svgMarkup);
   };
 
-  const fileName = () => safeFileName(`스내사_100일리포트_${member.name}_정사각형.png`);
+  const fileName = () => safeFileName(`report_${member.name}.png`);
 
   const downloadPoster = async () => {
-    setBusyAction("download");
+    if (downloadInFlightRef.current) return;
+    downloadInFlightRef.current = true;
+    setDownloading(true);
     setNotice("");
     try {
       const blob = await createPoster();
@@ -43,44 +51,12 @@ export function PersonalSeasonReport({ member, members }: { member: SeasonMember
       document.body.appendChild(anchor);
       anchor.click();
       anchor.remove();
-      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-      setNotice("2160×2160 고화질 PNG를 저장했습니다. iPhone은 다운로드 항목에서 사진 앱에 저장할 수 있어요.");
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "포스터 저장에 실패했습니다.");
     } finally {
-      setBusyAction(null);
-    }
-  };
-
-  const sharePoster = async () => {
-    setBusyAction("share");
-    setNotice("");
-    try {
-      const blob = await createPoster();
-      const file = new File([blob], fileName(), { type: "image/png" });
-      if (navigator.share && navigator.canShare?.({ files: [file] })) {
-        await navigator.share({
-          files: [file],
-          title: `${member.name}님의 스내사 100일 리포트`,
-          text: member.statement,
-        });
-        setNotice("공유 메뉴에서 Instagram이나 사진 저장을 선택할 수 있어요.");
-        return;
-      }
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = fileName();
-      document.body.appendChild(anchor);
-      anchor.click();
-      anchor.remove();
-      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-      setNotice("이 브라우저는 이미지 공유를 지원하지 않아 PNG로 저장했습니다.");
-    } catch (error) {
-      if (error instanceof DOMException && error.name === "AbortError") return;
-      setNotice(error instanceof Error ? error.message : "포스터 공유에 실패했습니다.");
-    } finally {
-      setBusyAction(null);
+      downloadInFlightRef.current = false;
+      setDownloading(false);
     }
   };
 
@@ -89,40 +65,40 @@ export function PersonalSeasonReport({ member, members }: { member: SeasonMember
   return (
     <div className="mx-auto w-full min-w-0 max-w-6xl px-2.5 py-3 sm:px-4 sm:py-6">
       <div className="grid min-w-0 items-start gap-3 xl:grid-cols-[minmax(0,680px)_minmax(300px,1fr)]">
-        <article className="aspect-square w-full min-w-0 overflow-hidden rounded-[26px] bg-white p-4 text-slate-950 shadow-xl shadow-slate-950/8 ring-1 ring-slate-950/5 sm:rounded-[32px] sm:p-7">
+        <article className="aspect-square w-full max-w-[680px] min-w-0 justify-self-center overflow-hidden rounded-[26px] bg-white p-4 text-slate-950 shadow-xl shadow-slate-950/8 ring-1 ring-slate-950/5 max-[359px]:p-3 sm:rounded-[32px] sm:p-7">
           <div className="flex h-full min-h-0 flex-col">
             <header className="flex shrink-0 items-center justify-between gap-3 text-[8px] font-black tracking-wide text-slate-400 sm:text-[10px]">
               <span>@thosewhothrowthemselvesin</span>
               <span>2026.05.05–08.12</span>
             </header>
 
-            <section className="mt-2 flex shrink-0 items-center justify-between gap-2 sm:mt-4 sm:gap-4">
+            <section className="mt-2 flex shrink-0 items-center justify-between gap-2 max-[359px]:mt-1.5 max-[359px]:gap-1 sm:mt-4 sm:gap-4">
               <div className="min-w-0">
                 <p className="truncate text-[clamp(1.75rem,8vw,3.5rem)] font-black leading-none tracking-[-0.06em]">{member.name}</p>
               </div>
               <div className="flex min-w-0 items-center justify-end gap-1.5 sm:gap-3">
-                <p className="w-32 shrink-0 rounded-2xl bg-sky-50 px-2 py-1.5 text-[8px] font-bold leading-[1.35] text-sky-950 ring-1 ring-sky-100 sm:w-56 sm:px-3 sm:py-2.5 sm:text-[11px] sm:leading-[1.45]">
+                <p className="w-32 shrink-0 rounded-2xl bg-sky-50 px-2 py-1.5 text-[8px] font-bold leading-[1.35] text-sky-950 ring-1 ring-sky-100 max-[359px]:w-28 max-[359px]:text-[7px] sm:w-56 sm:px-3 sm:py-2.5 sm:text-[11px] sm:leading-[1.45]">
                   {member.cheerMessage}
                 </p>
-                <div ref={characterRef} className="flex h-16 w-16 shrink-0 items-center justify-center sm:h-24 sm:w-24">
+                <div ref={characterRef} className="flex h-16 w-16 shrink-0 items-center justify-center max-[359px]:h-14 max-[359px]:w-14 sm:h-24 sm:w-24">
                   <MemberPictogram
                     index={member.pictogramIndex}
                     participantName={member.name}
                     transparentBackground
-                    className="!h-14 !w-14 sm:!h-20 sm:!w-20"
+                    className="!h-14 !w-14 max-[359px]:!h-12 max-[359px]:!w-12 sm:!h-20 sm:!w-20"
                   />
                 </div>
               </div>
             </section>
 
-            <section className="mt-3 grid shrink-0 grid-cols-2 gap-2 border-y border-slate-100 py-3 sm:mt-5 sm:gap-4 sm:py-4">
+            <section className="mt-3 grid shrink-0 grid-cols-2 gap-2 border-y border-slate-100 py-3 max-[359px]:mt-2 max-[359px]:py-2 sm:mt-5 sm:gap-4 sm:py-4">
               {[
                 ["총 인증일", `${member.certifiedDays}일`],
                 ["누적 시간", formatSeasonDuration(member.durationSeconds)],
               ].map(([label, value]) => (
                 <div key={label} className="min-w-0">
                   <p className="text-[8px] font-black text-slate-400 sm:text-[10px]">{label}</p>
-                  <p className="mt-1 truncate text-lg font-black tabular-nums text-slate-950 sm:text-2xl">{value}</p>
+                  <p className="mt-1 truncate text-lg font-black tabular-nums text-slate-950 max-[359px]:text-base sm:text-2xl">{value}</p>
                 </div>
               ))}
             </section>
@@ -132,7 +108,7 @@ export function PersonalSeasonReport({ member, members }: { member: SeasonMember
                 <p className="text-[10px] font-black tracking-[0.08em] sm:text-sm">MONTH DISTANCE</p>
                 <p className="text-[7px] font-bold text-slate-400 sm:text-[9px]">단위 km</p>
               </div>
-              <div className="mt-1 min-h-0 flex-1 sm:mt-2">
+              <div className="mt-1 min-h-0 flex-1 overflow-hidden sm:mt-2">
                 <SeasonMonthlyDistanceBars months={member.months} accent="#38bdf8" />
               </div>
             </section>
@@ -146,11 +122,12 @@ export function PersonalSeasonReport({ member, members }: { member: SeasonMember
                 {recentBadges.map((badge) => (
                   <span
                     key={badge.key}
-                    className={`flex min-h-7 min-w-0 items-center justify-center whitespace-nowrap rounded-lg px-1 text-center text-[7px] font-black tracking-[-0.03em] sm:min-h-9 sm:rounded-xl sm:px-2 sm:text-[10px] ${
+                    className={`flex min-h-7 min-w-0 items-center justify-center overflow-hidden whitespace-nowrap rounded-lg px-1 text-center text-[7px] font-black !tracking-[-0.03em] sm:min-h-9 sm:rounded-xl sm:px-2 sm:text-[10px] ${
                       badge.key === "hundred-day-streak" ? "bg-sky-100 text-blue-900" : "bg-slate-50 text-slate-700"
                     }`}
                   >
-                    {badge.key === "hundred-day-streak" ? "👑 " : ""}{badge.label}
+                    {badge.key === "hundred-day-streak" && <span className="shrink-0" aria-hidden="true">👑&nbsp;</span>}
+                    <span className="min-w-0 truncate">{badge.label}</span>
                   </span>
                 ))}
               </div>
@@ -158,29 +135,18 @@ export function PersonalSeasonReport({ member, members }: { member: SeasonMember
           </div>
         </article>
 
-        <aside className="min-w-0 pb-4 xl:sticky xl:top-32">
-          <section className="rounded-[24px] bg-white p-4 shadow-sm ring-1 ring-slate-950/5 sm:p-5">
-            <p className="text-base font-black text-slate-950">포스터 저장·공유</p>
-            <p className="mt-1 text-xs font-bold leading-5 text-slate-500">화면과 같은 1:1 비율의 2160px 고화질 PNG로 저장합니다.</p>
-            <div className="mt-4 grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={downloadPoster}
-                disabled={busyAction !== null}
-                className="min-h-12 rounded-2xl bg-slate-950 px-3 text-sm font-black text-lime-200 shadow-lg shadow-slate-950/15 disabled:opacity-50"
-              >
-                {busyAction === "download" ? "이미지 만드는 중…" : "사진으로 저장"}
-              </button>
-              <button
-                type="button"
-                onClick={sharePoster}
-                disabled={busyAction !== null}
-                className="min-h-12 rounded-2xl bg-lime-300 px-3 text-sm font-black text-slate-950 shadow-lg shadow-lime-300/20 disabled:opacity-50"
-              >
-                {busyAction === "share" ? "공유 준비 중…" : "공유하기"}
-              </button>
-            </div>
-            {notice && <p role="status" className="mt-3 rounded-2xl bg-slate-50 px-3 py-2.5 text-[10px] font-bold leading-5 text-slate-600">{notice}</p>}
+        <aside className="w-full max-w-[680px] min-w-0 justify-self-center pb-4 xl:sticky xl:top-32 xl:max-w-none">
+          <section className="rounded-[24px] bg-white p-3 shadow-sm ring-1 ring-slate-950/5 sm:p-4">
+            <button
+              type="button"
+              onClick={downloadPoster}
+              disabled={downloading}
+              aria-busy={downloading}
+              className="flex min-h-12 w-full items-center justify-center rounded-2xl bg-slate-950 px-4 text-sm font-black text-lime-200 shadow-lg shadow-slate-950/15 transition hover:bg-slate-800 disabled:cursor-wait disabled:opacity-60"
+            >
+              {downloading ? "다운로드 준비 중…" : "리포트 다운로드"}
+            </button>
+            {notice && <p role="alert" className="mt-2 rounded-2xl bg-rose-50 px-3 py-2.5 text-[10px] font-bold leading-5 text-rose-700">{notice}</p>}
           </section>
 
           <section className="mt-3 rounded-[24px] bg-white p-4 shadow-sm ring-1 ring-slate-950/5 sm:p-5">
@@ -192,7 +158,7 @@ export function PersonalSeasonReport({ member, members }: { member: SeasonMember
               <Link href="/dashboard/report" className="inline-flex items-center gap-1 text-[10px] font-black text-lime-700">전체 <IconArrowRight size={13} /></Link>
             </div>
             <div className="-mx-1 mt-3 flex snap-x gap-2 overflow-x-auto px-1 pb-2">
-              <Link href="/dashboard/report" className="flex w-16 shrink-0 snap-start flex-col items-center gap-1.5 rounded-2xl bg-slate-950 px-2 py-3 text-white">
+              <Link href="/dashboard/report" prefetch={false} className="flex w-16 shrink-0 snap-start flex-col items-center gap-1.5 rounded-2xl bg-slate-950 px-2 py-3 text-white">
                 <span className="flex h-9 w-9 items-center justify-center rounded-full bg-lime-300 text-[10px] font-black text-slate-950">ALL</span>
                 <span className="text-[9px] font-black">전체</span>
               </Link>
@@ -200,6 +166,7 @@ export function PersonalSeasonReport({ member, members }: { member: SeasonMember
                 <Link
                   key={item.id}
                   href={`/dashboard/report/${item.id}`}
+                  prefetch={false}
                   aria-current={item.id === member.id ? "page" : undefined}
                   className={`flex w-16 shrink-0 snap-start flex-col items-center gap-1.5 rounded-2xl px-2 py-3 ring-1 ${item.id === member.id ? "bg-lime-50 ring-lime-300" : "bg-slate-50 ring-slate-950/5"}`}
                 >

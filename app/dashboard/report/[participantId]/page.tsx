@@ -22,18 +22,26 @@ export default async function PersonalSeasonReportPage({ params }: { params: Pro
   const member = report.members.find((item) => item.id === participantId);
   if (!member) notFound();
 
+  const reportMember = {
+    id: member.id,
+    name: member.name,
+    pictogramIndex: member.pictogramIndex,
+    cheerMessage: member.cheerMessage,
+    certifiedDays: member.certifiedDays,
+    durationSeconds: member.durationSeconds,
+    months: member.months,
+    badges: member.badges,
+  };
   const memberNavigator = report.members.map((item) => ({
     id: item.id,
     name: item.name,
     pictogramIndex: item.pictogramIndex,
-    theme: item.theme,
-    hasHundredDayBadge: item.hasHundredDayBadge,
   }));
 
   return (
     <main className="min-h-screen bg-oriwan-bg">
       <DashboardSiteHeader active="report" />
-      <PersonalSeasonReport member={member} members={memberNavigator} />
+      <PersonalSeasonReport member={reportMember} members={memberNavigator} />
     </main>
   );
 }
