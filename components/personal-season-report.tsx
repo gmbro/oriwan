@@ -5,7 +5,12 @@ import { useRef, useState } from "react";
 import { IconArrowRight } from "@/components/icons";
 import { MemberPictogram } from "@/components/member-pictogram";
 import { SeasonMonthlyDistanceBars } from "@/components/season-report-visuals";
-import { formatSeasonDuration, type SeasonMemberReport } from "@/lib/season-report";
+import {
+  formatSeasonDuration,
+  formatSeasonPace,
+  selectRecentSeasonBadges,
+  type SeasonMemberReport,
+} from "@/lib/season-report";
 import { renderSeasonPosterBlob } from "@/lib/season-poster-canvas";
 
 type MemberNavigatorItem = Pick<SeasonMemberReport, "id" | "name" | "pictogramIndex" | "theme" | "hasHundredDayBadge">;
@@ -80,7 +85,7 @@ export function PersonalSeasonReport({ member, members }: { member: SeasonMember
     }
   };
 
-  const recentBadges = member.badges.slice(0, 4);
+  const recentBadges = selectRecentSeasonBadges(member.badges, 4);
 
   return (
     <div className="mx-auto w-full min-w-0 max-w-6xl px-2.5 py-3 sm:px-4 sm:py-6">
@@ -92,13 +97,17 @@ export function PersonalSeasonReport({ member, members }: { member: SeasonMember
               <span>2026.05.05–08.12</span>
             </header>
 
-            <section className="mt-2 flex shrink-0 items-center justify-between gap-3 sm:mt-4">
+            <section className="mt-2 flex shrink-0 items-center justify-between gap-2 sm:mt-4 sm:gap-4">
               <div className="min-w-0">
                 <p className="truncate text-[clamp(1.75rem,8vw,3.5rem)] font-black leading-none tracking-[-0.06em]">{member.name}</p>
-                <p className="mt-1.5 text-[9px] font-black text-slate-500 sm:mt-2 sm:text-xs">{member.theme.label}</p>
               </div>
-              <div ref={characterRef} className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-slate-50 ring-1 ring-slate-950/5 sm:h-24 sm:w-24">
-                <MemberPictogram index={member.pictogramIndex} participantName={member.name} className="!h-14 !w-14 sm:!h-20 sm:!w-20" />
+              <div className="flex min-w-0 items-center justify-end gap-1.5 sm:gap-3">
+                <p className="w-32 shrink-0 rounded-2xl bg-sky-50 px-2 py-1.5 text-[8px] font-bold leading-[1.35] text-sky-950 ring-1 ring-sky-100 sm:w-56 sm:px-3 sm:py-2.5 sm:text-[11px] sm:leading-[1.45]">
+                  {member.cheerMessage}
+                </p>
+                <div ref={characterRef} className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-slate-50 ring-1 ring-slate-950/5 sm:h-24 sm:w-24">
+                  <MemberPictogram index={member.pictogramIndex} participantName={member.name} className="!h-14 !w-14 sm:!h-20 sm:!w-20" />
+                </div>
               </div>
             </section>
 
@@ -110,10 +119,11 @@ export function PersonalSeasonReport({ member, members }: { member: SeasonMember
               <p className="mt-1 text-[8px] font-black tracking-[0.12em] text-slate-400 sm:text-[10px]">총 거리 · TOTAL DISTANCE</p>
             </section>
 
-            <section className="mt-2 grid shrink-0 grid-cols-3 gap-1.5 border-y border-slate-100 py-2 sm:mt-4 sm:gap-3 sm:py-3">
+            <section className="mt-2 grid shrink-0 grid-cols-4 gap-1.5 border-y border-slate-100 py-2 sm:mt-4 sm:gap-3 sm:py-3">
               {[
                 ["총 인증일", `${member.certifiedDays}일`],
                 ["누적 시간", formatSeasonDuration(member.durationSeconds)],
+                ["페이스", formatSeasonPace(member.durationSeconds, member.distanceKm)],
                 ["리커버리 일자", `${member.recoveryDayCount}일`],
               ].map(([label, value]) => (
                 <div key={label} className="min-w-0">

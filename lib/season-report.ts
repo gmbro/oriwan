@@ -87,6 +87,7 @@ export type SeasonMemberReport = {
   bestWeekLabel: string;
   theme: SeasonReportTheme;
   statement: string;
+  cheerMessage: string;
   badges: SeasonReportBadge[];
   recentBadge: SeasonReportBadge | null;
   hasHundredDayBadge: boolean;
@@ -118,9 +119,40 @@ export type SeasonReport = {
   members: SeasonMemberReport[];
 };
 
-type MemberBase = Omit<SeasonMemberReport, "theme" | "statement">;
+type MemberBase = Omit<SeasonMemberReport, "theme" | "statement" | "cheerMessage">;
 
 const WEEKDAY_LABELS = ["일요일", "월요일", "화요일", "수요일", "목요일", "금요일", "토요일"];
+
+const CHEER_MESSAGE_TEMPLATES = [
+  (name: string) => `${name}님, 100일의 꾸준함이 빛나요. 다음 러닝도 힘차게!`,
+  (name: string) => `${name}님, 오늘도 좋은 리듬이에요. 가볍게 한 걸음 더!`,
+  (name: string) => `${name}님, 쌓아온 시간이 든든해요. 다음 계절도 응원할게요!`,
+  (name: string) => `${name}님, 끝까지 이어온 힘이 멋져요. 오늘도 즐겁게 달려요!`,
+  (name: string) => `${name}님, 매일의 발걸음이 큰 기록이 됐어요. 정말 잘했어요!`,
+  (name: string) => `${name}님, 자신만의 속도가 가장 멋져요. 오늘도 파이팅!`,
+  (name: string) => `${name}님, 꾸준함이 최고의 재능이에요. 다음 달리기도 함께해요!`,
+  (name: string) => `${name}님, 멈추지 않은 마음이 대단해요. 힘차게 출발해요!`,
+  (name: string) => `${name}님, 오늘의 한 걸음도 충분히 빛나요. 계속 응원할게요!`,
+  (name: string) => `${name}님, 달려온 모든 아침이 자랑스러워요. 다음 길도 즐겨요!`,
+  (name: string) => `${name}님, 긴 호흡으로 잘 이어왔어요. 새로운 기록도 기대할게요!`,
+  (name: string) => `${name}님, 나만의 리듬을 지켜낸 게 멋져요. 오늘도 가볍게!`,
+  (name: string) => `${name}님, 성실한 발걸음이 큰 힘이 됐어요. 계속 달려봐요!`,
+  (name: string) => `${name}님, 매일 조금씩 강해졌어요. 다음 아침도 응원해요!`,
+  (name: string) => `${name}님, 완주한 100일이 정말 근사해요. 다음 목표도 파이팅!`,
+  (name: string) => `${name}님, 달리는 순간마다 빛났어요. 오늘도 좋은 러닝 되세요!`,
+  (name: string) => `${name}님, 여기까지 온 힘을 믿어요. 다음 발걸음도 씩씩하게!`,
+  (name: string) => `${name}님, 쌓인 기록만큼 더 단단해졌어요. 계속 응원할게요!`,
+  (name: string) => `${name}님, 꾸준히 만든 변화가 멋져요. 오늘도 기분 좋게 달려요!`,
+  (name: string) => `${name}님, 자신과의 약속을 멋지게 지켰어요. 다음 도전도 함께해요!`,
+  (name: string) => `${name}님, 100일의 여정이 큰 박수감이에요. 힘차게 다음으로!`,
+];
+
+const STREAK_BADGE_RANK: Partial<Record<PersonalGrowthBadgeKey, number>> = {
+  "thirty-day-root": 30,
+  "fifty-day-core": 50,
+  "seventy-day-arc": 70,
+  "hundred-day-streak": 100,
+};
 
 const THEMES: Record<SeasonReportThemeKey, SeasonReportTheme> = {
   pacer: {
@@ -296,6 +328,21 @@ function memberStatement(member: MemberBase, theme: SeasonReportTheme) {
   return `100일 동안 ${member.certifiedDays}번의 아침을 열었습니다.`;
 }
 
+function makeCheerMessage(member: MemberBase) {
+  const template = CHEER_MESSAGE_TEMPLATES[member.pictogramIndex % CHEER_MESSAGE_TEMPLATES.length];
+  return template(member.name);
+}
+
+export function selectRecentSeasonBadges(badges: SeasonReportBadge[], limit = 4) {
+  const highestStreakBadge = badges
+    .filter((badge) => STREAK_BADGE_RANK[badge.key])
+    .sort((left, right) => (STREAK_BADGE_RANK[right.key] || 0) - (STREAK_BADGE_RANK[left.key] || 0))[0];
+
+  return badges
+    .filter((badge) => !STREAK_BADGE_RANK[badge.key] || badge.key === highestStreakBadge?.key)
+    .slice(0, limit);
+}
+
 function makeMemberBase(
   payload: PublicDashboardPayload,
   participant: PublicDashboardPayload["participants"][number],
@@ -428,7 +475,12 @@ export function buildSeasonReport(payload: PublicDashboardPayload): SeasonReport
   const members = bases
     .map((member): SeasonMemberReport => {
       const theme = chooseTheme(member, bases);
-      return { ...member, theme, statement: memberStatement(member, theme) };
+      return {
+        ...member,
+        theme,
+        statement: memberStatement(member, theme),
+        cheerMessage: makeCheerMessage(member),
+      };
     })
     .sort((left, right) => (
       right.certifiedDays - left.certifiedDays ||
@@ -496,4 +548,12 @@ export function formatSeasonDuration(seconds: number) {
 
 export function formatSeasonDate(date: string) {
   return date ? date.slice(5).replace("-", ".") : "-";
+}
+
+export function formatSeasonPace(durationSeconds: number, distanceKm: number) {
+  if (!distanceKm || !durationSeconds) return "-";
+  const secondsPerKm = Math.round(durationSeconds / distanceKm);
+  const minutes = Math.floor(secondsPerKm / 60);
+  const seconds = secondsPerKm % 60;
+  return `${minutes}'${String(seconds).padStart(2, "0")}\"`;
 }

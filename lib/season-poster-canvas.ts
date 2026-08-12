@@ -1,4 +1,9 @@
-import { formatSeasonDuration, type SeasonMemberReport } from "@/lib/season-report";
+import {
+  formatSeasonDuration,
+  formatSeasonPace,
+  selectRecentSeasonBadges,
+  type SeasonMemberReport,
+} from "@/lib/season-report";
 
 const FONT_STACK = '"Apple SD Gothic Neo", "Noto Sans KR", "Segoe UI", sans-serif';
 const INK = "#0f172a";
@@ -49,6 +54,39 @@ function drawText(
   context.textBaseline = "alphabetic";
   setFont(context, size, weight);
   context.fillText(value, x, y);
+}
+
+function drawWrappedText(
+  context: CanvasRenderingContext2D,
+  value: string,
+  x: number,
+  y: number,
+  maxWidth: number,
+  lineHeight: number,
+  maxLines: number,
+  size: number,
+  color: string
+) {
+  setFont(context, size, 800);
+  const words = value.split(" ");
+  const lines: string[] = [];
+  let currentLine = "";
+
+  words.forEach((word) => {
+    const candidate = currentLine ? `${currentLine} ${word}` : word;
+    if (context.measureText(candidate).width <= maxWidth) {
+      currentLine = candidate;
+      return;
+    }
+    if (currentLine) lines.push(currentLine);
+    currentLine = word;
+  });
+  if (currentLine) lines.push(currentLine);
+
+  lines.slice(0, maxLines).forEach((line, index) => {
+    const isTruncated = index === maxLines - 1 && lines.length > maxLines;
+    drawText(context, isTruncated ? `${line}…` : line, x, y + index * lineHeight, size, color, 800);
+  });
 }
 
 async function loadSvg(svgMarkup: string) {
@@ -135,16 +173,27 @@ export async function renderSeasonPosterBlob(member: SeasonMemberReport, charact
   const characterSize = 190;
   const characterX = width - margin - characterSize;
   const characterY = 98;
+  const bubbleX = 432;
+  const bubbleY = 118;
+  const bubbleWidth = 338;
+  const bubbleHeight = 112;
+  fillRoundedRect(context, bubbleX, bubbleY, bubbleWidth, bubbleHeight, 28, "#f0f9ff");
+  context.fillStyle = "#f0f9ff";
+  context.beginPath();
+  context.moveTo(bubbleX + bubbleWidth - 2, bubbleY + 42);
+  context.lineTo(bubbleX + bubbleWidth + 24, bubbleY + 56);
+  context.lineTo(bubbleX + bubbleWidth - 2, bubbleY + 72);
+  context.closePath();
+  context.fill();
+  drawWrappedText(context, member.cheerMessage, bubbleX + 24, bubbleY + 38, bubbleWidth - 48, 28, 3, 18, "#0c4a6e");
   context.fillStyle = "#f8fafc";
   context.beginPath();
   context.arc(characterX + characterSize / 2, characterY + characterSize / 2, characterSize / 2 + 18, 0, Math.PI * 2);
   context.fill();
   if (character) context.drawImage(character, characterX, characterY, characterSize, characterSize);
 
-  const nameSize = fitText(context, member.name, 620, 82, 48);
+  const nameSize = fitText(context, member.name, 320, 82, 48);
   drawText(context, member.name, margin, 180, nameSize, INK, 900);
-  fillRoundedRect(context, margin, 206, 230, 42, 21, "#f1f5f9");
-  drawText(context, member.theme.label, margin + 115, 234, 18, "#475569", 900, "center");
 
   const distanceValue = member.distanceKm.toFixed(1);
   const distanceSize = fitText(context, distanceValue, 720, 126, 88);
@@ -160,11 +209,12 @@ export async function renderSeasonPosterBlob(member: SeasonMemberReport, charact
   context.lineWidth = 2;
   context.stroke();
 
-  const statGap = 36;
-  const statWidth = (width - margin * 2 - statGap * 2) / 3;
+  const statGap = 24;
+  const statWidth = (width - margin * 2 - statGap * 3) / 4;
   drawStat(context, margin, statWidth, "총 인증일", `${member.certifiedDays}일`);
   drawStat(context, margin + statWidth + statGap, statWidth, "누적 시간", formatSeasonDuration(member.durationSeconds));
-  drawStat(context, margin + (statWidth + statGap) * 2, statWidth, "리커버리 일자", `${member.recoveryDayCount}일`);
+  drawStat(context, margin + (statWidth + statGap) * 2, statWidth, "페이스", formatSeasonPace(member.durationSeconds, member.distanceKm));
+  drawStat(context, margin + (statWidth + statGap) * 3, statWidth, "리커버리 일자", `${member.recoveryDayCount}일`);
 
   drawText(context, "월별 총 거리", margin, 666, 26, INK, 900);
   drawText(context, "단위 km", width - margin, 666, 16, MUTED, 800, "right");
@@ -172,7 +222,7 @@ export async function renderSeasonPosterBlob(member: SeasonMemberReport, charact
 
   drawText(context, "최근 획득 뱃지", margin, 980, 18, "#64748b", 900);
   drawText(context, "획득일 기준 최신 4개", width - margin, 980, 15, MUTED, 800, "right");
-  const recentBadges = member.badges.slice(0, 4);
+  const recentBadges = selectRecentSeasonBadges(member.badges, 4);
   const badgeGap = 12;
   const badgeWidth = (width - margin * 2 - badgeGap * 3) / 4;
   recentBadges.forEach((badge, index) => {
