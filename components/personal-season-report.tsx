@@ -5,7 +5,7 @@ import { useRef, useState } from "react";
 import { IconArrowRight } from "@/components/icons";
 import { MemberPictogram } from "@/components/member-pictogram";
 import { SeasonMonthlyDistanceBars } from "@/components/season-report-visuals";
-import { formatSeasonDuration, formatSeasonPace, type SeasonMemberReport } from "@/lib/season-report";
+import { formatSeasonDuration, type SeasonMemberReport } from "@/lib/season-report";
 import { renderSeasonPosterBlob } from "@/lib/season-poster-canvas";
 
 type MemberNavigatorItem = Pick<SeasonMemberReport, "id" | "name" | "pictogramIndex" | "theme" | "hasHundredDayBadge">;
@@ -80,9 +80,7 @@ export function PersonalSeasonReport({ member, members }: { member: SeasonMember
     }
   };
 
-  const latestBadgeLabel = member.recentBadge
-    ? `${member.recentBadge.key === "hundred-day-streak" ? "👑 " : ""}${member.recentBadge.label}`
-    : "100일 완주";
+  const recentBadges = member.badges.slice(0, 4);
 
   return (
     <div className="mx-auto w-full min-w-0 max-w-6xl px-2.5 py-3 sm:px-4 sm:py-6">
@@ -98,11 +96,6 @@ export function PersonalSeasonReport({ member, members }: { member: SeasonMember
               <div className="min-w-0">
                 <p className="truncate text-[clamp(1.75rem,8vw,3.5rem)] font-black leading-none tracking-[-0.06em]">{member.name}</p>
                 <p className="mt-1.5 text-[9px] font-black text-slate-500 sm:mt-2 sm:text-xs">{member.theme.label}</p>
-                <span className={`mt-1.5 inline-flex max-w-full items-center truncate rounded-full px-2 py-1 text-[8px] font-black sm:mt-2 sm:px-3 sm:text-[10px] ${
-                  member.recentBadge?.key === "hundred-day-streak" ? "bg-sky-100 text-blue-900" : "bg-slate-100 text-slate-700"
-                }`}>
-                  {latestBadgeLabel}
-                </span>
               </div>
               <div ref={characterRef} className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-slate-50 ring-1 ring-slate-950/5 sm:h-24 sm:w-24">
                 <MemberPictogram index={member.pictogramIndex} participantName={member.name} className="!h-14 !w-14 sm:!h-20 sm:!w-20" />
@@ -119,9 +112,9 @@ export function PersonalSeasonReport({ member, members }: { member: SeasonMember
 
             <section className="mt-2 grid shrink-0 grid-cols-3 gap-1.5 border-y border-slate-100 py-2 sm:mt-4 sm:gap-3 sm:py-3">
               {[
-                ["총 인증", `${member.certifiedDays}일`],
-                ["평균 페이스", formatSeasonPace(member.durationSeconds, member.distanceKm)],
+                ["총 인증일", `${member.certifiedDays}일`],
                 ["누적 시간", formatSeasonDuration(member.durationSeconds)],
+                ["리커버리 일자", `${member.recoveryDayCount}일`],
               ].map(([label, value]) => (
                 <div key={label} className="min-w-0">
                   <p className="text-[7px] font-black text-slate-400 sm:text-[9px]">{label}</p>
@@ -140,10 +133,24 @@ export function PersonalSeasonReport({ member, members }: { member: SeasonMember
               </div>
             </section>
 
-            <footer className="mt-2 flex shrink-0 items-center justify-between gap-2 rounded-xl bg-slate-50 px-2.5 py-2 text-[8px] font-black text-slate-500 sm:mt-3 sm:rounded-2xl sm:px-4 sm:py-3 sm:text-[10px]">
-              <span>최장 연속 <b className="text-slate-950">{member.longestStreak}일</b></span>
-              <span>획득 뱃지 <b className="text-slate-950">{member.badges.length}개</b></span>
-            </footer>
+            <section className="mt-2 shrink-0 sm:mt-3">
+              <div className="mb-1 flex items-center justify-between gap-2 sm:mb-2">
+                <p className="text-[8px] font-black text-slate-500 sm:text-[10px]">최근 획득 뱃지</p>
+                <p className="text-[7px] font-bold text-slate-400 sm:text-[9px]">획득일 기준 최신 4개</p>
+              </div>
+              <div className="grid grid-cols-4 gap-1 sm:gap-2">
+                {recentBadges.map((badge) => (
+                  <span
+                    key={badge.key}
+                    className={`flex min-h-7 min-w-0 items-center justify-center whitespace-nowrap rounded-lg px-1 text-center text-[7px] font-black tracking-[-0.03em] sm:min-h-9 sm:rounded-xl sm:px-2 sm:text-[10px] ${
+                      badge.key === "hundred-day-streak" ? "bg-sky-100 text-blue-900" : "bg-slate-50 text-slate-700"
+                    }`}
+                  >
+                    {badge.key === "hundred-day-streak" ? "👑 " : ""}{badge.label}
+                  </span>
+                ))}
+              </div>
+            </section>
           </div>
         </article>
 

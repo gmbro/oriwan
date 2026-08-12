@@ -1,4 +1,4 @@
-import { formatSeasonDuration, formatSeasonPace, type SeasonMemberReport } from "@/lib/season-report";
+import { formatSeasonDuration, type SeasonMemberReport } from "@/lib/season-report";
 
 const FONT_STACK = '"Apple SD Gothic Neo", "Noto Sans KR", "Segoe UI", sans-serif';
 const INK = "#0f172a";
@@ -146,14 +146,6 @@ export async function renderSeasonPosterBlob(member: SeasonMemberReport, charact
   fillRoundedRect(context, margin, 206, 230, 42, 21, "#f1f5f9");
   drawText(context, member.theme.label, margin + 115, 234, 18, "#475569", 900, "center");
 
-  if (member.recentBadge) {
-    const badgeLabel = `${member.recentBadge.key === "hundred-day-streak" ? "👑 " : ""}${member.recentBadge.label}`;
-    setFont(context, 17, 900);
-    const badgeWidth = Math.min(context.measureText(badgeLabel).width + 44, 280);
-    fillRoundedRect(context, margin, 260, badgeWidth, 40, 20, member.recentBadge.key === "hundred-day-streak" ? "#e0f2fe" : "#f8fafc");
-    drawText(context, badgeLabel, margin + badgeWidth / 2, 286, 17, member.recentBadge.key === "hundred-day-streak" ? "#1e3a8a" : "#475569", 900, "center");
-  }
-
   const distanceValue = member.distanceKm.toFixed(1);
   const distanceSize = fitText(context, distanceValue, 720, 126, 88);
   drawText(context, distanceValue, margin, 440, distanceSize, INK, 900);
@@ -170,17 +162,27 @@ export async function renderSeasonPosterBlob(member: SeasonMemberReport, charact
 
   const statGap = 36;
   const statWidth = (width - margin * 2 - statGap * 2) / 3;
-  drawStat(context, margin, statWidth, "총 인증", `${member.certifiedDays}일`);
-  drawStat(context, margin + statWidth + statGap, statWidth, "평균 페이스", formatSeasonPace(member.durationSeconds, member.distanceKm));
-  drawStat(context, margin + (statWidth + statGap) * 2, statWidth, "누적 시간", formatSeasonDuration(member.durationSeconds));
+  drawStat(context, margin, statWidth, "총 인증일", `${member.certifiedDays}일`);
+  drawStat(context, margin + statWidth + statGap, statWidth, "누적 시간", formatSeasonDuration(member.durationSeconds));
+  drawStat(context, margin + (statWidth + statGap) * 2, statWidth, "리커버리 일자", `${member.recoveryDayCount}일`);
 
   drawText(context, "월별 총 거리", margin, 666, 26, INK, 900);
   drawText(context, "단위 km", width - margin, 666, 16, MUTED, 800, "right");
   drawMonthlyDistanceChart(context, member);
 
-  fillRoundedRect(context, margin, 982, width - margin * 2, 58, 20, "#f8fafc");
-  drawText(context, `최장 연속 ${member.longestStreak}일`, margin + 24, 1020, 18, "#475569", 900);
-  drawText(context, `획득 뱃지 ${member.badges.length}개`, width - margin - 24, 1020, 18, "#475569", 900, "right");
+  drawText(context, "최근 획득 뱃지", margin, 980, 18, "#64748b", 900);
+  drawText(context, "획득일 기준 최신 4개", width - margin, 980, 15, MUTED, 800, "right");
+  const recentBadges = member.badges.slice(0, 4);
+  const badgeGap = 12;
+  const badgeWidth = (width - margin * 2 - badgeGap * 3) / 4;
+  recentBadges.forEach((badge, index) => {
+    const x = margin + index * (badgeWidth + badgeGap);
+    const isHundredDay = badge.key === "hundred-day-streak";
+    fillRoundedRect(context, x, 994, badgeWidth, 54, 16, isHundredDay ? "#e0f2fe" : "#f8fafc");
+    const label = `${isHundredDay ? "👑 " : ""}${badge.label}`;
+    const labelSize = fitText(context, label, badgeWidth - 20, 16, 11);
+    drawText(context, label, x + badgeWidth / 2, 1028, labelSize, isHundredDay ? "#1e3a8a" : "#475569", 900, "center");
+  });
 
   return new Promise<Blob>((resolve, reject) => {
     canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("포스터 이미지 생성에 실패했습니다.")), "image/png", 1);

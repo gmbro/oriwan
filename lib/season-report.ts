@@ -77,6 +77,7 @@ export type SeasonMemberReport = {
   longestStreak: number;
   currentStreak: number;
   recoveryUsageCount: number;
+  recoveryDayCount: number;
   maxSingleDistanceKm: number;
   maxSingleDurationSeconds: number;
   fiveKmCertificationCount: number;
@@ -315,6 +316,11 @@ function makeMemberBase(
   const certifiedDates = uniqueCertifiedDates(records);
   const certifiedDateSet = new Set(certifiedDates);
   const recoveryUsageCount = records.filter(isRecoveryCertificationRecord).length;
+  const recoveryDayCount = new Set(
+    records
+      .filter(isRecoveryCertificationRecord)
+      .flatMap((record) => record.record_date ? [record.record_date] : [])
+  ).size;
   const distanceKm = records.reduce((sum, record) => sum + (record.distance_km || 0), 0);
   const durationSeconds = records.reduce((sum, record) => sum + (record.duration_seconds || 0), 0);
   const maxSingleDistanceKm = records.reduce((max, record) => Math.max(max, record.distance_km || 0), 0);
@@ -373,6 +379,7 @@ function makeMemberBase(
     longestStreak,
     currentStreak,
     recoveryUsageCount,
+    recoveryDayCount,
     maxSingleDistanceKm,
     maxSingleDurationSeconds,
     fiveKmCertificationCount,
@@ -489,12 +496,4 @@ export function formatSeasonDuration(seconds: number) {
 
 export function formatSeasonDate(date: string) {
   return date ? date.slice(5).replace("-", ".") : "-";
-}
-
-export function formatSeasonPace(durationSeconds: number, distanceKm: number) {
-  if (!distanceKm || !durationSeconds) return "-";
-  const secondsPerKm = Math.round(durationSeconds / distanceKm);
-  const minutes = Math.floor(secondsPerKm / 60);
-  const seconds = secondsPerKm % 60;
-  return `${minutes}'${String(seconds).padStart(2, "0")}\"`;
 }

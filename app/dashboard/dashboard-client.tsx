@@ -2391,9 +2391,6 @@ export function DashboardClient({
                 ))}
               </div>
 
-              <p className="mt-3 rounded-2xl bg-lime-50 px-4 py-3 text-xs font-black leading-5 text-lime-800 ring-1 ring-lime-200/70">
-                100일차 칩은 보너스 데이가 아니라, 개인별 최종 리포트를 여는 입구입니다.
-              </p>
               {remainingSeasonDays === 0 && (
                 <Link
                   href={`/dashboard/report/${selectedParticipant.participant.id}`}
