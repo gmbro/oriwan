@@ -44,7 +44,7 @@ export function PersonalSeasonReport({ member, members }: { member: SeasonMember
       anchor.click();
       anchor.remove();
       window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-      setNotice("1:1 고화질 PNG를 저장했습니다. iPhone은 다운로드 항목에서 사진 앱에 저장할 수 있어요.");
+      setNotice("2160×2160 고화질 PNG를 저장했습니다. iPhone은 다운로드 항목에서 사진 앱에 저장할 수 있어요.");
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "포스터 저장에 실패했습니다.");
     } finally {
@@ -92,7 +92,7 @@ export function PersonalSeasonReport({ member, members }: { member: SeasonMember
         <article className="aspect-square w-full min-w-0 overflow-hidden rounded-[26px] bg-white p-4 text-slate-950 shadow-xl shadow-slate-950/8 ring-1 ring-slate-950/5 sm:rounded-[32px] sm:p-7">
           <div className="flex h-full min-h-0 flex-col">
             <header className="flex shrink-0 items-center justify-between gap-3 text-[8px] font-black tracking-wide text-slate-400 sm:text-[10px]">
-              <span>SNESA · 100 DAY REPORT</span>
+              <span>@thosewhothrowthemselvesin</span>
               <span>2026.05.05–08.12</span>
             </header>
 
@@ -104,8 +104,13 @@ export function PersonalSeasonReport({ member, members }: { member: SeasonMember
                 <p className="w-32 shrink-0 rounded-2xl bg-sky-50 px-2 py-1.5 text-[8px] font-bold leading-[1.35] text-sky-950 ring-1 ring-sky-100 sm:w-56 sm:px-3 sm:py-2.5 sm:text-[11px] sm:leading-[1.45]">
                   {member.cheerMessage}
                 </p>
-                <div ref={characterRef} className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-slate-50 ring-1 ring-slate-950/5 sm:h-24 sm:w-24">
-                  <MemberPictogram index={member.pictogramIndex} participantName={member.name} className="!h-14 !w-14 sm:!h-20 sm:!w-20" />
+                <div ref={characterRef} className="flex h-16 w-16 shrink-0 items-center justify-center sm:h-24 sm:w-24">
+                  <MemberPictogram
+                    index={member.pictogramIndex}
+                    participantName={member.name}
+                    transparentBackground
+                    className="!h-14 !w-14 sm:!h-20 sm:!w-20"
+                  />
                 </div>
               </div>
             </section>
@@ -115,14 +120,12 @@ export function PersonalSeasonReport({ member, members }: { member: SeasonMember
                 <strong className="text-[clamp(2.7rem,13vw,5.2rem)] font-black leading-[0.85] tracking-[-0.07em] tabular-nums">{member.distanceKm.toFixed(1)}</strong>
                 <span className="text-sm font-black text-slate-400 sm:text-xl">km</span>
               </div>
-              <p className="mt-1 text-[8px] font-black tracking-[0.12em] text-slate-400 sm:text-[10px]">총 거리 · TOTAL DISTANCE</p>
             </section>
 
-            <section className="mt-2 grid shrink-0 grid-cols-3 gap-1.5 border-y border-slate-100 py-2 sm:mt-4 sm:gap-3 sm:py-3">
+            <section className="mt-2 grid shrink-0 grid-cols-2 gap-1.5 border-y border-slate-100 py-2 sm:mt-4 sm:gap-3 sm:py-3">
               {[
                 ["총 인증일", `${member.certifiedDays}일`],
                 ["누적 시간", formatSeasonDuration(member.durationSeconds)],
-                ["리커버리 일자", `${member.recoveryDayCount}일`],
               ].map(([label, value]) => (
                 <div key={label} className="min-w-0">
                   <p className="text-[7px] font-black text-slate-400 sm:text-[9px]">{label}</p>
@@ -133,7 +136,7 @@ export function PersonalSeasonReport({ member, members }: { member: SeasonMember
 
             <section className="mt-2 flex min-h-0 flex-1 flex-col sm:mt-4">
               <div className="flex shrink-0 items-end justify-between gap-2">
-                <p className="text-[10px] font-black sm:text-sm">월별 총 거리</p>
+                <p className="text-[10px] font-black tracking-[0.08em] sm:text-sm">MONTH DISTANCE</p>
                 <p className="text-[7px] font-bold text-slate-400 sm:text-[9px]">단위 km</p>
               </div>
               <div className="mt-1 min-h-0 flex-1 sm:mt-2">
@@ -143,7 +146,7 @@ export function PersonalSeasonReport({ member, members }: { member: SeasonMember
 
             <section className="mt-2 shrink-0 sm:mt-3">
               <div className="mb-1 flex items-center justify-between gap-2 sm:mb-2">
-                <p className="text-[8px] font-black text-slate-500 sm:text-[10px]">최근 획득 뱃지</p>
+                <p className="text-[8px] font-black tracking-[0.08em] text-slate-500 sm:text-[10px]">PERSONAL TITLE</p>
                 <p className="text-[7px] font-bold text-slate-400 sm:text-[9px]">획득일 기준 최신 4개</p>
               </div>
               <div className="grid grid-cols-4 gap-1 sm:gap-2">
@@ -165,7 +168,7 @@ export function PersonalSeasonReport({ member, members }: { member: SeasonMember
         <aside className="min-w-0 pb-4 xl:sticky xl:top-32">
           <section className="rounded-[24px] bg-white p-4 shadow-sm ring-1 ring-slate-950/5 sm:p-5">
             <p className="text-base font-black text-slate-950">포스터 저장·공유</p>
-            <p className="mt-1 text-xs font-bold leading-5 text-slate-500">화면과 같은 1:1 비율의 1080px 고화질 PNG로 저장합니다.</p>
+            <p className="mt-1 text-xs font-bold leading-5 text-slate-500">화면과 같은 1:1 비율의 2160px 고화질 PNG로 저장합니다.</p>
             <div className="mt-4 grid grid-cols-2 gap-2">
               <button
                 type="button"

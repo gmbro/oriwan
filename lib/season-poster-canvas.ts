@@ -151,21 +151,19 @@ function drawMonthlyDistanceChart(context: CanvasRenderingContext2D, member: Sea
 export async function renderSeasonPosterBlob(member: SeasonMemberReport, characterSvgMarkup = "") {
   const width = 1080;
   const height = 1080;
+  const outputScale = 2;
   const margin = 72;
   const canvas = document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = height;
+  canvas.width = width * outputScale;
+  canvas.height = height * outputScale;
   const context = canvas.getContext("2d");
   if (!context) throw new Error("이미지를 만들 수 없는 브라우저입니다.");
+  context.scale(outputScale, outputScale);
 
   context.fillStyle = "#ffffff";
   context.fillRect(0, 0, width, height);
-  context.fillStyle = "#f0f9ff";
-  context.beginPath();
-  context.arc(965, 64, 235, 0, Math.PI * 2);
-  context.fill();
 
-  drawText(context, "SNESA · 100 DAY REPORT", margin, 70, 20, "#64748b", 900);
+  drawText(context, "@thosewhothrowthemselvesin", margin, 70, 20, "#64748b", 900);
   drawText(context, "2026.05.05 — 08.12", width - margin, 70, 18, MUTED, 800, "right");
 
   const character = await loadSvg(characterSvgMarkup);
@@ -185,10 +183,6 @@ export async function renderSeasonPosterBlob(member: SeasonMemberReport, charact
   context.closePath();
   context.fill();
   drawWrappedText(context, member.cheerMessage, bubbleX + 24, bubbleY + 38, bubbleWidth - 48, 28, 3, 18, "#0c4a6e");
-  context.fillStyle = "#f8fafc";
-  context.beginPath();
-  context.arc(characterX + characterSize / 2, characterY + characterSize / 2, characterSize / 2 + 18, 0, Math.PI * 2);
-  context.fill();
   if (character) context.drawImage(character, characterX, characterY, characterSize, characterSize);
 
   const nameSize = fitText(context, member.name, 320, 82, 48);
@@ -199,8 +193,6 @@ export async function renderSeasonPosterBlob(member: SeasonMemberReport, charact
   drawText(context, distanceValue, margin, 440, distanceSize, INK, 900);
   const distanceWidth = context.measureText(distanceValue).width;
   drawText(context, "km", margin + distanceWidth + 18, 440, 38, MUTED, 900);
-  drawText(context, "총 거리 · TOTAL DISTANCE", margin, 476, 18, MUTED, 900);
-
   context.beginPath();
   context.moveTo(margin, 512);
   context.lineTo(width - margin, 512);
@@ -208,17 +200,16 @@ export async function renderSeasonPosterBlob(member: SeasonMemberReport, charact
   context.lineWidth = 2;
   context.stroke();
 
-  const statGap = 36;
-  const statWidth = (width - margin * 2 - statGap * 2) / 3;
+  const statGap = 48;
+  const statWidth = (width - margin * 2 - statGap) / 2;
   drawStat(context, margin, statWidth, "총 인증일", `${member.certifiedDays}일`);
   drawStat(context, margin + statWidth + statGap, statWidth, "누적 시간", formatSeasonDuration(member.durationSeconds));
-  drawStat(context, margin + (statWidth + statGap) * 2, statWidth, "리커버리 일자", `${member.recoveryDayCount}일`);
 
-  drawText(context, "월별 총 거리", margin, 666, 26, INK, 900);
+  drawText(context, "MONTH DISTANCE", margin, 666, 26, INK, 900);
   drawText(context, "단위 km", width - margin, 666, 16, MUTED, 800, "right");
   drawMonthlyDistanceChart(context, member);
 
-  drawText(context, "최근 획득 뱃지", margin, 980, 18, "#64748b", 900);
+  drawText(context, "PERSONAL TITLE", margin, 980, 18, "#64748b", 900);
   drawText(context, "획득일 기준 최신 4개", width - margin, 980, 15, MUTED, 800, "right");
   const recentBadges = selectRecentSeasonBadges(member.badges, 4);
   const badgeGap = 12;

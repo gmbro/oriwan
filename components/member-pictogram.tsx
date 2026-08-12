@@ -9,6 +9,7 @@ type MemberPictogramProps = {
   participantName?: string;
   size?: "sm" | "lg";
   className?: string;
+  transparentBackground?: boolean;
 };
 
 type PictogramShape = "round" | "bean" | "drop" | "squircle" | "pill" | "pebble";
@@ -291,6 +292,7 @@ export function MemberPictogram({
   participantName = "",
   size = "sm",
   className = "",
+  transparentBackground = false,
 }: MemberPictogramProps) {
   const item = MEMBER_PICTOGRAMS[(index ?? getMemberPictogramIndex(participantId, participantName)) % MEMBER_PICTOGRAMS.length];
   const sizeClass = size === "lg" ? "h-12 w-12" : "h-7 w-7";
@@ -301,8 +303,8 @@ export function MemberPictogram({
       className={`inline-flex shrink-0 items-center justify-center ${sizeClass} ${className}`}
       title={item.label}
     >
-      <svg viewBox="0 0 48 48" role="img" className="h-full w-full drop-shadow-sm">
-        <circle cx="24" cy="24" r="22" fill={item.bg} />
+      <svg viewBox="0 0 48 48" role="img" className={`h-full w-full ${transparentBackground ? "" : "drop-shadow-sm"}`}>
+        {!transparentBackground && <circle cx="24" cy="24" r="22" fill={item.bg} />}
         {renderPose(item.pose, item.accent)}
         {renderBackAccessory(item.accessory, item.accent)}
         {renderBody(item.shape, item.body)}
