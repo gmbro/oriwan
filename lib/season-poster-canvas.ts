@@ -113,15 +113,15 @@ function drawStat(
   label: string,
   value: string
 ) {
-  drawText(context, label, x, 548, 18, MUTED, 800);
-  const size = fitText(context, value, width, 30, 22);
-  drawText(context, value, x, 592, size, INK, 900);
+  drawText(context, label, x, 354, 20, MUTED, 800);
+  const size = fitText(context, value, width, 42, 28);
+  drawText(context, value, x, 412, size, INK, 900);
 }
 
 function drawMonthlyDistanceChart(context: CanvasRenderingContext2D, member: SeasonMemberReport) {
   const left = 72;
   const right = 1008;
-  const top = 704;
+  const top = 548;
   const bottom = 914;
   const chartHeight = bottom - top;
   const gap = 38;
@@ -188,14 +188,9 @@ export async function renderSeasonPosterBlob(member: SeasonMemberReport, charact
   const nameSize = fitText(context, member.name, 320, 82, 48);
   drawText(context, member.name, margin, 180, nameSize, INK, 900);
 
-  const distanceValue = member.distanceKm.toFixed(1);
-  const distanceSize = fitText(context, distanceValue, 720, 126, 88);
-  drawText(context, distanceValue, margin, 440, distanceSize, INK, 900);
-  const distanceWidth = context.measureText(distanceValue).width;
-  drawText(context, "km", margin + distanceWidth + 18, 440, 38, MUTED, 900);
   context.beginPath();
-  context.moveTo(margin, 512);
-  context.lineTo(width - margin, 512);
+  context.moveTo(margin, 316);
+  context.lineTo(width - margin, 316);
   context.strokeStyle = "#e2e8f0";
   context.lineWidth = 2;
   context.stroke();
@@ -205,8 +200,8 @@ export async function renderSeasonPosterBlob(member: SeasonMemberReport, charact
   drawStat(context, margin, statWidth, "총 인증일", `${member.certifiedDays}일`);
   drawStat(context, margin + statWidth + statGap, statWidth, "누적 시간", formatSeasonDuration(member.durationSeconds));
 
-  drawText(context, "MONTH DISTANCE", margin, 666, 26, INK, 900);
-  drawText(context, "단위 km", width - margin, 666, 16, MUTED, 800, "right");
+  drawText(context, "MONTH DISTANCE", margin, 502, 26, INK, 900);
+  drawText(context, "단위 km", width - margin, 502, 16, MUTED, 800, "right");
   drawMonthlyDistanceChart(context, member);
 
   drawText(context, "PERSONAL TITLE", margin, 980, 18, "#64748b", 900);

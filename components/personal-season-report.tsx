@@ -115,21 +115,14 @@ export function PersonalSeasonReport({ member, members }: { member: SeasonMember
               </div>
             </section>
 
-            <section className="mt-2 shrink-0 sm:mt-4">
-              <div className="flex items-baseline gap-1.5">
-                <strong className="text-[clamp(2.7rem,13vw,5.2rem)] font-black leading-[0.85] tracking-[-0.07em] tabular-nums">{member.distanceKm.toFixed(1)}</strong>
-                <span className="text-sm font-black text-slate-400 sm:text-xl">km</span>
-              </div>
-            </section>
-
-            <section className="mt-2 grid shrink-0 grid-cols-2 gap-1.5 border-y border-slate-100 py-2 sm:mt-4 sm:gap-3 sm:py-3">
+            <section className="mt-3 grid shrink-0 grid-cols-2 gap-2 border-y border-slate-100 py-3 sm:mt-5 sm:gap-4 sm:py-4">
               {[
                 ["총 인증일", `${member.certifiedDays}일`],
                 ["누적 시간", formatSeasonDuration(member.durationSeconds)],
               ].map(([label, value]) => (
                 <div key={label} className="min-w-0">
-                  <p className="text-[7px] font-black text-slate-400 sm:text-[9px]">{label}</p>
-                  <p className="mt-0.5 truncate text-[11px] font-black tabular-nums text-slate-950 sm:mt-1 sm:text-base">{value}</p>
+                  <p className="text-[8px] font-black text-slate-400 sm:text-[10px]">{label}</p>
+                  <p className="mt-1 truncate text-lg font-black tabular-nums text-slate-950 sm:text-2xl">{value}</p>
                 </div>
               ))}
             </section>
