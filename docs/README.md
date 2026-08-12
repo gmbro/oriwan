@@ -80,3 +80,4 @@ app/api/records/analyze/route.ts    이미지 OCR 분석 및 기록 생성
 ## 제품 기획
 
 - [이미지 기반 러닝 인증 대시보드 제품 기획](./image-dashboard-product-plan.md)
+- [다음 시즌 운영·광고·OCR 에이전트 기획](./next-season-dashboard-ad-and-ocr-agent-plan.md)
