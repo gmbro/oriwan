@@ -7,7 +7,6 @@ import { MemberPictogram } from "@/components/member-pictogram";
 import { SeasonMonthlyDistanceBars } from "@/components/season-report-visuals";
 import {
   formatSeasonDuration,
-  formatSeasonPace,
   selectRecentSeasonBadges,
   type SeasonMemberReport,
 } from "@/lib/season-report";
@@ -119,11 +118,10 @@ export function PersonalSeasonReport({ member, members }: { member: SeasonMember
               <p className="mt-1 text-[8px] font-black tracking-[0.12em] text-slate-400 sm:text-[10px]">총 거리 · TOTAL DISTANCE</p>
             </section>
 
-            <section className="mt-2 grid shrink-0 grid-cols-4 gap-1.5 border-y border-slate-100 py-2 sm:mt-4 sm:gap-3 sm:py-3">
+            <section className="mt-2 grid shrink-0 grid-cols-3 gap-1.5 border-y border-slate-100 py-2 sm:mt-4 sm:gap-3 sm:py-3">
               {[
                 ["총 인증일", `${member.certifiedDays}일`],
                 ["누적 시간", formatSeasonDuration(member.durationSeconds)],
-                ["페이스", formatSeasonPace(member.durationSeconds, member.distanceKm)],
                 ["리커버리 일자", `${member.recoveryDayCount}일`],
               ].map(([label, value]) => (
                 <div key={label} className="min-w-0">

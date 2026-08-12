@@ -549,11 +549,3 @@ export function formatSeasonDuration(seconds: number) {
 export function formatSeasonDate(date: string) {
   return date ? date.slice(5).replace("-", ".") : "-";
 }
-
-export function formatSeasonPace(durationSeconds: number, distanceKm: number) {
-  if (!distanceKm || !durationSeconds) return "-";
-  const secondsPerKm = Math.round(durationSeconds / distanceKm);
-  const minutes = Math.floor(secondsPerKm / 60);
-  const seconds = secondsPerKm % 60;
-  return `${minutes}'${String(seconds).padStart(2, "0")}\"`;
-}

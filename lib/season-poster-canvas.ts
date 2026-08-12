@@ -1,6 +1,5 @@
 import {
   formatSeasonDuration,
-  formatSeasonPace,
   selectRecentSeasonBadges,
   type SeasonMemberReport,
 } from "@/lib/season-report";
@@ -209,12 +208,11 @@ export async function renderSeasonPosterBlob(member: SeasonMemberReport, charact
   context.lineWidth = 2;
   context.stroke();
 
-  const statGap = 24;
-  const statWidth = (width - margin * 2 - statGap * 3) / 4;
+  const statGap = 36;
+  const statWidth = (width - margin * 2 - statGap * 2) / 3;
   drawStat(context, margin, statWidth, "총 인증일", `${member.certifiedDays}일`);
   drawStat(context, margin + statWidth + statGap, statWidth, "누적 시간", formatSeasonDuration(member.durationSeconds));
-  drawStat(context, margin + (statWidth + statGap) * 2, statWidth, "페이스", formatSeasonPace(member.durationSeconds, member.distanceKm));
-  drawStat(context, margin + (statWidth + statGap) * 3, statWidth, "리커버리 일자", `${member.recoveryDayCount}일`);
+  drawStat(context, margin + (statWidth + statGap) * 2, statWidth, "리커버리 일자", `${member.recoveryDayCount}일`);
 
   drawText(context, "월별 총 거리", margin, 666, 26, INK, 900);
   drawText(context, "단위 km", width - margin, 666, 16, MUTED, 800, "right");
