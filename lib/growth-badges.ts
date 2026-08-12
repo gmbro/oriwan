@@ -81,6 +81,11 @@ export type GrowthBadgeAchievementRecord = {
 
 export type PersonalGrowthBadgeEarnedDates = Record<PersonalGrowthBadgeKey, string | null>;
 
+export function growthBadgeAcquisitionPriority(key: PersonalGrowthBadgeKey) {
+  if (key === "hundred-day-streak") return PERSONAL_GROWTH_BADGE_KEYS.length + 1;
+  return PERSONAL_GROWTH_BADGE_KEYS.indexOf(key);
+}
+
 export function getLongestDateStreak(dates: string[]) {
   const dateSet = new Set(dates);
   return dates.reduce((longest, day) => {
