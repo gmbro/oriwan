@@ -1,12 +1,16 @@
-import { connection } from "next/server";
 import { notFound } from "next/navigation";
-import { DashboardSiteHeader } from "@/components/dashboard-site-header";
 import { PersonalSeasonReport } from "@/components/personal-season-report";
 import { getSeasonReport } from "@/lib/season-report-server";
 
+export const revalidate = 300;
+
+export async function generateStaticParams() {
+  const report = await getSeasonReport();
+  return report.members.map((member) => ({ participantId: member.id }));
+}
+
 export async function generateMetadata({ params }: { params: Promise<{ participantId: string }> }) {
   const { participantId } = await params;
-  await connection();
   const report = await getSeasonReport();
   const member = report.members.find((item) => item.id === participantId);
   return {
@@ -16,7 +20,6 @@ export async function generateMetadata({ params }: { params: Promise<{ participa
 }
 
 export default async function PersonalSeasonReportPage({ params }: { params: Promise<{ participantId: string }> }) {
-  await connection();
   const { participantId } = await params;
   const report = await getSeasonReport();
   const member = report.members.find((item) => item.id === participantId);
@@ -28,6 +31,7 @@ export default async function PersonalSeasonReportPage({ params }: { params: Pro
     pictogramIndex: member.pictogramIndex,
     cheerMessage: member.cheerMessage,
     certifiedDays: member.certifiedDays,
+    distanceKm: member.distanceKm,
     durationSeconds: member.durationSeconds,
     months: member.months,
     badges: member.badges,
@@ -39,8 +43,7 @@ export default async function PersonalSeasonReportPage({ params }: { params: Pro
   }));
 
   return (
-    <main className="min-h-screen bg-oriwan-bg">
-      <DashboardSiteHeader active="report" />
+    <main className="bg-oriwan-bg">
       <PersonalSeasonReport member={reportMember} members={memberNavigator} />
     </main>
   );

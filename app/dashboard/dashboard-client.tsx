@@ -2,12 +2,12 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { IconArrowRight, IconCalendar, IconDna, IconDroplet, IconFlame, IconHeart, IconMountain, IconMuscle, IconRun, IconSprout, IconSync, IconTarget, IconVideo, IconX } from "@/components/icons";
-import { DashboardSiteHeader } from "@/components/dashboard-site-header";
 import { buildMemberPictogramMap, MemberPictogram } from "@/components/member-pictogram";
-import { ACTUAL_CERTIFICATION_START_DATE, CERTIFICATION_DISPLAY_START_DATE, CHALLENGE_DAYS } from "@/lib/challenge";
+import { NextSeasonNoticeModal } from "@/components/next-season-notice-modal";
+import { ACTUAL_CERTIFICATION_START_DATE, CERTIFICATION_DISPLAY_START_DATE, CHALLENGE_DAYS, CHALLENGE_END_DATE, NEXT_SEASON_START_DATE } from "@/lib/challenge";
 import { DASHBOARD_REFRESH_CHANNEL, DASHBOARD_REFRESH_EVENT } from "@/lib/dashboard-refresh";
 import {
   growthBadgeAcquisitionPriority,
@@ -56,6 +56,7 @@ function certificationDayLabel(referenceDate: string) {
   const current = new Date(`${referenceDate}T00:00:00`);
   const diffDays = Math.floor((current.getTime() - start.getTime()) / 86_400_000);
   if (diffDays < 0) return `D-${CHALLENGE_DAYS}`;
+  if (referenceDate >= actualCertificationEndDate) return "완료";
   return `D-${Math.max(CHALLENGE_DAYS - diffDays, 0)}`;
 }
 
@@ -150,6 +151,7 @@ const PUBLIC_DASHBOARD_FOCUS_REFRESH_MS = 30 * 1000;
 const PUBLIC_DASHBOARD_LIVE_REFRESH_MS = 30 * 1000;
 const PERSONAL_GROWTH_BADGE_STORAGE_KEY = "oriwan-personal-growth-badges-v3";
 const ONE_PLUS_ONE_DISMISS_STORAGE_KEY = "oriwan-one-plus-one-dismissed-v1";
+const NEXT_SEASON_NOTICE_STORAGE_KEY = "oriwan-next-season-notice-2026-09-23-v1";
 const FULL_HOUSE_FIREWORKS_STORAGE_KEY = "oriwan-full-house-fireworks-v1";
 const FULL_HOUSE_FIREWORKS_DURATION_MS = 1900;
 const ONE_PLUS_ONE_MILESTONES = new Set([40, 50, 60, 70, 80, 90]);
@@ -258,6 +260,28 @@ function writeDismissedOnePlusOneEvent(day: number, date: string) {
     window.localStorage.setItem(ONE_PLUS_ONE_DISMISS_STORAGE_KEY, onePlusOneDismissKey(day, date));
   } catch {
     // Dismissal is a convenience only; the event remains usable without storage.
+  }
+}
+
+function isNextSeasonPreparationDate(date: string) {
+  return date >= CHALLENGE_END_DATE && date <= NEXT_SEASON_START_DATE;
+}
+
+function readDismissedNextSeasonNotice(date: string) {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.localStorage.getItem(NEXT_SEASON_NOTICE_STORAGE_KEY) === date;
+  } catch {
+    return false;
+  }
+}
+
+function writeDismissedNextSeasonNotice(date: string) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(NEXT_SEASON_NOTICE_STORAGE_KEY, date);
+  } catch {
+    // The notice remains dismissible for the current page when storage is unavailable.
   }
 }
 
@@ -868,7 +892,7 @@ function OnePlusOneEventModal({
 
           <div className="grid gap-2">
             {[
-              ["1. 거리 2배", "당일에 달린 거리 x 2배"],
+              ["1. 거리 2배", "당일에 달린 거리 × 2배"],
               ["2. 놓친 날짜 채우기", "당일 인증 + 이전에 놓친 날짜 1개를 100m / 1분"],
             ].map(([title, description]) => (
               <div key={title} className="rounded-2xl bg-oriwan-surface-light px-4 py-3 ring-1 ring-slate-950/5">
@@ -914,10 +938,14 @@ export function DashboardClient({
   initialData = null,
   initialError = "",
   initialTodayIso,
+  announcementsEnabled = true,
+  topSlot,
 }: {
   initialData?: PublicDashboardData | null;
   initialError?: string;
   initialTodayIso: string;
+  announcementsEnabled?: boolean;
+  topSlot?: ReactNode;
 }) {
   const [data, setData] = useState<PublicDashboardData | null>(initialData);
   const [loading, setLoading] = useState(!initialData);
@@ -932,6 +960,7 @@ export function DashboardClient({
   const [showSeasonReportModal, setShowSeasonReportModal] = useState(false);
   const [showJourneyReportModal, setShowJourneyReportModal] = useState(false);
   const [showOnePlusOneEventModal, setShowOnePlusOneEventModal] = useState(false);
+  const [showNextSeasonNotice, setShowNextSeasonNotice] = useState(false);
   const [showFinalReportPreviewModal, setShowFinalReportPreviewModal] = useState(false);
   const [showRecoveryVideos, setShowRecoveryVideos] = useState(false);
   const [showRecoveryTrend, setShowRecoveryTrend] = useState(false);
@@ -943,7 +972,17 @@ export function DashboardClient({
   const loadingRef = useRef(false);
   const lastLoadedAtRef = useRef(0);
   const motionFrameRef = useRef<number | null>(null);
+  const nextSeasonNoticeClosedThisSessionRef = useRef(false);
   const onePlusOneEvent = useMemo(() => getOnePlusOneEvent(todayIso), [todayIso]);
+  const closeNextSeasonNotice = useCallback(() => {
+    nextSeasonNoticeClosedThisSessionRef.current = true;
+    setShowNextSeasonNotice(false);
+  }, []);
+  const dismissNextSeasonNoticeToday = useCallback(() => {
+    nextSeasonNoticeClosedThisSessionRef.current = true;
+    writeDismissedNextSeasonNotice(todayIso);
+    setShowNextSeasonNotice(false);
+  }, [todayIso]);
 
   const restartMotion = useCallback(() => {
     if (motionFrameRef.current) window.cancelAnimationFrame(motionFrameRef.current);
@@ -1056,6 +1095,10 @@ export function DashboardClient({
     let cancelled = false;
     queueMicrotask(() => {
       if (cancelled) return;
+      if (!announcementsEnabled) {
+        setShowOnePlusOneEventModal(false);
+        return;
+      }
       if (!onePlusOneEvent) {
         setShowOnePlusOneEventModal(false);
         return;
@@ -1067,7 +1110,54 @@ export function DashboardClient({
     return () => {
       cancelled = true;
     };
-  }, [onePlusOneEvent, todayIso]);
+  }, [announcementsEnabled, onePlusOneEvent, todayIso]);
+
+  useEffect(() => {
+    if (
+      !announcementsEnabled ||
+      !isNextSeasonPreparationDate(todayIso) ||
+      nextSeasonNoticeClosedThisSessionRef.current ||
+      readDismissedNextSeasonNotice(todayIso)
+    ) return;
+    if (
+      showOnePlusOneEventModal ||
+      showJourneyReportModal ||
+      showSeasonReportModal ||
+      showFinalReportPreviewModal ||
+      Boolean(trendModal) ||
+      Boolean(selectedDailyRecordDate)
+    ) return;
+
+    let cancelled = false;
+    let timeout: number | undefined;
+    const tryOpenNotice = () => {
+      if (
+        cancelled ||
+        nextSeasonNoticeClosedThisSessionRef.current ||
+        readDismissedNextSeasonNotice(todayIso)
+      ) return;
+      if (document.querySelector('[role="dialog"][aria-modal="true"]')) {
+        timeout = window.setTimeout(tryOpenNotice, 1000);
+        return;
+      }
+      setShowNextSeasonNotice(true);
+    };
+    timeout = window.setTimeout(tryOpenNotice, 900);
+
+    return () => {
+      cancelled = true;
+      if (timeout !== undefined) window.clearTimeout(timeout);
+    };
+  }, [
+    announcementsEnabled,
+    selectedDailyRecordDate,
+    showFinalReportPreviewModal,
+    showJourneyReportModal,
+    showOnePlusOneEventModal,
+    showSeasonReportModal,
+    todayIso,
+    trendModal,
+  ]);
 
   const dashboard = useMemo(() => {
     const participants = data?.participants || [];
@@ -1697,11 +1787,11 @@ export function DashboardClient({
   ]);
 
   return (
-    <main className="min-h-screen w-full overflow-x-hidden bg-oriwan-bg">
+    <main className="w-full overflow-x-hidden bg-oriwan-bg">
       {showFullHouseFireworks && <FullHouseFireworks />}
-      <DashboardSiteHeader active="dashboard" />
 
       <section className="mx-auto w-full max-w-7xl px-0 py-0 sm:px-4 sm:py-6">
+        {topSlot}
         <section className="overflow-hidden bg-white sm:rounded-[32px] sm:shadow-2xl sm:shadow-slate-950/10 sm:ring-1 sm:ring-slate-950/5">
           <div className="overflow-hidden bg-[#101522] px-4 py-5 text-white sm:p-7">
             <div className="mx-auto max-w-6xl">
@@ -1715,10 +1805,10 @@ export function DashboardClient({
                       type="button"
                       onClick={() => setShowJourneyReportModal(true)}
                       className="inline-flex shrink-0 items-center gap-1 rounded-full bg-lime-300 px-3 py-1.5 text-[10px] font-black text-slate-950 shadow-sm shadow-lime-300/30 ring-1 ring-lime-200 transition hover:-translate-y-0.5 hover:bg-lime-200 sm:text-xs"
-                      aria-label="50일 간의 여정 열기"
+                      aria-label="50일간의 여정 열기"
                     >
                       <span className="h-1.5 w-1.5 rounded-full bg-slate-950" />
-                      50일 간의 여정
+                      50일간의 여정
                     </button>
                   )}
                 </div>
@@ -1942,62 +2032,74 @@ export function DashboardClient({
           </div>
         )}
 
-        <section className="mt-4 grid gap-2 sm:grid-cols-2" aria-label="리커버리 콘텐츠">
-          <button
-            type="button"
-            onClick={() => setShowRecoveryVideos((current) => !current)}
-            aria-expanded={showRecoveryVideos}
-            aria-controls="dashboard-recovery-videos"
-            className="card mobile-page-card flex min-h-20 items-center justify-between gap-3 px-4 py-3 text-left transition hover:ring-lime-300 sm:px-5"
-          >
-            <span className="flex min-w-0 items-center gap-3">
-              <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-rose-50 text-rose-500"><IconVideo size={19} /></span>
-              <span className="min-w-0">
-                <span id="dashboard-recovery-videos-label" className="block text-sm font-black text-oriwan-text">리커버리 영상</span>
-                <span className="mt-0.5 block truncate text-[10px] font-bold text-oriwan-text-muted">회복·스트레칭 영상 모아보기</span>
+        <section className="mt-4 grid items-start gap-2 sm:grid-cols-2" aria-label="리커버리 콘텐츠">
+          <div className={`grid min-w-0 gap-2 ${showRecoveryVideos ? "sm:col-span-2" : ""}`}>
+            <button
+              type="button"
+              onClick={() => setShowRecoveryVideos((current) => !current)}
+              aria-expanded={showRecoveryVideos}
+              aria-controls="dashboard-recovery-videos"
+              className="card mobile-page-card flex min-h-20 w-full items-center justify-between gap-3 px-4 py-3 text-left transition hover:ring-lime-300 sm:px-5"
+            >
+              <span className="flex min-w-0 items-center gap-3">
+                <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-rose-50 text-rose-500"><IconVideo size={19} /></span>
+                <span className="min-w-0">
+                  <span id="dashboard-recovery-videos-label" className="block text-sm font-black text-oriwan-text">리커버리 영상</span>
+                  <span className="mt-0.5 block truncate text-[10px] font-bold text-oriwan-text-muted">회복·스트레칭 영상 모아보기</span>
+                </span>
               </span>
-            </span>
-            <span className="inline-flex shrink-0 items-center gap-1 text-[11px] font-black text-lime-700">
-              {showRecoveryVideos ? "접기" : "펼치기"}
-              <IconArrowRight size={14} className={`transition-transform ${showRecoveryVideos ? "rotate-90" : ""}`} />
-            </span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowRecoveryTrend((current) => !current)}
-            aria-expanded={showRecoveryTrend}
-            aria-controls="dashboard-recovery-trend"
-            className="card mobile-page-card flex min-h-20 items-center justify-between gap-3 px-4 py-3 text-left transition hover:ring-lime-300 sm:px-5"
-          >
-            <span className="flex min-w-0 items-center gap-3">
-              <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-sky-50 text-sky-600"><IconHeart size={19} /></span>
-              <span className="min-w-0">
-                <span id="dashboard-recovery-trend-label" className="block text-sm font-black text-oriwan-text">리커버리 추이</span>
-                <span className="mt-0.5 block truncate text-[10px] font-bold text-oriwan-text-muted">일자별 흐름과 회복 신호 보기</span>
+              <span className="inline-flex shrink-0 items-center gap-1 text-[11px] font-black text-lime-700">
+                {showRecoveryVideos ? "접기" : "펼치기"}
+                <IconArrowRight size={14} className={`transition-transform ${showRecoveryVideos ? "rotate-90" : ""}`} />
               </span>
-            </span>
-            <span className="inline-flex shrink-0 items-center gap-1 text-[11px] font-black text-lime-700">
-              {showRecoveryTrend ? "접기" : "펼치기"}
-              <IconArrowRight size={14} className={`transition-transform ${showRecoveryTrend ? "rotate-90" : ""}`} />
-            </span>
-          </button>
-        </section>
+            </button>
 
-        {showRecoveryVideos && (
-          <div id="dashboard-recovery-videos" role="region" aria-labelledby="dashboard-recovery-videos-label">
-            <LazyYoutubeShortsSection initialDayKey={todayIso} />
+            {showRecoveryVideos && (
+              <div id="dashboard-recovery-videos" role="region" aria-labelledby="dashboard-recovery-videos-label">
+                <LazyYoutubeShortsSection initialDayKey={todayIso} />
+              </div>
+            )}
           </div>
-        )}
 
-        {showRecoveryTrend && (
-          <section id="dashboard-recovery-trend" role="region" aria-labelledby="dashboard-recovery-trend-label" className="card mobile-page-card mt-4 overflow-hidden bg-oriwan-surface-light p-3 sm:p-5">
-            <LazyRecoveryDashboardDetails data={dashboard.recoveryDailyTrend} metrics={dashboard.recoverySignalMetrics} />
-          </section>
-        )}
+          <div className={`grid min-w-0 gap-2 ${showRecoveryTrend ? "sm:col-span-2" : ""}`}>
+            <button
+              type="button"
+              onClick={() => setShowRecoveryTrend((current) => !current)}
+              aria-expanded={showRecoveryTrend}
+              aria-controls="dashboard-recovery-trend"
+              className="card mobile-page-card flex min-h-20 w-full items-center justify-between gap-3 px-4 py-3 text-left transition hover:ring-lime-300 sm:px-5"
+            >
+              <span className="flex min-w-0 items-center gap-3">
+                <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-sky-50 text-sky-600"><IconHeart size={19} /></span>
+                <span className="min-w-0">
+                  <span id="dashboard-recovery-trend-label" className="block text-sm font-black text-oriwan-text">리커버리 추이</span>
+                  <span className="mt-0.5 block truncate text-[10px] font-bold text-oriwan-text-muted">일자별 흐름과 회복 신호 보기</span>
+                </span>
+              </span>
+              <span className="inline-flex shrink-0 items-center gap-1 text-[11px] font-black text-lime-700">
+                {showRecoveryTrend ? "접기" : "펼치기"}
+                <IconArrowRight size={14} className={`transition-transform ${showRecoveryTrend ? "rotate-90" : ""}`} />
+              </span>
+            </button>
+
+            {showRecoveryTrend && (
+              <section id="dashboard-recovery-trend" role="region" aria-labelledby="dashboard-recovery-trend-label" className="card mobile-page-card overflow-hidden bg-oriwan-surface-light p-3 sm:p-5">
+                <LazyRecoveryDashboardDetails data={dashboard.recoveryDailyTrend} metrics={dashboard.recoverySignalMetrics} />
+              </section>
+            )}
+          </div>
+        </section>
 
         <p className="py-6 text-center text-[11px] font-semibold text-oriwan-text-muted">
           {loading ? "오늘의 기록을 데려오는 중..." : `마지막 업데이트 ${formatLastUpdated(data?.generated_at)}`}
         </p>
+
+        {showNextSeasonNotice && (
+          <NextSeasonNoticeModal
+            onClose={closeNextSeasonNotice}
+            onCloseToday={dismissNextSeasonNoticeToday}
+          />
+        )}
 
         {showOnePlusOneEventModal && onePlusOneEvent && (
           <OnePlusOneEventModal
@@ -2016,7 +2118,7 @@ export function DashboardClient({
             onClick={() => setShowJourneyReportModal(false)}
             role="dialog"
             aria-modal="true"
-            aria-label="50일 간의 여정"
+            aria-label="50일간의 여정"
           >
             <div className="card mobile-sheet modal-rise w-full max-w-4xl overflow-y-auto p-4 sm:max-h-[88vh] sm:p-6" onClick={(event) => event.stopPropagation()}>
               <div className="mb-5 flex items-start justify-between gap-3">
@@ -2030,7 +2132,7 @@ export function DashboardClient({
                     </span>
                   </div>
                   <h3 className="mt-3 text-2xl font-black leading-tight text-oriwan-text sm:text-3xl">
-                    50일 간의 여정
+                    50일간의 여정
                   </h3>
                   <p className="mt-2 max-w-2xl text-sm font-bold leading-6 text-oriwan-text-muted">
                     첫 50일 동안 스내사 크루가 함께 쌓은 인증 흐름, 거리, 시간을 한 번에 모았습니다.
@@ -2144,6 +2246,9 @@ export function DashboardClient({
         {selectedParticipant && (
           <div
             className="fixed inset-0 z-[80] flex items-end bg-slate-950/45 px-0 py-0 backdrop-blur-sm sm:items-center sm:justify-center sm:px-4 sm:py-4"
+            role="dialog"
+            aria-modal="true"
+            aria-label={`${selectedParticipant.participant.name} 러닝 상세`}
             onClick={() => {
               setSelectedParticipantId("");
               setSelectedDailyRecordDate("");
@@ -2484,6 +2589,9 @@ export function DashboardClient({
         {showSeasonReportModal && (
           <div
             className="fixed inset-0 z-[80] flex items-end bg-slate-950/45 px-0 py-0 backdrop-blur-sm sm:items-center sm:justify-center sm:px-4 sm:py-4"
+            role="dialog"
+            aria-modal="true"
+            aria-label="시즌 리포트 안내"
             onClick={() => setShowSeasonReportModal(false)}
           >
             <div className="card mobile-sheet modal-rise w-full max-w-2xl overflow-y-auto p-4 sm:max-h-[88vh] sm:p-6" onClick={(event) => event.stopPropagation()}>
@@ -2540,6 +2648,9 @@ export function DashboardClient({
         {trendModal && (
           <div
             className="fixed inset-0 z-[80] flex items-end bg-slate-950/45 px-0 py-0 backdrop-blur-sm sm:items-center sm:justify-center sm:px-4 sm:py-4"
+            role="dialog"
+            aria-modal="true"
+            aria-label={trendModal === "weekly" ? "주차별 인증 흐름" : "매일 인증 흐름"}
             onClick={() => setTrendModal(null)}
           >
             <div className="card mobile-sheet w-full max-w-5xl overflow-y-auto p-4 sm:max-h-[88vh] sm:p-6" onClick={(event) => event.stopPropagation()}>

@@ -1,4 +1,4 @@
-import Image from "next/image";
+import type { ReactNode } from "react";
 
 function ProgressSkeleton() {
   return (
@@ -15,19 +15,11 @@ function ProgressSkeleton() {
   );
 }
 
-export default function DashboardLoading() {
+export function DashboardLoading({ topSlot }: { topSlot?: ReactNode } = {}) {
   return (
-    <main className="min-h-screen w-full overflow-x-hidden bg-oriwan-bg">
-      <header className="sticky top-0 z-50 border-b border-slate-950/10 bg-[#101522]/95 px-3 py-2.5 text-white backdrop-blur-2xl sm:px-4 sm:py-3">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-3">
-            <Image src="/oriwan-logo-v2.png" alt="스내사 러닝보드" width={38} height={38} className="rounded-2xl bg-lime-300" priority />
-            <h1 className="font-rounded-title truncate text-[24px] leading-none sm:text-[32px]">스내사 러닝보드</h1>
-          </div>
-        </div>
-      </header>
-
+    <main className="w-full overflow-x-hidden bg-oriwan-bg">
       <section className="mx-auto w-full max-w-7xl px-0 py-0 sm:px-4 sm:py-6">
+        {topSlot}
         <section className="overflow-hidden bg-white sm:rounded-[32px] sm:shadow-2xl sm:shadow-slate-950/10 sm:ring-1 sm:ring-slate-950/5">
           <div className="overflow-hidden bg-[#101522] px-4 py-5 text-white sm:p-7">
             <div className="mx-auto max-w-6xl">
@@ -83,3 +75,5 @@ export default function DashboardLoading() {
     </main>
   );
 }
+
+export default DashboardLoading;

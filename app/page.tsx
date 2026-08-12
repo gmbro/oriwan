@@ -12,10 +12,10 @@ export default async function Home() {
               <Image
                 src="/oriwan-logo-v2.png"
                 alt="스내사 러닝보드 로고"
-                width={112}
-                height={112}
+                fill
+                sizes="112px"
                 className="object-cover"
-                priority
+                preload
               />
             </div>
           </div>

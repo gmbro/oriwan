@@ -25,7 +25,7 @@ export default function TermsPage() {
           <section>
             <h2 className="text-base font-bold text-oriwan-text mb-2">제2조 (서비스 내용)</h2>
             <ul className="list-disc pl-5 space-y-1">
-              <li>인증 기록은 2026년 5월 1일부터 100일간 집계</li>
+              <li>인증 기록은 2026년 5월 5일부터 100일간 집계</li>
               <li>전체 참가자의 오늘 인증 여부와 인증률 제공</li>
               <li>참가자의 Google 로그인 기반 개인 기록 입력, 이미지 등록 및 조회</li>
               <li>운영자의 참가자 추가, 변경, 삭제 및 기록 수동 입력</li>
@@ -50,7 +50,7 @@ export default function TermsPage() {
           </section>
 
           <p className="text-xs text-oriwan-text-muted/60 pt-4 border-t border-oriwan-border">
-            시행일: 2026년 5월 6일 · 운영: (주)아키랩 · 관리자: 이경민
+            시행일: 2026년 5월 5일 · 운영: (주)아키랩 · 관리자: 이경민
           </p>
         </div>
       </div>

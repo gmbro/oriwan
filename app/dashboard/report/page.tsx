@@ -1,6 +1,4 @@
-import { connection } from "next/server";
 import Link from "next/link";
-import { DashboardSiteHeader } from "@/components/dashboard-site-header";
 import { IconArrowRight } from "@/components/icons";
 import { MemberPictogram } from "@/components/member-pictogram";
 import { SeasonMonthlyBars, SeasonWeeklyLineChart } from "@/components/season-report-visuals";
@@ -12,14 +10,14 @@ export const metadata = {
   description: "스내사 크루의 100일 러닝 여정과 개인 시즌 포스터",
 };
 
+export const revalidate = 300;
+
 export default async function SeasonReportPage() {
-  await connection();
   const report = await getSeasonReport();
   const { crew, members } = report;
 
   return (
-    <main className="min-h-screen bg-oriwan-bg">
-      <DashboardSiteHeader active="report" />
+    <main className="bg-oriwan-bg">
       <section className="mx-auto w-full max-w-7xl px-2.5 py-3 sm:px-4 sm:py-6">
         <section className="relative overflow-hidden rounded-[26px] bg-[#101522] px-4 py-5 text-white shadow-2xl shadow-slate-950/15 sm:rounded-[30px] sm:px-7 sm:py-8">
           <div className="pointer-events-none absolute -right-20 -top-20 h-72 w-72 rounded-full bg-lime-300/15 blur-3xl" />
@@ -86,7 +84,7 @@ export default async function SeasonReportPage() {
               <Link
                 key={member.id}
                 href={`/dashboard/report/${member.id}`}
-                prefetch={false}
+                prefetch
                 className="group relative flex min-w-0 flex-col overflow-hidden rounded-[22px] p-3 text-white shadow-sm transition hover:-translate-y-1 hover:shadow-xl"
                 style={{ background: `linear-gradient(145deg, ${member.theme.background}, ${member.theme.surface})` }}
               >
@@ -101,8 +99,7 @@ export default async function SeasonReportPage() {
                   </div>
                 </div>
                 <p className="relative mt-2.5 truncate text-[15px] font-black">{member.name}</p>
-                <p className="relative mt-1 truncate text-[10px] font-black" style={{ color: member.theme.accent }}>{member.theme.label}</p>
-                <div className="relative mt-2.5 grid grid-cols-2 gap-1.5 text-white">
+                <div className="relative mt-2.5 grid grid-cols-2 gap-1.5 text-white max-[359px]:grid-cols-1 max-[359px]:gap-1">
                   <div className="min-w-0 rounded-xl bg-white/8 px-2 py-2">
                     <p className="text-[7px] font-black text-white/40">인증</p>
                     <p className="mt-0.5 truncate text-[10px] font-black">{member.certifiedDays}/100일</p>

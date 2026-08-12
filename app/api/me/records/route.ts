@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { calculatePaceSeconds } from "@/lib/run-records";
 import { CHALLENGE_DATE_ERROR, isWithinChallengeWindow } from "@/lib/challenge";
-import { findAdminUserId, findParticipantByRunnerName, getServiceClient } from "@/lib/admin-data";
+import { getServiceClient } from "@/lib/admin-data";
+import { participantAccountMutationError, resolveParticipantAccount } from "@/lib/participant-account-server";
 import { guardMutationRequest } from "@/lib/request-security";
 import { invalidatePublicDashboardCache } from "@/lib/public-dashboard-data";
 
@@ -29,8 +30,16 @@ export async function POST(request: NextRequest) {
   const { data: { user }, error } = await supabase.auth.getUser();
   if (error || !user) return NextResponse.json({ error: "내 기록을 올리려면 먼저 로그인해주세요." }, { status: 401 });
 
-  const runnerName = typeof user.user_metadata?.runner_name === "string" ? user.user_metadata.runner_name : "";
-  if (!runnerName.trim()) return NextResponse.json({ error: "먼저 이름을 연결해주세요." }, { status: 400 });
+  const service = getServiceClient();
+  if (!service) return NextResponse.json({ error: "서버 환경변수가 설정되지 않았습니다." }, { status: 500 });
+
+  const connection = await resolveParticipantAccount(service, user.id);
+  if (connection.status !== "approved" || !connection.adminUserId || !connection.participant) {
+    const accessError = participantAccountMutationError(connection);
+    return NextResponse.json(accessError.payload, { status: accessError.status });
+  }
+  const adminUserId = connection.adminUserId;
+  const participant = connection.participant;
 
   const body = await request.json().catch(() => ({}));
   const recordDate = typeof body.record_date === "string" ? body.record_date : "";
@@ -43,17 +52,6 @@ export async function POST(request: NextRequest) {
   }
   if (!hasPositiveMetric(distanceKm) && !hasPositiveMetric(durationSeconds)) {
     return NextResponse.json({ error: "거리 또는 시간 중 하나는 입력해주세요." }, { status: 400 });
-  }
-
-  const service = getServiceClient();
-  if (!service) return NextResponse.json({ error: "서버 환경변수가 설정되지 않았습니다." }, { status: 500 });
-
-  const adminUserId = await findAdminUserId(service);
-  if (!adminUserId) return NextResponse.json({ error: "관리자 계정을 찾지 못했습니다." }, { status: 404 });
-
-  const participant = await findParticipantByRunnerName(service, adminUserId, runnerName);
-  if (!participant) {
-    return NextResponse.json({ error: "등록한 이름이 어드민의 멤버 이름과 달라요. 띄어쓰기까지 맞춰주세요." }, { status: 404 });
   }
 
   const { data, error: saveError } = await service

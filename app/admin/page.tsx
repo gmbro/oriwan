@@ -1788,7 +1788,9 @@ export default function AdminPage() {
         <div className="relative w-full max-w-[430px]">
           <div className="card mobile-page-card p-6 sm:p-9">
             <div className="mb-7 flex items-center gap-3">
-              <Image src="/oriwan-logo-v2.png" alt="어드민" width={54} height={54} className="rounded-2xl" />
+              <span className="relative h-[54px] w-[54px] shrink-0 overflow-hidden rounded-2xl">
+                <Image src="/oriwan-logo-v2.png" alt="어드민" fill sizes="54px" className="object-cover" />
+              </span>
               <div>
                 <h1 className="text-2xl font-black leading-tight text-oriwan-text">어드민 접속</h1>
               </div>
@@ -1829,8 +1831,8 @@ export default function AdminPage() {
       <header className="sticky top-0 z-50 px-4 py-3 bg-[#101522]/92 backdrop-blur-2xl border-b border-white/10 text-white">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-2xl overflow-hidden ring-1 ring-white/20 bg-lime-300">
-              <Image src="/oriwan-logo-v2.png" alt="어드민" width={36} height={36} className="object-cover" />
+            <div className="relative h-9 w-9 overflow-hidden rounded-2xl bg-lime-300 ring-1 ring-white/20">
+              <Image src="/oriwan-logo-v2.png" alt="어드민" fill sizes="36px" className="object-cover" />
             </div>
             <div>
               <h1 className="text-base font-black leading-none sm:text-lg">어드민</h1>

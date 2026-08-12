@@ -33,6 +33,52 @@ CREATE POLICY "Users can delete own participants"
 CREATE INDEX IF NOT EXISTS idx_participants_user_order
   ON participants(user_id, active, display_order, created_at);
 
+-- 1-1. 참가자 로그인 계정 승인 연결
+-- runner_name 같은 사용자 수정 가능 metadata는 권한 판정에 사용하지 않습니다.
+-- 운영자가 실제 참가자를 확인한 뒤 service role 또는 SQL Editor에서 approved로 연결합니다.
+CREATE TABLE IF NOT EXISTS participant_accounts (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  participant_id UUID REFERENCES participants(id) ON DELETE CASCADE NOT NULL,
+  auth_user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  status TEXT DEFAULT 'pending' NOT NULL CHECK (status IN ('pending', 'approved', 'revoked')),
+  approved_at TIMESTAMPTZ,
+  approved_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_participant_accounts_auth_user
+  ON participant_accounts(auth_user_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_participant_accounts_participant
+  ON participant_accounts(participant_id);
+CREATE INDEX IF NOT EXISTS idx_participant_accounts_status
+  ON participant_accounts(status);
+
+ALTER TABLE participant_accounts ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Users can read own participant account" ON participant_accounts;
+CREATE POLICY "Users can read own participant account"
+  ON participant_accounts FOR SELECT
+  USING (auth.uid() = auth_user_id);
+
+REVOKE ALL ON TABLE participant_accounts FROM anon;
+REVOKE ALL ON TABLE participant_accounts FROM PUBLIC;
+GRANT SELECT ON TABLE participant_accounts TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE participant_accounts TO service_role;
+
+-- 승인 전 확인:
+-- SELECT id, email, raw_user_meta_data->>'runner_name' AS requested_name FROM auth.users ORDER BY created_at DESC;
+-- SELECT id, name FROM participants WHERE active = TRUE ORDER BY display_order, created_at;
+-- 승인 예시(세 UUID는 운영자가 직접 확인한 값으로 교체):
+-- INSERT INTO participant_accounts (participant_id, auth_user_id, status, approved_at, approved_by)
+-- VALUES ('participant-uuid', 'google-auth-user-uuid', 'approved', NOW(), 'admin-auth-user-uuid')
+-- ON CONFLICT (auth_user_id) DO UPDATE
+-- SET participant_id = EXCLUDED.participant_id,
+--     status = 'approved',
+--     approved_at = NOW(),
+--     approved_by = EXCLUDED.approved_by,
+--     updated_at = NOW();
+
 -- 2. 업로드 배치
 CREATE TABLE IF NOT EXISTS upload_batches (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,

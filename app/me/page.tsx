@@ -54,6 +54,8 @@ type MeData = {
   user: { id: string; email?: string };
   runner_name: string;
   matched_participant: Participant | null;
+  connection_status: "approved" | "pending" | "revoked" | "unlinked" | "invalid" | "setup_required" | "admin_missing";
+  connection_message: string;
   records: RunRecord[];
   challenge_start_date: string;
 };
@@ -128,7 +130,7 @@ export default function MyPage() {
       }
       setData(json);
       setName(json.runner_name || "");
-      if (!preserveMessage) setMessage("");
+      if (!preserveMessage) setMessage(json.connection_status === "approved" ? "" : json.connection_message || "");
     } catch {
       setMessage("내 러닝 보드를 불러오지 못했어요. 잠시 후 다시 열어볼게요.");
     } finally {
@@ -185,7 +187,7 @@ export default function MyPage() {
     const json = await response.json();
     if (response.ok) {
       setData(json);
-      setMessage(json.matched_participant ? "좋아요. 멤버 이름과 연결됐어요." : "이름을 저장했어요. 어드민에 등록된 이름과 같으면 기록이 바로 이어집니다.");
+      setMessage(json.matched_participant ? "좋아요. 관리자 승인이 완료된 계정과 연결됐어요." : json.connection_message || "이름 연결 요청을 저장했어요. 관리자 승인 후 기록을 올릴 수 있습니다.");
     } else {
       setMessage(json.error || "이름을 저장하지 못했어요. 다시 한 번만 시도해주세요.");
     }
@@ -283,11 +285,13 @@ export default function MyPage() {
     return (
       <main className="flex min-h-screen items-center justify-center overflow-x-hidden bg-oriwan-bg px-3 py-6 sm:px-5 sm:py-8">
         <div className="card mobile-page-card w-full max-w-[430px] p-6 text-center sm:p-9">
-          <Image src="/oriwan-logo-v2.png" alt="스내사 3기" width={72} height={72} className="mx-auto rounded-3xl" />
+          <span className="relative mx-auto block h-[72px] w-[72px] overflow-hidden rounded-3xl">
+            <Image src="/oriwan-logo-v2.png" alt="스내사 3기" fill sizes="72px" className="object-cover" />
+          </span>
           <p className="mt-5 text-xs font-black text-oriwan-primary">MY RUNNING BOARD</p>
           <h1 className="mt-1 text-3xl font-black leading-tight text-oriwan-text">내 러닝 기록 올리기</h1>
           <p className="mt-3 text-sm leading-6 text-oriwan-text-muted">
-            Google로 로그인하고, 어드민에 등록된 이름과 똑같이 입력해주세요. 이름이 맞으면 내 러닝 기록이 자동으로 이어집니다.
+            Google로 로그인하고 이름 연결을 요청해주세요. 관리자 승인 후 내 러닝 기록을 안전하게 이어볼 수 있습니다.
           </p>
           {message && <p className="mt-4 rounded-2xl bg-oriwan-surface-light px-4 py-3 text-xs font-bold text-oriwan-text-muted">{message}</p>}
           <button onClick={handleGoogleLogin} className="btn-primary mt-6 w-full py-3 text-sm">Google 로그인</button>
@@ -302,7 +306,9 @@ export default function MyPage() {
       <header className="sticky top-0 z-50 border-b border-slate-950/10 bg-[#101522]/95 px-4 py-3 text-white backdrop-blur-2xl">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
-            <Image src="/oriwan-logo-v2.png" alt="스내사 3기" width={38} height={38} className="rounded-2xl bg-lime-300" />
+            <span className="relative h-[38px] w-[38px] shrink-0 overflow-hidden rounded-2xl bg-lime-300">
+              <Image src="/oriwan-logo-v2.png" alt="스내사 3기" fill sizes="38px" className="object-cover" />
+            </span>
             <div className="min-w-0">
               <h1 className="truncate text-base font-black leading-tight sm:text-lg">내 러닝 보드</h1>
               <p className="truncate text-[11px] font-semibold text-white/50">{data.user.email}</p>
@@ -320,10 +326,10 @@ export default function MyPage() {
             <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0">
                 <h3 className="text-lg font-black text-oriwan-text">이름 연결하기</h3>
-                <p className="mt-1 text-xs leading-5 text-oriwan-text-muted">어드민에 등록된 이름과 띄어쓰기까지 똑같이 입력하면 기록이 착 붙어요.</p>
+                <p className="mt-1 text-xs leading-5 text-oriwan-text-muted">내 이름을 입력해 관리자에게 계정 연결 승인을 요청해주세요.</p>
               </div>
               <span className={`w-fit shrink-0 rounded-full px-3 py-1 text-[10px] font-black ${data.matched_participant ? "bg-amber-50 text-slate-950" : "bg-lime-300/25 text-amber-800"}`}>
-                {data.matched_participant ? "연결 완료" : "이름 연결 전"}
+                {data.matched_participant ? "연결 완료" : data.connection_status === "revoked" ? "연결 해제" : "승인 대기"}
               </span>
             </div>
             <div className="mt-4 grid min-w-0 gap-2 sm:grid-cols-[1fr_auto]">
@@ -332,7 +338,7 @@ export default function MyPage() {
             </div>
             {!data.matched_participant && (
               <p className="mt-3 rounded-2xl bg-amber-50 px-3 py-2 text-[11px] font-bold leading-5 text-amber-800 ring-1 ring-amber-100">
-                이름이 연결되면 직접 입력한 기록과 이미지 기록을 바로 저장할 수 있어요. 예: 등록 이름이 “김지우”라면 “김지우”로 입력해주세요.
+                이름은 관리자 승인 요청에만 사용됩니다. 승인 전에는 다른 사람의 기록을 보거나 저장할 수 없어요.
               </p>
             )}
           </div>

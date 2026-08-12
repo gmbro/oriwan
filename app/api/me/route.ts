@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { CERTIFICATION_DISPLAY_START_DATE, CHALLENGE_END_DATE, CHALLENGE_START_DATE } from "@/lib/challenge";
-import { findAdminUserId, findParticipantByRunnerName, getServiceClient } from "@/lib/admin-data";
+import { getServiceClient } from "@/lib/admin-data";
+import { resolveParticipantAccount } from "@/lib/participant-account-server";
 import { guardMutationRequest } from "@/lib/request-security";
 
 function getRunnerName(userMetadata: Record<string, unknown> | null | undefined) {
@@ -14,11 +15,12 @@ async function buildMePayload(userId: string, email: string | undefined, userMet
   if (!service) throw new Error("service_missing");
 
   const runnerName = getRunnerName(userMetadata);
-  const adminUserId = await findAdminUserId(service);
-  const participant = adminUserId && runnerName ? await findParticipantByRunnerName(service, adminUserId, runnerName) : null;
+  const connection = await resolveParticipantAccount(service, userId);
+  const adminUserId = connection.adminUserId;
+  const participant = connection.participant;
 
   let records: unknown[] = [];
-  if (adminUserId && participant) {
+  if (connection.status === "approved" && adminUserId && participant) {
     const { data, error } = await service
       .from("daily_run_records")
       .select("id, participant_id, record_date, distance_km, duration_seconds, pace_seconds_per_km, status, source_app, notes, created_at")
@@ -34,6 +36,11 @@ async function buildMePayload(userId: string, email: string | undefined, userMet
     user: { id: userId, email },
     runner_name: runnerName,
     matched_participant: participant,
+    connection_status: connection.status,
+    connection_message: connection.status === "unlinked" && runnerName
+      ? "이름 연결 요청을 저장했어요. 관리자 승인 후 기록을 볼 수 있습니다."
+      : connection.message,
+    setup_required: connection.setupRequired || false,
     records,
     certification_display_start_date: CERTIFICATION_DISPLAY_START_DATE,
     challenge_start_date: CHALLENGE_START_DATE,

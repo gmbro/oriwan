@@ -3,6 +3,7 @@ export const ACTUAL_CERTIFICATION_START_DATE = "2026-05-05";
 export const CHALLENGE_START_DATE = "2026-05-05";
 export const CHALLENGE_DAYS = 100;
 export const CHALLENGE_END_DATE = "2026-08-12";
+export const NEXT_SEASON_START_DATE = "2026-09-23";
 export const CHALLENGE_DATE_ERROR = `러닝 기록은 ${CHALLENGE_START_DATE}부터 남길 수 있어요.`;
 export const CERTIFICATION_EXCLUDED_PARTICIPANT_NAMES = ["수연"];
 

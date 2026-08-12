@@ -36,7 +36,7 @@ export default function PrivacyPage() {
           <section>
             <h2 className="text-base font-bold text-oriwan-text mb-2">3. 이용 목적</h2>
             <ul className="list-disc pl-5 space-y-1">
-              <li>2026년 5월 1일부터 100일간의 러닝 인증 여부 확인</li>
+              <li>2026년 5월 5일부터 100일간의 러닝 인증 여부 확인</li>
               <li>전체 및 개별 참가자의 거리, 시간, 인증률 시각화</li>
               <li>참가자가 입력한 이름과 운영자가 등록한 참가자명 매칭</li>
               <li>관리자의 참가자 관리 및 기록 검수</li>
@@ -65,7 +65,7 @@ export default function PrivacyPage() {
           </section>
 
           <p className="text-xs text-oriwan-text-muted/60 pt-4 border-t border-oriwan-border">
-            시행일: 2026년 5월 6일 · 운영: (주)아키랩 · 관리자: 이경민
+            시행일: 2026년 5월 5일 · 운영: (주)아키랩 · 관리자: 이경민
           </p>
         </div>
       </div>

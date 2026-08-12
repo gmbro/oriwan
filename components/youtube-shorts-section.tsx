@@ -225,7 +225,7 @@ export function YoutubeShortsSection({ initialDayKey }: { initialDayKey: string 
   }, [category, dayKey, refreshSeed]);
 
   return (
-    <section className="card mobile-page-card mt-4 overflow-hidden p-4 sm:p-5">
+    <section className="card mobile-page-card overflow-hidden p-4 sm:p-5">
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h3 className="text-lg font-black leading-tight text-oriwan-text">러닝 후 리커버리</h3>
