@@ -49,6 +49,7 @@ export type SeasonReportMonth = {
   certifiedDays: number;
   targetDays: number;
   rate: number;
+  distanceKm: number;
 };
 
 export type SeasonReportCalendarCell = {
@@ -212,17 +213,21 @@ function makeWeeks(certifiedDateSet: Set<string>) {
   });
 }
 
-function makeMonths(certifiedDateSet: Set<string>) {
+function makeMonths(certifiedDateSet: Set<string>, records: PublicDashboardRecord[] = []) {
   const monthKeys = Array.from(new Set(SEASON_DAYS.map((day) => day.slice(0, 7))));
   return monthKeys.map((key) => {
     const days = SEASON_DAYS.filter((day) => day.startsWith(key));
     const certifiedDays = days.filter((day) => certifiedDateSet.has(day)).length;
+    const distanceKm = records
+      .filter((record) => record.record_date?.startsWith(key))
+      .reduce((sum, record) => sum + (record.distance_km || 0), 0);
     return {
       key,
       label: `${Number(key.slice(5, 7))}월`,
       certifiedDays,
       targetDays: days.length,
       rate: days.length ? Math.round((certifiedDays / days.length) * 100) : 0,
+      distanceKm,
     };
   });
 }
@@ -379,7 +384,7 @@ function makeMemberBase(
     recentBadge: badges[0] || null,
     hasHundredDayBadge: badges.some((badge) => badge.key === "hundred-day-streak"),
     weeks,
-    months: makeMonths(certifiedDateSet),
+    months: makeMonths(certifiedDateSet, records),
     calendarMonths: makeCalendarMonths(recordsByDate, earnedBadgeDates),
   };
 }
@@ -443,6 +448,9 @@ export function buildSeasonReport(payload: PublicDashboardPayload): SeasonReport
       certifiedDays,
       targetDays,
       rate: targetDays ? Math.round((certifiedDays / targetDays) * 100) : 0,
+      distanceKm: officialRecords
+        .filter((record) => record.record_date?.startsWith(key))
+        .reduce((sum, record) => sum + (record.distance_km || 0), 0),
     };
   });
   const totalCertifiedDays = members.reduce((sum, member) => sum + member.certifiedDays, 0);
@@ -481,4 +489,12 @@ export function formatSeasonDuration(seconds: number) {
 
 export function formatSeasonDate(date: string) {
   return date ? date.slice(5).replace("-", ".") : "-";
+}
+
+export function formatSeasonPace(durationSeconds: number, distanceKm: number) {
+  if (!distanceKm || !durationSeconds) return "-";
+  const secondsPerKm = Math.round(durationSeconds / distanceKm);
+  const minutes = Math.floor(secondsPerKm / 60);
+  const seconds = secondsPerKm % 60;
+  return `${minutes}'${String(seconds).padStart(2, "0")}\"`;
 }
