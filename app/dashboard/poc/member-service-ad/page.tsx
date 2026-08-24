@@ -16,11 +16,11 @@ export const metadata: Metadata = {
 };
 
 const POC_MEMBERS = [
-  { id: "poc-member-1", name: "손윤정", nickname: "구름 리본", certifiedDays: 100, distanceKm: 321.6, durationSeconds: 170_562 },
-  { id: "poc-member-2", name: "신민희", nickname: "번개 메롱러", certifiedDays: 100, distanceKm: 459.5, durationSeconds: 192_630 },
-  { id: "poc-member-3", name: "안승재", nickname: "깃발 리더", certifiedDays: 100, distanceKm: 622.8, durationSeconds: 186_618 },
-  { id: "poc-member-4", name: "윤희상", nickname: "나침반 캡", certifiedDays: 96, distanceKm: 410.4, durationSeconds: 192_868 },
-  { id: "poc-member-5", name: "이경민", nickname: "햇살 캡틴", certifiedDays: 82, distanceKm: 764.1, durationSeconds: 348_540 },
+  { id: "poc-member-1", name: "손윤정", certifiedDays: 100, distanceKm: 321.6, durationSeconds: 170_562 },
+  { id: "poc-member-2", name: "신민희", certifiedDays: 100, distanceKm: 459.5, durationSeconds: 192_630 },
+  { id: "poc-member-3", name: "안승재", certifiedDays: 100, distanceKm: 622.8, durationSeconds: 186_618 },
+  { id: "poc-member-4", name: "윤희상", certifiedDays: 96, distanceKm: 410.4, durationSeconds: 192_868 },
+  { id: "poc-member-5", name: "이경민", certifiedDays: 82, distanceKm: 764.1, durationSeconds: 348_540 },
 ] as const;
 
 function makePocDashboardData(): PublicDashboardPayload {
@@ -49,10 +49,9 @@ function makePocDashboardData(): PublicDashboardPayload {
     challenge_start_date: CHALLENGE_START_DATE,
     challenge_end_date: CHALLENGE_END_DATE,
     generated_at: "2026-08-12T07:00:00.000Z",
-    participants: POC_MEMBERS.map(({ id, name, nickname }, displayOrder) => ({
+    participants: POC_MEMBERS.map(({ id, name }, displayOrder) => ({
       id,
       name,
-      nickname,
       active: true,
       display_order: displayOrder + 1,
     })),

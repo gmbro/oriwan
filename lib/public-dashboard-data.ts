@@ -13,7 +13,7 @@ import { addDays, getCertificationCreditMetrics, isCertificationCountedStatus, i
 import { isMissingTableError, missingSchemaResponse } from "@/lib/supabase-errors";
 
 const PUBLIC_DASHBOARD_REVALIDATE_SECONDS = 60;
-const PUBLIC_DASHBOARD_PAYLOAD_VERSION = "recovery-growth-credit-v2-anonymized-names";
+const PUBLIC_DASHBOARD_PAYLOAD_VERSION = "recovery-growth-credit-v3-private-intros";
 export const PUBLIC_DASHBOARD_CACHE_TAG = "public-dashboard";
 export const PUBLIC_DASHBOARD_CACHE_CONTROL = "private, no-store, max-age=0, must-revalidate";
 const PUBLIC_DASHBOARD_MEMORY_CACHE_TTL_MS = PUBLIC_DASHBOARD_REVALIDATE_SECONDS * 1000;
@@ -22,7 +22,6 @@ const DASHBOARD_RECORDS_PAGE_SIZE = 1000;
 export type PublicDashboardParticipant = {
   id: string;
   name: string;
-  nickname: string | null;
   active?: boolean;
   display_order?: number;
   created_at?: string;
@@ -324,7 +323,7 @@ export async function buildPublicDashboardPayload(from: string, to: string): Pro
   const [participantsResult, recordsResult] = await Promise.all([
     supabase
       .from("participants")
-      .select("id, name, nickname, active, display_order, created_at")
+      .select("id, name, active, display_order, created_at")
       .eq("user_id", adminUserId)
       .eq("active", true)
       .order("display_order", { ascending: true })

@@ -145,8 +145,11 @@ function gaugeTextClass(certifiedDays: number) {
 
 const officialCertificationDays = makeOfficialCertificationDays();
 const RING_CIRCUMFERENCE = 302;
-const PUBLIC_DASHBOARD_STORAGE_KEY = "oriwan-public-dashboard-cache-v5-anonymized-names";
-const LEGACY_PUBLIC_DASHBOARD_STORAGE_KEYS = ["oriwan-public-dashboard-cache-v4"];
+const PUBLIC_DASHBOARD_STORAGE_KEY = "oriwan-public-dashboard-cache-v6-private-intros";
+const LEGACY_PUBLIC_DASHBOARD_STORAGE_KEYS = [
+  "oriwan-public-dashboard-cache-v4",
+  "oriwan-public-dashboard-cache-v5-anonymized-names",
+];
 const PUBLIC_DASHBOARD_STORAGE_TTL_MS = 10 * 60 * 1000;
 const PUBLIC_DASHBOARD_FOCUS_REFRESH_MS = 30 * 1000;
 const PUBLIC_DASHBOARD_LIVE_REFRESH_MS = 30 * 1000;
@@ -964,7 +967,6 @@ export function DashboardClient({
   const [animationRun, setAnimationRun] = useState(0);
   const [selectedParticipantId, setSelectedParticipantId] = useState("");
   const [selectedDailyRecordDate, setSelectedDailyRecordDate] = useState("");
-  const [showParticipantIntro, setShowParticipantIntro] = useState(false);
   const [trendModal, setTrendModal] = useState<TrendModal>(null);
   const [showSeasonReportModal, setShowSeasonReportModal] = useState(false);
   const [showJourneyReportModal, setShowJourneyReportModal] = useState(false);
@@ -1742,7 +1744,6 @@ export function DashboardClient({
     queueMicrotask(() => {
       if (cancelled) return;
       setMascotCoachMessageIndex(0);
-      setShowParticipantIntro(false);
     });
 
     return () => {
@@ -2305,26 +2306,7 @@ export function DashboardClient({
                       onNext={() => setMascotCoachMessageIndex((current) => current + 1)}
                     />
                     <div className="flex min-w-0 flex-wrap items-center gap-2">
-                      {selectedParticipant.participant.nickname ? (
-                        <button
-                          type="button"
-                          onClick={() => setShowParticipantIntro((current) => !current)}
-                          className="group inline-flex min-w-0 items-center gap-2 text-left"
-                          aria-expanded={showParticipantIntro}
-                          aria-controls={`participant-intro-${selectedParticipant.participant.id}`}
-                        >
-                          <span className="min-w-0 truncate text-2xl font-black leading-tight text-oriwan-text group-hover:underline">
-                            {selectedParticipant.participant.name}
-                          </span>
-                          <span className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-black leading-none ${
-                            showParticipantIntro ? "bg-slate-950 text-lime-200" : "bg-oriwan-surface-light text-oriwan-text-muted"
-                          }`}>
-                            {showParticipantIntro ? "접기" : "소개"}
-                          </span>
-                        </button>
-                      ) : (
-                        <h3 className="min-w-0 truncate text-2xl font-black leading-tight text-oriwan-text">{selectedParticipant.participant.name}</h3>
-                      )}
+                      <h3 className="min-w-0 truncate text-2xl font-black leading-tight text-oriwan-text">{selectedParticipant.participant.name}</h3>
                     </div>
                   </div>
                   <MascotCoachBubble
@@ -2332,11 +2314,6 @@ export function DashboardClient({
                     message={selectedMascotCoachMessage}
                   />
                 </div>
-                {selectedParticipant.participant.nickname && showParticipantIntro && (
-                  <p id={`participant-intro-${selectedParticipant.participant.id}`} className="mt-3 w-full whitespace-pre-line break-keep rounded-2xl bg-oriwan-surface-light px-4 py-3 text-sm font-bold leading-6 text-oriwan-text">
-                    {selectedParticipant.participant.nickname}
-                  </p>
-                )}
               </div>
               <div className="grid grid-cols-7 gap-1 sm:gap-1.5">
                 {dashboard.stampDays.map((day, index) => {
