@@ -145,7 +145,8 @@ function gaugeTextClass(certifiedDays: number) {
 
 const officialCertificationDays = makeOfficialCertificationDays();
 const RING_CIRCUMFERENCE = 302;
-const PUBLIC_DASHBOARD_STORAGE_KEY = "oriwan-public-dashboard-cache-v4";
+const PUBLIC_DASHBOARD_STORAGE_KEY = "oriwan-public-dashboard-cache-v5-anonymized-names";
+const LEGACY_PUBLIC_DASHBOARD_STORAGE_KEYS = ["oriwan-public-dashboard-cache-v4"];
 const PUBLIC_DASHBOARD_STORAGE_TTL_MS = 10 * 60 * 1000;
 const PUBLIC_DASHBOARD_FOCUS_REFRESH_MS = 30 * 1000;
 const PUBLIC_DASHBOARD_LIVE_REFRESH_MS = 30 * 1000;
@@ -178,10 +179,15 @@ const FULL_HOUSE_FIREWORK_BURSTS = [
 
 type StoredGrowthBadges = Record<string, string[]>;
 
+function clearLegacyPublicDashboardData() {
+  LEGACY_PUBLIC_DASHBOARD_STORAGE_KEYS.forEach((key) => window.localStorage.removeItem(key));
+}
+
 function readCachedDashboardData() {
   if (typeof window === "undefined") return null;
 
   try {
+    clearLegacyPublicDashboardData();
     const raw = window.localStorage.getItem(PUBLIC_DASHBOARD_STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as { savedAt?: number; data?: PublicDashboardData };
@@ -198,6 +204,7 @@ function writeCachedDashboardData(data: PublicDashboardData) {
   if (typeof window === "undefined") return;
 
   try {
+    clearLegacyPublicDashboardData();
     window.localStorage.setItem(PUBLIC_DASHBOARD_STORAGE_KEY, JSON.stringify({
       savedAt: Date.now(),
       data,

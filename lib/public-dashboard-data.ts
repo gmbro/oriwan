@@ -8,11 +8,12 @@ import {
   PERSONAL_GROWTH_BADGE_KEYS,
   type GrowthBadgeUnlock,
 } from "@/lib/growth-badges";
+import { anonymizeParticipantName } from "@/lib/participant-privacy";
 import { addDays, getCertificationCreditMetrics, isCertificationCountedStatus, isRecoveryCertificationRecord, toIsoDate, toKstIsoDate } from "@/lib/run-records";
 import { isMissingTableError, missingSchemaResponse } from "@/lib/supabase-errors";
 
 const PUBLIC_DASHBOARD_REVALIDATE_SECONDS = 60;
-const PUBLIC_DASHBOARD_PAYLOAD_VERSION = "recovery-growth-credit-v1";
+const PUBLIC_DASHBOARD_PAYLOAD_VERSION = "recovery-growth-credit-v2-anonymized-names";
 export const PUBLIC_DASHBOARD_CACHE_TAG = "public-dashboard";
 export const PUBLIC_DASHBOARD_CACHE_CONTROL = "private, no-store, max-age=0, must-revalidate";
 const PUBLIC_DASHBOARD_MEMORY_CACHE_TTL_MS = PUBLIC_DASHBOARD_REVALIDATE_SECONDS * 1000;
@@ -375,6 +376,10 @@ export async function buildPublicDashboardPayload(from: string, to: string): Pro
     from,
     to,
   })).filter((badge) => Boolean(badge.participant_id && visibleParticipantIds.has(badge.participant_id)));
+  const publicParticipants = participants.map((participant) => ({
+    ...participant,
+    name: anonymizeParticipantName(participant.name),
+  }));
 
   return {
     from,
@@ -383,7 +388,7 @@ export async function buildPublicDashboardPayload(from: string, to: string): Pro
     challenge_start_date: CHALLENGE_START_DATE,
     challenge_end_date: CHALLENGE_END_DATE,
     generated_at: new Date().toISOString(),
-    participants,
+    participants: publicParticipants,
     records,
     growth_badges: growthBadges,
   };
