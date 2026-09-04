@@ -1,6 +1,6 @@
 # TWTT 4기 카카오 로그인·공개 대시보드·운영 어드민 아키텍처
 
-- 기준일: 2026-09-02
+- 기준일: 2026-09-04
 - 운영 origin: `https://xn--220bw61afob.kro.kr`
 - 상태: 4기 사전 공개(prelaunch). 실제 오픈 전 서버 데이터 이전과 외부 인증 검증이 남아 있음
 - 관련 운영정책: [TWTT 4기 서비스 운영정책](./twtt-4th-operating-policy.md)
@@ -11,7 +11,7 @@
 
 | 경로 | 역할 | 로그인 | 현재 상태 |
 | --- | --- | --- | --- |
-| `/` | TWTT 공통 진입 페이지 | 불필요 | 4기, 카카오 로그인, 3기 진입 버튼 제공 |
+| `/` | TWTT 공통 진입 페이지 | 불필요 | `카카오로 시작하기`, `로그인 없이 대시보드 보기`, 3기 기록 진입 제공 |
 | `/3th` | TWTT 3기 공통 대시보드 | 불필요 | 종료 시점 정적 스냅샷을 사용하는 읽기 전용 화면 |
 | `/4th` | TWTT 4기 공통 대시보드 | 열람은 불필요 | 더미데이터 기반 사전 공개. 오픈 안내 팝업과 `noindex` 적용 |
 | `/admin` | 인증·크루프로필·응원글·배너·댓글 운영 | 관리자 OTP 필요 | 기존 인증/OCR과 탭 UI 제공. 일부 콘텐츠 탭은 서버 저장 미완료 |
@@ -26,7 +26,7 @@
 /
 ├─ /4th ───────────────── 4기 공개 대시보드 + 카카오 개인 영역
 │  ├─ 비로그인 ────────── 공개 현황 열람, 정식 오픈 후 랜덤 익명 댓글
-│  └─ 카카오 로그인 ───── 운영자 확인 이름 댓글 + 조건부 응원 상자
+│  └─ 카카오 로그인 ───── 오늘의 운세 + Kakao/운영자 이름 댓글 + 조건부 응원 상자
 ├─ /3th ───────────────── 3기 공통 대시보드 읽기 전용 스냅샷
 ├─ /dashboard/report/3th ─ 3기 전체·개인 상세 아카이브
 └─ /admin ─────────────── 관리자 OTP + 운영 탭
@@ -34,10 +34,11 @@
 
 ## 2. 개인 로그인 권한
 
-카카오 개인 로그인으로 가능한 일은 아래 두 가지뿐이다.
+카카오 개인 로그인으로 가능한 일은 아래 세 가지뿐이다.
 
-1. 운영자가 확인한 표시명으로 댓글·답글 작성
-2. 운영자가 연결한 4기 참가자가 오늘 인증을 완료한 경우 오늘의 응원 상자 개봉
+1. 인증 없이 오늘의 운세 확인
+2. Kakao 프로필 닉네임 또는 운영자가 바꾼 표시명으로 댓글·답글 작성
+3. 운영자가 연결한 4기 참가자가 오늘 인증을 완료한 경우 오늘의 응원 상자 개봉
 
 개인 로그인에는 인증 등록, OCR 분석, 인증 수정, 크루프로필 수정, 다른 참가자 기록 조회, 운영 어드민 접근 권한이 없다.
 
@@ -45,8 +46,10 @@
 
 | API | 메서드 | 동작 |
 | --- | --- | --- |
+| `/api/auth/kakao` | `GET` | 서버에서 PKCE OAuth를 시작하고 검증된 내부 `next` 경로를 callback에 전달 |
 | `/api/hello-2027/viewer` | `GET` | Kakao 로그인, 운영자 승인, 운영자 확인 표시명 상태 조회 |
 | `/api/me` | `GET` | 현재 Kakao 계정의 연결 상태와 표시명만 조회 |
+| `/api/me/fortune` | `GET` | Kakao 세션만 확인하고 KST 날짜별 고정 운세를 서버 HMAC으로 계산 |
 | `/api/me` | `PATCH` | 항상 `403`. 표시명은 운영자만 변경 |
 | `/api/me/records` | `POST` | 항상 `403`. 인증은 운영자 어드민에서 등록·검수 |
 | `/api/me/records/analyze` | `POST` | 항상 `403`. OCR은 운영자 어드민에서만 실행 |
@@ -61,7 +64,8 @@
 
 ```text
 / 또는 /4th
-  → supabase.auth.signInWithOAuth({ provider: "kakao" })
+  → /api/auth/kakao?next=/4th
+  → 서버 supabase.auth.signInWithOAuth({ provider: "kakao" })
   → Kakao 동의 화면
   → https://<project-ref>.supabase.co/auth/v1/callback
   → https://xn--220bw61afob.kro.kr/api/auth/callback?next=/4th
@@ -69,16 +73,17 @@
   → /4th
 ```
 
-앱 callback은 `next`가 `/`로 시작하는 내부 상대 경로인지 확인하고 `//`와 역슬래시를 거부한다. 최종 origin은 `NEXT_PUBLIC_SITE_URL` 또는 `SITE_URL`의 운영 origin으로 고정한다. 인증 응답과 사용자별 API 응답은 `private, no-store`로 처리한다.
+앱 callback은 `next`를 `/`, `/4th`, `/4th#member-features`, `/me` allowlist로 제한하고 제어문자·역슬래시·쿼리를 거부한다. URL 파싱 뒤에도 최종 origin을 `NEXT_PUBLIC_SITE_URL` 또는 `SITE_URL`의 운영 origin과 다시 비교한다. 인증 응답과 사용자별 API 응답은 `private, no-store`로 처리한다.
 
-### 운영자 확인 표시명
+### Kakao 이름과 운영자 확인 표시명
 
-- Kakao 프로필 닉네임은 로그인 계정을 찾기 위한 운영자 참고값이며 법적 실명 확인값이 아니다.
-- 로그인 이용자가 요청 본문이나 Supabase `user_metadata`로 댓글 이름을 정하지 못하게 한다.
+- Kakao 프로필 닉네임은 로그인 댓글의 기본 표시명이며 법적 실명 확인값이 아니다.
+- 댓글 저장 요청이 작성자명을 받지 않게 하고, 서버가 Kakao identity data의 닉네임을 읽는다. 사용자 수정 가능 metadata는 권한 판정에 사용하지 않는다.
 - 운영자가 `/admin` 크루프로필 탭에서 실제 크루를 선택하고 `display_name_override`를 입력한 뒤 승인한다.
 - 표시명 입력이 없으면 운영자가 등록한 크루 이름을 기본값으로 사용한다.
-- 승인된 연결만 `/api/hello-2027/viewer`의 `verified_name: true`와 표시명을 받을 수 있다.
-- 운영자 확인 전 로그인 이용자는 `이름 확인 중` 상태로 표시되며 댓글·답글을 작성할 수 없다.
+- 승인된 연결만 운영자 override와 `/api/hello-2027/viewer`의 `verified_name: true`를 받는다. 승인 전 로그인 이용자는 Kakao identity가 제공한 프로필 이름만 받는다.
+- 운영자 확인 전에는 `name_source: "kakao"`, 확인 후에는 `name_source: "admin"`으로 구분한다.
+- 로그인 댓글 저장 API는 요청 본문의 작성자명이 아니라 최신 세션과 서버의 표시명 우선순위로 작성자를 정한다.
 - 같은 이름만으로 계정을 자동 연결하지 않는다.
 
 화면 문구는 사용자의 법적 신원을 인증했다는 의미의 `실명 인증` 대신 `운영자 확인 이름`을 우선 사용한다.
@@ -88,7 +93,7 @@
 ### 확정 동작
 
 - 비로그인 이용자: 서버가 랜덤 익명 닉네임을 부여한다.
-- 카카오 로그인 이용자: 운영자 확인 표시명만 사용한다.
+- 카카오 로그인 이용자: 운영자 override가 있으면 확인 표시명, 없으면 Kakao 프로필 닉네임을 사용한다.
 - 로그인 이용자는 익명 모드를 선택할 수 없다.
 - 댓글과 답글은 최대 150자다.
 - 작성자명은 댓글 저장 요청에서 받지 않고 서버가 세션과 승인 연결에서 결정한다.
@@ -108,13 +113,21 @@
 
 공용 댓글 서버 저장과 운영자 댓글 관리가 연결되기 전에는 `previewOnly`를 해제하지 않는다.
 
-## 5. 오늘의 응원 상자
+## 5. 오늘의 운세와 응원 상자
+
+### 오늘의 운세
+
+`/api/me/fortune`은 유효한 Kakao identity만 요구하며 참가자 승인이나 당일 인증은 확인하지 않는다. 서버가 계산한 Asia/Seoul 날짜와 Supabase auth user ID를 `DAILY_FORTUNE_SECRET`으로 HMAC해 카탈로그 인덱스를 정하므로 같은 사용자는 같은 날 같은 결과를 본다. 결과는 DB에 저장하지 않고, user ID·seed·digest를 응답하지 않는다. 응답은 `private, no-store, max-age=0`과 `Vary: Cookie`를 사용한다.
+
+`DAILY_FORTUNE_SECRET`은 32바이트 이상의 운세 전용 난수로 배포 Secret에만 저장하며 `ADMIN_SESSION_SECRET`, Supabase service-role, Kakao Client Secret과 재사용하지 않는다.
+
+### 오늘의 응원 상자
 
 `/api/me/gift-box`는 아래 조건을 서버에서 확인한다.
 
 1. 유효한 Supabase 사용자이며 실제 Kakao identity가 있는가.
 2. 카카오 계정이 운영자에 의해 활성 참가자와 `approved`로 연결됐는가.
-3. Asia/Seoul 기준 오늘 날짜의 인증 레코드가 `certified`인가.
+3. Asia/Seoul 기준 오늘이 4기 운영 기간(2026-09-23~2026-12-31) 안이며 오늘 날짜의 인증 레코드가 `certified`인가.
 4. `season_key = "4th"`, 관리자 데이터 소유자, 참가자, auth user, 인증일이 모두 일치하는가.
 5. 같은 4기 참가자·인증일에 이미 지급된 결과가 없는가.
 
@@ -222,6 +235,8 @@ Production 환경에 아래 이름을 설정한다. 값은 Vercel의 암호화�
 | `NEXT_PUBLIC_SITE_URL` | 공개 | `https://xn--220bw61afob.kro.kr` |
 | `SITE_URL` | 서버 설정 | `https://xn--220bw61afob.kro.kr` |
 | `ADMIN_SESSION_SECRET` | 서버 비밀 | 관리자 쿠키 서명 전용 32바이트 이상 난수 |
+| `DAILY_FORTUNE_SECRET` | 서버 비밀 | 오늘의 운세 HMAC 전용 32바이트 이상 난수 |
+| `FOURTH_GIFT_BOX_LIVE` | 서버 설정 | 운영 점검 완료 뒤 `true`로 바꿀 때만 응원 상자 지급 허용 |
 | `ADMIN_USER_ID` | 서버 설정 | 관리자 Supabase auth UUID |
 | `GEMINI_API_KEY` | 서버 비밀 | 관리자 OCR에 사용하는 Gemini 프로젝트 키 |
 | `GEMINI_OCR_MODEL` | 서버 설정 | 운영에 확정한 OCR 모델명 |
@@ -232,7 +247,7 @@ Kakao REST API key와 Client Secret은 Supabase Provider가 토큰 교환에 사
 ### 6단계: 스키마 적용과 배포
 
 1. 운영 DB를 백업한다.
-2. 저장소에 관리되는 migration 또는 검토된 SQL로 `participant_accounts.display_name_override`, `daily_gift_claims.season_key`와 고유 제약을 적용한다.
+2. 저장소에 관리되는 migration 또는 검토된 SQL로 `participant_accounts.display_name_override`, `participant_accounts.season_key`, `daily_gift_claims.season_key`와 고유 제약을 적용한다. 기존 승인 행의 `season_key`는 자동 백필하지 않고 운영자가 4기 연결을 다시 확인해 저장한다.
 3. 모든 public 테이블의 RLS와 grants를 확인한다.
 4. 일반 `anon`·`authenticated`가 참가자·인증·계정 연결·선물상자를 직접 변경하지 못하는지 테스트한다.
 5. Vercel Production 배포 후 custom domain의 `/`, `/3th`, `/4th`, `/admin`, `/dashboard/report/3th`를 확인한다.
@@ -245,6 +260,7 @@ Kakao REST API key와 Client Secret은 Supabase Provider가 토큰 교환에 사
 | Kakao Login Client Secret | Supabase Kakao Provider 설정 | Git, 문서, 채팅, `NEXT_PUBLIC_*` |
 | Supabase service-role/secret key | Vercel 서버 환경변수 | 브라우저 번들, 로그, 응답, 문서 |
 | 관리자 세션 비밀값 | Vercel `ADMIN_SESSION_SECRET` | Supabase public metadata, Git, 채팅 |
+| 운세 HMAC 비밀값 | Vercel `DAILY_FORTUNE_SECRET` | 다른 비밀값과 재사용, Git, 채팅, `NEXT_PUBLIC_*` |
 | Gemini API key | Vercel `GEMINI_API_KEY` | OCR 응답, 브라우저, 로그 |
 | Kakao Admin key | unlink webhook 구현 시 Vercel 서버 환경변수 | Supabase public metadata, 브라우저, 문서 |
 
@@ -258,12 +274,14 @@ Kakao REST API key와 Client Secret은 Supabase Provider가 토큰 교환에 사
 - `/3th` 읽기 전용 공통 대시보드 스냅샷
 - `/4th` 더미데이터 미리보기, 멤버 영역, 오픈 전 팝업, `noindex`
 - `/dashboard/report/3th`와 개인 상세 리포트
-- Supabase Kakao OAuth 시작과 PKCE callback code 교환
+- 서버 `/api/auth/kakao`에서 시작하는 Supabase Kakao OAuth와 PKCE callback code 교환
+- `/4th` 헤더의 compact 로그인·로그아웃과 공유 viewer 상태
+- 로그인만 요구하는 KST 날짜별 오늘의 운세 모달
 - 운영 origin 고정과 내부 `next` 경로 검증
 - Kakao provider 판정
 - `/admin` OTP와 인증·크루프로필·응원글·배너·댓글 탭
 - 운영자 카카오 계정 승인·해제와 표시명 override
-- 운영자 확인 전 로그인 댓글 차단 UI
+- Kakao 기본 닉네임과 운영자 표시명 override 구분
 - 개인 표시명 변경 `PATCH`, 개인 인증 저장 `POST`, 개인 OCR `POST`의 `403` 차단
 - 응원 상자의 Kakao provider·승인·KST 오늘 인증·4기 시즌 키·auth user 재검증
 - 서버 난수와 DB 고유 제약을 이용한 응원 상자 중복 방지
@@ -303,8 +321,9 @@ Kakao REST API key와 Client Secret은 Supabase Provider가 토큰 교환에 사
 ### 권한
 
 - [ ] 비로그인 이용자는 공개 화면만 보고 응원 상자를 열 수 없다.
-- [ ] 미승인·승인 해제·비Kakao 계정은 표시명 댓글과 응원 상자를 사용할 수 없다.
-- [ ] 운영자 확인 전 로그인 댓글은 차단된다.
+- [ ] 미승인·승인 해제 계정은 응원 상자를 사용할 수 없고 비Kakao 계정은 모든 개인 기능이 거부된다.
+- [ ] 운영자 override 전에는 Kakao 이름, 적용 후에는 확인 표시명으로 댓글 작성자가 정해진다.
+- [ ] Kakao 로그인 계정은 승인·인증 없이 오늘의 운세를 볼 수 있다.
 - [ ] 개인 `/api/me` PATCH, 기록 POST, OCR POST는 실제 배포에서도 `403`이다.
 - [ ] 비관리자와 만료된 관리자 세션은 모든 관리자 API에서 거부된다.
 - [ ] 일반 Supabase `anon`·`authenticated` 직접 쓰기가 RLS/grants에서 거부된다.
@@ -316,6 +335,7 @@ Kakao REST API key와 Client Secret은 Supabase Provider가 토큰 교환에 사
 - [ ] 공용 댓글 저장과 관리자 콘텐츠 CRUD가 연결됐다.
 - [ ] 응원 상자 동시 요청, 재요청, 계정 재연결, KST 자정 경계를 검증했다.
 - [ ] DB와 private Storage를 각각 백업하고 복구를 시험했다.
+- [ ] `DAILY_FORTUNE_SECRET`을 다른 비밀과 분리해 배포 Secret에 설정하고 저장소·브라우저 번들에서 누락됨을 확인했다.
 
 ### 화면과 성능
 

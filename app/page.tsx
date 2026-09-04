@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { KakaoLoginButton } from "@/components/kakao-login-button";
+import { DashboardGatewayActions } from "@/components/dashboard-gateway-actions";
+import { FourthViewerProvider } from "@/components/fourth-viewer-provider";
 import { TwttBrandMark } from "@/components/twtt-brand-mark";
 
-export default async function Home() {
+export default function Home() {
   return (
     <main className="flex min-h-screen items-center justify-center overflow-x-hidden bg-oriwan-bg px-3 py-6 sm:px-5 sm:py-10">
       <div className="relative mx-auto w-full max-w-[440px]">
@@ -13,21 +14,17 @@ export default async function Home() {
 
           <h1 className="sr-only">TWTT 공통 대시보드 입구</h1>
           <p className="animate-fade-up mt-6 text-center text-[13px] font-bold leading-6 text-oriwan-text-muted" style={{ animationDelay: "0.05s" }}>
-            로그인 없이 함께 달린 기록을 볼 수 있고,<br />카카오로 로그인하면 확인된 이름으로 댓글을 남기고<br />인증 완료 후 응원 상자를 받을 수 있어요.
+            함께 달린 기록은 누구나 볼 수 있어요.<br />카카오로 시작하면 오늘의 운세를 바로 확인하고,<br />인증 완료 후 응원 상자를 열 수 있어요.
           </p>
 
-          <div className="animate-fade-up mt-7 space-y-3" style={{ animationDelay: "0.1s" }}>
-            <Link href="/4th" className="btn-primary flex min-h-12 w-full items-center justify-center">
-              TWTT 4기 대시보드
-            </Link>
-            <KakaoLoginButton nextPath="/4th" />
-            <Link href="/3th" className="flex min-h-11 w-full items-center justify-center rounded-2xl bg-oriwan-surface-light px-4 text-sm font-black text-oriwan-text-muted ring-1 ring-slate-950/5 transition hover:text-oriwan-text">
-              TWTT 3기 대시보드
-            </Link>
+          <div className="animate-fade-up mt-7" style={{ animationDelay: "0.1s" }}>
+            <FourthViewerProvider>
+              <DashboardGatewayActions />
+            </FourthViewerProvider>
           </div>
 
           <p className="mt-5 rounded-2xl bg-blue-50 px-4 py-3 text-[11px] font-bold leading-5 text-blue-700">
-            카카오 로그인 여부와 관계없이 대시보드는 공개됩니다. 로그인하지 않은 댓글은 익명 닉네임으로 표시돼요.
+            정식 오픈 후 비로그인은 랜덤 익명 댓글, 카카오 로그인은 카카오 이름 댓글로 구분돼요. 운영자는 크루 명단과 대조한 확인 이름으로 변경할 수 있어요.
           </p>
         </div>
 

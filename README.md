@@ -1,12 +1,12 @@
 # TWTT 러닝보드
 
-TWTT 크루의 시즌별 러닝 인증, 공개 현황, 개인 응원 상자와 운영자 OCR 검수를 제공하는 Next.js 대시보드입니다.
+TWTT 크루의 시즌별 러닝 인증, 공개 현황, 개인 오늘의 운세·응원 상자와 운영자 OCR 검수를 제공하는 Next.js 대시보드입니다.
 
 ## 서비스 경로
 
 | 경로 | 용도 |
 | --- | --- |
-| `/` | 3기·4기 대시보드와 카카오 로그인을 연결하는 공통 입구 |
+| `/` | 카카오 로그인 또는 비로그인 공개 보기를 선택하는 공통 입구 |
 | `/3th` | 3기 종료 시점의 정적 스냅샷을 보여주는 읽기 전용 대시보드 |
 | `/4th` | 4기 `Hello 2027` 오픈 전 미리보기 대시보드 |
 | `/admin` | 이메일 OTP 기반 공용 운영 어드민 |
@@ -16,7 +16,7 @@ TWTT 크루의 시즌별 러닝 인증, 공개 현황, 개인 응원 상자와 �
 
 ## 현재 오픈 전 상태
 
-`/4th`에는 화면 검증용 크루·배너·응원글·댓글 더미데이터가 들어 있으며 검색엔진 색인을 막아 두었습니다. 서버 댓글 저장소가 준비되기 전까지 댓글·답글·반응은 읽기 전용입니다. 광고·응원글의 로컬 편집 내용은 현재 브라우저 IndexedDB에만 저장되어 기기나 어드민 사이에서 공유되지 않습니다. 정식 오픈 전 더미데이터를 제거하고 운영 Supabase API로 전환해야 합니다.
+`/4th`에는 화면 검증용 크루·배너·응원글·댓글 더미데이터가 들어 있으며 검색엔진 색인을 막아 두었습니다. 헤더에서 카카오 로그인·로그아웃 상태를 확인하고, 로그인 이용자는 인증 없이 오늘의 운세를 볼 수 있습니다. 운영자가 4기 시즌으로 다시 확인해 연결한 크루는 4기 기간의 오늘 인증을 완료한 뒤 응원 상자를 하루 한 번 엽니다. 서버 댓글 저장소가 준비되기 전까지 댓글·답글·반응은 읽기 전용입니다. 광고·응원글의 로컬 편집 내용은 현재 브라우저 IndexedDB에만 저장되어 기기나 어드민 사이에서 공유되지 않습니다. 정식 오픈 전 더미데이터를 제거하고 운영 Supabase API로 전환해야 합니다.
 
 3기 화면과 리포트는 `data/third-season-public-dashboard.json`의 2026-05-05~08-12 동결본을 함께 읽습니다. 공개본은 운영 UUID와 불필요한 생성 시각을 제거한 전용 식별자를 사용합니다.
 
@@ -54,6 +54,8 @@ npm run build
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `NEXT_PUBLIC_SITE_URL`
 - `ADMIN_SESSION_SECRET`
+- `DAILY_FORTUNE_SECRET` (32바이트 이상의 운세 전용 난수값)
+- `FOURTH_GIFT_BOX_LIVE` (`true`일 때만 4기 운영 기간 내 응원 상자 지급 활성화)
 - `ADMIN_USER_ID`
 - `GEMINI_API_KEY`
 
@@ -69,7 +71,7 @@ npm run build
 - `YOUTUBE_API_KEY`
 - `GOOGLE_YOUTUBE_API_KEY`
 
-Kakao REST API 키와 Client Secret은 애플리케이션 환경 변수가 아니라 Supabase Authentication의 Kakao Provider 설정에 직접 등록합니다.
+Kakao REST API 키와 Client Secret은 애플리케이션 환경 변수가 아니라 Supabase Authentication의 Kakao Provider 설정에 직접 등록합니다. `NEXT_PUBLIC_SUPABASE_ANON_KEY` 또는 publishable key는 공개 클라이언트 식별값이며 보안 경계는 RLS와 grants입니다. `SUPABASE_SERVICE_ROLE_KEY`, Kakao Client Secret, `ADMIN_SESSION_SECRET`, `DAILY_FORTUNE_SECRET`은 브라우저 코드와 `NEXT_PUBLIC_*` 변수에 넣지 않습니다. `FOURTH_GIFT_BOX_LIVE`는 운영 준비 점검을 모두 통과한 뒤에만 `true`로 전환합니다.
 
 ## Supabase 적용 순서
 

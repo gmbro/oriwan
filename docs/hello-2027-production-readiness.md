@@ -109,9 +109,12 @@ Hello 2027 시즌에는 다음 탭을 제공한다.
 ## 보안 필수 조건
 
 - `ADMIN_SESSION_SECRET`을 필수 환경변수로 만들고 service-role key fallback을 제거한다.
+- `DAILY_FORTUNE_SECRET`을 32바이트 이상의 운세 전용 비밀값으로 두고 다른 키와 재사용하지 않는다.
+- 모든 오픈 점검이 끝날 때까지 `FOURTH_GIFT_BOX_LIVE`를 비활성 상태로 두고, 실제 지급을 열 때만 `true`로 설정한 뒤 재배포한다.
 - 소스의 하드코딩 관리자 이메일 대신 `app_admins`에서 최종 권한을 확인한다.
 - 가능하면 OTP에 TOTP 또는 Passkey MFA를 추가한다.
 - service-role key는 서버에서만 사용하고 브라우저 번들에는 절대 포함하지 않는다.
+- Supabase anon/publishable key는 공개 클라이언트 키이므로 숨김을 보안 대책으로 삼지 않고 RLS와 grants를 검증한다.
 - 익명 사용자가 Supabase에 직접 insert하지 못하게 하고 댓글·반응은 Next API만 통과시킨다.
 - 댓글·반응 API에 동일 출처 검사, 지속형 rate limit, 스팸 방지, 150자 서버 검증을 적용한다.
 - 업로드는 MIME 문자열만 믿지 않고 magic bytes 확인, 실제 디코딩, 재인코딩, EXIF 제거를 서버에서 수행한다.

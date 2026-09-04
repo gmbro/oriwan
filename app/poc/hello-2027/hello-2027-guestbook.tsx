@@ -18,6 +18,8 @@ import styles from "./hello-2027-poc.module.css";
 type Hello2027GuestbookProps = {
   initialThreads: readonly Hello2027GuestbookThread[];
   previewOnly?: boolean;
+  externalViewer?: Hello2027Viewer | null;
+  externalViewerManaged?: boolean;
 };
 
 type Hello2027Viewer = {
@@ -26,6 +28,7 @@ type Hello2027Viewer = {
   display_name: string | null;
   approved_participant: boolean;
   verified_name?: boolean;
+  name_source?: "admin" | "kakao" | null;
   connection_status?: string;
 };
 
@@ -100,10 +103,16 @@ function toggleReaction(
     : { ...reaction });
 }
 
-export function Hello2027Guestbook({ initialThreads, previewOnly = false }: Hello2027GuestbookProps) {
+export function Hello2027Guestbook({
+  initialThreads,
+  previewOnly = false,
+  externalViewer,
+  externalViewerManaged = false,
+}: Hello2027GuestbookProps) {
   const [threads, setThreads] = useState<Hello2027GuestbookThread[]>(() => cloneThreads(initialThreads));
   const [draft, setDraft] = useState("");
-  const [viewer, setViewer] = useState<Hello2027Viewer | null>(null);
+  const [localViewer, setLocalViewer] = useState<Hello2027Viewer | null>(null);
+  const viewer = externalViewerManaged ? externalViewer ?? null : localViewer;
   const [replyTargetId, setReplyTargetId] = useState<string | null>(null);
   const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
   const [expandedThreadIds, setExpandedThreadIds] = useState<Set<string>>(() => new Set());
@@ -114,15 +123,17 @@ export function Hello2027Guestbook({ initialThreads, previewOnly = false }: Hell
 
   useEffect(() => {
     let active = true;
-    void fetch("/api/hello-2027/viewer", { cache: "no-store" })
-      .then(async (response) => {
-        if (!response.ok) return null;
-        return response.json() as Promise<Hello2027Viewer>;
-      })
-      .then((nextViewer) => {
-        if (active && nextViewer) setViewer(nextViewer);
-      })
-      .catch(() => undefined);
+    if (!externalViewerManaged) {
+      void fetch("/api/hello-2027/viewer", { cache: "no-store" })
+        .then(async (response) => {
+          if (!response.ok) return null;
+          return response.json() as Promise<Hello2027Viewer>;
+        })
+        .then((nextViewer) => {
+          if (active && nextViewer) setLocalViewer(nextViewer);
+        })
+        .catch(() => undefined);
+    }
     if (!previewOnly) {
       void readLocalGuestbook()
         .then((storedThreads) => {
@@ -133,7 +144,7 @@ export function Hello2027Guestbook({ initialThreads, previewOnly = false }: Hell
     return () => {
       active = false;
     };
-  }, [previewOnly]);
+  }, [externalViewerManaged, previewOnly]);
 
   const persistThreads = (nextThreads: Hello2027GuestbookThread[]) => {
     setThreads(nextThreads);
@@ -148,8 +159,8 @@ export function Hello2027Guestbook({ initialThreads, previewOnly = false }: Hell
       setValidationMessage("오픈 전 미리보기에서는 댓글을 저장하지 않아요.");
       return;
     }
-    if (viewer?.authenticated && (!viewer.verified_name || !viewer.display_name)) {
-      setValidationMessage("운영자가 이름을 확인한 뒤 확인된 이름으로 댓글을 남길 수 있어요.");
+    if (viewer?.authenticated && !viewer.display_name) {
+      setValidationMessage("카카오 이름을 확인하지 못했어요. 다시 로그인하거나 운영자에게 문의해주세요.");
       return;
     }
     const body = draft.trim();
@@ -196,8 +207,8 @@ export function Hello2027Guestbook({ initialThreads, previewOnly = false }: Hell
       setAnnouncement("오픈 전 미리보기에서는 답글을 저장하지 않아요.");
       return;
     }
-    if (viewer?.authenticated && (!viewer.verified_name || !viewer.display_name)) {
-      setAnnouncement("운영자가 이름을 확인한 뒤 확인된 이름으로 답글을 남길 수 있어요.");
+    if (viewer?.authenticated && !viewer.display_name) {
+      setAnnouncement("카카오 이름을 확인하지 못했어요. 다시 로그인하거나 운영자에게 문의해주세요.");
       return;
     }
     const body = (replyDrafts[threadId] ?? "").trim();
@@ -293,12 +304,12 @@ export function Hello2027Guestbook({ initialThreads, previewOnly = false }: Hell
         />
         <div className={styles.composerFooter}>
           <div>
-            <p id="guestbook-help">{previewOnly ? "현재 입력 기능은 잠겨 있어요." : "카카오 로그인 시 운영자가 확인한 이름, 미로그인 시 랜덤 익명 닉네임으로 표시됩니다."}</p>
+            <p id="guestbook-help">{previewOnly ? "현재 입력 기능은 잠겨 있어요." : "카카오 로그인 시 카카오 프로필 이름 또는 운영자 확인 이름, 미로그인 시 랜덤 익명 닉네임으로 표시됩니다."}</p>
             <p id="guestbook-error" className={styles.formError}>{validationMessage}</p>
           </div>
           <span>{draft.length}/{MAX_GUESTBOOK_BODY_LENGTH}</span>
-          <button type="submit" disabled={previewOnly || Boolean(viewer?.authenticated && !viewer.verified_name)}>
-            {previewOnly ? "오픈 준비 중" : viewer?.authenticated ? viewer.verified_name ? "확인 이름으로 남기기" : "이름 확인 중" : "익명으로 남기기"}
+          <button type="submit" disabled={previewOnly || Boolean(viewer?.authenticated && !viewer.display_name)}>
+            {previewOnly ? "오픈 준비 중" : viewer?.authenticated ? viewer.verified_name ? "확인 이름으로 남기기" : "카카오 이름으로 남기기" : "익명으로 남기기"}
           </button>
         </div>
       </form>
@@ -365,7 +376,7 @@ export function Hello2027Guestbook({ initialThreads, previewOnly = false }: Hell
                     <div className={styles.replyFooter}>
                       <span>{(replyDrafts[thread.id] ?? "").length}/{MAX_GUESTBOOK_BODY_LENGTH}</span>
                       <button type="button" onClick={() => closeReplyForm(thread.id)}>취소</button>
-                      <button type="submit" disabled={Boolean(viewer?.authenticated && !viewer.verified_name)}>답글 남기기</button>
+                      <button type="submit" disabled={Boolean(viewer?.authenticated && !viewer.display_name)}>답글 남기기</button>
                     </div>
                   </form>
                 ) : null}
@@ -447,17 +458,14 @@ function ReactionBar({ reactions, pickerOpen, disabled = false, onTogglePicker, 
 }
 
 function CommentIdentity({ viewer, compact = false }: { viewer: Hello2027Viewer | null; compact?: boolean }) {
-  const isVerifiedMember = Boolean(viewer?.authenticated && viewer.verified_name && viewer.display_name);
+  const hasKakaoName = Boolean(viewer?.authenticated && viewer.display_name);
   return (
     <div className={`${styles.commentIdentity} ${compact ? styles.commentIdentityCompact : ""}`}>
-      <span className={viewer?.authenticated ? styles.kakaoIdentity : styles.anonymousIdentity}>
-        {viewer?.authenticated ? isVerifiedMember ? "확인 이름" : "확인 중" : "익명"}
-      </span>
       <p>
-        {isVerifiedMember
-          ? <><strong>{viewer?.display_name}</strong> 이름으로 작성됩니다.</>
+        {hasKakaoName
+          ? <><strong>{viewer?.display_name}</strong> 이름으로 작성됩니다.{viewer?.verified_name ? " 운영자가 크루 명단과 대조한 표시 이름입니다." : " 운영자가 이후 확인 이름으로 변경할 수 있어요."}</>
           : viewer?.authenticated
-            ? <>운영자가 크루와 이름을 확인하면 확인된 이름으로 댓글을 남길 수 있어요.</>
+            ? <>카카오 이름을 확인하고 있어요.</>
             : <>등록할 때 포근한 랜덤 닉네임을 정해드려요. <Link href="#member-features">카카오 로그인</Link></>}
       </p>
     </div>

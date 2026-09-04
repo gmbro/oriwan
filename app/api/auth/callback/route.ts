@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getSafeAuthReturnUrl } from "@/lib/auth-return-path";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -9,10 +10,6 @@ import { createClient } from "@/lib/supabase/server";
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
-  const next = searchParams.get("next") || "/dashboard";
-  const nextPath = next.startsWith("/") && !next.startsWith("//") && !next.includes("\\")
-    ? next
-    : "/";
 
   const configuredSiteUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.SITE_URL;
   let redirectOrigin = origin;
@@ -29,9 +26,14 @@ export async function GET(request: Request) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
 
     if (!error) {
-      return NextResponse.redirect(new URL(nextPath, redirectOrigin));
+      const redirectTarget = getSafeAuthReturnUrl(searchParams.get("next"), redirectOrigin);
+      return NextResponse.redirect(redirectTarget, {
+        headers: { "Cache-Control": "private, no-store, max-age=0", Vary: "Cookie" },
+      });
     }
   }
 
-  return NextResponse.redirect(new URL("/?error=auth_failed", redirectOrigin));
+  return NextResponse.redirect(new URL("/?error=auth_failed", redirectOrigin), {
+    headers: { "Cache-Control": "private, no-store, max-age=0", Vary: "Cookie" },
+  });
 }

@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { getServiceClient } from "@/lib/admin-data";
 import { resolveParticipantAccount } from "@/lib/participant-account-server";
 import { createClient } from "@/lib/supabase/server";
+import { getKakaoDisplayName } from "@/lib/kakao-display-name";
+
+export const dynamic = "force-dynamic";
+const privateHeaders = { "Cache-Control": "private, no-store, max-age=0", Vary: "Cookie" };
 
 function hasKakaoIdentity(user: { app_metadata?: Record<string, unknown>; identities?: Array<{ provider?: string }> }) {
   return user.app_metadata?.provider === "kakao"
@@ -23,13 +27,15 @@ export async function GET() {
 
   try {
     const connection = await resolveParticipantAccount(service, user.id);
+    const kakaoDisplayName = getKakaoDisplayName(user);
     return NextResponse.json({
       user: { id: user.id },
-      display_name: connection.displayName,
+      display_name: connection.displayName || kakaoDisplayName,
+      name_source: connection.displayName ? "admin" : kakaoDisplayName ? "kakao" : null,
       matched_participant: connection.participant,
       connection_status: connection.status,
       connection_message: connection.message,
-    }, { headers: { "Cache-Control": "private, no-store" } });
+    }, { headers: privateHeaders });
   } catch (err) {
     console.error("Me profile error:", err);
     return NextResponse.json({ error: "개인 기능을 불러오지 못했어요." }, { status: 500 });

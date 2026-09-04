@@ -98,6 +98,61 @@
 .metaDivider { color: #d1d6db; }
 .shortDate { display: none; }
 
+.headerAccount {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 5px;
+}
+
+.headerAccountLink,
+.headerLogoutButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  border: 0;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.headerAccountLink {
+  overflow: hidden;
+  max-width: 96px;
+  padding: 0 12px;
+  color: var(--accent-deep);
+  background: var(--accent-soft);
+  text-overflow: ellipsis;
+}
+
+.headerLogoutButton {
+  padding: 0 10px;
+  color: var(--text-secondary);
+  background: #f2f4f6;
+  cursor: pointer;
+}
+
+.headerLogoutButton:disabled { cursor: wait; opacity: 0.55; }
+.headerAccountLink:focus-visible,
+.headerLogoutButton:focus-visible { outline: 3px solid rgba(49, 130, 246, 0.3); outline-offset: 2px; }
+
+.headerAuthLoading {
+  width: 82px;
+  height: 44px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #f2f4f6, #e5e8eb, #f2f4f6);
+  background-size: 200% 100%;
+  animation: headerAuthPulse 1.2s linear infinite;
+}
+
+@keyframes headerAuthPulse {
+  to { background-position: -200% 0; }
+}
+
 .main {
   width: 100%;
   padding: 32px 0 104px;
@@ -713,12 +768,9 @@
   border-radius: 16px;
   background: #f7f8fa;
 }
-.commentIdentity > span { flex: none; border-radius: 999px; padding: 5px 9px; font-size: 0.7rem; font-weight: 800; }
 .commentIdentity > p { min-width: 0; margin: 0; color: var(--text-secondary); font-size: 0.8rem; font-weight: 600; }
 .commentIdentity strong { color: var(--text); }
 .commentIdentity a { color: var(--accent-deep); font-weight: 750; text-underline-offset: 3px; }
-.kakaoIdentity { color: #191919; background: #fee500; }
-.anonymousIdentity { color: var(--text-secondary); background: #e9ecef; }
 .commentIdentityCompact { padding: 9px 11px; }
 
 .realNameField { display: grid !important; grid-template-columns: auto minmax(160px, 280px); align-items: center; gap: 12px; margin: 12px 0 0 !important; }
@@ -853,7 +905,7 @@
   .storyBanner h2 { font-size: 0.75rem; }
   .storyBanner > strong { margin-top: 4px; font-size: 3.15rem; }
   .adImageScrim { background: linear-gradient(90deg, rgba(13, 23, 38, 0.76) 0%, rgba(13, 23, 38, 0.52) 43%, rgba(13, 23, 38, 0.08) 78%); }
-  .adCopyFloating { left: 22px; width: 58%; }
+  .adCopyFloating { left: 62px; width: calc(100% - 124px); }
   .adCopyFloating span { font-size: 0.64rem; }
   .adCopyFloating strong { margin-top: 7px; font-size: clamp(1.55rem, 7vw, 2rem); }
   .adCopyFloating p { max-width: 100%; margin-top: 9px; font-size: 0.82rem; line-height: 1.45; }
@@ -873,7 +925,7 @@
 
   .motivationBanner { min-height: 88px; margin: 0 auto 12px; padding: 14px 16px; border-radius: 20px; }
   .motivationHeader > span { font-size: 0.7rem; }
-  .motivationControls button { min-height: 30px; padding: 0 7px; font-size: 0.62rem; }
+  .motivationControls button { min-height: 30px; padding: 0 7px; font-size: 0.68rem; }
   .motivationBanner p { margin-top: 6px; font-size: 1rem; }
 
   .crewSection { margin-top: 28px; }
@@ -925,20 +977,30 @@
 @media (max-width: 520px) {
   .headerInner { align-items: center; flex-direction: row; gap: 10px; }
   .headerMeta { width: auto; justify-content: flex-end; gap: 7px; font-size: 0.8rem; }
+  .headerMeta time,
+  .metaDivider { display: none; }
+  .headerAccount { gap: 3px; }
+  .headerAccountLink { max-width: 66px; padding: 0 9px; font-size: 0.7rem; }
+  .headerLogoutButton { padding: 0 8px; font-size: 0.7rem; }
 }
 
 @media (max-width: 390px) {
   .brandLogo { width: 76px; }
+  .headerInner { gap: 7px; }
+  .headerMeta { gap: 5px; }
+  .headerMeta > strong { font-size: 0.82rem; }
   .summarySection, .motivationBanner, .crewSection, .guestbookSection { width: calc(100% - 24px); }
   .carouselFooter { gap: 9px; padding-right: 10px; padding-left: 10px; }
   .carouselFooter > span { display: none; }
   .carouselDots { max-width: 48vw; }
   .carouselDots button { width: 28px; height: 32px; }
   .carouselDots button[aria-current="true"]::before { width: 18px; }
-  .carouselToggle { padding: 0 8px; font-size: 0.64rem; }
+  .carouselToggle { padding: 0 8px; font-size: 0.68rem; }
 }
 
 @media (max-width: 339px) {
+  .brandLogo { width: 68px; }
+  .headerAccountLink { display: none; }
   .participantGrid { gap: 7px; }
   .participantCard { grid-template-columns: minmax(50px, 0.84fr) minmax(54px, 1.16fr); gap: 5px; min-height: 114px; padding: 8px 7px; }
   .characterWrap { width: 54px; height: 54px; }
@@ -1003,4 +1065,5 @@
   .carouselDots button::before { transition: none; }
   .motivationBanner p { animation: none; }
   .storyBanner { transition: none; }
+  .headerAuthLoading { animation: none; }
 }

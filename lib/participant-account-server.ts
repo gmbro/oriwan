@@ -32,9 +32,12 @@ export type ParticipantAccountResolution = {
 
 type ParticipantAccountRow = {
   participant_id: string | null;
+  season_key: string | null;
   status: string | null;
   display_name_override: string | null;
 };
+
+export const FOURTH_SEASON_KEY = "4th";
 
 const CONNECTION_MESSAGES: Record<ParticipantAccountConnectionStatus, string> = {
   approved: "관리자 승인이 완료된 계정입니다.",
@@ -75,8 +78,9 @@ export async function resolveParticipantAccount(
 
   const { data: accountData, error: accountError } = await service
     .from("participant_accounts")
-    .select("participant_id, status, display_name_override")
+    .select("participant_id, season_key, status, display_name_override")
     .eq("auth_user_id", authUserId)
+    .eq("season_key", FOURTH_SEASON_KEY)
     .maybeSingle();
 
   if (accountError) {

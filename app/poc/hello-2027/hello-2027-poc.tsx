@@ -14,6 +14,8 @@ import styles from "./hello-2027-poc.module.css";
 import { TwttRunnerPictogram } from "./twtt-runner-pictogram";
 import { useLocalHello2027Content } from "./use-local-hello-2027-content";
 import { FourthDashboardMemberArea } from "@/components/fourth-dashboard-member-area";
+import { KakaoLoginButton } from "@/components/kakao-login-button";
+import { useOptionalFourthViewer } from "@/components/fourth-viewer-provider";
 
 type Hello2027PocProps = {
   snapshot: Hello2027Snapshot;
@@ -63,6 +65,7 @@ export function Hello2027Poc({ snapshot, initialDayPhase = "day", memberFeatures
   const dialogTitleRef = useRef<HTMLHeadingElement>(null);
   const lastTriggerRef = useRef<HTMLButtonElement | null>(null);
   const localContent = useLocalHello2027Content(snapshot.ads, snapshot.encouragements);
+  const viewerState = useOptionalFourthViewer();
 
   const selectedParticipant = useMemo(
     () => snapshot.participants.find((participant) => participant.id === selectedParticipantId) ?? null,
@@ -142,6 +145,29 @@ export function Hello2027Poc({ snapshot, initialDayPhase = "day", memberFeatures
             </time>
             <span className={styles.metaDivider} aria-hidden="true">·</span>
             <strong>D-{snapshot.daysUntil2027}</strong>
+            {memberFeatures ? (
+              <div className={styles.headerAccount} aria-label="개인 계정">
+                {viewerState?.loading ? (
+                  <span className={styles.headerAuthLoading} aria-label="로그인 상태 확인 중" />
+                ) : viewerState?.viewer?.authenticated ? (
+                  <>
+                    <a className={styles.headerAccountLink} href="/me">
+                      {viewerState.viewer.display_name || "내 정보"}
+                    </a>
+                    <button
+                      className={styles.headerLogoutButton}
+                      type="button"
+                      disabled={viewerState.actionPending}
+                      onClick={() => void viewerState.logout()}
+                    >
+                      {viewerState.actionPending ? "처리 중" : "로그아웃"}
+                    </button>
+                  </>
+                ) : (
+                  <KakaoLoginButton nextPath="/4th" label="카카오 시작" variant="compact" />
+                )}
+              </div>
+            ) : null}
           </div>
         </div>
       </header>
@@ -160,6 +186,8 @@ export function Hello2027Poc({ snapshot, initialDayPhase = "day", memberFeatures
           todayRate={todayRate}
         />
 
+        {memberFeatures ? <FourthDashboardMemberArea /> : null}
+
         <section className={styles.summarySection} aria-label="시즌 인증 요약">
           <div className={styles.summaryGrid}>
             <article className={styles.summaryCard}>
@@ -174,8 +202,6 @@ export function Hello2027Poc({ snapshot, initialDayPhase = "day", memberFeatures
             ))}
           </div>
         </section>
-
-        {memberFeatures ? <FourthDashboardMemberArea /> : null}
 
         <section id="crew" className={styles.crewSection} aria-labelledby="crew-title">
           <div className={styles.crewHeading}>
@@ -245,7 +271,12 @@ export function Hello2027Poc({ snapshot, initialDayPhase = "day", memberFeatures
           </ul>
         </section>
 
-        <Hello2027Guestbook initialThreads={snapshot.guestbook} previewOnly={memberFeatures} />
+        <Hello2027Guestbook
+          initialThreads={snapshot.guestbook}
+          previewOnly={memberFeatures}
+          externalViewer={memberFeatures ? viewerState?.viewer ?? null : undefined}
+          externalViewerManaged={memberFeatures}
+        />
       </main>
 
       <ParticipantDialog
@@ -399,7 +430,7 @@ function ParticipantDialog({
                 <dd>{participant.durationMinutes}분</dd>
               </div>
               <div>
-                <dt>현재까지 인증률</dt>
+                <dt>오늘까지 인증률</dt>
                 <dd>{participant.seasonCompletionRate}%</dd>
               </div>
             </dl>

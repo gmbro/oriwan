@@ -4,6 +4,8 @@ import { requireAdminUser } from "@/lib/admin-server";
 import { guardMutationRequest } from "@/lib/request-security";
 import { createClient } from "@/lib/supabase/server";
 import { isMissingTableError, missingSchemaResponse } from "@/lib/supabase-errors";
+import { getKakaoDisplayName } from "@/lib/kakao-display-name";
+import { FOURTH_SEASON_KEY } from "@/lib/participant-account-server";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -12,14 +14,6 @@ function userProviders(user: { app_metadata?: Record<string, unknown>; identitie
     typeof user.app_metadata?.provider === "string" ? user.app_metadata.provider : "",
     ...(user.identities || []).map((identity) => identity.provider || ""),
   ]);
-}
-
-function displayName(metadata: Record<string, unknown> | undefined) {
-  for (const key of ["full_name", "name", "nickname", "user_name"]) {
-    const value = metadata?.[key];
-    if (typeof value === "string" && value.trim()) return value.trim().slice(0, 40);
-  }
-  return "카카오 러너";
 }
 
 export async function GET() {
@@ -44,8 +38,9 @@ export async function GET() {
     const { data: connections, error: connectionError } = authUserIds.length
       ? await service
         .from("participant_accounts")
-        .select("auth_user_id, participant_id, status, approved_at, display_name_override")
+        .select("auth_user_id, participant_id, status, approved_at, display_name_override, season_key")
         .in("auth_user_id", authUserIds)
+        .eq("season_key", FOURTH_SEASON_KEY)
       : { data: [], error: null };
 
     if (connectionError) {
@@ -61,7 +56,7 @@ export async function GET() {
         const connection = connectionByUser.get(user.id);
         return {
           auth_user_id: user.id,
-          display_name: displayName(user.user_metadata),
+          display_name: getKakaoDisplayName(user) || "카카오 이름 미제공",
           email: user.email || "",
           created_at: user.created_at,
           participant_id: connection?.participant_id || null,
@@ -121,12 +116,13 @@ export async function POST(request: NextRequest) {
       approved_at: status === "approved" ? new Date().toISOString() : null,
       approved_by: adminUser.id,
       display_name_override: displayNameOverride,
+      season_key: FOURTH_SEASON_KEY,
       updated_at: new Date().toISOString(),
     };
     const { data, error } = await service
       .from("participant_accounts")
       .upsert(payload, { onConflict: "auth_user_id" })
-      .select("auth_user_id, participant_id, status, approved_at, display_name_override")
+      .select("auth_user_id, participant_id, status, approved_at, display_name_override, season_key")
       .single();
 
     if (error?.code === "23505") {

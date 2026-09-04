@@ -38,6 +38,7 @@ CREATE INDEX IF NOT EXISTS idx_participants_user_order
 -- 운영자가 실제 참가자를 확인한 뒤 service role 또는 SQL Editor에서 approved로 연결합니다.
 CREATE TABLE IF NOT EXISTS participant_accounts (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  season_key TEXT DEFAULT '4th' NOT NULL CHECK (season_key ~ '^[0-9]+th$'),
   participant_id UUID REFERENCES participants(id) ON DELETE CASCADE NOT NULL,
   auth_user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
   display_name_override TEXT CHECK (display_name_override IS NULL OR char_length(display_name_override) BETWEEN 2 AND 40),
@@ -50,6 +51,17 @@ CREATE TABLE IF NOT EXISTS participant_accounts (
 
 ALTER TABLE participant_accounts
   ADD COLUMN IF NOT EXISTS display_name_override TEXT;
+-- 기존 기수의 승인 행은 자동으로 4기로 승격하지 않습니다. 운영자가 4기 계정
+-- 연결을 다시 저장한 행에만 '4th'가 기록되어 개인 기능 권한으로 사용됩니다.
+ALTER TABLE participant_accounts
+  ADD COLUMN IF NOT EXISTS season_key TEXT;
+ALTER TABLE participant_accounts
+  ALTER COLUMN season_key SET DEFAULT '4th';
+ALTER TABLE participant_accounts
+  DROP CONSTRAINT IF EXISTS participant_accounts_season_key_check;
+ALTER TABLE participant_accounts
+  ADD CONSTRAINT participant_accounts_season_key_check
+  CHECK (season_key IS NULL OR season_key ~ '^[0-9]+th$');
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_participant_accounts_auth_user
   ON participant_accounts(auth_user_id);
@@ -57,6 +69,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_participant_accounts_participant
   ON participant_accounts(participant_id);
 CREATE INDEX IF NOT EXISTS idx_participant_accounts_status
   ON participant_accounts(status);
+CREATE INDEX IF NOT EXISTS idx_participant_accounts_season_status
+  ON participant_accounts(season_key, status);
 
 ALTER TABLE participant_accounts ENABLE ROW LEVEL SECURITY;
 
@@ -71,10 +85,11 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE participant_accounts TO service_ro
 -- SELECT id, email, raw_user_meta_data->>'runner_name' AS requested_name FROM auth.users ORDER BY created_at DESC;
 -- SELECT id, name FROM participants WHERE active = TRUE ORDER BY display_order, created_at;
 -- 승인 예시(세 UUID는 운영자가 직접 확인한 값으로 교체):
--- INSERT INTO participant_accounts (participant_id, auth_user_id, status, approved_at, approved_by)
--- VALUES ('participant-uuid', 'google-auth-user-uuid', 'approved', NOW(), 'admin-auth-user-uuid')
+-- INSERT INTO participant_accounts (season_key, participant_id, auth_user_id, status, approved_at, approved_by)
+-- VALUES ('4th', 'participant-uuid', 'kakao-auth-user-uuid', 'approved', NOW(), 'admin-auth-user-uuid')
 -- ON CONFLICT (auth_user_id) DO UPDATE
 -- SET participant_id = EXCLUDED.participant_id,
+--     season_key = EXCLUDED.season_key,
 --     status = 'approved',
 --     approved_at = NOW(),
 --     approved_by = EXCLUDED.approved_by,
@@ -182,6 +197,8 @@ CREATE INDEX IF NOT EXISTS idx_participant_growth_badges_user_participant
 
 -- 4-1. 승인 참가자의 일일 응원 상자 개봉 이력
 -- 지급 권한과 랜덤 결과는 브라우저가 아니라 /api/me/gift-box 서버 경로에서 결정합니다.
+-- 오늘의 운세는 DB에 저장하지 않고 /api/me/fortune에서 인증 사용자와 KST 날짜를
+-- 전용 서버 비밀값으로 HMAC해 계산하므로 별도 fortune 테이블을 만들지 않습니다.
 CREATE TABLE IF NOT EXISTS daily_gift_claims (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   season_key TEXT DEFAULT '4th' NOT NULL CHECK (season_key ~ '^[0-9]+th$'),

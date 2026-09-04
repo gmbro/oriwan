@@ -11,6 +11,8 @@ type GiftClaim = {
 
 type GiftStatus = {
   eligible: boolean;
+  season_active?: boolean;
+  season_starts_on?: string;
   participant_name: string;
   record_date: string;
   claim: GiftClaim | null;
@@ -51,7 +53,12 @@ export function DailyGiftBox() {
     setOpening(true);
     setMessage("");
     try {
-      const response = await fetch("/api/me/gift-box", { method: "POST" });
+      const response = await fetch("/api/me/gift-box", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      });
       const json = await response.json();
       if (!response.ok) {
         setMessage(json.error || "응원 상자를 열지 못했어요.");
@@ -76,6 +83,8 @@ export function DailyGiftBox() {
             <p className="mt-2 text-sm font-bold text-white/75">오늘의 인증을 확인하고 있어요…</p>
           ) : status?.claim ? (
             <p className="mt-3 text-[clamp(1.45rem,6vw,2.25rem)] font-black leading-tight">{status.claim.message}</p>
+          ) : status && status.season_active === false ? (
+            <p className="mt-2 text-sm font-bold leading-6 text-white/85">4기 운영이 시작되면 매일의 인증과 함께 상자도 열려요.</p>
           ) : status?.eligible ? (
             <p className="mt-2 text-sm font-bold leading-6 text-white/85">오늘 인증 완료! 상자를 눌러 랜덤 응원을 받아보세요.</p>
           ) : (
@@ -92,7 +101,7 @@ export function DailyGiftBox() {
         >
           <span aria-hidden="true" className="text-4xl transition group-hover:scale-105">{status?.claim ? "🎉" : status?.eligible ? "🎁" : "🔒"}</span>
           <span className="mt-1 text-xs font-black">
-            {loading ? "확인 중" : status?.claim ? "오늘 수령 완료" : status?.eligible ? opening ? "여는 중…" : "상자 열기" : "인증 후 열기"}
+            {loading ? "확인 중" : status?.claim ? "오늘 수령 완료" : status?.eligible ? opening ? "여는 중…" : "상자 열기" : status?.season_active === false ? "운영 오픈 전" : "인증 후 열기"}
           </span>
         </button>
       </div>

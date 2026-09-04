@@ -3,12 +3,14 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { DailyGiftBox } from "@/components/daily-gift-box";
+import { DailyFortune } from "@/components/daily-fortune";
 import { KakaoLoginButton } from "@/components/kakao-login-button";
 import { TwttBrandMark } from "@/components/twtt-brand-mark";
 
 type MeData = {
   user: { id: string };
   display_name: string | null;
+  name_source?: "admin" | "kakao" | null;
   matched_participant: { id: string; name: string } | null;
   connection_status: "approved" | "pending" | "revoked" | "unlinked" | "invalid" | "setup_required" | "admin_missing";
   connection_message: string;
@@ -52,9 +54,19 @@ export default function MyPage() {
   }, [loadMe]);
 
   const logout = async () => {
-    await fetch("/api/auth/logout", { method: "POST" });
-    setData(null);
-    setMessage("로그아웃됐어요.");
+    try {
+      const response = await fetch("/api/auth/logout", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      });
+      if (!response.ok) throw new Error("logout_failed");
+      setData(null);
+      setMessage("로그아웃됐어요.");
+    } catch {
+      setMessage("로그아웃하지 못했어요. 잠시 후 다시 시도해주세요.");
+    }
   };
 
   if (loading) {
@@ -75,7 +87,7 @@ export default function MyPage() {
           <TwttBrandMark className="mx-auto aspect-[640/310] w-[164px] sm:w-[184px]" sizes="(max-width: 640px) 164px, 184px" priority />
           <h1 className="mt-6 text-2xl font-black text-oriwan-text">개인 기능 로그인</h1>
           <p className="mt-3 text-sm font-semibold leading-6 text-oriwan-text-muted">
-            카카오로 로그인하면 오늘 인증을 마친 뒤 응원 상자를 열고, 운영자가 확인한 이름으로 댓글을 남길 수 있어요.
+            카카오로 로그인하면 인증 없이 오늘의 운세를 보고, 오늘 인증을 마친 뒤 응원 상자를 열 수 있어요.
           </p>
           {message ? <p className="mt-4 rounded-2xl bg-slate-100 px-4 py-3 text-xs font-bold text-slate-600">{message}</p> : null}
           <div className="mt-6"><KakaoLoginButton nextPath="/me" /></div>
@@ -99,13 +111,17 @@ export default function MyPage() {
           <p className="text-[11px] font-black text-blue-600">PERSONAL</p>
           <h1 className="mt-1 text-2xl font-black text-oriwan-text">{name}님</h1>
           <p className="mt-2 text-sm font-semibold leading-6 text-oriwan-text-muted">
-            {data.matched_participant ? "운영자가 확인한 크루 계정입니다." : data.connection_message}
+            {data.matched_participant
+              ? "운영자가 4기 크루와 연결한 계정이며 운영자 확인 이름으로 댓글을 작성해요."
+              : `${data.display_name ? `${data.display_name} 카카오 이름을 사용해요. ` : ""}${data.connection_message}`}
           </p>
         </div>
 
+        <div className="mt-5"><DailyFortune /></div>
+
         {data.matched_participant ? <DailyGiftBox /> : (
           <div className="mt-5 rounded-3xl bg-amber-50 px-5 py-4 text-sm font-bold leading-6 text-amber-900 ring-1 ring-amber-100">
-            운영자가 카카오 계정과 크루를 연결하면 응원 상자와 확인된 이름 댓글 기능이 열려요.
+            댓글은 카카오 프로필 이름으로 작성할 수 있어요. 운영자가 4기 크루와 연결하면 응원 상자 기능도 열립니다.
           </div>
         )}
 
