@@ -188,8 +188,6 @@ export function Hello2027Poc({ snapshot, initialDayPhase = "day", memberFeatures
           todayRate={todayRate}
         />
 
-        {memberFeatures ? <FourthDashboardMemberArea /> : null}
-
         <section className={styles.summarySection} aria-label="시즌 인증 요약">
           <div className={styles.summaryGrid}>
             <article className={styles.summaryCard}>
@@ -204,6 +202,8 @@ export function Hello2027Poc({ snapshot, initialDayPhase = "day", memberFeatures
             ))}
           </div>
         </section>
+
+        {memberFeatures ? <FourthDashboardMemberArea /> : null}
 
         <section id="crew" className={styles.crewSection} aria-labelledby="crew-title">
           <div className={styles.crewHeading}>

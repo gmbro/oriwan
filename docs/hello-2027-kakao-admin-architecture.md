@@ -237,6 +237,7 @@ Production 환경에 아래 이름을 설정한다. 값은 Vercel의 암호화�
 | `FOURTH_DASHBOARD_LIVE` | 서버 설정 | DB 백필·4기 크루·인증·콘텐츠 검증을 마친 뒤 `true`; 전환 후 장애 시 더미를 노출하지 않음 |
 | `FOURTH_GIFT_BOX_LIVE` | 서버 설정 | 운영 점검 완료 뒤 `true`로 바꿀 때만 응원 상자 지급 허용 |
 | `HELLO_2027_COMMENTS_LIVE` | 서버 설정 | 댓글 DB·권한·삭제 점검 완료 뒤 `true`로 바꿀 때만 쓰기 허용 |
+| `CORRECTIVE_EXERCISE_LIVE` | 서버 설정 | 민감정보 동의·전용 DB·파기 Cron·운영 권한을 검증한 뒤 `true`로 바꿀 때만 교정운동 신청 허용 |
 | `ADMIN_USER_ID` | 서버 설정 | 관리자 Supabase auth UUID |
 | `GEMINI_API_KEY` | 서버 비밀 | 관리자 OCR에 사용하는 Gemini 프로젝트 키 |
 | `GEMINI_OCR_MODEL` | 서버 설정 | 운영에 확정한 OCR 모델명 |

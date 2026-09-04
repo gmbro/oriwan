@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { TwttBrandMark } from "@/components/twtt-brand-mark";
+import { AdminCorrectiveExercise } from "@/components/admin-corrective-exercise";
 import { AdminContentWorkspace } from "@/components/admin-content-workspace";
 import { AdminProfileIntroductions } from "@/components/admin-profile-introductions";
 import { IconCalendar, IconCheck, IconRun, IconSync, IconTarget, IconTrash, IconX } from "@/components/icons";
@@ -170,11 +171,12 @@ function MemberPicker({
 }
 
 type AdminModal = "participant" | "record" | "upload" | "participantRecords" | null;
-type AdminTab = "certifications" | "crew" | "encouragements" | "banners" | "comments";
+type AdminTab = "certifications" | "crew" | "corrective-exercise" | "encouragements" | "banners" | "comments";
 
 const ADMIN_TABS: ReadonlyArray<{ key: AdminTab; label: string }> = [
   { key: "certifications", label: "인증" },
   { key: "crew", label: "크루프로필" },
+  { key: "corrective-exercise", label: "교정운동" },
   { key: "encouragements", label: "응원글" },
   { key: "banners", label: "배너" },
   { key: "comments", label: "댓글" },
@@ -989,6 +991,8 @@ function AdminWorkspacePanel({
       </section>
     );
   }
+
+  if (tab === "corrective-exercise") return <AdminCorrectiveExercise />;
 
   return <AdminContentWorkspace tab={tab} />;
 }

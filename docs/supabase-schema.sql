@@ -312,7 +312,370 @@ REVOKE ALL ON TABLE daily_gift_claims FROM authenticated;
 REVOKE ALL ON TABLE daily_gift_claims FROM PUBLIC;
 GRANT SELECT, INSERT ON TABLE daily_gift_claims TO service_role;
 
--- 4-2. 4기 공개 응원글과 광고 배너
+-- 4-2. 4기 교정운동 가능 일정과 신청
+-- 통증·병원 이용 정보는 민감한 건강 관련 정보이므로 브라우저 Data API에서
+-- 직접 읽거나 쓰지 않습니다. 본인/운영자 권한을 확인한 Next.js 서버 API만
+-- service_role로 접근하고, 응답/서버 로그에는 필요한 범위 밖의 원문을 남기지 않습니다.
+CREATE TABLE IF NOT EXISTS corrective_exercise_slots (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES auth.users(id) ON DELETE RESTRICT NOT NULL,
+  season_key TEXT DEFAULT '4th' NOT NULL CHECK (season_key ~ '^[0-9]+th$'),
+  slot_date DATE NOT NULL,
+  start_time TIME WITHOUT TIME ZONE NOT NULL,
+  end_time TIME WITHOUT TIME ZONE,
+  capacity SMALLINT DEFAULT 1 NOT NULL CHECK (capacity BETWEEN 1 AND 20),
+  active BOOLEAN DEFAULT TRUE NOT NULL,
+  note TEXT CHECK (note IS NULL OR char_length(note) BETWEEN 1 AND 120),
+  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  CHECK (end_time IS NULL OR end_time > start_time),
+  UNIQUE(user_id, season_key, slot_date, start_time)
+);
+
+CREATE TABLE IF NOT EXISTS corrective_exercise_applications (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES auth.users(id) ON DELETE RESTRICT NOT NULL,
+  season_key TEXT DEFAULT '4th' NOT NULL CHECK (season_key ~ '^[0-9]+th$'),
+  auth_user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  participant_id UUID REFERENCES participants(id) ON DELETE RESTRICT NOT NULL,
+  participant_name_snapshot TEXT NOT NULL CHECK (
+    char_length(participant_name_snapshot) BETWEEN 1 AND 40
+    AND btrim(participant_name_snapshot) <> ''
+  ),
+  requested_slot_id UUID REFERENCES corrective_exercise_slots(id) ON DELETE SET NULL,
+  requested_date DATE NOT NULL,
+  requested_start_time TIME WITHOUT TIME ZONE NOT NULL,
+  requested_end_time TIME WITHOUT TIME ZONE,
+  pain_areas TEXT[] NOT NULL CHECK (
+    cardinality(pain_areas) BETWEEN 1 AND 5
+    AND array_position(pain_areas, NULL) IS NULL
+    AND pain_areas <@ ARRAY[
+      'neck', 'shoulder', 'upper_back', 'lower_back', 'hip',
+      'knee', 'ankle', 'foot', 'elbow_wrist', 'other'
+    ]::TEXT[]
+  ),
+  pain_context TEXT NOT NULL CHECK (char_length(pain_context) BETWEEN 10 AND 500),
+  hospital_status TEXT NOT NULL CHECK (hospital_status IN ('none', 'past', 'current')),
+  hospital_note TEXT CHECK (hospital_note IS NULL OR char_length(hospital_note) BETWEEN 1 AND 300),
+  additional_note TEXT CHECK (additional_note IS NULL OR char_length(additional_note) BETWEEN 1 AND 500),
+  status TEXT DEFAULT 'submitted' NOT NULL CHECK (
+    status IN ('submitted', 'reviewing', 'schedule_proposed', 'confirmed', 'completed', 'cancelled', 'rejected')
+  ),
+  confirmed_for TIMESTAMPTZ,
+  admin_note TEXT CHECK (admin_note IS NULL OR char_length(admin_note) BETWEEN 1 AND 500),
+  consent_version TEXT NOT NULL CHECK (char_length(consent_version) BETWEEN 1 AND 64),
+  consented_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  retention_until TIMESTAMPTZ DEFAULT (NOW() + INTERVAL '180 days') NOT NULL,
+  cancelled_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  CHECK (requested_end_time IS NULL OR requested_end_time > requested_start_time),
+  CHECK (retention_until > created_at)
+);
+
+-- 상세 열람 감사 로그에는 문진 원문이나 이름을 복제하지 않습니다.
+-- application_id는 만료 신청 삭제 후에도 최소 감사 증적으로 남길 수 있도록 FK를 두지 않습니다.
+CREATE TABLE IF NOT EXISTS corrective_exercise_audit_logs (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES auth.users(id) ON DELETE RESTRICT NOT NULL,
+  operator_auth_user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  application_id UUID NOT NULL,
+  event_type TEXT NOT NULL CHECK (event_type IN ('detail_viewed')),
+  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  retention_until TIMESTAMPTZ DEFAULT (NOW() + INTERVAL '365 days') NOT NULL,
+  CHECK (retention_until > created_at)
+);
+
+CREATE INDEX IF NOT EXISTS idx_corrective_exercise_slots_schedule
+  ON corrective_exercise_slots(user_id, season_key, active, slot_date, start_time);
+CREATE INDEX IF NOT EXISTS idx_corrective_exercise_applications_admin
+  ON corrective_exercise_applications(user_id, season_key, status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_corrective_exercise_applications_member
+  ON corrective_exercise_applications(auth_user_id, season_key, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_corrective_exercise_applications_slot
+  ON corrective_exercise_applications(requested_slot_id, status, retention_until);
+CREATE INDEX IF NOT EXISTS idx_corrective_exercise_applications_retention
+  ON corrective_exercise_applications(retention_until);
+CREATE INDEX IF NOT EXISTS idx_corrective_exercise_audit_application
+  ON corrective_exercise_audit_logs(user_id, application_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_corrective_exercise_audit_retention
+  ON corrective_exercise_audit_logs(retention_until);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_corrective_exercise_one_active_per_member
+  ON corrective_exercise_applications(season_key, auth_user_id)
+  WHERE status IN ('submitted', 'reviewing', 'schedule_proposed', 'confirmed');
+
+-- 접수 중 데이터도 생성 후 180일을 넘기지 않고, 취소·거절·완료된 신청은
+-- 상태 변경 시점부터 90일 이내로 보관 기한을 단축합니다. 이미 더 이른 기한은 늘리지 않습니다.
+CREATE OR REPLACE FUNCTION public.set_corrective_exercise_retention()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SET search_path = pg_catalog
+AS $$
+BEGIN
+  NEW.created_at := COALESCE(NEW.created_at, NOW());
+  NEW.retention_until := LEAST(
+    COALESCE(NEW.retention_until, NEW.created_at + INTERVAL '180 days'),
+    NEW.created_at + INTERVAL '180 days'
+  );
+
+  IF TG_OP = 'UPDATE' THEN
+    NEW.retention_until := LEAST(NEW.retention_until, OLD.retention_until);
+    IF NEW.status IN ('completed', 'cancelled', 'rejected')
+      AND NEW.status IS DISTINCT FROM OLD.status THEN
+      NEW.retention_until := LEAST(NEW.retention_until, NOW() + INTERVAL '90 days');
+    END IF;
+  ELSIF NEW.status IN ('completed', 'cancelled', 'rejected') THEN
+    NEW.retention_until := LEAST(NEW.retention_until, NOW() + INTERVAL '90 days');
+  END IF;
+
+  IF NEW.status = 'cancelled' THEN
+    NEW.confirmed_for := NULL;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_set_corrective_exercise_retention ON corrective_exercise_applications;
+CREATE TRIGGER trg_set_corrective_exercise_retention
+  BEFORE INSERT OR UPDATE OF status, retention_until, confirmed_for ON corrective_exercise_applications
+  FOR EACH ROW EXECUTE FUNCTION public.set_corrective_exercise_retention();
+
+-- 운영자의 슬롯 수정도 신청 RPC와 같은 advisory lock을 사용합니다. 정원·활성·일정 변경이
+-- 신청 삽입과 동시에 실행돼도 잠긴 행의 최신 신청 수를 기준으로 원자적으로 결정됩니다.
+CREATE OR REPLACE FUNCTION public.update_corrective_exercise_slot(
+  p_user_id UUID,
+  p_season_key TEXT,
+  p_slot_id UUID,
+  p_expected_updated_at TIMESTAMPTZ,
+  p_slot_date DATE,
+  p_start_time TIME WITHOUT TIME ZONE,
+  p_end_time TIME WITHOUT TIME ZONE,
+  p_capacity INTEGER,
+  p_active BOOLEAN,
+  p_note TEXT
+)
+RETURNS UUID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $$
+DECLARE
+  existing_slot public.corrective_exercise_slots%ROWTYPE;
+  active_count INTEGER;
+BEGIN
+  PERFORM pg_advisory_xact_lock(hashtextextended('corrective-slot:' || p_slot_id::TEXT, 0));
+
+  SELECT * INTO existing_slot
+  FROM public.corrective_exercise_slots
+  WHERE id = p_slot_id
+    AND user_id = p_user_id
+    AND season_key = p_season_key
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'corrective exercise slot not found' USING ERRCODE = 'P0002';
+  END IF;
+  IF existing_slot.updated_at IS DISTINCT FROM p_expected_updated_at THEN
+    RAISE EXCEPTION 'corrective exercise slot changed' USING ERRCODE = '40001';
+  END IF;
+  IF p_slot_date IS NULL
+    OR p_start_time IS NULL
+    OR p_capacity IS NULL
+    OR p_capacity NOT BETWEEN 1 AND 20
+    OR p_active IS NULL
+    OR (p_end_time IS NOT NULL AND p_end_time <= p_start_time)
+    OR (p_note IS NOT NULL AND (char_length(p_note) < 1 OR char_length(p_note) > 120)) THEN
+    RAISE EXCEPTION 'corrective exercise slot invalid' USING ERRCODE = '23514';
+  END IF;
+
+  SELECT COUNT(*) INTO active_count
+  FROM public.corrective_exercise_applications
+  WHERE requested_slot_id = p_slot_id
+    AND status IN ('submitted', 'reviewing', 'schedule_proposed', 'confirmed')
+    AND retention_until > NOW();
+
+  IF (p_slot_date, p_start_time, p_end_time)
+      IS DISTINCT FROM (existing_slot.slot_date, existing_slot.start_time, existing_slot.end_time)
+    AND active_count > 0 THEN
+    RAISE EXCEPTION 'corrective exercise slot bookings exist' USING ERRCODE = '23514';
+  END IF;
+  IF p_capacity < active_count THEN
+    RAISE EXCEPTION 'corrective exercise slot capacity below bookings' USING ERRCODE = '23514';
+  END IF;
+  IF (p_slot_date, p_start_time)
+      IS DISTINCT FROM (existing_slot.slot_date, existing_slot.start_time)
+    AND (p_slot_date + p_start_time) <= (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Seoul') THEN
+    RAISE EXCEPTION 'corrective exercise slot past schedule' USING ERRCODE = '23514';
+  END IF;
+
+  UPDATE public.corrective_exercise_slots
+  SET slot_date = p_slot_date,
+      start_time = p_start_time,
+      end_time = p_end_time,
+      capacity = p_capacity,
+      active = p_active,
+      note = p_note,
+      updated_at = NOW()
+  WHERE id = p_slot_id;
+
+  RETURN p_slot_id;
+END;
+$$;
+
+-- 슬롯 행을 잠그고 정원·중복 신청을 같은 트랜잭션에서 확인해 동시 신청도 정원을 넘지 않습니다.
+CREATE OR REPLACE FUNCTION public.submit_corrective_exercise_application(
+  p_user_id UUID,
+  p_season_key TEXT,
+  p_auth_user_id UUID,
+  p_participant_id UUID,
+  p_participant_name TEXT,
+  p_slot_id UUID,
+  p_pain_areas TEXT[],
+  p_pain_context TEXT,
+  p_hospital_status TEXT,
+  p_hospital_note TEXT,
+  p_additional_note TEXT,
+  p_consent_version TEXT
+)
+RETURNS UUID
+LANGUAGE plpgsql
+SET search_path = pg_catalog
+AS $$
+DECLARE
+  selected_slot public.corrective_exercise_slots%ROWTYPE;
+  active_count INTEGER;
+  application_id UUID;
+BEGIN
+  PERFORM pg_advisory_xact_lock(hashtextextended('corrective-slot:' || p_slot_id::TEXT, 0));
+
+  SELECT * INTO selected_slot
+  FROM public.corrective_exercise_slots
+  WHERE id = p_slot_id
+    AND user_id = p_user_id
+    AND season_key = p_season_key
+    AND active = TRUE
+    AND (slot_date + start_time) > (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Seoul')
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'corrective exercise slot unavailable' USING ERRCODE = '23514';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM public.participants
+    WHERE id = p_participant_id
+      AND user_id = p_user_id
+      AND season_key = p_season_key
+      AND active = TRUE
+  ) THEN
+    RAISE EXCEPTION 'corrective exercise participant unavailable' USING ERRCODE = '23514';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM public.participant_accounts
+    WHERE auth_user_id = p_auth_user_id
+      AND participant_id = p_participant_id
+      AND season_key = p_season_key
+      AND status = 'approved'
+  ) THEN
+    RAISE EXCEPTION 'corrective exercise participant account unavailable' USING ERRCODE = '23514';
+  END IF;
+
+  -- 만료된 민감정보는 새 신청을 막지 않도록 먼저 실제 삭제합니다.
+  DELETE FROM public.corrective_exercise_applications
+  WHERE auth_user_id = p_auth_user_id
+    AND season_key = p_season_key
+    AND retention_until <= NOW();
+
+  IF EXISTS (
+    SELECT 1 FROM public.corrective_exercise_applications
+    WHERE auth_user_id = p_auth_user_id
+      AND season_key = p_season_key
+      AND status IN ('submitted', 'reviewing', 'schedule_proposed', 'confirmed')
+      AND retention_until > NOW()
+  ) THEN
+    RAISE EXCEPTION 'corrective exercise active application exists' USING ERRCODE = '23505';
+  END IF;
+
+  SELECT COUNT(*) INTO active_count
+  FROM public.corrective_exercise_applications
+  WHERE requested_slot_id = p_slot_id
+    AND status IN ('submitted', 'reviewing', 'schedule_proposed', 'confirmed')
+    AND retention_until > NOW();
+
+  IF active_count >= selected_slot.capacity THEN
+    RAISE EXCEPTION 'corrective exercise slot unavailable' USING ERRCODE = '23514';
+  END IF;
+
+  INSERT INTO public.corrective_exercise_applications (
+    user_id, season_key, auth_user_id, participant_id, participant_name_snapshot,
+    requested_slot_id, requested_date, requested_start_time, requested_end_time,
+    pain_areas, pain_context, hospital_status, hospital_note, additional_note,
+    consent_version, consented_at
+  ) VALUES (
+    p_user_id, p_season_key, p_auth_user_id, p_participant_id, p_participant_name,
+    selected_slot.id, selected_slot.slot_date, selected_slot.start_time, selected_slot.end_time,
+    p_pain_areas, p_pain_context, p_hospital_status, p_hospital_note, p_additional_note,
+    p_consent_version, NOW()
+  ) RETURNING id INTO application_id;
+
+  RETURN application_id;
+END;
+$$;
+
+-- 앱 배포만으로 임의 스케줄러를 만들지 않습니다. 이 스키마 적용 후 운영자가
+-- docs/migrations/2026-09-04-corrective-exercise-retention-cron.sql을 명시적으로 실행하면
+-- Supabase pg_cron이 아래 만료행 삭제 함수를 하루 한 번 호출합니다.
+CREATE OR REPLACE FUNCTION public.purge_expired_corrective_exercise_applications()
+RETURNS INTEGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $$
+DECLARE
+  deleted_application_count INTEGER;
+  deleted_audit_count INTEGER;
+BEGIN
+  DELETE FROM public.corrective_exercise_applications
+  WHERE retention_until <= NOW();
+  GET DIAGNOSTICS deleted_application_count = ROW_COUNT;
+
+  DELETE FROM public.corrective_exercise_audit_logs
+  WHERE retention_until <= NOW();
+  GET DIAGNOSTICS deleted_audit_count = ROW_COUNT;
+
+  RETURN deleted_application_count + deleted_audit_count;
+END;
+$$;
+
+ALTER TABLE corrective_exercise_slots ENABLE ROW LEVEL SECURITY;
+ALTER TABLE corrective_exercise_applications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE corrective_exercise_audit_logs ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE corrective_exercise_slots FROM anon, authenticated, PUBLIC;
+REVOKE ALL ON TABLE corrective_exercise_applications FROM anon, authenticated, PUBLIC;
+REVOKE ALL ON TABLE corrective_exercise_audit_logs FROM anon, authenticated, PUBLIC;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE corrective_exercise_slots TO service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE corrective_exercise_applications TO service_role;
+GRANT SELECT, INSERT, DELETE ON TABLE corrective_exercise_audit_logs TO service_role;
+REVOKE ALL ON FUNCTION public.set_corrective_exercise_retention() FROM anon, authenticated, PUBLIC;
+REVOKE ALL ON FUNCTION public.update_corrective_exercise_slot(
+  UUID, TEXT, UUID, TIMESTAMPTZ, DATE, TIME WITHOUT TIME ZONE, TIME WITHOUT TIME ZONE, INTEGER, BOOLEAN, TEXT
+) FROM anon, authenticated, PUBLIC;
+REVOKE ALL ON FUNCTION public.submit_corrective_exercise_application(
+  UUID, TEXT, UUID, UUID, TEXT, UUID, TEXT[], TEXT, TEXT, TEXT, TEXT, TEXT
+) FROM anon, authenticated, PUBLIC;
+REVOKE ALL ON FUNCTION public.purge_expired_corrective_exercise_applications() FROM anon, authenticated, PUBLIC;
+GRANT EXECUTE ON FUNCTION public.set_corrective_exercise_retention() TO service_role;
+GRANT EXECUTE ON FUNCTION public.update_corrective_exercise_slot(
+  UUID, TEXT, UUID, TIMESTAMPTZ, DATE, TIME WITHOUT TIME ZONE, TIME WITHOUT TIME ZONE, INTEGER, BOOLEAN, TEXT
+) TO service_role;
+GRANT EXECUTE ON FUNCTION public.submit_corrective_exercise_application(
+  UUID, TEXT, UUID, UUID, TEXT, UUID, TEXT[], TEXT, TEXT, TEXT, TEXT, TEXT
+) TO service_role;
+GRANT EXECUTE ON FUNCTION public.purge_expired_corrective_exercise_applications() TO service_role;
+
+-- 4-3. 4기 공개 응원글과 광고 배너
 -- 공개 브라우저는 이 테이블을 직접 읽지 않고 /api/hello-2027/content만 사용합니다.
 -- 운영 변경은 서명된 어드민 세션을 확인하는 서버 API만 service_role로 수행합니다.
 CREATE TABLE IF NOT EXISTS hello_2027_encouragements (

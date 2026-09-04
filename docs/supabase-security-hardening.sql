@@ -12,6 +12,9 @@ ALTER TABLE public.daily_run_records ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.participant_growth_badges ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.participant_accounts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.daily_gift_claims ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.corrective_exercise_slots ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.corrective_exercise_applications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.corrective_exercise_audit_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.hello_2027_encouragements ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.hello_2027_banners ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.hello_2027_profile_introductions ENABLE ROW LEVEL SECURITY;
@@ -30,6 +33,9 @@ REVOKE ALL ON TABLE public.daily_run_records FROM PUBLIC;
 REVOKE ALL ON TABLE public.participant_growth_badges FROM PUBLIC;
 REVOKE ALL ON TABLE public.participant_accounts FROM anon, authenticated, PUBLIC;
 REVOKE ALL ON TABLE public.daily_gift_claims FROM anon, authenticated, PUBLIC;
+REVOKE ALL ON TABLE public.corrective_exercise_slots FROM anon, authenticated, PUBLIC;
+REVOKE ALL ON TABLE public.corrective_exercise_applications FROM anon, authenticated, PUBLIC;
+REVOKE ALL ON TABLE public.corrective_exercise_audit_logs FROM anon, authenticated, PUBLIC;
 REVOKE ALL ON TABLE public.hello_2027_encouragements FROM anon, authenticated, PUBLIC;
 REVOKE ALL ON TABLE public.hello_2027_banners FROM anon, authenticated, PUBLIC;
 REVOKE ALL ON TABLE public.hello_2027_profile_introductions FROM anon, authenticated, PUBLIC;
@@ -49,6 +55,9 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.participant_growth_badges T
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.participant_accounts TO service_role;
 REVOKE UPDATE, DELETE ON TABLE public.daily_gift_claims FROM service_role;
 GRANT SELECT, INSERT ON TABLE public.daily_gift_claims TO service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.corrective_exercise_slots TO service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.corrective_exercise_applications TO service_role;
+GRANT SELECT, INSERT, DELETE ON TABLE public.corrective_exercise_audit_logs TO service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.hello_2027_encouragements TO service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.hello_2027_banners TO service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.hello_2027_profile_introductions TO service_role;
@@ -59,10 +68,26 @@ REVOKE ALL ON FUNCTION public.enforce_hello_2027_reaction_target() FROM anon, au
 REVOKE ALL ON FUNCTION public.enforce_hello_2027_profile_introduction_limit() FROM anon, authenticated, PUBLIC;
 REVOKE ALL ON FUNCTION public.delete_hello_2027_comment(UUID, TEXT, TEXT, TEXT, UUID) FROM anon, authenticated, PUBLIC;
 REVOKE ALL ON FUNCTION public.anonymize_hello_2027_comments_on_auth_delete() FROM anon, authenticated, PUBLIC;
+REVOKE ALL ON FUNCTION public.set_corrective_exercise_retention() FROM anon, authenticated, PUBLIC;
+REVOKE ALL ON FUNCTION public.update_corrective_exercise_slot(
+  UUID, TEXT, UUID, TIMESTAMPTZ, DATE, TIME WITHOUT TIME ZONE, TIME WITHOUT TIME ZONE, INTEGER, BOOLEAN, TEXT
+) FROM anon, authenticated, PUBLIC;
+REVOKE ALL ON FUNCTION public.submit_corrective_exercise_application(
+  UUID, TEXT, UUID, UUID, TEXT, UUID, TEXT[], TEXT, TEXT, TEXT, TEXT, TEXT
+) FROM anon, authenticated, PUBLIC;
+REVOKE ALL ON FUNCTION public.purge_expired_corrective_exercise_applications() FROM anon, authenticated, PUBLIC;
 GRANT EXECUTE ON FUNCTION public.enforce_hello_2027_reply_limit() TO service_role;
 GRANT EXECUTE ON FUNCTION public.enforce_hello_2027_reaction_target() TO service_role;
 GRANT EXECUTE ON FUNCTION public.enforce_hello_2027_profile_introduction_limit() TO service_role;
 GRANT EXECUTE ON FUNCTION public.delete_hello_2027_comment(UUID, TEXT, TEXT, TEXT, UUID) TO service_role;
+GRANT EXECUTE ON FUNCTION public.set_corrective_exercise_retention() TO service_role;
+GRANT EXECUTE ON FUNCTION public.update_corrective_exercise_slot(
+  UUID, TEXT, UUID, TIMESTAMPTZ, DATE, TIME WITHOUT TIME ZONE, TIME WITHOUT TIME ZONE, INTEGER, BOOLEAN, TEXT
+) TO service_role;
+GRANT EXECUTE ON FUNCTION public.submit_corrective_exercise_application(
+  UUID, TEXT, UUID, UUID, TEXT, UUID, TEXT[], TEXT, TEXT, TEXT, TEXT, TEXT
+) TO service_role;
+GRANT EXECUTE ON FUNCTION public.purge_expired_corrective_exercise_applications() TO service_role;
 
 -- 4. 공개 브라우저에서 DB 변경 스트림을 직접 구독하지 않도록 Realtime publication에서 제외합니다.
 DO $$
@@ -77,6 +102,9 @@ BEGIN
       'participant_growth_badges',
       'participant_accounts',
       'daily_gift_claims',
+      'corrective_exercise_slots',
+      'corrective_exercise_applications',
+      'corrective_exercise_audit_logs',
       'hello_2027_encouragements',
       'hello_2027_banners',
       'hello_2027_profile_introductions',
@@ -123,6 +151,7 @@ COMMIT;
 --   AND tablename IN (
 --     'participants', 'upload_batches', 'daily_run_records', 'participant_growth_badges',
 --     'participant_accounts', 'daily_gift_claims', 'hello_2027_encouragements',
+--     'corrective_exercise_slots', 'corrective_exercise_applications', 'corrective_exercise_audit_logs',
 --     'hello_2027_banners', 'hello_2027_profile_introductions',
 --     'hello_2027_comments', 'hello_2027_comment_reactions'
 --   );
@@ -133,6 +162,7 @@ COMMIT;
 --   AND table_name IN (
 --     'participants', 'upload_batches', 'daily_run_records', 'participant_growth_badges',
 --     'participant_accounts', 'daily_gift_claims', 'hello_2027_encouragements',
+--     'corrective_exercise_slots', 'corrective_exercise_applications', 'corrective_exercise_audit_logs',
 --     'hello_2027_banners', 'hello_2027_profile_introductions',
 --     'hello_2027_comments', 'hello_2027_comment_reactions'
 --   )
