@@ -95,7 +95,10 @@ export async function POST(request: NextRequest) {
 
     if (!error && data.user && isAdminEmail(data.user.email)) {
       const response = NextResponse.json(adminUserResponse(data.user));
-      setAdminSessionCookie(response, data.user.id);
+      if (!setAdminSessionCookie(response, data.user.id)) {
+        await supabase.auth.signOut();
+        return NextResponse.json({ error: "ADMIN_SESSION_SECRET 환경변수를 먼저 설정해주세요." }, { status: 503 });
+      }
       return response;
     }
 

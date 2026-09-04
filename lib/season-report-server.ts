@@ -3,8 +3,12 @@ import { buildPublicDashboardPayload, PUBLIC_DASHBOARD_CACHE_TAG } from "@/lib/p
 import { buildSeasonReport, SEASON_REPORT_FROM, SEASON_REPORT_TO } from "@/lib/season-report";
 
 const getCachedSeasonReportPayload = unstable_cache(
-  () => buildPublicDashboardPayload(SEASON_REPORT_FROM, SEASON_REPORT_TO),
-  ["season-report-payload-v3-private-intros", SEASON_REPORT_FROM, SEASON_REPORT_TO],
+  () => buildPublicDashboardPayload(
+    SEASON_REPORT_FROM,
+    SEASON_REPORT_TO,
+    { participantScope: "season-range" },
+  ),
+  ["season-report-payload-v4-season-range", SEASON_REPORT_FROM, SEASON_REPORT_TO],
   {
     revalidate: 300,
     tags: [PUBLIC_DASHBOARD_CACHE_TAG],

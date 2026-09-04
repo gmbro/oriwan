@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 export const metadata = {
-  title: "개인정보처리방침 | 스내사 3기 대시보드",
+  title: "개인정보처리방침 | TWTT 러닝보드",
 };
 
 export default function PrivacyPage() {
@@ -18,54 +18,103 @@ export default function PrivacyPage() {
       <div className="mx-auto max-w-lg px-3 py-4 sm:px-5 sm:py-8">
         <div className="card mobile-page-card space-y-6 p-4 text-sm leading-relaxed text-oriwan-text-muted sm:p-6">
           <section>
-            <h2 className="text-base font-bold text-oriwan-text mb-2">1. 처리 주체</h2>
-            <p>스내사 3기 대시보드는 (주)아키랩이 운영하며, 관리자 이경민이 참가자 및 러닝 인증 기록을 관리합니다.</p>
+            <h2 className="mb-2 text-base font-bold text-oriwan-text">1. 처리 주체와 현재 상태</h2>
+            <p>
+              TWTT 러닝보드는 (주)아키랩이 운영합니다. 현재 4기 화면은 더미데이터를 사용하는 사전 공개 상태이며,
+              댓글 작성·답글·반응은 운영용 서버 저장소와 관리 기능이 연결될 때까지 잠겨 있습니다.
+            </p>
+            <p className="mt-2">운영·개인정보 문의 연락처는 정식 운영 전에 확정해 이 페이지에 고지할 예정입니다.</p>
           </section>
 
           <section>
-            <h2 className="text-base font-bold text-oriwan-text mb-2">2. 수집하는 정보</h2>
-            <ul className="list-disc pl-5 space-y-1">
-              <li><strong>관리자 인증 정보:</strong> 관리자 이메일, 인증 세션</li>
-              <li><strong>개별 로그인 정보:</strong> Google 계정 이메일, 인증 세션</li>
-              <li><strong>참가자 정보:</strong> 운영자가 등록한 이름, 참가자가 직접 입력한 필수 이름</li>
-              <li><strong>러닝 인증 기록:</strong> 날짜, 거리, 시간, 페이스, 인증 상태, 메모</li>
-              <li><strong>인증 이미지:</strong> 운영자 또는 참가자가 업로드한 NRC, Garmin, Strava 등 러닝 기록 이미지와 추출 텍스트</li>
+            <h2 className="mb-2 text-base font-bold text-oriwan-text">2. 처리 예정인 정보</h2>
+            <ul className="list-disc space-y-1 pl-5">
+              <li><strong>관리자 정보:</strong> 관리자 이메일, 인증 및 관리 세션, 변경 이력</li>
+              <li><strong>카카오 로그인 정보:</strong> Supabase 사용자 식별자, Kakao provider 연결 정보, 인증 세션</li>
+              <li><strong>계정 연결 정보:</strong> 운영자 확인 표시명, 승인 상태·시각, 연결된 시즌 참가자</li>
+              <li><strong>카카오 프로필 정보:</strong> 운영자가 계정을 확인할 때 참고하는 프로필 닉네임</li>
+              <li><strong>크루프로필:</strong> 운영자가 등록한 이름, 자기소개, 캐릭터, 공개 순서와 공개 동의 상태</li>
+              <li><strong>러닝 인증 정보:</strong> 날짜, 거리, 시간, 페이스, 인증 상태와 운영 메모</li>
+              <li><strong>인증 검수 정보:</strong> 운영자가 다루는 러닝 기록 이미지, OCR 추출문과 신뢰도</li>
+              <li><strong>댓글 정보:</strong> 본문, 답글, 반응, 작성 시각, 운영 상태와 작성자 연결 정보</li>
+              <li><strong>응원 상자 정보:</strong> 시즌, 인증일, 개봉 결과와 개봉 시각</li>
+              <li><strong>보안 정보:</strong> 오류·차단 결과, 요청 식별자 등 서비스 보호에 필요한 최소 로그</li>
             </ul>
           </section>
 
           <section>
-            <h2 className="text-base font-bold text-oriwan-text mb-2">3. 이용 목적</h2>
-            <ul className="list-disc pl-5 space-y-1">
-              <li>2026년 5월 5일부터 100일간의 러닝 인증 여부 확인</li>
-              <li>전체 및 개별 참가자의 거리, 시간, 인증률 시각화</li>
-              <li>참가자가 입력한 이름과 운영자가 등록한 참가자명 매칭</li>
-              <li>관리자의 참가자 관리 및 기록 검수</li>
-              <li>NRC, Garmin, Strava 등 이미지 기반 기록 추출과 수동 보정 지원</li>
+            <h2 className="mb-2 text-base font-bold text-oriwan-text">3. 이용 목적</h2>
+            <ul className="list-disc space-y-1 pl-5">
+              <li>시즌별 러닝 인증 현황과 통계 제공</li>
+              <li>운영자가 카카오 계정과 참가자를 확인해 연결</li>
+              <li>운영자 확인 표시명으로 댓글·답글 제공</li>
+              <li>승인 참가자의 당일 인증 여부를 확인해 하루 한 번 응원 상자 제공</li>
+              <li>운영자의 인증 이미지 검수, OCR 보조 및 기록 정정</li>
+              <li>오류·남용 방지와 서비스 보안 유지</li>
             </ul>
           </section>
 
           <section>
-            <h2 className="text-base font-bold text-oriwan-text mb-2">4. 공개 범위</h2>
-            <p>전체 참가자 대시보드는 로그인 없이 볼 수 있습니다. 개별 기록 입력 화면은 Google 로그인이 필요하며, 공개되는 정보는 참가자명, 인증 여부, 거리, 시간, 러닝 인증보드 순위와 구간별 뱃지 등 러닝 인증 현황에 필요한 항목으로 제한됩니다. 점수 숫자는 공개 대시보드에 표시하지 않습니다.</p>
+            <h2 className="mb-2 text-base font-bold text-oriwan-text">4. 로그인 상태별 기능과 이름 표시</h2>
+            <p>
+              대시보드는 로그인 없이 조회할 수 있습니다. 정식 댓글 기능이 열린 뒤 비로그인 방문자는 서버가 정한 랜덤
+              닉네임으로 댓글을 남기며, 사전 공개 기간에는 댓글을 작성할 수 없습니다.
+            </p>
+            <p className="mt-2">
+              개인 카카오 로그인 이용자는 운영자가 계정과 4기 참가자를 승인하고 표시명을 확인한 경우에만 그 이름으로
+              댓글을 작성할 수 있습니다. 카카오 프로필 닉네임은 운영자 참고값일 뿐 실명 확인값이나 공개 댓글 작성자명으로
+              바로 사용하지 않습니다.
+            </p>
+            <p className="mt-2">
+              개인 이용자에게는 인증 등록, OCR 실행, 크루 관리, 프로필 자기수정 권한을 제공하지 않습니다. 오늘 인증이
+              완료된 승인 참가자에게만 하루 한 번 응원 상자 개봉 기능을 제공합니다.
+            </p>
           </section>
 
           <section>
-            <h2 className="text-base font-bold text-oriwan-text mb-2">5. 보관 및 삭제</h2>
-            <p>수집된 정보는 스내사 3기 운영 기간 동안 보관됩니다. 참가자 삭제 시 참가자는 목록에서 비활성화되며, 기록 보존이 필요한 경우 기존 인증 기록은 유지될 수 있습니다.</p>
+            <h2 className="mb-2 text-base font-bold text-oriwan-text">5. 공개 범위</h2>
+            <p>
+              참가자 동의를 전제로 크루 표시명, 자기소개, 캐릭터, 인증 여부와 인증률 등 대시보드 운영에 필요한 필드만
+              공개합니다. 로그인 식별자, 카카오 참고 닉네임, 인증 원본 이미지, OCR 원문, 운영 메모와 계정 연결 이력은
+              공개하지 않습니다.
+            </p>
           </section>
 
           <section>
-            <h2 className="text-base font-bold text-oriwan-text mb-2">6. 보안</h2>
-            <ul className="list-disc pl-5 space-y-1">
-              <li>관리자 화면은 이메일 인증번호 기반으로 접근을 제한합니다.</li>
-              <li>개별 기록 입력 화면은 Google 로그인 세션으로 접근을 제한합니다.</li>
-              <li>API 통신은 HTTPS로 암호화됩니다.</li>
-              <li>운영 데이터는 Supabase 권한 정책과 서버 검증을 통해 보호됩니다.</li>
+            <h2 className="mb-2 text-base font-bold text-oriwan-text">6. 보관·삭제와 처리 위치</h2>
+            <p>
+              계정, 크루프로필, 인증, 댓글, 응원 상자, 관리자 감사 로그별 보관기간과 삭제 기준은 정식 운영 전에 확정해
+              고지할 예정입니다. 삭제된 정보가 백업에 남는 기간도 실제 Supabase 요금제와 백업 설정을 확인한 뒤 함께
+              안내합니다.
+            </p>
+            <p className="mt-2">
+              운영 데이터 저장에는 Supabase를 사용할 예정입니다. 실제 프로젝트 리전, 데이터 처리 위치, 위탁·재위탁 세부
+              사항은 아직 확정되지 않았으며 운영 전에 확인해 이 방침에 반영합니다. 데이터 삭제 또는 계정 연결 해제 요청
+              절차와 문의처도 같은 시점에 공개합니다.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="mb-2 text-base font-bold text-oriwan-text">7. 보호 조치</h2>
+            <ul className="list-disc space-y-1 pl-5">
+              <li>카카오·Supabase 비밀값은 배포 환경과 공급자 설정에만 저장하고 공개 코드나 브라우저에 노출하지 않습니다.</li>
+              <li>관리자 기능은 이메일 인증번호와 서버 측 권한 검사를 거치도록 구성합니다.</li>
+              <li>일반 이용자는 인증·OCR·크루·운영 API를 호출할 수 없도록 서버에서 권한을 다시 확인합니다.</li>
+              <li>인증 원본은 비공개 저장소에 보관하고 허용된 공개 데이터만 서버를 통해 제공합니다.</li>
+              <li>정식 운영 전 Supabase RLS·권한 정책, 백업·복구 및 삭제 절차를 점검합니다.</li>
             </ul>
           </section>
 
-          <p className="text-xs text-oriwan-text-muted/60 pt-4 border-t border-oriwan-border">
-            시행일: 2026년 5월 5일 · 운영: (주)아키랩 · 관리자: 이경민
+          <section>
+            <h2 className="mb-2 text-base font-bold text-oriwan-text">8. 안내</h2>
+            <p>
+              이 문서는 현재 구현과 예정된 운영 구조를 설명하기 위한 사전 공개 방침입니다. 정식 운영 전 실제 설정과 적용
+              가능한 의무를 별도로 검토하고, 미확정 항목을 확정한 최종 방침을 다시 고지합니다.
+            </p>
+          </section>
+
+          <p className="border-t border-oriwan-border pt-4 text-xs text-oriwan-text-muted/60">
+            개정일: 2026년 9월 4일 · 운영: (주)아키랩
           </p>
         </div>
       </div>

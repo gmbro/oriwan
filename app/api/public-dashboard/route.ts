@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getPublicDashboardDateRange, getPublicDashboardPayload, PUBLIC_DASHBOARD_CACHE_CONTROL } from "@/lib/public-dashboard-data";
+import { PUBLIC_DASHBOARD_CACHE_CONTROL } from "@/lib/public-dashboard-data";
 import { guardReadRequest } from "@/lib/request-security";
+import { thirdSeasonSnapshot } from "@/lib/third-season-snapshot";
 
 const PUBLIC_DASHBOARD_RATE_LIMIT = {
   key: "public-dashboard-read",
@@ -9,10 +10,10 @@ const PUBLIC_DASHBOARD_RATE_LIMIT = {
   message: "대시보드 요청이 잠시 몰렸어요. 조금 뒤 새로고침해주세요.",
 };
 
-function publicDashboardResponse(payload: unknown, cacheStatus = "MISS") {
+function publicDashboardResponse(payload: unknown) {
   const response = NextResponse.json(payload);
   response.headers.set("Cache-Control", PUBLIC_DASHBOARD_CACHE_CONTROL);
-  response.headers.set("X-Oriwan-Cache", cacheStatus);
+  response.headers.set("X-TWTT-Snapshot", "3th");
   return response;
 }
 
@@ -25,17 +26,7 @@ export async function GET(request: NextRequest) {
     return guardResponse;
   }
 
-  const { searchParams } = new URL(request.url);
-  const scope = searchParams.get("scope");
-  const daysParam = Number(searchParams.get("days") || 30);
-  const bypassCache = searchParams.get("refresh") === "1";
-  const { from, to, cacheKey } = getPublicDashboardDateRange({ scope, daysParam });
-
-  try {
-    const { payload, cacheStatus } = await getPublicDashboardPayload(cacheKey, from, to, bypassCache);
-    return publicDashboardResponse(payload, cacheStatus);
-  } catch (error) {
-    console.error("Public dashboard error:", error);
-    return NextResponse.json({ error: "팀 보드를 불러오지 못했어요. 잠시 후 다시 시도해주세요." }, { status: 500 });
-  }
+  // The legacy endpoint is intentionally frozen with the public, de-identified
+  // 3rd-season archive. It performs no database reads or badge writes.
+  return publicDashboardResponse(thirdSeasonSnapshot);
 }

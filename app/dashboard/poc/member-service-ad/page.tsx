@@ -7,7 +7,7 @@ import type { PublicDashboardPayload } from "@/lib/public-dashboard-data";
 import { addDays, toIsoDate } from "@/lib/run-records";
 
 export const metadata: Metadata = {
-  title: "멤버 서비스 광고 POC | 스내사 러닝보드",
+  title: "멤버 서비스 광고 POC | TWTT 러닝보드",
   description: "대시보드 상단 멤버 서비스 광고 구좌 예시 화면입니다.",
   robots: {
     index: false,

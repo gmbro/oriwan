@@ -10,6 +10,8 @@ ALTER TABLE public.participants ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.upload_batches ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.daily_run_records ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.participant_growth_badges ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.participant_accounts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.daily_gift_claims ENABLE ROW LEVEL SECURITY;
 
 -- 2. anon/public 역할의 직접 Data API 접근을 제거합니다.
 --    공개 대시보드는 Next.js 서버 API가 service key로 필요한 필드만 읽습니다.
@@ -21,17 +23,21 @@ REVOKE ALL ON TABLE public.participants FROM PUBLIC;
 REVOKE ALL ON TABLE public.upload_batches FROM PUBLIC;
 REVOKE ALL ON TABLE public.daily_run_records FROM PUBLIC;
 REVOKE ALL ON TABLE public.participant_growth_badges FROM PUBLIC;
+REVOKE ALL ON TABLE public.participant_accounts FROM anon, authenticated, PUBLIC;
+REVOKE ALL ON TABLE public.daily_gift_claims FROM anon, authenticated, PUBLIC;
 
--- 3. 로그인한 사용자와 서버 전용 역할만 테이블을 사용할 수 있게 둡니다.
---    실제 행 접근은 docs/supabase-schema.sql의 auth.uid() = user_id RLS 정책이 제한합니다.
-GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.participants TO authenticated;
-GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.upload_batches TO authenticated;
-GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.daily_run_records TO authenticated;
-GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.participant_growth_badges TO authenticated;
+-- 3. 공개 카카오 사용자는 Supabase Data API로 운영 데이터를 직접 쓰지 못합니다.
+--    모든 공개 조회·댓글·응원 상자·관리자 변경은 권한을 재검증하는 서버 API만 통과합니다.
+REVOKE ALL ON TABLE public.participants FROM authenticated;
+REVOKE ALL ON TABLE public.upload_batches FROM authenticated;
+REVOKE ALL ON TABLE public.daily_run_records FROM authenticated;
+REVOKE ALL ON TABLE public.participant_growth_badges FROM authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.participants TO service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.upload_batches TO service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.daily_run_records TO service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.participant_growth_badges TO service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.participant_accounts TO service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.daily_gift_claims TO service_role;
 
 -- 4. 공개 브라우저에서 DB 변경 스트림을 직접 구독하지 않도록 Realtime publication에서 제외합니다.
 DO $$

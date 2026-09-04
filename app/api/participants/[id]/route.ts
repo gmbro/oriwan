@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
-import { requireAdminUser } from "@/lib/admin-server";
+import { requireAdminDataAccess } from "@/lib/admin-data-access";
 import { guardMutationRequest } from "@/lib/request-security";
 import { invalidatePublicDashboardCache } from "@/lib/public-dashboard-data";
 
@@ -11,9 +10,9 @@ export async function PATCH(
   const guardResponse = guardMutationRequest(request);
   if (guardResponse) return guardResponse;
 
-  const supabase = await createClient();
-  const { user, response } = await requireAdminUser(supabase);
-  if (response) return response;
+  const access = await requireAdminDataAccess();
+  if (!access.ok) return access.response;
+  const { user, service: supabase } = access;
 
   const { id } = await context.params;
   const body = await request.json().catch(() => ({}));
@@ -49,9 +48,9 @@ export async function DELETE(
   const guardResponse = guardMutationRequest(request);
   if (guardResponse) return guardResponse;
 
-  const supabase = await createClient();
-  const { user, response } = await requireAdminUser(supabase);
-  if (response) return response;
+  const access = await requireAdminDataAccess();
+  if (!access.ok) return access.response;
+  const { user, service: supabase } = access;
 
   const { id } = await context.params;
   const { error } = await supabase

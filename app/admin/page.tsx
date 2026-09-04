@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
+import { TwttBrandMark } from "@/components/twtt-brand-mark";
 import { IconCalendar, IconCheck, IconRun, IconSync, IconTarget, IconTrash, IconX } from "@/components/icons";
 import { buildMemberPictogramMap, MemberPictogram } from "@/components/member-pictogram";
 import { ACTUAL_CERTIFICATION_START_DATE, CHALLENGE_DAYS, CHALLENGE_START_DATE, clampToChallengeWindow, isCertificationParticipant } from "@/lib/challenge";
@@ -162,6 +163,25 @@ function MemberPicker({
 }
 
 type AdminModal = "participant" | "record" | "upload" | "participantRecords" | null;
+type AdminTab = "certifications" | "crew" | "encouragements" | "banners" | "comments";
+
+const ADMIN_TABS: ReadonlyArray<{ key: AdminTab; label: string }> = [
+  { key: "certifications", label: "인증" },
+  { key: "crew", label: "크루프로필" },
+  { key: "encouragements", label: "응원글" },
+  { key: "banners", label: "배너" },
+  { key: "comments", label: "댓글" },
+];
+
+function isAdminTab(value: string | null): value is AdminTab {
+  return ADMIN_TABS.some((tab) => tab.key === value);
+}
+
+function getInitialAdminTab(): AdminTab {
+  if (typeof window === "undefined") return "certifications";
+  const tab = new URLSearchParams(window.location.search).get("tab");
+  return isAdminTab(tab) ? tab : "certifications";
+}
 
 const IMAGE_UPLOAD_CHUNK_SIZE = 20;
 const MAX_BATCH_IMAGE_FILES = 20;
@@ -773,6 +793,230 @@ function AdminActionButton({
   );
 }
 
+type ParticipantLoginAccount = {
+  auth_user_id: string;
+  display_name: string;
+  email: string;
+  created_at: string;
+  participant_id: string | null;
+  status: "unlinked" | "pending" | "approved" | "revoked";
+  approved_at: string | null;
+  display_name_override: string;
+};
+
+function ParticipantAccountManager({ participants }: { participants: Participant[] }) {
+  const [accounts, setAccounts] = useState<ParticipantLoginAccount[]>([]);
+  const [selections, setSelections] = useState<Record<string, string>>({});
+  const [realNames, setRealNames] = useState<Record<string, string>>({});
+  const [loadingAccounts, setLoadingAccounts] = useState(true);
+  const [savingAccountId, setSavingAccountId] = useState("");
+  const [accountMessage, setAccountMessage] = useState("");
+
+  const loadAccounts = useCallback(async () => {
+    try {
+      const response = await fetch("/api/admin/participant-accounts", { cache: "no-store" });
+      const json = await response.json();
+      if (!response.ok) {
+        setAccountMessage(json.error || "카카오 계정 목록을 불러오지 못했어요.");
+        return;
+      }
+      const nextAccounts = (json.accounts || []) as ParticipantLoginAccount[];
+      setAccounts(nextAccounts);
+      setSelections((current) => Object.fromEntries(nextAccounts.map((account) => [
+        account.auth_user_id,
+        current[account.auth_user_id] || account.participant_id || "",
+      ])));
+      setRealNames((current) => Object.fromEntries(nextAccounts.map((account) => {
+        const participantName = participants.find((participant) => participant.id === account.participant_id)?.name || "";
+        return [account.auth_user_id, current[account.auth_user_id] || account.display_name_override || participantName];
+      })));
+      setAccountMessage("");
+    } catch {
+      setAccountMessage("카카오 계정 목록을 불러오지 못했어요.");
+    } finally {
+      setLoadingAccounts(false);
+    }
+  }, [participants]);
+
+  useEffect(() => {
+    queueMicrotask(() => {
+      void loadAccounts();
+    });
+  }, [loadAccounts]);
+
+  const updateAccount = async (account: ParticipantLoginAccount, status: "approved" | "revoked") => {
+    const participantId = status === "revoked"
+      ? account.participant_id || ""
+      : selections[account.auth_user_id] || account.participant_id || "";
+    if (!participantId) {
+      setAccountMessage("연결할 크루를 먼저 선택해주세요.");
+      return;
+    }
+    setSavingAccountId(account.auth_user_id);
+    setAccountMessage("");
+    try {
+      const response = await fetch("/api/admin/participant-accounts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          auth_user_id: account.auth_user_id,
+          participant_id: participantId,
+          status,
+          display_name_override: realNames[account.auth_user_id] || "",
+        }),
+      });
+      const json = await response.json();
+      if (!response.ok) {
+        setAccountMessage(json.error || "카카오 계정 연결을 저장하지 못했어요.");
+        return;
+      }
+      setAccountMessage(status === "approved" ? "카카오 계정을 크루와 연결했어요." : "카카오 계정 연결을 해제했어요.");
+      await loadAccounts();
+    } catch {
+      setAccountMessage("카카오 계정 연결을 저장하지 못했어요.");
+    } finally {
+      setSavingAccountId("");
+    }
+  };
+
+  return (
+    <section className="mt-6 rounded-[24px] bg-slate-950 p-4 text-white sm:p-5" aria-labelledby="kakao-account-title">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-[10px] font-black uppercase text-[#FEE500]">Kakao account approval</p>
+          <h3 id="kakao-account-title" className="mt-1 text-lg font-black">카카오 계정 연결</h3>
+          <p className="mt-1 text-xs font-semibold leading-5 text-white/55">같은 이름만으로 자동 연결하지 않고, 로그인 계정과 실제 크루를 직접 확인해 승인합니다.</p>
+        </div>
+        <span className="w-fit rounded-full bg-white/10 px-3 py-1 text-[10px] font-black text-white/70">{accounts.length}개 계정</span>
+      </div>
+
+      {accountMessage ? <p className="mt-4 rounded-2xl bg-white/10 px-3 py-2 text-xs font-bold" role="status">{accountMessage}</p> : null}
+      <div className="mt-4 grid gap-2">
+        {loadingAccounts ? <p className="rounded-2xl bg-white/8 px-4 py-6 text-center text-xs font-bold text-white/55">로그인 계정을 불러오는 중…</p> : null}
+        {!loadingAccounts && !accounts.length ? <p className="rounded-2xl bg-white/8 px-4 py-6 text-center text-xs font-bold text-white/55">아직 카카오로 로그인한 계정이 없습니다.</p> : null}
+        {accounts.map((account) => (
+          <article key={account.auth_user_id} className="grid gap-3 rounded-[20px] bg-white/8 p-3 ring-1 ring-white/10 xl:grid-cols-[minmax(0,1fr)_minmax(11rem,0.75fr)_minmax(11rem,0.75fr)_auto] xl:items-end">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <strong className="truncate text-sm">{account.display_name}</strong>
+                <span className={`rounded-full px-2 py-0.5 text-[9px] font-black ${account.status === "approved" ? "bg-lime-300 text-slate-950" : account.status === "revoked" ? "bg-rose-400/20 text-rose-200" : "bg-white/10 text-white/60"}`}>
+                  {account.status === "approved" ? "연결 완료" : account.status === "revoked" ? "연결 해제" : "미연결"}
+                </span>
+              </div>
+              <p className="mt-1 truncate text-[10px] font-semibold text-white/45">{account.email || account.auth_user_id}</p>
+            </div>
+            <label className="text-[10px] font-black text-white/50">
+              연결할 크루
+              <select
+                value={selections[account.auth_user_id] || ""}
+                onChange={(event) => {
+                  const participantId = event.target.value;
+                  const participantName = participants.find((participant) => participant.id === participantId)?.name || "";
+                  setSelections((current) => ({ ...current, [account.auth_user_id]: participantId }));
+                  setRealNames((current) => ({ ...current, [account.auth_user_id]: participantName || current[account.auth_user_id] || "" }));
+                }}
+                className="mt-1 min-h-11 w-full rounded-xl border border-white/10 bg-white px-3 text-sm font-black text-slate-950"
+              >
+                <option value="">크루 선택</option>
+                {participants.map((participant) => <option key={participant.id} value={participant.id}>{participant.name}</option>)}
+              </select>
+            </label>
+            <label className="text-[10px] font-black text-white/50">
+              댓글에 표시할 이름
+              <input
+                value={realNames[account.auth_user_id] || ""}
+                maxLength={40}
+                onChange={(event) => setRealNames((current) => ({ ...current, [account.auth_user_id]: event.target.value }))}
+                placeholder="운영자 확인 이름"
+                className="mt-1 min-h-11 w-full rounded-xl border border-white/10 bg-white px-3 text-sm font-black text-slate-950"
+              />
+            </label>
+            <div className="grid grid-cols-2 gap-2 lg:flex">
+              <button type="button" onClick={() => void updateAccount(account, "approved")} disabled={savingAccountId === account.auth_user_id} className="min-h-11 rounded-xl bg-[#FEE500] px-4 text-xs font-black text-[#191919] disabled:opacity-50">승인 연결</button>
+              <button type="button" onClick={() => void updateAccount(account, "revoked")} disabled={savingAccountId === account.auth_user_id || account.status !== "approved"} className="min-h-11 rounded-xl bg-white/10 px-4 text-xs font-black text-white disabled:opacity-30">연결 해제</button>
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function AdminWorkspacePanel({
+  tab,
+  participants,
+  onOpenCrew,
+}: {
+  tab: Exclude<AdminTab, "certifications">;
+  participants: Participant[];
+  onOpenCrew: () => void;
+}) {
+  if (tab === "crew") {
+    return (
+      <section className="card mobile-page-card overflow-hidden p-4 sm:p-6" aria-labelledby="crew-admin-title">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-[11px] font-black uppercase text-blue-600">Crew profile</p>
+            <h2 id="crew-admin-title" className="mt-1 text-2xl font-black text-oriwan-text">크루프로필</h2>
+            <p className="mt-2 text-sm font-semibold leading-6 text-oriwan-text-muted">이름과 자기소개를 관리합니다. 카카오 계정 연결은 이름 자동 매칭 없이 운영자가 확인한 뒤 승인해야 해요.</p>
+          </div>
+          <button type="button" onClick={onOpenCrew} className="btn-primary min-h-12 shrink-0 px-5 text-sm">크루 등록·수정</button>
+        </div>
+        <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {participants.map((participant) => (
+            <button key={participant.id} type="button" onClick={onOpenCrew} className="rounded-[22px] bg-oriwan-surface-light p-4 text-left ring-1 ring-slate-950/5 transition hover:bg-white hover:shadow-lg">
+              <p className="text-base font-black text-oriwan-text">{participant.name}</p>
+              <p className="mt-2 line-clamp-2 min-h-10 text-xs font-semibold leading-5 text-oriwan-text-muted">{participant.nickname || "자기소개를 입력해주세요."}</p>
+            </button>
+          ))}
+          {!participants.length ? <p className="rounded-[22px] bg-oriwan-surface-light p-6 text-sm font-bold text-oriwan-text-muted">등록된 크루가 없습니다.</p> : null}
+        </div>
+        <ParticipantAccountManager participants={participants} />
+      </section>
+    );
+  }
+
+  const content = {
+    encouragements: {
+      eyebrow: "Encouragements · 최대 56개",
+      title: "응원글",
+      description: "등록·수정·순서·활성 상태를 관리하는 영역입니다. 공개 배포 전 브라우저 IndexedDB 데이터를 Supabase 운영 테이블로 이전해야 합니다.",
+      checklist: ["120자 서버 검증", "순서 및 활성 상태", "변경 이력 저장"],
+    },
+    banners: {
+      eyebrow: "Banners · 최대 10개",
+      title: "배너",
+      description: "광고 이미지와 문구, 대체 텍스트, 모바일 초점, 게시 상태를 관리합니다. 이미지는 private Storage 원본과 공개용 변환본을 분리합니다.",
+      checklist: ["웹·모바일 미리보기", "이미지 재인코딩·EXIF 제거", "게시 순서 및 중지"],
+    },
+    comments: {
+      eyebrow: "Comments · moderation",
+      title: "댓글",
+      description: "익명과 카카오 작성자를 구분해 공개·숨김·복구·비식별 삭제를 관리합니다. 작성자명은 요청 본문이 아니라 서버 세션에서 결정합니다.",
+      checklist: ["150자 서버 검증", "숨김·복구·비식별 삭제", "반응 및 답글 조회"],
+    },
+  }[tab];
+
+  return (
+    <section className="card mobile-page-card overflow-hidden p-5 sm:p-7" aria-labelledby={`${tab}-admin-title`}>
+      <p className="text-[11px] font-black uppercase text-blue-600">{content.eyebrow}</p>
+      <h2 id={`${tab}-admin-title`} className="mt-1 text-2xl font-black text-oriwan-text">{content.title}</h2>
+      <p className="mt-3 max-w-3xl text-sm font-semibold leading-6 text-oriwan-text-muted">{content.description}</p>
+      <div className="mt-5 grid gap-3 sm:grid-cols-3">
+        {content.checklist.map((item, index) => (
+          <div key={item} className="rounded-[20px] bg-oriwan-surface-light p-4 ring-1 ring-slate-950/5">
+            <span className="inline-grid h-7 w-7 place-items-center rounded-full bg-blue-600 text-xs font-black text-white">{index + 1}</span>
+            <p className="mt-3 text-sm font-black text-oriwan-text">{item}</p>
+          </div>
+        ))}
+      </div>
+      <div className="mt-5 rounded-[20px] border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-bold leading-5 text-amber-900">
+        현재 이 탭의 기존 PoC 데이터는 이 브라우저에만 저장됩니다. 운영 DB 마이그레이션과 관리자 API를 적용하기 전에는 배포 화면에서 편집 기능을 열지 않습니다.
+      </div>
+    </section>
+  );
+}
+
 export default function AdminPage() {
   const router = useRouter();
   const loadInFlightRef = useRef(false);
@@ -814,6 +1058,7 @@ export default function AdminPage() {
   const [editingParticipantId, setEditingParticipantId] = useState("");
   const [deletingRecordId, setDeletingRecordId] = useState("");
   const [participantSortMode, setParticipantSortMode] = useState<ParticipantRankSortMode>("certification");
+  const [activeTab, setActiveTab] = useState<AdminTab>(getInitialAdminTab);
 
   const loadData = useCallback(async (showLoading = true) => {
     if (loadInFlightRef.current) return;
@@ -890,6 +1135,13 @@ export default function AdminPage() {
       cancelled = true;
     };
   }, [loadData]);
+
+  const selectAdminTab = useCallback((tab: AdminTab) => {
+    setActiveTab(tab);
+    const url = new URL(window.location.href);
+    url.searchParams.set("tab", tab);
+    window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+  }, []);
 
   useEffect(() => {
     if (!mounted || !authorized) return;
@@ -1788,11 +2040,10 @@ export default function AdminPage() {
         <div className="relative w-full max-w-[430px]">
           <div className="card mobile-page-card p-6 sm:p-9">
             <div className="mb-7 flex items-center gap-3">
-              <span className="relative h-[54px] w-[54px] shrink-0 overflow-hidden rounded-2xl">
-                <Image src="/oriwan-logo-v2.png" alt="어드민" fill sizes="54px" className="object-cover" />
-              </span>
+              <TwttBrandMark className="aspect-[640/310] w-[132px] sm:w-[148px]" sizes="(max-width: 640px) 132px, 148px" priority label="TWTT" />
               <div>
                 <h1 className="text-2xl font-black leading-tight text-oriwan-text">어드민 접속</h1>
+                <p className="mt-1 text-xs font-bold text-oriwan-text-muted">운영자 이메일 인증</p>
               </div>
             </div>
 
@@ -1804,22 +2055,29 @@ export default function AdminPage() {
               >
                 {sendingCode ? "발송 중..." : codeSent ? "인증번호 다시 발송" : "인증번호 발송"}
               </button>
-              <input
-                value={otp}
-                onChange={(event) => setOtp(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") verifyAdminCode();
-                }}
-                inputMode="numeric"
-                placeholder="메일로 받은 인증번호"
-                className="w-full rounded-2xl border border-oriwan-border bg-white px-4 py-3 text-center text-lg font-black outline-none focus:border-oriwan-primary"
-              />
+              <label className="block text-xs font-black text-oriwan-text-muted" htmlFor="admin-otp">
+                인증번호
+                <input
+                  id="admin-otp"
+                  value={otp}
+                  onChange={(event) => setOtp(event.target.value.replace(/\D/g, "").slice(0, 8))}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") verifyAdminCode();
+                  }}
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={8}
+                  aria-describedby={authMessage ? "admin-auth-message" : undefined}
+                  placeholder="메일로 받은 인증번호"
+                  className="mt-1 w-full rounded-2xl border border-oriwan-border bg-white px-4 py-3 text-center text-lg font-black tracking-[0.18em] outline-none focus:border-oriwan-primary"
+                />
+              </label>
               <button onClick={verifyAdminCode} disabled={!otp.trim() || verifyingCode} className="w-full rounded-2xl bg-lime-300 px-4 py-3 text-sm font-black text-slate-950 disabled:opacity-40">
                 {verifyingCode ? "확인하는 중..." : "어드민으로 들어가기"}
               </button>
             </div>
 
-            {authMessage && <p className="mt-4 rounded-2xl bg-white px-4 py-3 text-xs font-bold text-oriwan-text-muted">{authMessage}</p>}
+            {authMessage && <p id="admin-auth-message" className="mt-4 rounded-2xl bg-white px-4 py-3 text-xs font-bold text-oriwan-text-muted" role="status">{authMessage}</p>}
           </div>
         </div>
       </main>
@@ -1831,9 +2089,7 @@ export default function AdminPage() {
       <header className="sticky top-0 z-50 px-4 py-3 bg-[#101522]/92 backdrop-blur-2xl border-b border-white/10 text-white">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="relative h-9 w-9 overflow-hidden rounded-2xl bg-lime-300 ring-1 ring-white/20">
-              <Image src="/oriwan-logo-v2.png" alt="어드민" fill sizes="36px" className="object-cover" />
-            </div>
+            <TwttBrandMark className="aspect-[640/310] w-[82px] sm:w-[96px]" sizes="(max-width: 640px) 82px, 96px" label="TWTT" />
             <div>
               <h1 className="text-base font-black leading-none sm:text-lg">어드민</h1>
             </div>
@@ -1851,6 +2107,48 @@ export default function AdminPage() {
       </header>
 
       <main className="mx-auto max-w-7xl space-y-4 px-3 py-4 pb-10 sm:px-4 sm:py-5">
+        <nav
+          className="sticky top-[61px] z-40 -mx-1 overflow-x-auto rounded-[20px] bg-white/94 p-1.5 shadow-lg shadow-slate-950/5 ring-1 ring-slate-950/5 backdrop-blur-xl"
+          role="tablist"
+          aria-label="어드민 관리 영역"
+        >
+          <div className="flex min-w-max gap-1 sm:min-w-0">
+            {ADMIN_TABS.map((tab) => (
+              <button
+                key={tab.key}
+                type="button"
+                role="tab"
+                aria-selected={activeTab === tab.key}
+                aria-controls={`admin-panel-${tab.key}`}
+                tabIndex={activeTab === tab.key ? 0 : -1}
+                onClick={() => selectAdminTab(tab.key)}
+                onKeyDown={(event) => {
+                  const currentIndex = ADMIN_TABS.findIndex((item) => item.key === tab.key);
+                  let nextIndex = currentIndex;
+                  if (event.key === "ArrowRight") nextIndex = (currentIndex + 1) % ADMIN_TABS.length;
+                  else if (event.key === "ArrowLeft") nextIndex = (currentIndex - 1 + ADMIN_TABS.length) % ADMIN_TABS.length;
+                  else if (event.key === "Home") nextIndex = 0;
+                  else if (event.key === "End") nextIndex = ADMIN_TABS.length - 1;
+                  else return;
+                  event.preventDefault();
+                  selectAdminTab(ADMIN_TABS[nextIndex].key);
+                  const buttons = event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>("[role='tab']");
+                  buttons?.[nextIndex]?.focus();
+                }}
+                className={`min-h-11 min-w-[88px] flex-1 rounded-2xl px-4 text-xs font-black transition sm:text-sm ${
+                  activeTab === tab.key
+                    ? "bg-slate-950 text-white shadow-sm"
+                    : "text-oriwan-text-muted hover:bg-oriwan-surface-light hover:text-oriwan-text"
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        </nav>
+
+        {activeTab === "certifications" ? (
+          <div id="admin-panel-certifications" role="tabpanel" className="space-y-4">
         <section className="relative overflow-hidden rounded-[28px] bg-[#101522] p-4 text-white shadow-2xl shadow-slate-950/15 ring-1 ring-white/10 sm:p-5 lg:p-6">
           <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-lime-300/50 to-transparent" />
           <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,26rem)] lg:items-stretch">
@@ -2358,6 +2656,20 @@ export default function AdminPage() {
             )}
           </div>
         </section>
+          </div>
+        ) : (
+          <div id={`admin-panel-${activeTab}`} role="tabpanel">
+            <AdminWorkspacePanel
+              tab={activeTab}
+              participants={participants}
+              onOpenCrew={() => {
+                resetParticipantForm();
+                setAdminModal("participant");
+              }}
+            />
+          </div>
+        )}
+
         {adminModal === "upload" && (
           <div
             className="fixed inset-0 z-[80] flex items-end bg-slate-950/45 px-0 py-0 backdrop-blur-sm sm:items-center sm:justify-center sm:px-4 sm:py-4"
@@ -2453,6 +2765,21 @@ export default function AdminPage() {
                     최대 {MAX_BATCH_IMAGE_FILES}장
                   </span>
                 </div>
+
+                <label className="mt-3 flex min-h-12 cursor-pointer items-center justify-center rounded-2xl bg-slate-950 px-4 text-sm font-black text-lime-200 transition hover:bg-slate-800 focus-within:outline focus-within:outline-3 focus-within:outline-offset-2 focus-within:outline-blue-500">
+                  사진첩·파일에서 이미지 선택
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    disabled={analyzing}
+                    className="sr-only"
+                    onChange={(event) => {
+                      if (event.target.files) queueDroppedImages(event.target.files);
+                      event.target.value = "";
+                    }}
+                  />
+                </label>
 
                 {files.length > 0 && (
                   <div className="mt-3 rounded-2xl bg-white/95 p-2.5 text-left ring-1 ring-slate-950/5">

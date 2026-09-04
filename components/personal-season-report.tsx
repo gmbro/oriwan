@@ -68,7 +68,15 @@ function waitForPosterPaint() {
   });
 }
 
-export function PersonalSeasonReport({ member, members }: { member: PersonalSeasonReportMember; members: MemberNavigatorItem[] }) {
+export function PersonalSeasonReport({
+  member,
+  members,
+  reportBasePath = "/dashboard/report",
+}: {
+  member: PersonalSeasonReportMember;
+  members: MemberNavigatorItem[];
+  reportBasePath?: string;
+}) {
   const posterRef = useRef<HTMLElement>(null);
   const preparedPhotoRef = useRef<Blob | null>(null);
   const saveInFlightRef = useRef(false);
@@ -105,7 +113,7 @@ export function PersonalSeasonReport({ member, members }: { member: PersonalSeas
     });
     if (!blob) throw new Error("리포트 사진을 만들지 못했습니다.");
     return blob;
-  }, [member.id, member.name]);
+  }, [member.name]);
 
   const fileName = () => safeFileName(`report_${member.name}.png`);
 
@@ -352,10 +360,13 @@ export function PersonalSeasonReport({ member, members }: { member: PersonalSeas
             <p className="mt-2 text-center text-[9px] font-bold leading-4 text-slate-500">
               모바일에서는 열린 메뉴에서 ‘이미지 저장’을 선택해주세요.
             </p>
-            {showDownloadFallback && preparedPhotoRef.current && (
+            {showDownloadFallback && (
               <button
                 type="button"
-                onClick={() => downloadPhoto(preparedPhotoRef.current!)}
+                onClick={() => {
+                  const preparedPhoto = preparedPhotoRef.current;
+                  if (preparedPhoto) downloadPhoto(preparedPhoto);
+                }}
                 className="mt-2 flex min-h-11 w-full items-center justify-center rounded-2xl bg-slate-100 px-4 text-xs font-black text-slate-700 transition hover:bg-slate-200"
               >
                 PNG 파일 다운로드
@@ -370,17 +381,17 @@ export function PersonalSeasonReport({ member, members }: { member: PersonalSeas
                 <p className="text-sm font-black text-slate-950">다른 크루의 100일</p>
                 <p className="mt-1 text-[10px] font-bold text-slate-500">캐릭터를 눌러 바로 이동하세요.</p>
               </div>
-              <Link href="/dashboard/report" className="inline-flex items-center gap-1 text-[10px] font-black text-lime-700">전체 <IconArrowRight size={13} /></Link>
+              <Link href={reportBasePath} className="inline-flex items-center gap-1 text-[10px] font-black text-lime-700">전체 <IconArrowRight size={13} /></Link>
             </div>
             <div className="-mx-1 mt-3 flex snap-x gap-2 overflow-x-auto px-1 pb-2 pt-2">
-              <Link href="/dashboard/report" prefetch className="flex w-16 shrink-0 snap-start flex-col items-center gap-1.5 rounded-2xl bg-slate-950 px-2 py-3 text-white">
+              <Link href={reportBasePath} prefetch className="flex w-16 shrink-0 snap-start flex-col items-center gap-1.5 rounded-2xl bg-slate-950 px-2 py-3 text-white">
                 <span className="flex h-9 w-9 items-center justify-center rounded-full bg-lime-300 text-[10px] font-black text-slate-950">ALL</span>
                 <span className="text-[9px] font-black">전체</span>
               </Link>
               {members.map((item) => (
                 <Link
                   key={item.id}
-                  href={`/dashboard/report/${item.id}`}
+                  href={`${reportBasePath}/${item.id}`}
                   prefetch
                   aria-current={item.id === member.id ? "page" : undefined}
                   className={`flex w-16 shrink-0 snap-start flex-col items-center gap-1.5 rounded-2xl px-2 py-3 ring-1 ${item.id === member.id ? "bg-lime-50 ring-lime-300" : "bg-slate-50 ring-slate-950/5"}`}

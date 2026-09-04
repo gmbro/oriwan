@@ -66,6 +66,8 @@ type GrowthBadgeInsertRow = {
   earned_at: string;
 };
 
+type PublicDashboardParticipantScope = "active" | "season-range";
+
 type FetchedDashboardRecord = PublicDashboardRecord & {
   source_app?: string | null;
   raw_extracted_text?: string | null;
@@ -313,19 +315,26 @@ export function getPublicDashboardDateRange({
   return { from, to, cacheKey };
 }
 
-export async function buildPublicDashboardPayload(from: string, to: string): Promise<PublicDashboardPayload> {
+export async function buildPublicDashboardPayload(
+  from: string,
+  to: string,
+  options: { participantScope?: PublicDashboardParticipantScope } = {},
+): Promise<PublicDashboardPayload> {
   const supabase = getServiceClient();
   if (!supabase) throw new Error("공개 대시보드 환경변수가 설정되지 않았습니다.");
 
   const adminUserId = await findAdminUserId(supabase);
   if (!adminUserId) throw new Error("관리자 계정을 찾지 못했습니다.");
 
+  const participantScope = options.participantScope ?? "active";
+  let participantsQuery = supabase
+    .from("participants")
+    .select("id, name, active, display_order, created_at")
+    .eq("user_id", adminUserId);
+  if (participantScope === "active") participantsQuery = participantsQuery.eq("active", true);
+
   const [participantsResult, recordsResult] = await Promise.all([
-    supabase
-      .from("participants")
-      .select("id, name, active, display_order, created_at")
-      .eq("user_id", adminUserId)
-      .eq("active", true)
+    participantsQuery
       .order("display_order", { ascending: true })
       .order("created_at", { ascending: true }),
     fetchDashboardRecords({ supabase, adminUserId, from, to }),
@@ -349,8 +358,17 @@ export async function buildPublicDashboardPayload(from: string, to: string): Pro
   if (participantsResult.error) throw participantsResult.error;
   if (recordsResult.error) throw recordsResult.error;
 
+  const participantIdsWithSeasonRecords = new Set(
+    ((recordsResult.data || []) as FetchedDashboardRecord[])
+      .flatMap((record) => record.participant_id ? [record.participant_id] : []),
+  );
   const participants = ((participantsResult.data || []) as PublicDashboardParticipant[])
-    .filter(isCertificationParticipant);
+    .filter(isCertificationParticipant)
+    .filter((participant) => (
+      participantScope === "active"
+      || Boolean(participant.created_at && participant.created_at.slice(0, 10) <= to)
+      || participantIdsWithSeasonRecords.has(participant.id)
+    ));
   const visibleParticipantIds = new Set(participants.map((participant) => participant.id));
   const records = ((recordsResult.data || []) as FetchedDashboardRecord[])
     .filter((record) => Boolean(record.participant_id && visibleParticipantIds.has(record.participant_id)))
@@ -409,6 +427,8 @@ export function invalidatePublicDashboardCache() {
   revalidatePath("/api/public-dashboard");
   revalidatePath("/dashboard/report");
   revalidatePath("/dashboard/report/[participantId]", "page");
+  revalidatePath("/dashboard/report/3th");
+  revalidatePath("/dashboard/report/3th/[participantId]", "page");
 }
 
 export async function getPublicDashboardPayload(cacheKey: string, from: string, to: string, bypassCache = false) {

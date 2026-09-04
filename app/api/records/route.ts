@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
-import { requireAdminUser } from "@/lib/admin-server";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { requireAdminDataAccess } from "@/lib/admin-data-access";
 import { calculatePaceSeconds } from "@/lib/run-records";
 import { isMissingTableError, missingSchemaResponse } from "@/lib/supabase-errors";
 import { CHALLENGE_DATE_ERROR, isWithinChallengeWindow } from "@/lib/challenge";
@@ -9,7 +9,7 @@ import { invalidatePublicDashboardCache } from "@/lib/public-dashboard-data";
 
 const RECORD_STATUSES = new Set(["certified", "needs_review", "missing", "rejected"]);
 const RECORDS_PAGE_SIZE = 1000;
-type RecordsSupabaseClient = Awaited<ReturnType<typeof createClient>>;
+type RecordsSupabaseClient = SupabaseClient;
 
 function sanitizeNumber(value: unknown) {
   if (value === null || value === undefined || value === "") return null;
@@ -84,9 +84,9 @@ async function fetchAdminRecords({
 }
 
 export async function GET(request: NextRequest) {
-  const supabase = await createClient();
-  const { user, response } = await requireAdminUser(supabase);
-  if (response) return response;
+  const access = await requireAdminDataAccess();
+  if (!access.ok) return access.response;
+  const { user, service: supabase } = access;
 
   const { searchParams } = new URL(request.url);
   const from = searchParams.get("from");
@@ -109,9 +109,9 @@ export async function POST(request: NextRequest) {
   const guardResponse = guardMutationRequest(request);
   if (guardResponse) return guardResponse;
 
-  const supabase = await createClient();
-  const { user, response } = await requireAdminUser(supabase);
-  if (response) return response;
+  const access = await requireAdminDataAccess();
+  if (!access.ok) return access.response;
+  const { user, service: supabase } = access;
 
   const body = await request.json().catch(() => ({}));
   const participantId = typeof body.participant_id === "string" ? body.participant_id : null;
@@ -128,6 +128,22 @@ export async function POST(request: NextRequest) {
   }
   if (!hasPositiveMetric(distanceKm) && !hasPositiveMetric(durationSeconds)) {
     return NextResponse.json({ error: "거리 또는 시간 중 하나는 입력해주세요." }, { status: 400 });
+  }
+
+  const { data: participant, error: participantError } = await supabase
+    .from("participants")
+    .select("id")
+    .eq("id", participantId)
+    .eq("user_id", user.id)
+    .eq("active", true)
+    .maybeSingle();
+
+  if (participantError) {
+    console.error("Record participant validation error:", participantError);
+    return NextResponse.json({ error: "멤버 정보를 확인하지 못했어요." }, { status: 500 });
+  }
+  if (!participant) {
+    return NextResponse.json({ error: "활성 멤버를 찾지 못했어요. 멤버 목록을 새로고침해주세요." }, { status: 400 });
   }
 
   const status = sanitizeStatus(body.status) || "certified";

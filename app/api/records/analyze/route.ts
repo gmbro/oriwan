@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient as createSupabaseAdmin } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { GoogleGenAI } from "@google/genai";
-import { createClient } from "@/lib/supabase/server";
-import { requireAdminUser } from "@/lib/admin-server";
+import { requireAdminDataAccess } from "@/lib/admin-data-access";
 import {
   GEMINI_OCR_MODEL,
   buildRunImagePrompt,
@@ -60,7 +59,6 @@ type ExistingRunRecord = {
 const MAX_IMAGES = 20;
 const MAX_BODY_BYTES = MAX_IMAGES * 4 * 1024 * 1024 + 2 * 1024 * 1024;
 const DEFAULT_OCR_CONCURRENCY = 4;
-const DEFAULT_AUTO_FALLBACK_PARTICIPANT_NAME = "이경민";
 
 function normalizeParticipantName(name: string) {
   return name.toLowerCase().replace(/\s+/g, "");
@@ -180,20 +178,16 @@ type AnalyzedAdminImage =
   };
 
 async function uploadImageToStorage(input: {
+  supabase: SupabaseClient;
   userId: string;
   batchId: string;
   imageIndex: number;
   mimeType: string;
   base64: string;
 }) {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) return null;
-
-  const supabaseAdmin = createSupabaseAdmin(url, key);
   const extension = input.mimeType.split("/")[1] || "jpg";
   const filePath = `run-records/${input.userId}/${input.batchId}/${input.imageIndex}-${Date.now()}.${extension}`;
-  const { error } = await supabaseAdmin.storage
+  const { error } = await input.supabase.storage
     .from("photos")
     .upload(filePath, Buffer.from(input.base64, "base64"), {
       contentType: input.mimeType,
@@ -209,7 +203,7 @@ async function uploadImageToStorage(input: {
 }
 
 async function findExistingRecord(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  supabase: SupabaseClient,
   userId: string,
   participantId: string,
   recordDate: string
@@ -273,9 +267,9 @@ export async function POST(request: NextRequest) {
   const guardResponse = guardMutationRequest(request, { maxBodyBytes: MAX_BODY_BYTES });
   if (guardResponse) return guardResponse;
 
-  const supabase = await createClient();
-  const { user, response } = await requireAdminUser(supabase);
-  if (response) return response;
+  const access = await requireAdminDataAccess();
+  if (!access.ok) return access.response;
+  const { user, service: supabase } = access;
 
   try {
     const body = await request.json();
@@ -313,15 +307,11 @@ export async function POST(request: NextRequest) {
     if (fallbackParticipantId && !selectedFallbackParticipant) {
       return NextResponse.json({ error: "선택한 멤버를 찾지 못했어요. 멤버 목록을 새로고침해주세요." }, { status: 400 });
     }
-    const defaultAutoFallbackParticipant = participants.find(
-      (participant) => normalizeParticipantName(participant.name) === normalizeParticipantName(DEFAULT_AUTO_FALLBACK_PARTICIPANT_NAME)
-    ) || null;
-    const fallbackParticipant = selectedFallbackParticipant || defaultAutoFallbackParticipant;
-
+    // 이름이 보이지 않는 이미지는 특정 운영자에게 자동 귀속하지 않습니다.
+    // 운영자가 명시적으로 고른 멤버만 보정값으로 사용하고, 그 외에는 검수 대기로 남깁니다.
+    const fallbackParticipant = selectedFallbackParticipant;
     const fallbackParticipantNote = fallbackParticipant
-      ? selectedFallbackParticipant
-        ? `${fallbackParticipant.name}님으로 직접 지정했어요.`
-        : `이미지에서 이름이 보이지 않아 ${fallbackParticipant.name}님으로 자동 보정했어요.`
+      ? `${fallbackParticipant.name}님으로 직접 지정했어요.`
       : null;
 
     const { data: batch, error: batchError } = await supabase
@@ -391,6 +381,7 @@ export async function POST(request: NextRequest) {
           try {
             const parsed = parseDataUrl(image.dataUrl);
             filePath = await uploadImageToStorage({
+              supabase,
               userId: user.id,
               batchId: batch.id,
               imageIndex: index + 1,
@@ -498,6 +489,7 @@ export async function POST(request: NextRequest) {
       if (status !== "certified") needsReviewCount += 1;
 
       const filePath = await uploadImageToStorage({
+        supabase,
         userId: user.id,
         batchId: batch.id,
         imageIndex: index + 1,

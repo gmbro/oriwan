@@ -40,12 +40,16 @@ CREATE TABLE IF NOT EXISTS participant_accounts (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   participant_id UUID REFERENCES participants(id) ON DELETE CASCADE NOT NULL,
   auth_user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  display_name_override TEXT CHECK (display_name_override IS NULL OR char_length(display_name_override) BETWEEN 2 AND 40),
   status TEXT DEFAULT 'pending' NOT NULL CHECK (status IN ('pending', 'approved', 'revoked')),
   approved_at TIMESTAMPTZ,
   approved_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
   updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
 );
+
+ALTER TABLE participant_accounts
+  ADD COLUMN IF NOT EXISTS display_name_override TEXT;
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_participant_accounts_auth_user
   ON participant_accounts(auth_user_id);
@@ -57,13 +61,10 @@ CREATE INDEX IF NOT EXISTS idx_participant_accounts_status
 ALTER TABLE participant_accounts ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Users can read own participant account" ON participant_accounts;
-CREATE POLICY "Users can read own participant account"
-  ON participant_accounts FOR SELECT
-  USING (auth.uid() = auth_user_id);
 
 REVOKE ALL ON TABLE participant_accounts FROM anon;
+REVOKE ALL ON TABLE participant_accounts FROM authenticated;
 REVOKE ALL ON TABLE participant_accounts FROM PUBLIC;
-GRANT SELECT ON TABLE participant_accounts TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE participant_accounts TO service_role;
 
 -- 승인 전 확인:
@@ -178,6 +179,36 @@ CREATE POLICY "Users can delete own participant growth badges"
 
 CREATE INDEX IF NOT EXISTS idx_participant_growth_badges_user_participant
   ON participant_growth_badges(user_id, participant_id, earned_at DESC);
+
+-- 4-1. 승인 참가자의 일일 응원 상자 개봉 이력
+-- 지급 권한과 랜덤 결과는 브라우저가 아니라 /api/me/gift-box 서버 경로에서 결정합니다.
+CREATE TABLE IF NOT EXISTS daily_gift_claims (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  season_key TEXT DEFAULT '4th' NOT NULL CHECK (season_key ~ '^[0-9]+th$'),
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  participant_id UUID REFERENCES participants(id) ON DELETE CASCADE NOT NULL,
+  auth_user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  record_date DATE NOT NULL,
+  message TEXT NOT NULL CHECK (char_length(message) BETWEEN 1 AND 80),
+  claimed_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  UNIQUE(season_key, user_id, participant_id, record_date)
+);
+
+ALTER TABLE daily_gift_claims
+  ADD COLUMN IF NOT EXISTS season_key TEXT DEFAULT '4th' NOT NULL;
+ALTER TABLE daily_gift_claims
+  DROP CONSTRAINT IF EXISTS daily_gift_claims_user_id_participant_id_record_date_key;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_daily_gift_claims_season_participant_date
+  ON daily_gift_claims(season_key, user_id, participant_id, record_date);
+
+CREATE INDEX IF NOT EXISTS idx_daily_gift_claims_participant_date
+  ON daily_gift_claims(participant_id, record_date DESC);
+
+ALTER TABLE daily_gift_claims ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE daily_gift_claims FROM anon;
+REVOKE ALL ON TABLE daily_gift_claims FROM authenticated;
+REVOKE ALL ON TABLE daily_gift_claims FROM PUBLIC;
+GRANT SELECT, INSERT ON TABLE daily_gift_claims TO service_role;
 
 -- 5. Storage: 인증 이미지 저장 버킷
 -- Supabase Dashboard > Storage > New bucket

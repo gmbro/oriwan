@@ -14,7 +14,7 @@ const ADMIN_SESSION_COOKIE = "oriwan_admin_verified";
 const ADMIN_SESSION_MAX_AGE_SECONDS = 60 * 60 * 2;
 
 function getAdminSessionSecret() {
-  return process.env.ADMIN_SESSION_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY || null;
+  return process.env.ADMIN_SESSION_SECRET || null;
 }
 
 function signAdminSession(userId: string, expiresAt: number) {
@@ -35,7 +35,7 @@ function safeEqual(a: string, b: string) {
 export function setAdminSessionCookie(response: NextResponse, userId: string) {
   const expiresAt = Date.now() + ADMIN_SESSION_MAX_AGE_SECONDS * 1000;
   const signature = signAdminSession(userId, expiresAt);
-  if (!signature) return;
+  if (!signature) return false;
 
   response.cookies.set(ADMIN_SESSION_COOKIE, `${userId}.${expiresAt}.${signature}`, {
     httpOnly: true,
@@ -44,6 +44,7 @@ export function setAdminSessionCookie(response: NextResponse, userId: string) {
     path: "/",
     maxAge: ADMIN_SESSION_MAX_AGE_SECONDS,
   });
+  return true;
 }
 
 export function clearAdminSessionCookie(response: NextResponse) {

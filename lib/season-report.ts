@@ -1,5 +1,4 @@
 import { buildMemberPictogramMap } from "@/components/member-pictogram";
-import { ACTUAL_CERTIFICATION_START_DATE, CHALLENGE_DAYS, CHALLENGE_END_DATE } from "@/lib/challenge";
 import {
   getBestWeekdayMorningProgress,
   getCurrentDateStreak,
@@ -217,8 +216,11 @@ const THEMES: Record<SeasonReportThemeKey, SeasonReportTheme> = {
   },
 };
 
-export const SEASON_REPORT_FROM = ACTUAL_CERTIFICATION_START_DATE;
-export const SEASON_REPORT_TO = CHALLENGE_END_DATE;
+// The report module is the immutable 3rd-season archive. Keep its window local
+// so starting a future season cannot silently rewrite historical statistics.
+export const SEASON_REPORT_FROM = "2026-05-05";
+export const SEASON_REPORT_TO = "2026-08-12";
+const CHALLENGE_DAYS = 100;
 
 function makeChallengeDays() {
   const start = new Date(`${SEASON_REPORT_FROM}T00:00:00`);

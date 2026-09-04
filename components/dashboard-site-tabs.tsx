@@ -10,7 +10,7 @@ export function DashboardSiteTabs() {
   return (
     <nav className="mt-2 grid grid-cols-2 gap-1 rounded-2xl bg-white/8 p-1 ring-1 ring-white/10" aria-label="공통대시보드 메뉴">
       <Link
-        href="/dashboard"
+        href="/3th"
         prefetch
         aria-current={!reportActive ? "page" : undefined}
         className={`flex min-h-10 items-center justify-center rounded-xl px-2 text-center text-[11px] font-black transition-colors sm:text-xs ${
@@ -20,7 +20,7 @@ export function DashboardSiteTabs() {
         대시보드
       </Link>
       <Link
-        href="/dashboard/report"
+        href="/dashboard/report/3th"
         prefetch
         aria-current={reportActive ? "page" : undefined}
         className={`flex min-h-10 items-center justify-center gap-1.5 rounded-xl px-2 text-center text-[11px] font-black transition-colors sm:text-xs ${

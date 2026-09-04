@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
-import { requireAdminUser } from "@/lib/admin-server";
+import { requireAdminDataAccess } from "@/lib/admin-data-access";
 import { calculatePaceSeconds } from "@/lib/run-records";
 import { CHALLENGE_DATE_ERROR, isWithinChallengeWindow } from "@/lib/challenge";
 import { guardMutationRequest } from "@/lib/request-security";
@@ -34,9 +33,9 @@ export async function PATCH(
   const guardResponse = guardMutationRequest(request);
   if (guardResponse) return guardResponse;
 
-  const supabase = await createClient();
-  const { user, response } = await requireAdminUser(supabase);
-  if (response) return response;
+  const access = await requireAdminDataAccess();
+  if (!access.ok) return access.response;
+  const { user, service: supabase } = access;
 
   const { id } = await context.params;
   const body = await request.json().catch(() => ({}));
@@ -56,6 +55,24 @@ export async function PATCH(
     patch.status = status;
   }
   if ("notes" in body) patch.notes = body.notes || null;
+
+  if (typeof patch.participant_id === "string") {
+    const { data: participant, error: participantError } = await supabase
+      .from("participants")
+      .select("id")
+      .eq("id", patch.participant_id)
+      .eq("user_id", user.id)
+      .eq("active", true)
+      .maybeSingle();
+
+    if (participantError) {
+      console.error("Record participant validation error:", participantError);
+      return NextResponse.json({ error: "멤버 정보를 확인하지 못했어요." }, { status: 500 });
+    }
+    if (!participant) {
+      return NextResponse.json({ error: "활성 멤버를 찾지 못했어요. 멤버 목록을 새로고침해주세요." }, { status: 400 });
+    }
+  }
 
   const distanceProvided = "distance_km" in body;
   const durationProvided = "duration_seconds" in body;
@@ -93,9 +110,9 @@ export async function DELETE(
   const guardResponse = guardMutationRequest(request);
   if (guardResponse) return guardResponse;
 
-  const supabase = await createClient();
-  const { user, response } = await requireAdminUser(supabase);
-  if (response) return response;
+  const access = await requireAdminDataAccess();
+  if (!access.ok) return access.response;
+  const { user, service: supabase } = access;
 
   const { id } = await context.params;
   const { error } = await supabase

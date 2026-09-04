@@ -2,18 +2,19 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "스내사 러닝보드",
-  description: "100일동안 함께 잘 뻐팅기기!",
-  keywords: ["스내사", "러닝", "기록인증", "대시보드", "OCR", "챌린지"],
+  metadataBase: new URL("https://xn--220bw61afob.kro.kr"),
+  title: "TWTT 러닝보드",
+  description: "함께 달리고, 인증하고, 응원하는 TWTT 크루 대시보드",
+  keywords: ["TWTT", "러닝", "기록인증", "대시보드", "OCR", "챌린지"],
   openGraph: {
-    title: "스내사 러닝보드",
-    description: "100일동안 함께 잘 뻐팅기기!",
+    title: "TWTT 러닝보드",
+    description: "함께 달리고, 인증하고, 응원하는 TWTT 크루 대시보드",
     type: "website",
     locale: "ko_KR",
   },
   icons: {
-    icon: "/oriwan-logo-v2.png",
-    apple: "/oriwan-logo-v2.png",
+    icon: "/brand/twtt-icon-20260902.png",
+    apple: "/brand/twtt-icon-20260902.png",
   },
 };
 
@@ -32,7 +33,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ko" className="h-full antialiased">
+    <html lang="ko" className="h-full antialiased" data-scroll-behavior="smooth">
       <body className="min-h-full flex flex-col bg-oriwan-bg">{children}</body>
     </html>
   );

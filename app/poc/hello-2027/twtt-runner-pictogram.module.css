@@ -1,0 +1,112 @@
+.runner {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 100%;
+  height: 100%;
+}
+
+.runner svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.card { width: 78px; height: 78px; }
+.dialog { width: 104px; height: 104px; }
+.hero { width: 100%; height: 100%; }
+
+.waiting {
+  opacity: 0.84;
+}
+
+.bodyFrame,
+.groundShadow,
+.frontArm,
+.backArm,
+.frontLeg,
+.backLeg,
+.headGroup {
+  transform-box: fill-box;
+}
+
+.frontArm,
+.frontLeg { transform-origin: 0 0; }
+
+.backArm,
+.backLeg { transform-origin: 100% 0; }
+
+.run .frontArm { transform: rotate(-12deg); }
+.run .backArm { transform: rotate(13deg); }
+.run .frontLeg { transform: rotate(8deg); }
+.run .backLeg { transform: rotate(-7deg); }
+
+.stand .frontArm,
+.stand .backArm,
+.stand .frontLeg,
+.stand .backLeg {
+  transform: none;
+}
+
+.animated .bodyFrame {
+  animation: runner-body 0.72s steps(2, end) infinite;
+  animation-delay: var(--runner-delay);
+}
+
+.animated .frontArm {
+  animation: limb-front 0.72s ease-in-out infinite;
+  animation-delay: var(--runner-delay);
+}
+
+.animated .backArm {
+  animation: limb-back 0.72s ease-in-out infinite;
+  animation-delay: var(--runner-delay);
+}
+
+.animated .frontLeg {
+  animation: limb-back 0.72s ease-in-out infinite;
+  animation-delay: var(--runner-delay);
+}
+
+.animated .backLeg {
+  animation: limb-front 0.72s ease-in-out infinite;
+  animation-delay: var(--runner-delay);
+}
+
+.animated .groundShadow {
+  animation: runner-shadow 0.72s steps(2, end) infinite;
+  animation-delay: var(--runner-delay);
+  transform-origin: center;
+}
+
+@keyframes runner-body {
+  0%, 50%, 100% { transform: translateY(0) rotate(-1deg); }
+  25%, 75% { transform: translateY(-3px) rotate(1deg); }
+}
+
+@keyframes limb-front {
+  0%, 100% { transform: rotate(-28deg); }
+  50% { transform: rotate(25deg); }
+}
+
+@keyframes limb-back {
+  0%, 100% { transform: rotate(25deg); }
+  50% { transform: rotate(-28deg); }
+}
+
+@keyframes runner-shadow {
+  0%, 50%, 100% { transform: scaleX(1); opacity: 0.2; }
+  25%, 75% { transform: scaleX(0.76); opacity: 0.1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animated .bodyFrame,
+  .animated .frontArm,
+  .animated .backArm,
+  .animated .frontLeg,
+  .animated .backLeg,
+  .animated .groundShadow {
+    animation: none;
+  }
+}

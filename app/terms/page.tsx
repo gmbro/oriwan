@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 export const metadata = {
-  title: "이용약관 | 스내사 3기 대시보드",
+  title: "이용약관 | TWTT 러닝보드",
 };
 
 export default function TermsPage() {
@@ -18,39 +18,102 @@ export default function TermsPage() {
       <div className="mx-auto max-w-lg px-3 py-4 sm:px-5 sm:py-8">
         <div className="card mobile-page-card space-y-6 p-4 text-sm leading-relaxed text-oriwan-text-muted sm:p-6">
           <section>
-            <h2 className="text-base font-bold text-oriwan-text mb-2">제1조 (목적)</h2>
-            <p>본 약관은 (주)아키랩이 운영하고 관리자 이경민이 관리하는 스내사 3기 대시보드의 이용 조건과 운영 기준을 규정합니다.</p>
+            <h2 className="mb-2 text-base font-bold text-oriwan-text">제1조 (목적과 현재 상태)</h2>
+            <p>
+              이 약관은 (주)아키랩이 운영하는 TWTT 러닝보드의 이용 조건과 운영 기준을 안내합니다. 현재 4기 화면은
+              더미데이터를 사용하는 사전 공개 버전이며, 정식 운영 전 미확정 정책과 외부 설정을 보완합니다.
+            </p>
           </section>
 
           <section>
-            <h2 className="text-base font-bold text-oriwan-text mb-2">제2조 (서비스 내용)</h2>
-            <ul className="list-disc pl-5 space-y-1">
-              <li>인증 기록은 2026년 5월 5일부터 100일간 집계</li>
-              <li>전체 참가자의 오늘 인증 여부와 인증률 제공</li>
-              <li>참가자의 Google 로그인 기반 개인 기록 입력, 이미지 등록 및 조회</li>
-              <li>운영자의 참가자 추가, 변경, 삭제 및 기록 수동 입력</li>
-              <li>NRC, Garmin, Strava 등 러닝 인증 이미지 업로드, 텍스트 추출, 기록 검수 지원</li>
-              <li>러닝 인증보드, 순위, 구간별 뱃지 제공</li>
+            <h2 className="mb-2 text-base font-bold text-oriwan-text">제2조 (서비스 내용)</h2>
+            <p className="mb-2">정식 운영을 위해 준비 중인 서비스 범위는 다음과 같습니다.</p>
+            <ul className="list-disc space-y-1 pl-5">
+              <li>3기 읽기 전용 기록과 4기 공통 대시보드 제공</li>
+              <li>시즌 참가자의 인증 여부와 인증률 등 공개 현황 제공</li>
+              <li>운영자의 인증 이미지 검수, OCR 보조 및 인증 상태 관리</li>
+              <li>승인된 4기 참가자의 당일 인증 완료 후 하루 한 번 응원 상자 제공</li>
+              <li>비로그인 랜덤 닉네임 또는 운영자 확인 표시명을 사용하는 댓글·답글·반응 제공</li>
+              <li>운영자의 인증, 크루프로필, 응원글, 배너와 댓글 관리</li>
+            </ul>
+            <p className="mt-2">
+              사전 공개 기간에는 댓글·답글·반응이 잠겨 있으며, 운영용 서버 저장소와 관리 기능을 연결한 뒤 별도 안내와 함께
+              엽니다.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="mb-2 text-base font-bold text-oriwan-text">제3조 (비로그인 이용)</h2>
+            <p>
+              비로그인 방문자는 공개 대시보드를 조회할 수 있습니다. 정식 댓글 기능이 열린 뒤에는 서버가 배정한 랜덤
+              닉네임으로 댓글을 작성할 수 있으나 응원 상자는 열 수 없습니다.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="mb-2 text-base font-bold text-oriwan-text">제4조 (카카오 로그인 이용)</h2>
+            <p>
+              카카오 로그인은 계정 연결 수단입니다. 개인 이용자가 로그인해 사용할 수 있는 기능은 운영자 확인 표시명으로
+              댓글을 작성하는 기능과, 승인된 참가자가 당일 인증을 완료했을 때 응원 상자를 여는 기능으로 제한됩니다.
+              개인 이용자는 인증 등록·수정, OCR 실행, 크루 관리 또는 프로필 자기수정을 할 수 없습니다.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="mb-2 text-base font-bold text-oriwan-text">제5조 (표시명과 참가자 연결)</h2>
+            <p>
+              카카오 프로필 닉네임은 운영자가 계정을 확인하기 위한 참고값이며 실명 확인값으로 보지 않습니다. 댓글에는
+              운영자가 크루 명단과 대조해 정한 표시명을 사용합니다. 운영자 확인 전이거나 승인이 해제된 계정은 로그인 전용
+              댓글과 응원 상자를 이용할 수 없으며, 이름 유사성만으로 참가자와 자동 연결하지 않습니다.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="mb-2 text-base font-bold text-oriwan-text">제6조 (응원 상자)</h2>
+            <p>
+              응원 상자는 카카오 로그인, 운영자 승인, 4기 참가자 연결, Asia/Seoul 기준 당일 인증 완료 여부를 서버가 확인한
+              뒤 하루 한 번 제공합니다. 메시지형 결과는 무작위로 정해지며 현금이나 유상 상품으로 교환되지 않습니다.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="mb-2 text-base font-bold text-oriwan-text">제7조 (운영자 권한)</h2>
+            <p>
+              관리자 화면은 지정된 관리자 이메일 인증번호와 서버 측 권한 검사를 통과한 운영자만 접근할 수 있습니다.
+              정식 운영에서는 참가자 연결과 표시명, 크루프로필, 인증 기록, 응원글, 배너 및 댓글 운영 상태를 관리하는 기능을
+              서버에 연결하고 중요한 변경 이력을 남기는 것을 운영 기준으로 합니다.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="mb-2 text-base font-bold text-oriwan-text">제8조 (이용자 책임과 제한)</h2>
+            <ul className="list-disc space-y-1 pl-5">
+              <li>타인의 계정이나 이름을 도용하거나 개인정보·불법 정보·권리 침해 내용을 게시해서는 안 됩니다.</li>
+              <li>자동화 요청, 반복 댓글, 서비스 방해 또는 권한 우회 시도를 해서는 안 됩니다.</li>
+              <li>정식 댓글 관리 기능이 열린 뒤 운영자는 정책 위반 댓글을 숨기거나 삭제하고 기능 이용을 제한할 수 있으며 조치 사유를 기록합니다.</li>
             </ul>
           </section>
 
           <section>
-            <h2 className="text-base font-bold text-oriwan-text mb-2">제3조 (참가자 화면)</h2>
-            <p>참가자 화면은 로그인 없이 전체 인증 현황을 볼 수 있는 공개 대시보드입니다. 개별 참가자는 Google 로그인 후 이름을 필수로 등록해야 하며, 해당 이름이 운영자가 등록한 참가자명과 일치할 때 본인 기록 입력, 러닝 앱 이미지 등록, 조회가 가능합니다.</p>
+            <h2 className="mb-2 text-base font-bold text-oriwan-text">제9조 (인증 판단과 서비스 변경)</h2>
+            <p>
+              이미지 분석과 OCR 결과는 운영자의 인증 검수를 돕는 보조 정보이며 최종 인증 상태는 운영자가 결정합니다.
+              장애, 보안 점검, 외부 서비스 변경 또는 시즌 운영상 필요에 따라 일부 기능이 제한되거나 변경될 수 있고, 중요한
+              변경은 가능한 범위에서 서비스 화면을 통해 안내합니다.
+            </p>
           </section>
 
           <section>
-            <h2 className="text-base font-bold text-oriwan-text mb-2">제4조 (관리자 권한)</h2>
-            <p>관리자 화면은 지정된 관리자 이메일 인증번호로만 접근할 수 있습니다. 관리자는 참가자 정보와 인증 기록을 추가, 변경, 삭제할 수 있으며, 입력된 기록의 정확성을 확인할 책임이 있습니다.</p>
+            <h2 className="mb-2 text-base font-bold text-oriwan-text">제10조 (미확정 사항과 문의)</h2>
+            <p>
+              개인정보와 운영 데이터의 세부 보관기간, Supabase 리전·백업 잔존기간, 삭제 요청 절차와 운영 문의처는 정식
+              운영 전에 확정해 개인정보처리방침과 함께 고지합니다. 이 사전 공개 문구는 현재 구현과 운영 계획을 설명하며,
+              구체적인 법적 판단을 대신하지 않습니다.
+            </p>
           </section>
 
-          <section>
-            <h2 className="text-base font-bold text-oriwan-text mb-2">제5조 (면책)</h2>
-            <p>이미지 분석 및 텍스트 추출 결과는 보조 도구이며, 인증 여부와 기록의 최종 판단은 관리자에게 있습니다.</p>
-          </section>
-
-          <p className="text-xs text-oriwan-text-muted/60 pt-4 border-t border-oriwan-border">
-            시행일: 2026년 5월 5일 · 운영: (주)아키랩 · 관리자: 이경민
+          <p className="border-t border-oriwan-border pt-4 text-xs text-oriwan-text-muted/60">
+            개정일: 2026년 9월 4일 · 운영: (주)아키랩
           </p>
         </div>
       </div>

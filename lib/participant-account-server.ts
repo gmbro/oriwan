@@ -25,6 +25,7 @@ export type ParticipantAccountResolution = {
   status: ParticipantAccountConnectionStatus;
   adminUserId: string | null;
   participant: ApprovedParticipant | null;
+  displayName: string | null;
   message: string;
   setupRequired?: boolean;
 };
@@ -32,6 +33,7 @@ export type ParticipantAccountResolution = {
 type ParticipantAccountRow = {
   participant_id: string | null;
   status: string | null;
+  display_name_override: string | null;
 };
 
 const CONNECTION_MESSAGES: Record<ParticipantAccountConnectionStatus, string> = {
@@ -53,6 +55,7 @@ function unresolved(
     status,
     adminUserId,
     participant: null,
+    displayName: null,
     message: CONNECTION_MESSAGES[status],
     ...(setupRequired ? { setupRequired: true } : {}),
   };
@@ -72,7 +75,7 @@ export async function resolveParticipantAccount(
 
   const { data: accountData, error: accountError } = await service
     .from("participant_accounts")
-    .select("participant_id, status")
+    .select("participant_id, status, display_name_override")
     .eq("auth_user_id", authUserId)
     .maybeSingle();
 
@@ -104,6 +107,7 @@ export async function resolveParticipantAccount(
     status: "approved",
     adminUserId,
     participant: participantData as ApprovedParticipant,
+    displayName: account.display_name_override?.trim() || participantData.name,
     message: CONNECTION_MESSAGES.approved,
   };
 }

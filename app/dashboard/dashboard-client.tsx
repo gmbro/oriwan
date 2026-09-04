@@ -2573,7 +2573,7 @@ export function DashboardClient({
 
               {remainingSeasonDays === 0 && (
                 <Link
-                  href={`/dashboard/report/${selectedParticipant.participant.id}`}
+                  href={`/dashboard/report/3th/${selectedParticipant.participant.id}`}
                   className="mt-3 flex min-h-12 w-full items-center justify-center rounded-2xl bg-slate-950 px-4 text-sm font-black text-lime-200 shadow-lg shadow-slate-950/15 transition hover:-translate-y-0.5"
                 >
                   {selectedParticipant.participant.name}님의 포스터 보기
@@ -2632,7 +2632,7 @@ export function DashboardClient({
               </div>
               {remainingSeasonDays === 0 && (
                 <Link
-                  href="/dashboard/report"
+                  href="/dashboard/report/3th"
                   className="mt-3 flex min-h-12 w-full items-center justify-center rounded-2xl bg-slate-950 px-4 text-sm font-black text-lime-200 shadow-lg shadow-slate-950/15 transition hover:-translate-y-0.5"
                 >
                   100일 시즌 리포트 보기

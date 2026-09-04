@@ -1,95 +1,43 @@
-import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
-import { CERTIFICATION_DISPLAY_START_DATE, CHALLENGE_END_DATE, CHALLENGE_START_DATE } from "@/lib/challenge";
+import { NextResponse } from "next/server";
 import { getServiceClient } from "@/lib/admin-data";
 import { resolveParticipantAccount } from "@/lib/participant-account-server";
-import { guardMutationRequest } from "@/lib/request-security";
+import { createClient } from "@/lib/supabase/server";
 
-function getRunnerName(userMetadata: Record<string, unknown> | null | undefined) {
-  const value = userMetadata?.runner_name;
-  return typeof value === "string" ? value : "";
-}
-
-async function buildMePayload(userId: string, email: string | undefined, userMetadata: Record<string, unknown> | null | undefined) {
-  const service = getServiceClient();
-  if (!service) throw new Error("service_missing");
-
-  const runnerName = getRunnerName(userMetadata);
-  const connection = await resolveParticipantAccount(service, userId);
-  const adminUserId = connection.adminUserId;
-  const participant = connection.participant;
-
-  let records: unknown[] = [];
-  if (connection.status === "approved" && adminUserId && participant) {
-    const { data, error } = await service
-      .from("daily_run_records")
-      .select("id, participant_id, record_date, distance_km, duration_seconds, pace_seconds_per_km, status, source_app, notes, created_at")
-      .eq("user_id", adminUserId)
-      .eq("participant_id", participant.id)
-      .gte("record_date", CHALLENGE_START_DATE)
-      .order("record_date", { ascending: false });
-    if (error) throw error;
-    records = data || [];
-  }
-
-  return {
-    user: { id: userId, email },
-    runner_name: runnerName,
-    matched_participant: participant,
-    connection_status: connection.status,
-    connection_message: connection.status === "unlinked" && runnerName
-      ? "이름 연결 요청을 저장했어요. 관리자 승인 후 기록을 볼 수 있습니다."
-      : connection.message,
-    setup_required: connection.setupRequired || false,
-    records,
-    certification_display_start_date: CERTIFICATION_DISPLAY_START_DATE,
-    challenge_start_date: CHALLENGE_START_DATE,
-    challenge_end_date: CHALLENGE_END_DATE,
-  };
+function hasKakaoIdentity(user: { app_metadata?: Record<string, unknown>; identities?: Array<{ provider?: string }> }) {
+  return user.app_metadata?.provider === "kakao"
+    || Boolean(user.identities?.some((identity) => identity.provider === "kakao"));
 }
 
 export async function GET() {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return NextResponse.json({ error: "카카오 로그인 서버 설정이 아직 준비되지 않았어요." }, { status: 503 });
+  }
   const supabase = await createClient();
   const { data: { user }, error } = await supabase.auth.getUser();
-  if (error || !user) return NextResponse.json({ error: "내 러닝 보드를 보려면 먼저 로그인해주세요." }, { status: 401 });
+  if (error || !user || !hasKakaoIdentity(user)) {
+    return NextResponse.json({ error: "카카오 로그인이 필요해요." }, { status: 401 });
+  }
+
+  const service = getServiceClient();
+  if (!service) return NextResponse.json({ error: "운영 서버 연결이 아직 준비되지 않았어요." }, { status: 503 });
 
   try {
-    return NextResponse.json(await buildMePayload(user.id, user.email, user.user_metadata));
+    const connection = await resolveParticipantAccount(service, user.id);
+    return NextResponse.json({
+      user: { id: user.id },
+      display_name: connection.displayName,
+      matched_participant: connection.participant,
+      connection_status: connection.status,
+      connection_message: connection.message,
+    }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (err) {
     console.error("Me profile error:", err);
-    return NextResponse.json({ error: "내 러닝 보드를 불러오지 못했어요." }, { status: 500 });
+    return NextResponse.json({ error: "개인 기능을 불러오지 못했어요." }, { status: 500 });
   }
 }
 
-export async function PATCH(request: NextRequest) {
-  const guardResponse = guardMutationRequest(request);
-  if (guardResponse) return guardResponse;
-
-  const supabase = await createClient();
-  const { data: { user }, error } = await supabase.auth.getUser();
-  if (error || !user) return NextResponse.json({ error: "이름을 연결하려면 먼저 로그인해주세요." }, { status: 401 });
-
-  const body = await request.json().catch(() => ({}));
-  const runnerName = typeof body.runner_name === "string" ? body.runner_name.trim().replace(/\s+/g, " ") : "";
-  if (!runnerName) return NextResponse.json({ error: "기록을 연결하려면 이름이 꼭 필요해요." }, { status: 400 });
-
-  const service = getServiceClient();
-  if (!service) return NextResponse.json({ error: "서버 환경변수가 설정되지 않았습니다." }, { status: 500 });
-
-  const userMetadata = {
-    ...(user.user_metadata || {}),
-    runner_name: runnerName,
-  };
-
-  const { error: updateError } = await service.auth.admin.updateUserById(user.id, {
-    user_metadata: userMetadata,
-  });
-  if (updateError) return NextResponse.json({ error: "이름을 저장하지 못했어요." }, { status: 500 });
-
-  try {
-    return NextResponse.json(await buildMePayload(user.id, user.email, userMetadata));
-  } catch (err) {
-    console.error("Me profile update payload error:", err);
-    return NextResponse.json({ error: "이름은 저장했지만 연결 정보를 불러오지 못했어요." }, { status: 500 });
-  }
+export async function PATCH() {
+  return NextResponse.json({
+    error: "댓글 표시 이름은 운영자가 어드민에서 확인하고 변경합니다.",
+  }, { status: 403 });
 }

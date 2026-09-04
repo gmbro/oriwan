@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
-import { requireAdminUser } from "@/lib/admin-server";
+import { requireAdminDataAccess } from "@/lib/admin-data-access";
 import { isMissingTableError, missingSchemaResponse } from "@/lib/supabase-errors";
 import { guardMutationRequest } from "@/lib/request-security";
 import { invalidatePublicDashboardCache } from "@/lib/public-dashboard-data";
 
 export async function GET() {
-  const supabase = await createClient();
-  const { user, response } = await requireAdminUser(supabase);
-  if (response) return response;
+  const access = await requireAdminDataAccess();
+  if (!access.ok) return access.response;
+  const { user, service: supabase } = access;
 
   const { data, error } = await supabase
     .from("participants")
@@ -33,9 +32,9 @@ export async function POST(request: NextRequest) {
   const guardResponse = guardMutationRequest(request);
   if (guardResponse) return guardResponse;
 
-  const supabase = await createClient();
-  const { user, response } = await requireAdminUser(supabase);
-  if (response) return response;
+  const access = await requireAdminDataAccess();
+  if (!access.ok) return access.response;
+  const { user, service: supabase } = access;
 
   const body = await request.json().catch(() => ({}));
   const name = typeof body.name === "string" ? body.name.trim() : "";
