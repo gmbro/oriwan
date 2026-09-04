@@ -2,9 +2,32 @@ import { NextRequest, NextResponse } from "next/server";
 import { ADMIN_EMAIL, isAdminEmail } from "@/lib/admin";
 import { clearAdminSessionCookie, hasValidAdminSession, setAdminSessionCookie } from "@/lib/admin-server";
 import { guardMutationRequest } from "@/lib/request-security";
+import { logServerFailure } from "@/lib/server-error-log";
 import { createClient } from "@/lib/supabase/server";
 
 const VERIFY_TYPES = ["email", "magiclink", "signup"] as const;
+const PRIVATE_HEADERS = { "Cache-Control": "private, no-store, max-age=0", Vary: "Cookie" };
+
+async function getConfiguredAuthClient() {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return null;
+  }
+  try {
+    return await createClient();
+  } catch (error) {
+    logServerFailure("Admin session client", error);
+    return null;
+  }
+}
+
+function authUnavailableResponse() {
+  const response = NextResponse.json(
+    { authenticated: false, error: "운영 서버의 Supabase 인증 환경변수를 먼저 설정해주세요." },
+    { status: 503, headers: PRIVATE_HEADERS },
+  );
+  clearAdminSessionCookie(response);
+  return response;
+}
 
 function adminUserResponse(user: { id: string; email?: string | null; user_metadata?: Record<string, unknown> }) {
   return {
@@ -18,7 +41,8 @@ function adminUserResponse(user: { id: string; email?: string | null; user_metad
 }
 
 export async function GET() {
-  const supabase = await createClient();
+  const supabase = await getConfiguredAuthClient();
+  if (!supabase) return authUnavailableResponse();
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -50,7 +74,8 @@ export async function PUT(request: NextRequest) {
   });
   if (guardResponse) return guardResponse;
 
-  const supabase = await createClient();
+  const supabase = await getConfiguredAuthClient();
+  if (!supabase) return authUnavailableResponse();
   const { error } = await supabase.auth.signInWithOtp({
     email: ADMIN_EMAIL,
     options: {
@@ -83,7 +108,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "메일로 받은 인증번호를 입력해주세요." }, { status: 400 });
   }
 
-  const supabase = await createClient();
+  const supabase = await getConfiguredAuthClient();
+  if (!supabase) return authUnavailableResponse();
   let lastErrorMessage = "";
 
   for (const type of VERIFY_TYPES) {
@@ -120,7 +146,8 @@ export async function DELETE(request: NextRequest) {
   const guardResponse = guardMutationRequest(request, { maxBodyBytes: 1024 });
   if (guardResponse) return guardResponse;
 
-  const supabase = await createClient();
+  const supabase = await getConfiguredAuthClient();
+  if (!supabase) return authUnavailableResponse();
   await supabase.auth.signOut();
 
   const response = NextResponse.json({ ok: true });
