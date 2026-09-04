@@ -29,7 +29,6 @@ export const dynamic = "force-dynamic";
 const MAX_BODY_BYTES = 12 * 1024;
 const CORRECTIVE_EXERCISE_LIVE = process.env.CORRECTIVE_EXERCISE_LIVE === "true";
 const ACTIVE_APPLICATION_STATUSES = ["submitted", "reviewing", "schedule_proposed", "confirmed"] as const;
-const MEMBER_CANCELLABLE_STATUSES = ["submitted", "reviewing", "schedule_proposed"] as const;
 const PRIVATE_HEADERS = {
   "Cache-Control": "private, no-store, max-age=0",
   "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'",
@@ -88,7 +87,8 @@ function json(payload: object, status = 200) {
 function setupRequired() {
   return json({
     ...missingSchemaResponse("교정운동 신청 저장소가 아직 준비되지 않았어요."),
-    setup_file: "docs/migrations/2026-09-04-corrective-exercise.sql",
+    setup_file: "docs/migrations/2026-09-04-corrective-exercise-audit-and-delete.sql",
+    prerequisite_file: "docs/migrations/2026-09-04-corrective-exercise.sql",
   }, 503);
 }
 
@@ -175,6 +175,7 @@ function serializeApplication(row: ApplicationRow): CorrectiveExerciseApplicatio
     additional_note: row.additional_note,
     status: row.status,
     confirmed_for: row.confirmed_for,
+    // Legacy DB column name; this value is a member-visible operator notice, never a private note.
     admin_note: row.admin_note ?? null,
     consent_version: row.consent_version,
     consented_at: row.consented_at,
@@ -419,23 +420,30 @@ export async function PATCH(request: NextRequest) {
 
     const service = getServiceClient();
     if (!service) return json({ error: "운영 서버 연결이 아직 준비되지 않았어요." }, 503);
-    const now = new Date().toISOString();
-    const { data, error } = await service
+    const { data: cancelledId, error } = await service.rpc("cancel_corrective_exercise_application_member", {
+      p_user_id: context.adminUserId,
+      p_season_key: CORRECTIVE_EXERCISE_SEASON_KEY,
+      p_application_id: applicationId,
+      p_auth_user_id: context.authUserId,
+      p_participant_id: context.participantId,
+    });
+    if (error) {
+      if (isMissingTableError(error)) return setupRequired();
+      if (error.code === "P0002") return json({ error: "취소할 수 있는 신청을 찾지 못했어요." }, 409);
+      throw error;
+    }
+    if (!isUuid(cancelledId)) throw new Error("invalid_cancelled_application_id");
+
+    const { data, error: readError } = await service
       .from("corrective_exercise_applications")
-      .update({ status: "cancelled", confirmed_for: null, cancelled_at: now, updated_at: now })
-      .eq("id", applicationId)
+      .select(applicationSelect())
+      .eq("id", cancelledId)
       .eq("user_id", context.adminUserId)
       .eq("season_key", CORRECTIVE_EXERCISE_SEASON_KEY)
       .eq("auth_user_id", context.authUserId)
       .eq("participant_id", context.participantId)
-      .in("status", [...MEMBER_CANCELLABLE_STATUSES])
-      .select(applicationSelect())
-      .maybeSingle();
-    if (error) {
-      if (isMissingTableError(error)) return setupRequired();
-      throw error;
-    }
-    if (!data) return json({ error: "취소할 수 있는 신청을 찾지 못했어요." }, 409);
+      .single();
+    if (readError) throw readError;
 
     return json({ application: serializeApplication(data as unknown as ApplicationRow) });
   } catch (error) {

@@ -135,7 +135,7 @@ export function Hello2027Poc({ snapshot, initialDayPhase = "day", memberFeatures
               width={640}
               height={310}
               preload
-              sizes="(max-width: 760px) 78px, 112px"
+              sizes="(max-width: 760px) 58px, 78px"
             />
           </a>
 
@@ -166,7 +166,7 @@ export function Hello2027Poc({ snapshot, initialDayPhase = "day", memberFeatures
                     </button>
                   </>
                 ) : (
-                  <KakaoLoginButton nextPath="/4th" label="카카오 시작" variant="compact" />
+                  <KakaoLoginButton nextPath="/4th" label="로그인" variant="compact" />
                 )}
               </div>
             ) : null}
@@ -238,6 +238,9 @@ export function Hello2027Poc({ snapshot, initialDayPhase = "day", memberFeatures
                   onClick={(event) => openParticipant(participant.id, event.currentTarget)}
                   aria-label={`${participant.fullName}님, 오늘까지 인증률 ${participant.seasonCompletionRate}%, ${participant.completed ? "오늘 인증 완료" : "오늘 기록 없음"}. 상세 보기`}
                 >
+                  {participant.completed ? (
+                    <span className={styles.completionBadge} aria-hidden="true">✓</span>
+                  ) : null}
                   <span className={styles.participantIdentity}>
                     <span className={styles.characterWrap} aria-hidden="true">
                       {localContent.avatarUrls[participant.id] ? (
@@ -263,7 +266,6 @@ export function Hello2027Poc({ snapshot, initialDayPhase = "day", memberFeatures
                     </span>
                   </span>
                   <span className={styles.participantRate}>
-                    {participant.completed ? <span className={styles.completionBadge}>인증 완료</span> : null}
                     <small>오늘까지 인증률</small>
                     <strong>{participant.seasonCompletionRate}%</strong>
                   </span>
@@ -275,7 +277,6 @@ export function Hello2027Poc({ snapshot, initialDayPhase = "day", memberFeatures
 
         <Hello2027Guestbook
           initialThreads={snapshot.guestbook}
-          previewOnly={memberFeatures}
           externalViewer={memberFeatures ? viewerState?.viewer ?? null : undefined}
           externalViewerManaged={memberFeatures}
           externalViewerLoading={memberFeatures ? viewerState?.loading ?? true : undefined}
@@ -312,7 +313,6 @@ function MotivationBanner({ encouragements, initialIndex }: MotivationBannerProp
     encouragements.length > 0 ? initialIndex % encouragements.length : 0
   ));
   const [rotationEnabled, setRotationEnabled] = useState(false);
-  const [isUserPaused, setIsUserPaused] = useState(false);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -327,12 +327,12 @@ function MotivationBanner({ encouragements, initialIndex }: MotivationBannerProp
   }, []);
 
   useEffect(() => {
-    if (!rotationEnabled || isUserPaused || encouragements.length <= 1) return;
+    if (!rotationEnabled || encouragements.length <= 1) return;
     const intervalId = window.setInterval(() => {
       setQuoteIndex((current) => (current + 1) % encouragements.length);
     }, ENCOURAGEMENT_ROTATION_MS);
     return () => window.clearInterval(intervalId);
-  }, [encouragements.length, isUserPaused, rotationEnabled]);
+  }, [encouragements.length, rotationEnabled]);
 
   const visibleQuoteIndex = encouragements.length > 0 ? quoteIndex % encouragements.length : 0;
   const encouragement = encouragements[visibleQuoteIndex] ?? "오늘도 안전하게, 편안하게, 그리고 함께 돌아와요.";
@@ -341,23 +341,6 @@ function MotivationBanner({ encouragements, initialIndex }: MotivationBannerProp
     <section className={styles.motivationBanner} aria-labelledby="motivation-title">
       <div className={styles.motivationHeader}>
         <span id="motivation-title">오늘의 응원글</span>
-        <div className={styles.motivationControls}>
-          <button
-            type="button"
-            aria-pressed={isUserPaused}
-            disabled={!rotationEnabled || encouragements.length <= 1}
-            onClick={() => setIsUserPaused((current) => !current)}
-          >
-            {!rotationEnabled ? "정지됨" : isUserPaused ? "재생" : "일시정지"}
-          </button>
-          <button
-            type="button"
-            disabled={encouragements.length <= 1}
-            onClick={() => setQuoteIndex((current) => (current + 1) % encouragements.length)}
-          >
-            다음 글
-          </button>
-        </div>
       </div>
       <p key={`${visibleQuoteIndex}-${encouragement}`}>{encouragement}</p>
     </section>

@@ -96,14 +96,15 @@ function json(payload: object, status = 200) {
 function setupRequired() {
   return json({
     ...missingSchemaResponse("교정운동 운영 저장소가 아직 준비되지 않았어요."),
-    setup_file: "docs/migrations/2026-09-04-corrective-exercise.sql",
+    setup_file: "docs/migrations/2026-09-04-corrective-exercise-audit-and-delete.sql",
+    prerequisite_file: "docs/migrations/2026-09-04-corrective-exercise.sql",
   }, 503);
 }
 
-async function readJsonBody(request: NextRequest) {
+async function readJsonBody(request: NextRequest, maxBodyBytes = MAX_BODY_BYTES) {
   try {
     const rawBody = await request.text();
-    if (Buffer.byteLength(rawBody, "utf8") > MAX_BODY_BYTES) {
+    if (Buffer.byteLength(rawBody, "utf8") > maxBodyBytes) {
       return { ok: false as const, response: json({ error: "요청 용량이 너무 커요." }, 413) };
     }
     const value: unknown = JSON.parse(rawBody);
@@ -356,7 +357,7 @@ export async function POST(request: NextRequest) {
   const access = await requireAdminDataAccess();
   if (!access.ok) return access.response;
   const { user, service } = access;
-  const bodyResult = await readJsonBody(request);
+  const bodyResult = await readJsonBody(request, 2 * 1024);
   if (!bodyResult.ok) return bodyResult.response;
   const { body } = bodyResult;
   if (body.action !== "create_slot") return json({ error: "생성할 항목을 다시 확인해주세요." }, 400);
@@ -371,21 +372,33 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const { data, error } = await service
-      .from("corrective_exercise_slots")
-      .insert({
-        ...parsed.patch,
-        user_id: user.id,
-        season_key: CORRECTIVE_EXERCISE_SEASON_KEY,
-        updated_at: new Date().toISOString(),
-      })
-      .select("id, slot_date, start_time, end_time, capacity, active, note, created_at, updated_at")
-      .single();
+    const { data: slotId, error } = await service.rpc("create_corrective_exercise_slot_audited", {
+      p_user_id: user.id,
+      p_season_key: CORRECTIVE_EXERCISE_SEASON_KEY,
+      p_operator_auth_user_id: user.id,
+      p_slot_date: parsed.patch.slot_date,
+      p_start_time: parsed.patch.start_time,
+      p_end_time: parsed.patch.end_time,
+      p_capacity: parsed.patch.capacity,
+      p_active: parsed.patch.active,
+      p_note: parsed.patch.note,
+    });
     if (error?.code === "23505") return json({ error: "같은 날짜와 시작 시간이 이미 등록되어 있어요." }, 409);
+    if (error?.code === "23514") return json({ error: "현재보다 이후인 올바른 일정을 입력해주세요." }, 400);
     if (error) {
       if (isMissingTableError(error)) return setupRequired();
       throw error;
     }
+    if (!isUuid(slotId)) throw new Error("invalid_corrective_slot_id");
+
+    const { data, error: readError } = await service
+      .from("corrective_exercise_slots")
+      .select("id, slot_date, start_time, end_time, capacity, active, note, created_at, updated_at")
+      .eq("id", slotId)
+      .eq("user_id", user.id)
+      .eq("season_key", CORRECTIVE_EXERCISE_SEASON_KEY)
+      .single();
+    if (readError) throw readError;
     return json({ slot: serializeSlot(data as unknown as SlotRow, 0) }, 201);
   } catch (error) {
     logServerFailure("Admin corrective exercise slot create", error);
@@ -527,14 +540,14 @@ export async function PATCH(request: NextRequest) {
     }
     if (Object.hasOwn(body, "admin_note")) {
       const adminNote = normalizeCorrectiveText(body.admin_note, MAX_CORRECTIVE_ADMIN_NOTE_LENGTH);
-      if (adminNote === null) return json({ error: "운영 메모가 너무 길어요." }, 400);
+      if (adminNote === null) return json({ error: "신청자 안내가 너무 길어요." }, 400);
       patch.admin_note = adminNote || null;
     }
 
     try {
       const { data: existing, error: existingError } = await service
         .from("corrective_exercise_applications")
-        .select("id, status, confirmed_for, updated_at")
+        .select("id, status, confirmed_for, admin_note, updated_at")
         .eq("id", body.id)
         .eq("user_id", user.id)
         .eq("season_key", CORRECTIVE_EXERCISE_SEASON_KEY)
@@ -566,25 +579,39 @@ export async function PATCH(request: NextRequest) {
         }
       }
 
-      const now = new Date().toISOString();
-      if (status === "cancelled") {
-        patch.cancelled_at = now;
-        patch.confirmed_for = null;
+      const effectiveConfirmedFor = status === "cancelled"
+        ? null
+        : Object.hasOwn(patch, "confirmed_for") ? patch.confirmed_for : existing.confirmed_for;
+      const effectiveMemberNotice = Object.hasOwn(patch, "admin_note") ? patch.admin_note : existing.admin_note;
+      const { error } = await service.rpc("update_corrective_exercise_application_admin", {
+        p_user_id: user.id,
+        p_season_key: CORRECTIVE_EXERCISE_SEASON_KEY,
+        p_application_id: body.id,
+        p_operator_auth_user_id: user.id,
+        p_expected_updated_at: existing.updated_at,
+        p_expected_status: existingStatus,
+        p_status: status,
+        p_confirmed_for: effectiveConfirmedFor,
+        p_member_notice: effectiveMemberNotice,
+      });
+      if (error?.code === "23505") return json({ error: "이 회원에게 이미 진행 중인 다른 신청이 있어요." }, 409);
+      if (error?.code === "40001") return json({ error: "신청 상태가 다른 곳에서 먼저 변경됐어요. 새로고침 후 다시 시도해주세요." }, 409);
+      if (error?.code === "P0002") return json({ error: "처리할 신청을 찾지 못했어요." }, 404);
+      if (error?.code === "23514") return json({ error: "현재 상태와 일정에서는 선택한 처리 단계로 변경할 수 없어요." }, 409);
+      if (error) {
+        if (isMissingTableError(error)) return setupRequired();
+        throw error;
       }
-      const { data, error } = await service
+
+      const { data, error: readError } = await service
         .from("corrective_exercise_applications")
-        .update({ ...patch, updated_at: now })
+        .select(applicationSummarySelect())
         .eq("id", body.id)
         .eq("user_id", user.id)
         .eq("season_key", CORRECTIVE_EXERCISE_SEASON_KEY)
-        .eq("status", existingStatus)
-        .eq("updated_at", existing.updated_at)
-        .gt("retention_until", now)
-        .select(applicationSummarySelect())
         .maybeSingle();
-      if (error?.code === "23505") return json({ error: "이 회원에게 이미 진행 중인 다른 신청이 있어요." }, 409);
-      if (error) throw error;
-      if (!data) return json({ error: "신청 상태가 다른 곳에서 먼저 변경됐어요. 새로고침 후 다시 시도해주세요." }, 409);
+      if (readError) throw readError;
+      if (!data) return json({ error: "처리한 신청을 찾지 못했어요." }, 404);
       return json({ application_summary: serializeApplicationSummary(data as unknown as ApplicationSummaryRow) });
     } catch (error) {
       logServerFailure("Admin corrective exercise application update", error);
@@ -593,4 +620,46 @@ export async function PATCH(request: NextRequest) {
   }
 
   return json({ error: "수정할 항목 종류를 다시 확인해주세요." }, 400);
+}
+
+export async function DELETE(request: NextRequest) {
+  const guardResponse = guardMutationRequest(request, {
+    maxBodyBytes: 2 * 1024,
+    rateLimit: { key: "admin-corrective-exercise-delete", limit: 12, windowMs: 60_000 },
+  });
+  if (guardResponse) return guardResponse;
+
+  const access = await requireAdminDataAccess();
+  if (!access.ok) return access.response;
+  const { user, service } = access;
+  const bodyResult = await readJsonBody(request, 2 * 1024);
+  if (!bodyResult.ok) return bodyResult.response;
+  const { body } = bodyResult;
+  if (body.action !== "delete_application" || body.confirm !== true || !isUuid(body.id)) {
+    return json({ error: "삭제할 신청과 확인 여부를 다시 확인해주세요." }, 400);
+  }
+  if (typeof body.expected_updated_at !== "string" || !Number.isFinite(Date.parse(body.expected_updated_at))) {
+    return json({ error: "신청이 최신 상태인지 다시 확인해주세요." }, 400);
+  }
+
+  try {
+    const { data: deletedId, error } = await service.rpc("delete_corrective_exercise_application_admin", {
+      p_user_id: user.id,
+      p_season_key: CORRECTIVE_EXERCISE_SEASON_KEY,
+      p_application_id: body.id,
+      p_operator_auth_user_id: user.id,
+      p_expected_updated_at: body.expected_updated_at,
+    });
+    if (error?.code === "40001") return json({ error: "신청이 다른 곳에서 먼저 변경됐어요. 새로고침 후 다시 시도해주세요." }, 409);
+    if (error?.code === "P0002") return json({ error: "삭제할 신청을 찾지 못했어요." }, 404);
+    if (error) {
+      if (isMissingTableError(error)) return setupRequired();
+      throw error;
+    }
+    if (!isUuid(deletedId)) throw new Error("invalid_deleted_application_id");
+    return json({ deleted_id: deletedId });
+  } catch (error) {
+    logServerFailure("Admin corrective exercise application delete", error);
+    return json({ error: "신청을 삭제하지 못했어요." }, 500);
+  }
 }

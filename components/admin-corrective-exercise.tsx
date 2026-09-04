@@ -20,6 +20,7 @@ import { FOURTH_SEASON_END_DATE, FOURTH_SEASON_START_DATE } from "@/lib/fourth-s
 type ApiPayload = {
   error?: string;
   setup_required?: boolean;
+  deleted_id?: string;
   applications?: CorrectiveApplicationSummary[];
   application?: CorrectiveApplication;
   slots?: CorrectiveSlot[];
@@ -36,6 +37,8 @@ type SlotDraft = {
   end_time: string;
   capacity: string;
 };
+
+type ApplicationStatusFilter = "all" | "attention" | ApplicationStatus;
 
 const STATUS_OPTIONS: ReadonlyArray<{ value: ApplicationStatus; label: string }> = [
   { value: "submitted", label: "신청 완료" },
@@ -173,7 +176,7 @@ function initialSlotDate() {
   return today;
 }
 
-async function apiRequest(method: "GET" | "POST" | "PATCH", body?: object, options?: { applicationId?: string; signal?: AbortSignal }) {
+async function apiRequest(method: "GET" | "POST" | "PATCH" | "DELETE", body?: object, options?: { applicationId?: string; signal?: AbortSignal }) {
   const query = options?.applicationId ? `?id=${encodeURIComponent(options.applicationId)}` : "";
   const response = await fetch(`/api/admin/hello-2027/corrective-exercise${query}`, {
     method,
@@ -216,10 +219,11 @@ export function AdminCorrectiveExercise() {
   const [selectedApplication, setSelectedApplication] = useState<CorrectiveApplication | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | ApplicationStatus>("all");
+  const [statusFilter, setStatusFilter] = useState<ApplicationStatusFilter>("all");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [busyKey, setBusyKey] = useState("");
+  const [deleteArmedId, setDeleteArmedId] = useState("");
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [setupRequired, setSetupRequired] = useState(false);
   const [applicationDraft, setApplicationDraft] = useState(EMPTY_APPLICATION_DRAFT);
@@ -238,6 +242,7 @@ export function AdminCorrectiveExercise() {
     setDetailLoading(false);
     setDetailError("");
     setApplicationDraft(EMPTY_APPLICATION_DRAFT);
+    setDeleteArmedId("");
   }, []);
 
   const loadApplicationDetail = useCallback(async (id: string) => {
@@ -329,9 +334,13 @@ export function AdminCorrectiveExercise() {
     };
   }, [load]);
 
-  const filteredApplications = useMemo(() => applications.filter((application) => (
-    statusFilter === "all" || application.status === statusFilter
-  )), [applications, statusFilter]);
+  const filteredApplications = useMemo(() => applications.filter((application) => {
+    if (statusFilter === "all") return true;
+    if (statusFilter === "attention") {
+      return application.status === "submitted" || application.status === "reviewing" || application.status === "schedule_proposed";
+    }
+    return application.status === statusFilter;
+  }), [applications, statusFilter]);
 
   const summary = useMemo(() => ({
     all: applications.length,
@@ -349,10 +358,21 @@ export function AdminCorrectiveExercise() {
     }
   };
 
-  const changeStatusFilter = (nextFilter: "all" | ApplicationStatus) => {
+  const changeStatusFilter = (nextFilter: ApplicationStatusFilter) => {
     setStatusFilter(nextFilter);
-    const selectedStillVisible = applications.some((item) => item.id === selectedIdRef.current && (nextFilter === "all" || item.status === nextFilter));
+    const selectedStillVisible = applications.some((item) => {
+      if (item.id !== selectedIdRef.current) return false;
+      if (nextFilter === "all") return true;
+      if (nextFilter === "attention") return item.status === "submitted" || item.status === "reviewing" || item.status === "schedule_proposed";
+      return item.status === nextFilter;
+    });
     if (selectedStillVisible) return;
+    selectedIdRef.current = "";
+    setSelectedId("");
+    clearSensitiveDetail();
+  };
+
+  const closeApplicationDetail = () => {
     selectedIdRef.current = "";
     setSelectedId("");
     clearSensitiveDetail();
@@ -378,6 +398,31 @@ export function AdminCorrectiveExercise() {
       if (refreshed) setFeedback({ tone: "success", message: `${participantName(selectedApplication)}님의 신청 상태를 저장했어요.` });
     } catch (error) {
       setFeedback({ tone: "error", message: error instanceof Error ? error.message : "신청 상태를 저장하지 못했어요." });
+    } finally {
+      setBusyKey("");
+    }
+  };
+
+  const deleteApplication = async () => {
+    if (!selectedApplication || deleteArmedId !== selectedApplication.id) return;
+    const applicationId = selectedApplication.id;
+    const name = participantName(selectedApplication);
+    setBusyKey(`delete-application:${applicationId}`);
+    setFeedback(null);
+    try {
+      await apiRequest("DELETE", {
+        action: "delete_application",
+        id: applicationId,
+        expected_updated_at: selectedApplication.updated_at,
+        confirm: true,
+      });
+      selectedIdRef.current = "";
+      setSelectedId("");
+      clearSensitiveDetail();
+      const refreshed = await load(true);
+      if (refreshed) setFeedback({ tone: "success", message: `${name}님의 신청과 건강 문진 내용을 삭제했어요.` });
+    } catch (error) {
+      setFeedback({ tone: "error", message: error instanceof Error ? error.message : "신청을 삭제하지 못했어요." });
     } finally {
       setBusyKey("");
     }
@@ -444,24 +489,24 @@ export function AdminCorrectiveExercise() {
       <div className="card mobile-page-card overflow-hidden p-4 sm:p-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-[11px] font-black uppercase tracking-[0.08em] text-blue-600">Corrective exercise</p>
+            <p className="text-[11px] font-black tracking-[0.02em] text-blue-600">교정운동 운영</p>
             <h2 id="corrective-exercise-admin-title" className="mt-1 text-2xl font-black tracking-[-0.04em] text-oriwan-text sm:text-3xl">교정운동 신청</h2>
             <p className="mt-2 max-w-3xl break-keep text-sm font-semibold leading-6 text-oriwan-text-muted">
               신청자의 희망 일정과 사전 문진을 확인하고, 연락·확정·완료 흐름을 한곳에서 관리해요.
             </p>
           </div>
-          <button type="button" onClick={() => void load(true)} disabled={refreshing || loading} className="inline-flex min-h-11 w-fit items-center gap-2 rounded-xl bg-oriwan-surface-light px-4 text-xs font-black text-oriwan-text transition hover:bg-slate-200 disabled:opacity-50">
+          <button type="button" onClick={() => void load(true)} disabled={refreshing || loading} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-oriwan-surface-light px-4 text-xs font-black text-oriwan-text transition hover:bg-slate-200 disabled:opacity-50 sm:w-fit">
             <IconSync size={15} className={refreshing ? "animate-spin" : ""} />
             새로고침
           </button>
         </div>
 
-        <div className="mt-5 rounded-[22px] bg-slate-950 p-4 text-white sm:p-5">
+        <div className="mt-5 rounded-[22px] bg-rose-50 p-4 text-rose-950 ring-1 ring-rose-100 sm:p-5">
           <div className="flex items-start gap-3">
-            <span className="grid size-9 shrink-0 place-items-center rounded-full bg-rose-400/15 text-sm font-black text-rose-200" aria-hidden="true">!</span>
+            <span className="grid size-9 shrink-0 place-items-center rounded-full bg-rose-100 text-sm font-black text-rose-700" aria-hidden="true">!</span>
             <div>
               <p className="text-sm font-black">민감한 건강정보를 다루는 화면이에요</p>
-              <p className="mt-1 break-keep text-xs font-semibold leading-5 text-white/60">
+              <p className="mt-1 break-keep text-xs font-semibold leading-5 text-rose-900/65">
                 일정 조율에 필요한 내용만 열람하고 외부로 전달하지 마세요. 진단이나 치료 판단이 아닌 신청 접수용 문진이며, 응급 증상은 의료기관 안내가 우선입니다.
               </p>
             </div>
@@ -470,22 +515,28 @@ export function AdminCorrectiveExercise() {
 
         <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
           {[
-            ["전체", summary.all, "text-oriwan-text"],
-            ["확인 필요", summary.waiting, "text-blue-600"],
-            ["일정 확정", summary.confirmed, "text-violet-600"],
-            ["진행 완료", summary.completed, "text-lime-700"],
-          ].map(([label, count, color]) => (
-            <div key={String(label)} className="rounded-[20px] bg-oriwan-surface-light px-4 py-3">
+            ["전체", summary.all, "text-oriwan-text", "all"],
+            ["확인 필요", summary.waiting, "text-blue-600", "attention"],
+            ["일정 확정", summary.confirmed, "text-violet-600", "confirmed"],
+            ["진행 완료", summary.completed, "text-lime-700", "completed"],
+          ].map(([label, count, color, filter]) => (
+            <button
+              key={String(label)}
+              type="button"
+              aria-pressed={statusFilter === filter}
+              onClick={() => changeStatusFilter(filter as ApplicationStatusFilter)}
+              className={`rounded-[20px] px-4 py-3 text-left transition ${statusFilter === filter ? "bg-white shadow-sm ring-2 ring-blue-500" : "bg-oriwan-surface-light ring-1 ring-transparent hover:bg-white hover:ring-slate-200"}`}
+            >
               <p className="text-[10px] font-black text-oriwan-text-muted">{label}</p>
               <p className={`mt-1 text-2xl font-black ${color}`}>{count}</p>
-            </div>
+            </button>
           ))}
         </div>
 
         {feedback ? <div className="mt-4"><Notice feedback={feedback} /></div> : null}
         {setupRequired ? (
           <div className="mt-3 rounded-2xl bg-amber-50 px-4 py-3 text-xs font-bold leading-5 text-amber-950 ring-1 ring-amber-200">
-            Supabase SQL Editor에서 <code className="font-black">docs/migrations/2026-09-04-corrective-exercise.sql</code>을 적용한 뒤 다시 불러와주세요.
+            Supabase SQL Editor에서 기본 교정운동 SQL 다음 <code className="font-black">docs/migrations/2026-09-04-corrective-exercise-audit-and-delete.sql</code>을 적용한 뒤 다시 불러와주세요.
           </div>
         ) : null}
       </div>
@@ -501,7 +552,7 @@ export function AdminCorrectiveExercise() {
           </div>
 
           <div className="mt-4 flex gap-1 overflow-x-auto rounded-2xl bg-oriwan-surface-light p-1.5" role="group" aria-label="신청 상태 필터">
-            {[{ value: "all" as const, label: "전체" }, ...STATUS_OPTIONS].map((option) => (
+            {[{ value: "all" as const, label: "전체" }, { value: "attention" as const, label: "확인 필요" }, ...STATUS_OPTIONS].map((option) => (
               <button key={option.value} type="button" onClick={() => changeStatusFilter(option.value)} className={`min-h-10 shrink-0 rounded-xl px-3 text-[11px] font-black transition ${statusFilter === option.value ? "bg-white text-oriwan-text shadow-sm" : "text-oriwan-text-muted hover:text-oriwan-text"}`}>
                 {option.label}
               </button>
@@ -529,7 +580,7 @@ export function AdminCorrectiveExercise() {
           </div>
         </section>
 
-        <section id="corrective-application-detail" className="card mobile-page-card scroll-mt-28 p-4 sm:p-5" aria-label="교정운동 신청 상세">
+        <section id="corrective-application-detail" className="card mobile-page-card scroll-mt-40 p-4 sm:scroll-mt-32 sm:p-5" aria-label="교정운동 신청 상세">
           {selectedId && detailLoading ? (
             <div className="grid min-h-72 place-items-center rounded-[22px] bg-oriwan-surface-light px-6 text-center" role="status" aria-busy="true">
               <div>
@@ -552,11 +603,14 @@ export function AdminCorrectiveExercise() {
             <>
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                  <p className="text-[10px] font-black uppercase tracking-[0.08em] text-blue-600">Private detail</p>
+                  <p className="text-[10px] font-black tracking-[0.02em] text-blue-600">신청 상세</p>
                   <h3 id="corrective-application-detail-title" className="mt-1 text-xl font-black text-oriwan-text">{participantName(selectedApplication)}님의 신청</h3>
                   <p className="mt-1 text-xs font-semibold text-oriwan-text-muted">접수 {formatTimestamp(selectedApplication.created_at)}</p>
                 </div>
-                <span className={`w-fit shrink-0 rounded-full px-3 py-1.5 text-[11px] font-black ring-1 ${statusMeta(selectedApplication.status).className}`}>{statusMeta(selectedApplication.status).label}</span>
+                <div className="flex items-center gap-2">
+                  <span className={`w-fit shrink-0 rounded-full px-3 py-1.5 text-[11px] font-black ring-1 ${statusMeta(selectedApplication.status).className}`}>{statusMeta(selectedApplication.status).label}</span>
+                  <button type="button" onClick={closeApplicationDetail} className="min-h-9 rounded-xl bg-oriwan-surface-light px-3 text-[11px] font-black text-oriwan-text-muted transition hover:bg-slate-200 hover:text-oriwan-text">상세 닫기</button>
+                </div>
               </div>
 
               <dl className="mt-4 grid gap-2 sm:grid-cols-2">
@@ -603,13 +657,34 @@ export function AdminCorrectiveExercise() {
                   신청자 안내 <span className="font-bold text-blue-600">(신청자 본인에게 공개)</span>
                   <textarea value={applicationDraft.admin_note} maxLength={MAX_CORRECTIVE_ADMIN_NOTE_LENGTH} rows={4} onChange={(event) => setApplicationDraft((current) => ({ ...current, admin_note: event.target.value }))} placeholder="신청자가 확인할 일정 안내를 적어주세요. 내부 메모나 판단은 기록하지 마세요." className="mt-1.5 w-full resize-y rounded-xl border border-oriwan-border bg-white px-3 py-3 text-sm font-semibold leading-6 text-oriwan-text outline-none focus:border-blue-500" />
                 </label>
-                <div className="mt-3 flex items-center justify-between gap-3">
+                <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <p className="text-[10px] font-bold text-oriwan-text-muted">{applicationDraft.admin_note.length}/{MAX_CORRECTIVE_ADMIN_NOTE_LENGTH}</p>
-                  <button type="button" onClick={() => void saveApplication()} disabled={busyKey === `application:${selectedApplication.id}`} className="inline-flex min-h-12 items-center gap-2 rounded-xl bg-blue-600 px-5 text-sm font-black text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-700 disabled:opacity-50">
+                  <button type="button" onClick={() => void saveApplication()} disabled={busyKey === `application:${selectedApplication.id}`} className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 text-sm font-black text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-700 disabled:opacity-50 sm:w-auto">
                     <IconCheck size={16} />
                     {busyKey === `application:${selectedApplication.id}` ? "저장 중…" : "처리 내용 저장"}
                   </button>
                 </div>
+              </div>
+
+              <div className="mt-5 rounded-[20px] bg-rose-50 p-4 ring-1 ring-rose-100">
+                <p className="text-xs font-black text-rose-900">삭제 요청 처리</p>
+                <p className="mt-1 text-[11px] font-semibold leading-5 text-rose-700">
+                  신청과 건강 문진 원문은 운영 DB에서 즉시 삭제되며 이 화면에서 되돌릴 수 없어요. 감사 로그에는 원문 없이 신청 ID·상태·처리자·시각만 남습니다.
+                </p>
+                {deleteArmedId === selectedApplication.id ? (
+                  <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:justify-end">
+                    <button type="button" onClick={() => setDeleteArmedId("")} disabled={busyKey === `delete-application:${selectedApplication.id}`} className="min-h-11 rounded-xl bg-white px-4 text-xs font-black text-rose-700 ring-1 ring-rose-200 disabled:opacity-50">
+                      취소
+                    </button>
+                    <button type="button" onClick={() => void deleteApplication()} disabled={busyKey === `delete-application:${selectedApplication.id}`} className="min-h-11 rounded-xl bg-rose-600 px-4 text-xs font-black text-white transition hover:bg-rose-700 disabled:opacity-50">
+                      {busyKey === `delete-application:${selectedApplication.id}` ? "삭제 중…" : "운영 DB에서 삭제"}
+                    </button>
+                  </div>
+                ) : (
+                  <button type="button" onClick={() => setDeleteArmedId(selectedApplication.id)} className="mt-3 min-h-11 rounded-xl bg-white px-4 text-xs font-black text-rose-700 ring-1 ring-rose-200 transition hover:bg-rose-100">
+                    신청 삭제
+                  </button>
+                )}
               </div>
             </>
           ) : (
@@ -626,7 +701,7 @@ export function AdminCorrectiveExercise() {
       <section className="card mobile-page-card p-4 sm:p-6" aria-labelledby="corrective-slot-title">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="text-[11px] font-black uppercase tracking-[0.08em] text-blue-600">Available schedule</p>
+            <p className="text-[11px] font-black tracking-[0.02em] text-blue-600">일정 관리</p>
             <h3 id="corrective-slot-title" className="mt-1 text-xl font-black text-oriwan-text">신청 가능한 일정</h3>
             <p className="mt-1 break-keep text-xs font-semibold leading-5 text-oriwan-text-muted">활성 일정만 개인 신청 달력에 표시됩니다. 기존 신청이 있는 일정은 닫아도 기록이 유지돼요.</p>
           </div>

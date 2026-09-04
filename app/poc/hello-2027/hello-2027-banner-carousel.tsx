@@ -231,7 +231,10 @@ export function Hello2027BannerCarousel({ ads, dayPhaseClass, todayRate }: Hello
             }
           }}
         >
-          {prefersReducedMotion ? "정지됨" : isUserPaused ? "재생" : "일시정지"}
+          <span
+            className={isUserPaused ? styles.carouselPlayIcon : styles.carouselPauseIcon}
+            aria-hidden="true"
+          />
         </button>
       </div>
     </section>

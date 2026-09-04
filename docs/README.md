@@ -45,6 +45,7 @@ app/api/records/analyze/route.ts    이미지 OCR 분석 및 기록 생성
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon key |
 | `SUPABASE_SERVICE_ROLE_KEY` | Storage 업로드용 service role key |
 | `FOURTH_DASHBOARD_LIVE` | 운영 전환 플래그. 정확히 `true`일 때만 `/4th`가 실데이터를 사용하며, 장애 시 빈 화면으로 실패-폐쇄 |
+| `CORRECTIVE_EXERCISE_LIVE` | 교정운동 운영 전환 플래그. 전용 SQL·Cron·권한 검증 후 정확히 `true`로 설정 |
 | `GEMINI_API_KEY` | Gemini 이미지 분석 API 키 |
 | `GEMINI_OCR_MODEL` | 선택. 기본 OCR 모델이며 기본값은 `gemini-3.1-flash-lite` |
 | `GEMINI_OCR_FALLBACK_MODEL` | 선택. 품질 미달 때만 호출하며 기본값은 `gemini-3.5-flash` |
@@ -52,8 +53,19 @@ app/api/records/analyze/route.ts    이미지 OCR 분석 및 기록 생성
 
 ## 데이터베이스
 
-`docs/supabase-schema.sql`을 Supabase SQL Editor에서 실행합니다.
-운영 배포 전에는 이어서 `docs/supabase-security-hardening.sql`도 실행해 anon 직접 접근, Realtime 직접 구독, 공개 Storage 버킷 설정을 잠급니다.
+새 프로젝트는 아래 순서로 적용합니다.
+
+1. `docs/supabase-schema.sql`: 공통 운영 테이블과 4기 콘텐츠 저장소
+2. `docs/migrations/2026-09-04-corrective-exercise-audit-and-delete.sql`: 교정운동 변경 감사·즉시 삭제 보강
+3. `docs/migrations/2026-09-04-corrective-exercise-retention-cron.sql`: 만료 데이터 자동 파기
+4. `docs/supabase-security-hardening.sql`: 브라우저 직접 접근·Realtime·공개 Storage 차단
+
+기존 운영 DB에 일부 저장소만 누락된 경우에는 범위가 작은 전용 SQL을 먼저 사용할 수 있습니다.
+
+- `docs/migrations/2026-09-04-profile-introductions.sql`: 크루 자기소개 저장소
+- `docs/migrations/2026-09-04-corrective-exercise.sql`: 교정운동 기본 일정·신청·열람 감사 로그
+
+전용 SQL을 사용한 경우에도 교정운동 감사·삭제 보강 → Cron → 보안 하드닝 순서는 유지합니다.
 
 주요 테이블:
 

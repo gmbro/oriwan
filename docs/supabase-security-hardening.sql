@@ -15,6 +15,7 @@ ALTER TABLE public.daily_gift_claims ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.corrective_exercise_slots ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.corrective_exercise_applications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.corrective_exercise_audit_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.corrective_exercise_change_audit_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.hello_2027_encouragements ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.hello_2027_banners ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.hello_2027_profile_introductions ENABLE ROW LEVEL SECURITY;
@@ -36,6 +37,7 @@ REVOKE ALL ON TABLE public.daily_gift_claims FROM anon, authenticated, PUBLIC;
 REVOKE ALL ON TABLE public.corrective_exercise_slots FROM anon, authenticated, PUBLIC;
 REVOKE ALL ON TABLE public.corrective_exercise_applications FROM anon, authenticated, PUBLIC;
 REVOKE ALL ON TABLE public.corrective_exercise_audit_logs FROM anon, authenticated, PUBLIC;
+REVOKE ALL ON TABLE public.corrective_exercise_change_audit_logs FROM anon, authenticated, PUBLIC;
 REVOKE ALL ON TABLE public.hello_2027_encouragements FROM anon, authenticated, PUBLIC;
 REVOKE ALL ON TABLE public.hello_2027_banners FROM anon, authenticated, PUBLIC;
 REVOKE ALL ON TABLE public.hello_2027_profile_introductions FROM anon, authenticated, PUBLIC;
@@ -58,6 +60,7 @@ GRANT SELECT, INSERT ON TABLE public.daily_gift_claims TO service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.corrective_exercise_slots TO service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.corrective_exercise_applications TO service_role;
 GRANT SELECT, INSERT, DELETE ON TABLE public.corrective_exercise_audit_logs TO service_role;
+GRANT SELECT, INSERT, DELETE ON TABLE public.corrective_exercise_change_audit_logs TO service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.hello_2027_encouragements TO service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.hello_2027_banners TO service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.hello_2027_profile_introductions TO service_role;
@@ -72,10 +75,22 @@ REVOKE ALL ON FUNCTION public.set_corrective_exercise_retention() FROM anon, aut
 REVOKE ALL ON FUNCTION public.update_corrective_exercise_slot(
   UUID, TEXT, UUID, TIMESTAMPTZ, DATE, TIME WITHOUT TIME ZONE, TIME WITHOUT TIME ZONE, INTEGER, BOOLEAN, TEXT
 ) FROM anon, authenticated, PUBLIC;
+REVOKE ALL ON FUNCTION public.create_corrective_exercise_slot_audited(
+  UUID, TEXT, UUID, DATE, TIME WITHOUT TIME ZONE, TIME WITHOUT TIME ZONE, INTEGER, BOOLEAN, TEXT
+) FROM anon, authenticated, PUBLIC;
+REVOKE ALL ON FUNCTION public.update_corrective_exercise_application_admin(
+  UUID, TEXT, UUID, UUID, TIMESTAMPTZ, TEXT, TEXT, TIMESTAMPTZ, TEXT
+) FROM anon, authenticated, PUBLIC;
+REVOKE ALL ON FUNCTION public.cancel_corrective_exercise_application_member(
+  UUID, TEXT, UUID, UUID, UUID
+) FROM anon, authenticated, PUBLIC;
 REVOKE ALL ON FUNCTION public.submit_corrective_exercise_application(
   UUID, TEXT, UUID, UUID, TEXT, UUID, TEXT[], TEXT, TEXT, TEXT, TEXT, TEXT
 ) FROM anon, authenticated, PUBLIC;
 REVOKE ALL ON FUNCTION public.purge_expired_corrective_exercise_applications() FROM anon, authenticated, PUBLIC;
+REVOKE ALL ON FUNCTION public.delete_corrective_exercise_application_admin(
+  UUID, TEXT, UUID, UUID, TIMESTAMPTZ
+) FROM anon, authenticated, PUBLIC;
 GRANT EXECUTE ON FUNCTION public.enforce_hello_2027_reply_limit() TO service_role;
 GRANT EXECUTE ON FUNCTION public.enforce_hello_2027_reaction_target() TO service_role;
 GRANT EXECUTE ON FUNCTION public.enforce_hello_2027_profile_introduction_limit() TO service_role;
@@ -84,10 +99,22 @@ GRANT EXECUTE ON FUNCTION public.set_corrective_exercise_retention() TO service_
 GRANT EXECUTE ON FUNCTION public.update_corrective_exercise_slot(
   UUID, TEXT, UUID, TIMESTAMPTZ, DATE, TIME WITHOUT TIME ZONE, TIME WITHOUT TIME ZONE, INTEGER, BOOLEAN, TEXT
 ) TO service_role;
+GRANT EXECUTE ON FUNCTION public.create_corrective_exercise_slot_audited(
+  UUID, TEXT, UUID, DATE, TIME WITHOUT TIME ZONE, TIME WITHOUT TIME ZONE, INTEGER, BOOLEAN, TEXT
+) TO service_role;
+GRANT EXECUTE ON FUNCTION public.update_corrective_exercise_application_admin(
+  UUID, TEXT, UUID, UUID, TIMESTAMPTZ, TEXT, TEXT, TIMESTAMPTZ, TEXT
+) TO service_role;
+GRANT EXECUTE ON FUNCTION public.cancel_corrective_exercise_application_member(
+  UUID, TEXT, UUID, UUID, UUID
+) TO service_role;
 GRANT EXECUTE ON FUNCTION public.submit_corrective_exercise_application(
   UUID, TEXT, UUID, UUID, TEXT, UUID, TEXT[], TEXT, TEXT, TEXT, TEXT, TEXT
 ) TO service_role;
 GRANT EXECUTE ON FUNCTION public.purge_expired_corrective_exercise_applications() TO service_role;
+GRANT EXECUTE ON FUNCTION public.delete_corrective_exercise_application_admin(
+  UUID, TEXT, UUID, UUID, TIMESTAMPTZ
+) TO service_role;
 
 -- 4. 공개 브라우저에서 DB 변경 스트림을 직접 구독하지 않도록 Realtime publication에서 제외합니다.
 DO $$
@@ -105,6 +132,7 @@ BEGIN
       'corrective_exercise_slots',
       'corrective_exercise_applications',
       'corrective_exercise_audit_logs',
+      'corrective_exercise_change_audit_logs',
       'hello_2027_encouragements',
       'hello_2027_banners',
       'hello_2027_profile_introductions',
@@ -152,6 +180,7 @@ COMMIT;
 --     'participants', 'upload_batches', 'daily_run_records', 'participant_growth_badges',
 --     'participant_accounts', 'daily_gift_claims', 'hello_2027_encouragements',
 --     'corrective_exercise_slots', 'corrective_exercise_applications', 'corrective_exercise_audit_logs',
+--     'corrective_exercise_change_audit_logs',
 --     'hello_2027_banners', 'hello_2027_profile_introductions',
 --     'hello_2027_comments', 'hello_2027_comment_reactions'
 --   );
@@ -163,6 +192,7 @@ COMMIT;
 --     'participants', 'upload_batches', 'daily_run_records', 'participant_growth_badges',
 --     'participant_accounts', 'daily_gift_claims', 'hello_2027_encouragements',
 --     'corrective_exercise_slots', 'corrective_exercise_applications', 'corrective_exercise_audit_logs',
+--     'corrective_exercise_change_audit_logs',
 --     'hello_2027_banners', 'hello_2027_profile_introductions',
 --     'hello_2027_comments', 'hello_2027_comment_reactions'
 --   )

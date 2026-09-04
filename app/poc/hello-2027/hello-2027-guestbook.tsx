@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 
 import { HELLO_2027_COMMENT_BODY_MAX_LENGTH } from "@/lib/hello-2027-comments-contract";
@@ -12,7 +11,6 @@ import styles from "./hello-2027-poc.module.css";
 
 type Hello2027GuestbookProps = {
   initialThreads: readonly Hello2027GuestbookThread[];
-  previewOnly?: boolean;
   externalViewer?: Hello2027Viewer | null;
   externalViewerManaged?: boolean;
   externalViewerLoading?: boolean;
@@ -86,7 +84,6 @@ async function readJson<T>(response: Response): Promise<T> {
 
 export function Hello2027Guestbook({
   initialThreads,
-  previewOnly: initialPreviewOnly = false,
   externalViewer,
   externalViewerManaged = false,
   externalViewerLoading = false,
@@ -104,9 +101,6 @@ export function Hello2027Guestbook({
   const [commentsLive, setCommentsLive] = useState(false);
   const [commentsLoading, setCommentsLoading] = useState(true);
   const [localViewerLoading, setLocalViewerLoading] = useState(!externalViewerManaged);
-  const [storageMessage, setStorageMessage] = useState(() => initialPreviewOnly
-    ? "지금은 더미 댓글을 보여주는 읽기 전용 미리보기예요."
-    : "공용 댓글 저장소를 확인하고 있어요.");
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const replyTriggerRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const commentsLocked = !commentsLive;
@@ -142,18 +136,15 @@ export function Hello2027Guestbook({
         if (response.ok && payload.live && Array.isArray(payload.threads)) {
           setThreads(cloneThreads(payload.threads));
           setCommentsLive(true);
-          setStorageMessage("");
         } else {
           setThreads(cloneThreads(initialThreads));
           setCommentsLive(false);
-          setStorageMessage(payload.error || "지금은 더미 댓글을 보여주는 읽기 전용 미리보기예요.");
         }
       })
       .catch(() => {
         if (active) {
           setThreads(cloneThreads(initialThreads));
           setCommentsLive(false);
-          setStorageMessage("댓글 저장소를 확인하지 못해 미리보기 댓글을 보여드려요.");
         }
       })
       .finally(() => {
@@ -318,9 +309,9 @@ export function Hello2027Guestbook({
         <p>문의사항이나 하고 싶은 이야기 떠들어재끼기</p>
       </div>
 
-      {commentsLoading || commentsLocked ? (
+      {commentsLoading ? (
         <p className={styles.guestbookAnnouncement} role="status">
-          {commentsLoading ? "공용 댓글을 확인하고 있어요." : storageMessage}
+          공용 댓글을 확인하고 있어요.
         </p>
       ) : null}
 
@@ -498,15 +489,15 @@ function ReactionBar({ reactions, pickerOpen, disabled = false, onTogglePicker, 
 }
 
 function CommentIdentity({ viewer, compact = false }: { viewer: Hello2027Viewer | null; compact?: boolean }) {
+  if (!viewer?.authenticated) return null;
+
   const hasKakaoName = Boolean(viewer?.authenticated && viewer.display_name);
   return (
     <div className={`${styles.commentIdentity} ${compact ? styles.commentIdentityCompact : ""}`}>
       <p>
         {hasKakaoName
           ? <><strong>{viewer?.display_name}</strong> 이름으로 작성됩니다.{viewer?.verified_name ? " 운영자가 크루 명단과 대조한 표시 이름입니다." : " 운영자가 이후 확인 이름으로 변경할 수 있어요."}</>
-          : viewer?.authenticated
-            ? <>카카오 이름을 확인하고 있어요.</>
-            : <>등록할 때 포근한 랜덤 닉네임을 정해드려요. <Link href="#member-features">카카오 로그인</Link></>}
+          : <>카카오 이름을 확인하고 있어요.</>}
       </p>
     </div>
   );

@@ -56,12 +56,14 @@
   display: inline-flex;
   flex: none;
   align-items: center;
+  width: clamp(64px, 7vw, 78px);
+  min-height: 44px;
   text-decoration: none;
 }
 
 .brandLogo {
   display: block;
-  width: clamp(92px, 10vw, 112px);
+  width: 100%;
   height: auto;
 }
 
@@ -292,14 +294,14 @@
 .storyBanner {
   position: absolute;
   z-index: 4;
-  top: 33.62%;
-  left: 9.35%;
+  top: 31.6%;
+  left: 8.35%;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  width: 29.14%;
-  height: 33.25%;
+  width: 31.1%;
+  height: 36.9%;
   padding: 1.2% 2%;
   color: var(--text);
   border: 1px solid var(--board-border);
@@ -322,7 +324,7 @@
   display: block;
   margin-top: 4%;
   color: var(--board-value);
-  font-size: clamp(3rem, 7.3cqi, 5.5rem);
+  font-size: clamp(2.4rem, 5.84cqi, 4.4rem);
   font-weight: 800;
   line-height: 0.86;
 }
@@ -447,20 +449,52 @@
 .carouselDots button[aria-current="true"]::before { width: 22px; background: var(--accent); }
 
 .carouselToggle {
-  min-height: 32px;
-  padding: 0 10px;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  padding: 0;
   color: var(--text-secondary);
   border: 0;
-  border-radius: 10px;
+  border-radius: 50%;
   background: #f2f4f6;
   font: inherit;
-  font-size: 0.7rem;
-  font-weight: 650;
-  white-space: nowrap;
   cursor: pointer;
 }
 
 .carouselToggle:disabled { color: var(--text-tertiary); cursor: default; }
+
+.carouselPauseIcon,
+.carouselPlayIcon {
+  position: relative;
+  display: block;
+  width: 14px;
+  height: 16px;
+}
+
+.carouselPauseIcon::before,
+.carouselPauseIcon::after {
+  position: absolute;
+  top: 1px;
+  bottom: 1px;
+  width: 4px;
+  border-radius: 2px;
+  background: currentColor;
+  content: "";
+}
+
+.carouselPauseIcon::before { left: 1px; }
+.carouselPauseIcon::after { right: 1px; }
+
+.carouselPlayIcon {
+  width: 0;
+  height: 0;
+  border-top: 8px solid transparent;
+  border-bottom: 8px solid transparent;
+  border-left: 12px solid currentColor;
+  margin-left: 3px;
+}
 
 .summarySection {
   width: min(1200px, calc(100% - 48px));
@@ -509,23 +543,8 @@
   box-shadow: inset 0 0 0 1px rgba(49, 130, 246, 0.08);
 }
 
-.motivationHeader { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.motivationHeader { display: flex; align-items: center; }
 .motivationHeader > span { color: var(--accent-deep); font-size: 0.78rem; font-weight: 750; }
-.motivationControls { display: flex; align-items: center; gap: 4px; }
-.motivationControls button {
-  min-height: 32px;
-  padding: 0 9px;
-  color: var(--text-tertiary);
-  border: 0;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.72);
-  font: inherit;
-  font-size: 0.68rem;
-  font-weight: 650;
-  cursor: pointer;
-}
-.motivationControls button:hover:not(:disabled) { color: var(--accent-deep); background: var(--surface); }
-.motivationControls button:disabled { opacity: 0.55; cursor: default; }
 .motivationBanner p { max-width: 920px; margin: 10px 0 0; color: var(--text); font-size: clamp(1.35rem, 2.5vw, 1.75rem); font-weight: 700; line-height: 1.35; animation: quoteRise 320ms ease-out both; }
 
 @keyframes quoteRise {
@@ -544,8 +563,8 @@
 .crewCount { display: block; margin-bottom: 7px; color: var(--text-tertiary); font-size: 0.78rem; font-weight: 650; }
 .crewHeading h2 { margin: 0; font-size: clamp(1.8rem, 3vw, 2.3rem); font-weight: 800; line-height: 1; }
 
-.crewSort { display: inline-flex; padding: 4px; border-radius: 13px; background: #e9ecef; }
-.crewSort button { min-height: 36px; padding: 0 13px; color: var(--text-tertiary); border: 0; border-radius: 10px; background: transparent; font: inherit; font-size: 0.78rem; font-weight: 700; cursor: pointer; }
+.crewSort { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 190px; padding: 4px; border-radius: 13px; background: #e9ecef; }
+.crewSort button { min-width: 0; min-height: 36px; padding: 0 8px; color: var(--text-tertiary); border: 0; border-radius: 10px; background: transparent; font: inherit; font-size: 0.78rem; font-weight: 700; cursor: pointer; }
 .crewSort button[aria-pressed="true"] { color: var(--text); background: var(--surface); box-shadow: 0 2px 8px rgba(25, 31, 40, 0.08); }
 
 .participantGrid {
@@ -560,12 +579,12 @@
 .participantCard {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(64px, 0.85fr) minmax(74px, 1.15fr);
-  align-items: stretch;
-  gap: 10px;
+  grid-template-columns: 64px minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
   width: 100%;
-  min-height: 146px;
-  padding: 14px;
+  min-height: 120px;
+  padding: 10px 12px 10px 10px;
   color: var(--text);
   border: 0;
   border-radius: 22px;
@@ -584,7 +603,6 @@
 .carouselDots button:focus-visible,
 .carouselToggle:focus-visible,
 .crewSort button:focus-visible,
-.motivationControls button:focus-visible,
 .authorModeButtons button:focus-visible,
 .threadActions button:focus-visible,
 .guestbookComposer button:focus-visible,
@@ -598,14 +616,14 @@
 .completedCard { background: #f8fbff; }
 .waitingCard { background: var(--surface); }
 
-.participantIdentity { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; min-width: 0; }
+.participantIdentity { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-width: 0; }
 
 .characterWrap {
   position: relative;
   display: grid;
   place-items: center;
-  width: 72px;
-  height: 72px;
+  width: 60px;
+  height: 60px;
   overflow: hidden;
   border-radius: 50%;
   background: #f2f4f6;
@@ -613,7 +631,7 @@
 
 .completedCard .characterWrap { background: var(--accent-soft); }
 .characterWrap > img { object-fit: cover; }
-.characterWrap > span { width: 66px; height: 66px; }
+.characterWrap > span { width: 56px; height: 56px; }
 
 .participantNameRow { display: flex; align-items: center; justify-content: center; width: 100%; min-height: 24px; }
 
@@ -622,25 +640,26 @@
 
 .completionBadge {
   position: absolute;
-  top: 0;
-  right: 0;
-  display: inline-flex;
+  z-index: 2;
+  top: 9px;
+  right: 9px;
+  display: grid;
   align-items: center;
   justify-content: center;
-  flex: none;
-  min-width: 46px;
-  min-height: 20px;
-  padding: 0 5px;
-  color: var(--accent-deep);
-  border-radius: 8px;
-  background: transparent;
-  font-size: 0.6rem;
-  font-weight: 750;
+  width: 24px;
+  height: 24px;
+  color: #fff;
+  background: var(--accent);
+  clip-path: polygon(50% 0%, 61% 8%, 75% 5%, 83% 18%, 96% 25%, 93% 40%, 100% 50%, 93% 61%, 96% 75%, 83% 82%, 75% 96%, 61% 92%, 50% 100%, 39% 92%, 25% 96%, 17% 82%, 4% 75%, 7% 61%, 0 50%, 7% 39%, 4% 25%, 17% 18%, 25% 5%, 39% 8%);
+  filter: drop-shadow(0 2px 4px rgba(27, 100, 218, 0.28));
+  font-size: 0.72rem;
+  font-weight: 900;
+  line-height: 1;
 }
 
-.participantRate { position: relative; display: flex; flex-direction: column; align-items: flex-end; justify-content: flex-end; min-width: 0; padding-top: 28px; text-align: right; }
+.participantRate { display: flex; flex-direction: column; align-items: flex-end; justify-content: center; min-width: 0; padding: 8px 2px 0 0; text-align: right; }
 .participantRate small { color: var(--text-tertiary); font-size: 0.68rem; font-weight: 550; white-space: nowrap; }
-.participantRate > strong { margin-top: 5px; color: var(--accent-deep); font-size: 1.8rem; font-weight: 780; line-height: 0.98; white-space: nowrap; }
+.participantRate > strong { margin-top: 2px; color: var(--accent-deep); font-size: 1.72rem; font-weight: 780; line-height: 0.98; white-space: nowrap; }
 
 .dialog {
   width: min(760px, calc(100% - 40px));
@@ -753,6 +772,8 @@
 .replyComposer label { display: block; margin-bottom: 10px; color: var(--text-secondary); font-size: 0.82rem; font-weight: 700; }
 
 .bodyLabel { margin-top: 18px; }
+.guestbookComposer > .bodyLabel:first-child,
+.replyComposer > .bodyLabel:first-child { margin-top: 0; }
 
 .authorChoice { min-width: 0; padding: 0; border: 0; margin: 0; }
 .authorChoice legend { margin-bottom: 9px; padding: 0; color: var(--text-secondary); font-size: 0.82rem; font-weight: 700; }
@@ -875,11 +896,11 @@
   .summarySection, .motivationBanner, .crewSection { width: calc(100% - 40px); }
   .guestbookSection { width: min(860px, calc(100% - 40px)); }
   .storyBanner h2 { font-size: 0.82rem; }
-  .storyBanner > strong { font-size: 3.6rem; }
-  .participantCard { min-height: 140px; padding: 13px 11px; }
-  .characterWrap { width: 68px; height: 68px; }
-  .characterWrap > span { width: 62px; height: 62px; }
-  .participantRate > strong { font-size: 1.68rem; }
+  .storyBanner > strong { font-size: 2.88rem; }
+  .participantCard { min-height: 112px; padding: 9px 11px 9px 9px; }
+  .characterWrap { width: 58px; height: 58px; }
+  .characterWrap > span { width: 54px; height: 54px; }
+  .participantRate > strong { font-size: 1.55rem; }
 }
 
 @media (max-width: 860px) {
@@ -888,7 +909,7 @@
 
 @media (max-width: 760px) {
   .headerInner { gap: 12px; min-height: 62px; padding: max(8px, env(safe-area-inset-top)) 16px 8px; }
-  .brandLogo { width: 82px; }
+  .brand { width: 57px; }
   .headerMeta { gap: 7px; font-size: 0.78rem; }
   .headerMeta time { gap: 5px; }
   .headerMeta time small { font-size: 0.64rem; }
@@ -903,7 +924,7 @@
   .bannerCanvas { inset: 0; width: 100%; height: 100%; aspect-ratio: auto; }
   .todayBannerCanvas { right: auto; width: auto; aspect-ratio: 1915 / 821; }
   .storyBanner h2 { font-size: 0.75rem; }
-  .storyBanner > strong { margin-top: 4px; font-size: 3.15rem; }
+  .storyBanner > strong { margin-top: 4px; font-size: 2.52rem; }
   .adImageScrim { background: linear-gradient(90deg, rgba(13, 23, 38, 0.76) 0%, rgba(13, 23, 38, 0.52) 43%, rgba(13, 23, 38, 0.08) 78%); }
   .adCopyFloating { left: 62px; width: calc(100% - 124px); }
   .adCopyFloating span { font-size: 0.64rem; }
@@ -925,26 +946,26 @@
 
   .motivationBanner { min-height: 88px; margin: 0 auto 12px; padding: 14px 16px; border-radius: 20px; }
   .motivationHeader > span { font-size: 0.7rem; }
-  .motivationControls button { min-height: 30px; padding: 0 7px; font-size: 0.68rem; }
   .motivationBanner p { margin-top: 6px; font-size: 1rem; }
 
   .crewSection { margin-top: 28px; }
   .crewHeading { margin-bottom: 12px; }
   .crewCount { margin-bottom: 5px; font-size: 0.7rem; }
   .crewHeading h2 { font-size: 1.6rem; }
-  .crewSort button { min-height: 34px; padding: 0 10px; font-size: 0.7rem; }
-  .participantGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-  .participantCard { grid-template-columns: minmax(58px, 0.86fr) minmax(62px, 1.14fr); gap: 8px; min-height: 116px; padding: 9px; border-radius: 18px; }
-  .participantIdentity { gap: 4px; }
-  .characterWrap { width: 62px; height: 62px; }
-  .characterWrap > span { width: 57px; height: 57px; }
-  .participantNameRow { min-height: 19px; }
+  .crewSort { width: 170px; }
+  .crewSort button { min-height: 34px; padding: 0 5px; font-size: 0.7rem; }
+  .participantGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .participantCard { grid-template-columns: 54px minmax(0, 1fr); gap: 4px; min-height: 96px; padding: 7px 8px 7px 7px; border-radius: 18px; }
+  .participantIdentity { gap: 2px; }
+  .characterWrap { width: 52px; height: 52px; }
+  .characterWrap > span { width: 48px; height: 48px; }
+  .participantNameRow { min-height: 17px; }
   .participantNameRow > strong { font-size: 0.78rem; }
   .participantNameRow > strong small { font-size: 0.54rem; }
-  .completionBadge { min-width: 40px; min-height: 18px; padding: 0 3px; font-size: 0.52rem; }
-  .participantRate { padding-top: 22px; }
+  .completionBadge { top: 6px; right: 6px; width: 21px; height: 21px; font-size: 0.62rem; }
+  .participantRate { padding: 8px 0 0; }
   .participantRate small { font-size: 0.55rem; letter-spacing: -0.02em; }
-  .participantRate > strong { margin-top: 4px; font-size: 1.5rem; }
+  .participantRate > strong { margin-top: 2px; font-size: 1.35rem; }
 
   .dialog { width: 100%; max-width: none; max-height: 94dvh; margin: auto auto 0; border-radius: 28px 28px 0 0; box-shadow: 0 -12px 42px rgba(25, 31, 40, 0.2); }
   .dialogPanel { max-height: 94dvh; padding: 32px 20px max(28px, env(safe-area-inset-bottom)); }
@@ -985,7 +1006,7 @@
 }
 
 @media (max-width: 390px) {
-  .brandLogo { width: 76px; }
+  .brand { width: 53px; }
   .headerInner { gap: 7px; }
   .headerMeta { gap: 5px; }
   .headerMeta > strong { font-size: 0.82rem; }
@@ -995,16 +1016,15 @@
   .carouselDots { max-width: 48vw; }
   .carouselDots button { width: 28px; height: 32px; }
   .carouselDots button[aria-current="true"]::before { width: 18px; }
-  .carouselToggle { padding: 0 8px; font-size: 0.68rem; }
 }
 
 @media (max-width: 339px) {
-  .brandLogo { width: 68px; }
+  .brand { width: 48px; }
   .headerAccountLink { display: none; }
-  .participantGrid { gap: 7px; }
-  .participantCard { grid-template-columns: minmax(50px, 0.84fr) minmax(54px, 1.16fr); gap: 5px; min-height: 114px; padding: 8px 7px; }
-  .characterWrap { width: 54px; height: 54px; }
-  .characterWrap > span { width: 50px; height: 50px; }
+  .participantGrid { gap: 6px; }
+  .participantCard { grid-template-columns: 47px minmax(0, 1fr); gap: 3px; min-height: 90px; padding: 6px; }
+  .characterWrap { width: 46px; height: 46px; }
+  .characterWrap > span { width: 43px; height: 43px; }
   .participantNameRow > strong { font-size: 0.7rem; }
   .participantRate small { font-size: 0.5rem; }
   .participantRate > strong { font-size: 1.3rem; }
@@ -1035,7 +1055,6 @@
 
 .carouselDots button,
 .carouselToggle,
-.motivationControls button,
 .crewSort button {
   min-width: 44px;
   min-height: 44px;
@@ -1052,7 +1071,7 @@
   }
 
   .storyBanner h2 { font-size: clamp(0.7rem, 3.2cqi, 0.86rem); }
-  .storyBanner > strong { font-size: clamp(2.8rem, 13.5cqi, 4.2rem); }
+  .storyBanner > strong { font-size: clamp(2.24rem, 10.8cqi, 3.36rem); }
   .summaryCard > span { overflow: visible; white-space: normal; text-overflow: clip; }
   .worldLayer img.mobileFocusLeft { object-position: left center; }
   .worldLayer img.mobileFocusCenter { object-position: center; }

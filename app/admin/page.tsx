@@ -173,13 +173,13 @@ function MemberPicker({
 type AdminModal = "participant" | "record" | "upload" | "participantRecords" | null;
 type AdminTab = "certifications" | "crew" | "corrective-exercise" | "encouragements" | "banners" | "comments";
 
-const ADMIN_TABS: ReadonlyArray<{ key: AdminTab; label: string }> = [
-  { key: "certifications", label: "인증" },
-  { key: "crew", label: "크루프로필" },
-  { key: "corrective-exercise", label: "교정운동" },
-  { key: "encouragements", label: "응원글" },
-  { key: "banners", label: "배너" },
-  { key: "comments", label: "댓글" },
+const ADMIN_TABS: ReadonlyArray<{ key: AdminTab; label: string; compactLabel: string }> = [
+  { key: "certifications", label: "인증", compactLabel: "인증" },
+  { key: "crew", label: "크루프로필", compactLabel: "크루" },
+  { key: "corrective-exercise", label: "교정운동", compactLabel: "교정운동" },
+  { key: "encouragements", label: "응원글", compactLabel: "응원글" },
+  { key: "banners", label: "배너", compactLabel: "배너" },
+  { key: "comments", label: "댓글", compactLabel: "댓글" },
 ];
 
 function isAdminTab(value: string | null): value is AdminTab {
@@ -2075,33 +2075,29 @@ export default function AdminPage() {
 
   return (
     <div className="min-h-screen overflow-x-hidden bg-oriwan-bg">
-      <header className="sticky top-0 z-50 px-4 py-3 bg-[#101522]/92 backdrop-blur-2xl border-b border-white/10 text-white">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <TwttBrandMark className="aspect-[640/310] w-[82px] sm:w-[96px]" sizes="(max-width: 640px) 82px, 96px" label="TWTT" />
-            <div>
-              <h1 className="text-base font-black leading-none sm:text-lg">어드민</h1>
-            </div>
-          </div>
-          <div className="flex items-center gap-2.5">
-            <span className={`hidden sm:inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-black ${liveStatus === "syncing" ? "bg-lime-300 text-slate-950" : "bg-white/10 text-white/70"}`}>
+      <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/95 px-3 py-2.5 text-slate-950 backdrop-blur-2xl sm:px-4 sm:py-3">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3">
+          <TwttBrandMark className="aspect-[640/310] w-[68px] sm:w-[82px]" sizes="(max-width: 640px) 68px, 82px" label="TWTT 스내사 4기 관리자" />
+          <div className="flex shrink-0 items-center gap-2 sm:gap-2.5">
+            <span className={`hidden sm:inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-black ${liveStatus === "syncing" ? "bg-lime-300 text-slate-950" : "bg-slate-100 text-slate-600"}`}>
               <IconSync size={13} className={liveStatus === "syncing" ? "animate-spin" : ""} />
               {liveStatus === "syncing" ? "동기화 중" : "보호 모드"}
             </span>
-            {userAvatar && <Image src={userAvatar} alt="" width={28} height={28} className="rounded-full border border-white/20" />}
-            <span className="hidden md:inline text-xs font-semibold text-white/60">{userName}</span>
-            <button onClick={handleLogout} className="text-xs text-white/60 hover:text-white transition-colors font-medium">로그아웃</button>
+            {userAvatar && <Image src={userAvatar} alt="" width={28} height={28} className="rounded-full border border-slate-200" />}
+            <span className="hidden text-xs font-semibold text-slate-500 md:inline">{userName}</span>
+            <button onClick={handleLogout} className="inline-flex min-h-10 items-center rounded-xl bg-slate-100 px-3 text-xs font-black text-slate-600 transition-colors hover:bg-slate-200 hover:text-slate-950">로그아웃</button>
           </div>
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl space-y-4 px-3 py-4 pb-10 sm:px-4 sm:py-5">
+      <main className="mx-auto max-w-7xl space-y-4 px-3 py-3 pb-10 sm:px-4 sm:py-5">
         <nav
-          className="sticky top-[61px] z-40 -mx-1 overflow-x-auto rounded-[20px] bg-white/94 p-1.5 shadow-lg shadow-slate-950/5 ring-1 ring-slate-950/5 backdrop-blur-xl"
+          className="sticky top-[61px] z-40 -mx-1 rounded-[20px] bg-white/94 p-1.5 shadow-lg shadow-slate-950/5 ring-1 ring-slate-950/5 backdrop-blur-xl sm:top-[69px]"
           role="tablist"
           aria-label="어드민 관리 영역"
+          aria-orientation="horizontal"
         >
-          <div className="flex min-w-max gap-1 sm:min-w-0">
+          <div className="grid grid-cols-3 gap-1 sm:grid-cols-6">
             {ADMIN_TABS.map((tab) => (
               <button
                 key={tab.key}
@@ -2124,13 +2120,14 @@ export default function AdminPage() {
                   const buttons = event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>("[role='tab']");
                   buttons?.[nextIndex]?.focus();
                 }}
-                className={`min-h-11 min-w-[88px] flex-1 rounded-2xl px-4 text-xs font-black transition sm:text-sm ${
+                className={`relative min-h-11 min-w-0 rounded-2xl px-2 text-xs font-black transition sm:px-3 sm:text-sm ${
                   activeTab === tab.key
-                    ? "bg-slate-950 text-white shadow-sm"
+                    ? "bg-slate-950 text-white shadow-sm ring-1 ring-slate-950"
                     : "text-oriwan-text-muted hover:bg-oriwan-surface-light hover:text-oriwan-text"
                 }`}
               >
-                {tab.label}
+                <span className="sm:hidden">{tab.compactLabel}</span>
+                <span className="hidden sm:inline">{tab.label}</span>
               </button>
             ))}
           </div>
