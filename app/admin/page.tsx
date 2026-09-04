@@ -2016,46 +2016,53 @@ export default function AdminPage() {
     return (
       <main className="flex min-h-screen items-center justify-center overflow-x-hidden bg-oriwan-bg px-3 py-6 sm:px-5 sm:py-8">
         <div className="relative w-full max-w-[430px]">
-          <div className="card mobile-page-card p-6 sm:p-9">
-            <div className="mb-7 flex items-center gap-3">
-              <TwttBrandMark className="aspect-[640/310] w-[132px] sm:w-[148px]" sizes="(max-width: 640px) 132px, 148px" priority label="TWTT" />
-              <div>
-                <h1 className="text-2xl font-black leading-tight text-oriwan-text">어드민 접속</h1>
-                <p className="mt-1 text-xs font-bold text-oriwan-text-muted">운영자 이메일 인증</p>
-              </div>
+          <div className="card mobile-page-card flex min-h-[min(620px,calc(100svh-3rem))] flex-col p-6 sm:p-9">
+            <div className="flex flex-1 items-start justify-center pt-8 sm:pt-10">
+              <h1 className="sr-only">스내사 4기 어드민 접속</h1>
+              <TwttBrandMark
+                className="aspect-[640/310] w-[184px] sm:w-[216px]"
+                sizes="(max-width: 640px) 184px, 216px"
+                priority
+                label="TWTT 스내사 4기 어드민"
+              />
             </div>
 
-            <div className="mt-5 space-y-3">
+            <form
+              className="mt-10 space-y-3"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void verifyAdminCode();
+              }}
+            >
               <button
-                onClick={sendAdminCode}
+                type="button"
+                onClick={() => void sendAdminCode()}
                 disabled={sendingCode}
-                className="w-full rounded-2xl bg-slate-950 px-4 py-3 text-sm font-black text-lime-200 disabled:opacity-50"
+                aria-describedby={authMessage ? "admin-auth-message" : undefined}
+                className="min-h-14 w-full rounded-2xl bg-slate-950 px-4 py-3 text-base font-black text-lime-200 transition active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {sendingCode ? "발송 중..." : codeSent ? "인증번호 다시 발송" : "인증번호 발송"}
+                {sendingCode ? "발송 중..." : codeSent ? "인증번호 다시 받기" : "인증번호 받기"}
               </button>
-              <label className="block text-xs font-black text-oriwan-text-muted" htmlFor="admin-otp">
+              <label className="block text-sm font-black text-oriwan-text-muted" htmlFor="admin-otp">
                 인증번호
                 <input
                   id="admin-otp"
                   value={otp}
                   onChange={(event) => setOtp(event.target.value.replace(/\D/g, "").slice(0, 8))}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") verifyAdminCode();
-                  }}
                   inputMode="numeric"
                   autoComplete="one-time-code"
                   maxLength={8}
                   aria-describedby={authMessage ? "admin-auth-message" : undefined}
                   placeholder="메일로 받은 인증번호"
-                  className="mt-1 w-full rounded-2xl border border-oriwan-border bg-white px-4 py-3 text-center text-lg font-black tracking-[0.18em] outline-none focus:border-oriwan-primary"
+                  className="mt-2 min-h-14 w-full rounded-2xl border border-oriwan-border bg-white px-4 py-3 text-center text-lg font-black tracking-[0.18em] outline-none transition placeholder:tracking-normal focus:border-oriwan-primary focus:ring-4 focus:ring-blue-100"
                 />
               </label>
-              <button onClick={verifyAdminCode} disabled={!otp.trim() || verifyingCode} className="w-full rounded-2xl bg-lime-300 px-4 py-3 text-sm font-black text-slate-950 disabled:opacity-40">
+              <button type="submit" disabled={!otp.trim() || verifyingCode} className="min-h-14 w-full rounded-2xl bg-lime-300 px-4 py-3 text-base font-black text-slate-950 transition active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-40">
                 {verifyingCode ? "확인하는 중..." : "어드민으로 들어가기"}
               </button>
-            </div>
+            </form>
 
-            {authMessage && <p id="admin-auth-message" className="mt-4 rounded-2xl bg-white px-4 py-3 text-xs font-bold text-oriwan-text-muted" role="status">{authMessage}</p>}
+            {authMessage && <p id="admin-auth-message" className="mt-4 rounded-2xl bg-white px-4 py-3 text-sm font-bold leading-relaxed text-oriwan-text-muted" role="status" aria-live="polite">{authMessage}</p>}
           </div>
         </div>
       </main>

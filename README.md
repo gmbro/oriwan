@@ -91,3 +91,4 @@ Kakao REST API 키와 Client Secret은 애플리케이션 환경 변수가 아�
 - [배포·데이터 보존·어드민 준비 가이드](docs/hello-2027-production-readiness.md)
 - [4기 카카오 로그인·공개 대시보드·어드민 구조](docs/hello-2027-kakao-admin-architecture.md)
 - [오늘의 응원 상자 기획과 보안 기준](docs/hello-2027-daily-gift-box-plan.md)
+- [스내사 4기 관리자 OTP 메일 템플릿](docs/supabase-admin-otp-email-template.md)
