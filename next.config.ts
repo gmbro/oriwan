@@ -16,6 +16,14 @@ const contentSecurityPolicy = [
   "upgrade-insecure-requests",
 ].join("; ");
 
+const sensitiveApiPaths = [
+  "/api/auth/:path*",
+  "/api/me/:path*",
+  "/api/admin/:path*",
+  "/api/records/:path*",
+  "/api/participants/:path*",
+] as const;
+
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   async redirects() {
@@ -33,6 +41,10 @@ const nextConfig: NextConfig = {
   },
   async headers() {
     return [
+      ...sensitiveApiPaths.map((source) => ({
+        source,
+        headers: [{ key: "Cache-Control", value: "private, no-store" }],
+      })),
       {
         source: "/:path*",
         headers: [
