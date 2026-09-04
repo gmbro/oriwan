@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServiceClient } from "@/lib/admin-data";
-import { requireAdminUser } from "@/lib/admin-server";
-import { guardMutationRequest } from "@/lib/request-security";
-import { createClient } from "@/lib/supabase/server";
+import { requireAdminDataAccess } from "@/lib/admin-data-access";
+import { normalizeContentText } from "@/lib/hello-2027-content";
+import { guardMutationRequest, guardReadRequest } from "@/lib/request-security";
 import { isMissingTableError, missingSchemaResponse } from "@/lib/supabase-errors";
 import { getKakaoDisplayName } from "@/lib/kakao-display-name";
 import { FOURTH_SEASON_KEY } from "@/lib/participant-account-server";
+import { logServerFailure } from "@/lib/server-error-log";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -16,13 +16,16 @@ function userProviders(user: { app_metadata?: Record<string, unknown>; identitie
   ]);
 }
 
-export async function GET() {
-  const supabase = await createClient();
-  const { response } = await requireAdminUser(supabase);
-  if (response) return response;
+export async function GET(request: NextRequest) {
+  const guardResponse = guardReadRequest(request, {
+    requireSameOrigin: true,
+    rateLimit: { key: "admin-participant-accounts-read", limit: 60, windowMs: 60_000 },
+  });
+  if (guardResponse) return guardResponse;
 
-  const service = getServiceClient();
-  if (!service) return NextResponse.json({ error: "운영 서버 환경변수가 설정되지 않았어요." }, { status: 503 });
+  const access = await requireAdminDataAccess();
+  if (!access.ok) return access.response;
+  const { service } = access;
 
   try {
     const users = [];
@@ -67,7 +70,7 @@ export async function GET() {
       }),
     }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
-    console.error("Admin participant account list error:", error);
+    logServerFailure("Admin participant account list", error);
     return NextResponse.json({ error: "카카오 계정 목록을 불러오지 못했어요." }, { status: 500 });
   }
 }
@@ -76,35 +79,53 @@ export async function POST(request: NextRequest) {
   const guardResponse = guardMutationRequest(request, { maxBodyBytes: 8 * 1024 });
   if (guardResponse) return guardResponse;
 
-  const supabase = await createClient();
-  const { user: adminUser, response } = await requireAdminUser(supabase);
-  if (response || !adminUser) return response;
+  const access = await requireAdminDataAccess();
+  if (!access.ok) return access.response;
+  const { user: adminUser, service } = access;
 
   const body = await request.json().catch(() => ({}));
   const authUserId = typeof body.auth_user_id === "string" ? body.auth_user_id : "";
   const participantId = typeof body.participant_id === "string" ? body.participant_id : "";
-  const status = body.status === "revoked" ? "revoked" : "approved";
-  const requestedDisplayName = typeof body.display_name_override === "string"
-    ? body.display_name_override.trim().replace(/\s+/g, " ").slice(0, 40)
+  const status = body.status === "approved" || body.status === "revoked"
+    ? body.status
+    : null;
+  const rawDisplayName = typeof body.display_name_override === "string"
+    ? body.display_name_override
     : "";
+  const requestedDisplayName = rawDisplayName.trim()
+    ? normalizeContentText(rawDisplayName, 40)
+    : "";
+  if (
+    rawDisplayName.trim()
+    && (!requestedDisplayName || requestedDisplayName.length < 2)
+  ) {
+    return NextResponse.json({ error: "댓글에 표시할 이름은 2~40자의 일반 텍스트로 입력해주세요." }, { status: 400 });
+  }
+  if (!status) {
+    return NextResponse.json({ error: "계정 연결 상태는 승인 또는 해제로 선택해주세요." }, { status: 400 });
+  }
   if (!UUID_PATTERN.test(authUserId) || !UUID_PATTERN.test(participantId)) {
     return NextResponse.json({ error: "연결할 카카오 계정과 크루를 다시 선택해주세요." }, { status: 400 });
   }
 
-  const service = getServiceClient();
-  if (!service) return NextResponse.json({ error: "운영 서버 환경변수가 설정되지 않았어요." }, { status: 503 });
-
   try {
     const [{ data: authUserData, error: authUserError }, { data: participant, error: participantError }] = await Promise.all([
       service.auth.admin.getUserById(authUserId),
-      service.from("participants").select("id, name").eq("id", participantId).eq("user_id", adminUser.id).eq("active", true).maybeSingle(),
+      service
+        .from("participants")
+        .select("id, name")
+        .eq("id", participantId)
+        .eq("user_id", adminUser.id)
+        .eq("season_key", FOURTH_SEASON_KEY)
+        .eq("active", true)
+        .maybeSingle(),
     ]);
     if (authUserError || !authUserData.user || !userProviders(authUserData.user).has("kakao")) {
       return NextResponse.json({ error: "카카오 로그인 계정을 확인하지 못했어요." }, { status: 400 });
     }
     if (participantError) throw participantError;
     if (!participant) return NextResponse.json({ error: "활성 크루를 찾지 못했어요." }, { status: 404 });
-    const displayNameOverride = requestedDisplayName || participant.name.trim();
+    const displayNameOverride = requestedDisplayName || normalizeContentText(participant.name, 40) || "";
     if (status === "approved" && (displayNameOverride.length < 2 || displayNameOverride.length > 40)) {
       return NextResponse.json({ error: "댓글에 표시할 이름은 2~40자로 입력해주세요." }, { status: 400 });
     }
@@ -121,7 +142,7 @@ export async function POST(request: NextRequest) {
     };
     const { data, error } = await service
       .from("participant_accounts")
-      .upsert(payload, { onConflict: "auth_user_id" })
+      .upsert(payload, { onConflict: "season_key,auth_user_id" })
       .select("auth_user_id, participant_id, status, approved_at, display_name_override, season_key")
       .single();
 
@@ -137,7 +158,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ account: data });
   } catch (error) {
-    console.error("Admin participant account update error:", error);
+    logServerFailure("Admin participant account update", error);
     return NextResponse.json({ error: "카카오 계정 연결을 저장하지 못했어요." }, { status: 500 });
   }
 }

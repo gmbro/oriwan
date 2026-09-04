@@ -21,7 +21,7 @@ export default function PrivacyPage() {
             <h2 className="mb-2 text-base font-bold text-oriwan-text">1. 처리 주체와 현재 상태</h2>
             <p>
               TWTT 러닝보드는 (주)아키랩이 운영합니다. 현재 4기 화면은 더미데이터를 사용하는 사전 공개 상태이며,
-              댓글 작성·답글·반응은 운영용 서버 저장소와 관리 기능이 연결될 때까지 잠겨 있습니다.
+              댓글 작성·답글·반응은 운영 DB 스키마와 권한을 적용·검증하고 운영 플래그를 켤 때까지 잠겨 있습니다.
             </p>
             <p className="mt-2">운영·개인정보 문의 연락처는 정식 운영 전에 확정해 이 페이지에 고지할 예정입니다.</p>
           </section>
@@ -37,6 +37,7 @@ export default function PrivacyPage() {
               <li><strong>러닝 인증 정보:</strong> 날짜, 거리, 시간, 페이스, 인증 상태와 운영 메모</li>
               <li><strong>인증 검수 정보:</strong> 운영자가 다루는 러닝 기록 이미지, OCR 추출문과 신뢰도</li>
               <li><strong>댓글 정보:</strong> 본문, 답글, 반응, 작성 시각, 운영 상태와 작성자 연결 정보</li>
+              <li><strong>익명 댓글 식별 정보:</strong> HttpOnly 방문자 쿠키와 그 원문을 저장하지 않은 SHA-256 actor key</li>
               <li><strong>응원 상자 정보:</strong> 시즌, 인증일, 개봉 결과와 개봉 시각</li>
               <li><strong>오늘의 운세:</strong> 별도 저장 없이 로그인 식별자와 한국 날짜로 당일 결과를 서버에서 일시 계산</li>
               <li><strong>보안 정보:</strong> 오류·차단 결과, 요청 식별자 등 서비스 보호에 필요한 최소 로그</li>
@@ -60,7 +61,8 @@ export default function PrivacyPage() {
             <h2 className="mb-2 text-base font-bold text-oriwan-text">4. 로그인 상태별 기능과 이름 표시</h2>
             <p>
               대시보드는 로그인 없이 조회할 수 있습니다. 정식 댓글 기능이 열린 뒤 비로그인 방문자는 서버가 정한 랜덤
-              닉네임으로 댓글을 남기며, 사전 공개 기간에는 댓글을 작성할 수 없습니다.
+              닉네임으로 댓글을 남깁니다. 소유 확인용 256비트 방문자 토큰은 HttpOnly 쿠키로만 보관하고 DB에는 원문 대신
+              SHA-256 actor key를 저장합니다. 사전 공개 기간에는 댓글을 작성할 수 없습니다.
             </p>
             <p className="mt-2">
               개인 카카오 로그인 이용자는 Kakao가 제공한 프로필 닉네임으로 댓글을 작성합니다. 운영자가 크루 명단과
@@ -91,7 +93,7 @@ export default function PrivacyPage() {
               안내합니다.
             </p>
             <p className="mt-2">
-              운영 데이터 저장에는 Supabase를 사용할 예정입니다. 실제 프로젝트 리전, 데이터 처리 위치, 위탁·재위탁 세부
+              운영 데이터 저장 구조는 Supabase를 사용하도록 구현돼 있습니다. 실제 프로젝트 리전, 데이터 처리 위치, 위탁·재위탁 세부
               사항은 아직 확정되지 않았으며 운영 전에 확인해 이 방침에 반영합니다. 데이터 삭제 또는 계정 연결 해제 요청
               절차와 문의처도 같은 시점에 공개합니다.
             </p>

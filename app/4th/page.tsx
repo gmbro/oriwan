@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import { FourthSeasonOpeningNotice } from "@/components/fourth-season-opening-notice";
 import { Hello2027Poc } from "@/app/poc/hello-2027/hello-2027-poc";
-import { hello2027Snapshot } from "@/app/poc/hello-2027/hello-2027-poc-data";
 import { FourthViewerProvider } from "@/components/fourth-viewer-provider";
+import { getHello2027DashboardSnapshot } from "@/lib/hello-2027-dashboard-data";
+
+export const revalidate = 60;
 
 export const metadata: Metadata = {
   title: "TWTT 4기 · Hello 2027",
@@ -11,11 +13,13 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export default function FourthSeasonPage() {
+export default async function FourthSeasonPage() {
+  const snapshot = await getHello2027DashboardSnapshot();
+
   return (
     <FourthViewerProvider>
       <Hello2027Poc
-        snapshot={hello2027Snapshot}
+        snapshot={snapshot}
         memberFeatures
       />
       <FourthSeasonOpeningNotice />

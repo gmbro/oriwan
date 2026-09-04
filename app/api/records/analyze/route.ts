@@ -24,7 +24,12 @@ import {
   isCertificationCountedStatus,
   isRecoveryCertificationFlag,
 } from "@/lib/run-records";
-import { CHALLENGE_DATE_ERROR, CHALLENGE_START_DATE, isWithinChallengeWindow } from "@/lib/challenge";
+import {
+  FOURTH_SEASON_DATE_ERROR,
+  FOURTH_SEASON_KEY,
+  FOURTH_SEASON_START_DATE,
+  isWithinFourthSeasonWindow,
+} from "@/lib/fourth-season-contract";
 import {
   ExtractedRunBase,
   UploadedImage,
@@ -39,6 +44,8 @@ import {
 } from "@/lib/run-image-extraction";
 import { guardMutationRequest } from "@/lib/request-security";
 import { invalidatePublicDashboardCache } from "@/lib/public-dashboard-data";
+import { isMissingTableError, missingSchemaResponse } from "@/lib/supabase-errors";
+import { logServerFailure } from "@/lib/server-error-log";
 
 type ExtractedRun = ExtractedRunBase & {
   participant_name?: string | null;
@@ -98,7 +105,7 @@ async function analyzeImage(image: UploadedImage, knownNames: string[], targetDa
   const { mimeType, base64 } = parseDataUrl(image.dataUrl);
   const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
   const prompt = buildRunImagePrompt({
-    challengeYear: CHALLENGE_START_DATE.slice(0, 4),
+    challengeYear: FOURTH_SEASON_START_DATE.slice(0, 4),
     targetDate,
     knownNames,
     includeParticipantName: true,
@@ -186,7 +193,7 @@ async function uploadImageToStorage(input: {
   base64: string;
 }) {
   const extension = input.mimeType.split("/")[1] || "jpg";
-  const filePath = `run-records/${input.userId}/${input.batchId}/${input.imageIndex}-${Date.now()}.${extension}`;
+  const filePath = `run-records/${FOURTH_SEASON_KEY}/${input.userId}/${input.batchId}/${input.imageIndex}-${Date.now()}.${extension}`;
   const { error } = await input.supabase.storage
     .from("photos")
     .upload(filePath, Buffer.from(input.base64, "base64"), {
@@ -195,7 +202,7 @@ async function uploadImageToStorage(input: {
     });
 
   if (error) {
-    console.warn("Image storage upload skipped:", error.message);
+    logServerFailure("Image storage upload", error);
     return null;
   }
 
@@ -212,6 +219,7 @@ async function findExistingRecord(
     .from("daily_run_records")
     .select("id, distance_km, duration_seconds, status")
     .eq("user_id", userId)
+    .eq("season_key", FOURTH_SEASON_KEY)
     .eq("participant_id", participantId)
     .eq("record_date", recordDate)
     .maybeSingle();
@@ -273,7 +281,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const targetDate = normalizeRecordDate(body.targetDate);
+    const targetDate = normalizeRecordDate(body.targetDate, FOURTH_SEASON_START_DATE.slice(0, 4));
     const fallbackParticipantId = typeof body.fallbackParticipantId === "string" ? body.fallbackParticipantId : null;
     const rawImages = Array.isArray(body.images) ? body.images : [];
     const images = rawImages.filter(validImage).slice(0, MAX_IMAGES) as UploadedImage[];
@@ -287,14 +295,15 @@ export async function POST(request: NextRequest) {
     if (images.length !== rawImages.length) {
       return NextResponse.json({ error: "지원하지 않는 이미지 형식이거나 파일 용량이 너무 큽니다." }, { status: 400 });
     }
-    if (targetDate && !isWithinChallengeWindow(targetDate)) {
-      return NextResponse.json({ error: CHALLENGE_DATE_ERROR }, { status: 400 });
+    if (targetDate && !isWithinFourthSeasonWindow(targetDate)) {
+      return NextResponse.json({ error: FOURTH_SEASON_DATE_ERROR }, { status: 400 });
     }
 
     const { data: participantsData, error: participantError } = await supabase
       .from("participants")
       .select("id, name")
       .eq("user_id", user.id)
+      .eq("season_key", FOURTH_SEASON_KEY)
       .eq("active", true);
 
     if (participantError) throw participantError;
@@ -318,6 +327,7 @@ export async function POST(request: NextRequest) {
       .from("upload_batches")
       .insert({
         user_id: user.id,
+        season_key: FOURTH_SEASON_KEY,
         record_date: targetDate,
         total_images: images.length,
         processed_count: 0,
@@ -349,11 +359,7 @@ export async function POST(request: NextRequest) {
 
       if (!analyzedImage.ok) {
         const { error } = analyzedImage;
-        console.warn("Admin OCR image analysis failed", {
-          model: GEMINI_OCR_MODEL,
-          file: image.name,
-          error: getGeminiErrorDebug(error),
-        });
+        logServerFailure(`Admin OCR image analysis (${GEMINI_OCR_MODEL})`, error);
         let recordId: string | null = null;
         let filePath: string | null = null;
         const fallbackNotes = [
@@ -389,14 +395,12 @@ export async function POST(request: NextRequest) {
               base64: parsed.base64,
             });
           } catch (storageError) {
-            console.warn("Fallback image storage upload skipped", {
-              file: image.name,
-              error: storageError instanceof Error ? storageError.message : storageError,
-            });
+            logServerFailure("Fallback image storage upload", storageError);
           }
 
           const fallbackPayload = {
             user_id: user.id,
+            season_key: FOURTH_SEASON_KEY,
             participant_id: fallbackParticipant?.id || null,
             upload_batch_id: batch.id,
             record_date: targetDate,
@@ -417,6 +421,7 @@ export async function POST(request: NextRequest) {
               .update(fallbackPayload)
               .eq("id", existingRecord.id)
               .eq("user_id", user.id)
+              .eq("season_key", FOURTH_SEASON_KEY)
               .select("id")
               .single()
             : await supabase
@@ -450,7 +455,7 @@ export async function POST(request: NextRequest) {
       const participantNameMissing = !hasParticipantName(extractedParticipantName);
       const participant = matchParticipant(extractedParticipantName, participants) || (participantNameMissing ? fallbackParticipant : null);
       const usedFallbackParticipant = participantNameMissing && Boolean(fallbackParticipant);
-      const extractedDate = normalizeRecordDate(extracted.record_date);
+      const extractedDate = normalizeRecordDate(extracted.record_date, FOURTH_SEASON_START_DATE.slice(0, 4));
       const recordDate = extractedDate || targetDate;
       const dateWasFallback = !extractedDate && Boolean(targetDate);
       const extractedDurationSeconds = parseDurationText(extracted.duration_seconds ?? extracted.duration_text);
@@ -459,8 +464,8 @@ export async function POST(request: NextRequest) {
       const durationSeconds = isRecoveryCertification ? RECOVERY_CERTIFICATION_DURATION_SECONDS : extractedDurationSeconds;
       const distanceKm = isRecoveryCertification ? RECOVERY_CERTIFICATION_DISTANCE_KM : extractedDistanceKm;
 
-      if (recordDate && !isWithinChallengeWindow(recordDate)) {
-        return NextResponse.json({ error: CHALLENGE_DATE_ERROR }, { status: 400 });
+      if (recordDate && !isWithinFourthSeasonWindow(recordDate)) {
+        return NextResponse.json({ error: FOURTH_SEASON_DATE_ERROR }, { status: 400 });
       }
 
       let existingRecord: ExistingRunRecord | null = null;
@@ -499,6 +504,7 @@ export async function POST(request: NextRequest) {
 
       const recordPayload = {
         user_id: user.id,
+        season_key: FOURTH_SEASON_KEY,
         participant_id: participant?.id || null,
         upload_batch_id: batch.id,
         record_date: recordDate,
@@ -528,6 +534,7 @@ export async function POST(request: NextRequest) {
           .update(recordPayload)
           .eq("id", existingRecord.id)
           .eq("user_id", user.id)
+          .eq("season_key", FOURTH_SEASON_KEY)
           .select("id")
           .single()
         : await supabase
@@ -559,13 +566,17 @@ export async function POST(request: NextRequest) {
         needs_review_count: needsReviewCount,
       })
       .eq("id", batch.id)
-      .eq("user_id", user.id);
+      .eq("user_id", user.id)
+      .eq("season_key", FOURTH_SEASON_KEY);
 
     if (results.some((result) => result.id)) invalidatePublicDashboardCache();
 
     return NextResponse.json({ batch_id: batch.id, results });
   } catch (err) {
-    console.error("Image analysis error:", err);
+    logServerFailure("Image analysis", err);
+    if (isMissingTableError(err)) {
+      return NextResponse.json(missingSchemaResponse("4기 OCR 저장 스키마가 아직 준비되지 않았어요."), { status: 503 });
+    }
     return NextResponse.json({ error: "이미지를 읽는 중 문제가 생겼어요. 잠시 후 다시 시도해주세요." }, { status: 500 });
   }
 }

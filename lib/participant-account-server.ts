@@ -2,7 +2,10 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { findAdminUserId } from "@/lib/admin-data";
+import { FOURTH_SEASON_KEY } from "@/lib/fourth-season-contract";
 import { isMissingTableError } from "@/lib/supabase-errors";
+
+export { FOURTH_SEASON_KEY } from "@/lib/fourth-season-contract";
 
 export type ParticipantAccountConnectionStatus =
   | "approved"
@@ -36,8 +39,6 @@ type ParticipantAccountRow = {
   status: string | null;
   display_name_override: string | null;
 };
-
-export const FOURTH_SEASON_KEY = "4th";
 
 const CONNECTION_MESSAGES: Record<ParticipantAccountConnectionStatus, string> = {
   approved: "관리자 승인이 완료된 계정입니다.",
@@ -101,6 +102,7 @@ export async function resolveParticipantAccount(
     .select("id, name, active, display_order, created_at")
     .eq("id", account.participant_id)
     .eq("user_id", adminUserId)
+    .eq("season_key", FOURTH_SEASON_KEY)
     .eq("active", true)
     .maybeSingle();
 

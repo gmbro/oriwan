@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminDataAccess } from "@/lib/admin-data-access";
 import { calculatePaceSeconds } from "@/lib/run-records";
-import { CHALLENGE_DATE_ERROR, isWithinChallengeWindow } from "@/lib/challenge";
 import { guardMutationRequest } from "@/lib/request-security";
 import { invalidatePublicDashboardCache } from "@/lib/public-dashboard-data";
+import {
+  FOURTH_SEASON_DATE_ERROR,
+  FOURTH_SEASON_KEY,
+  isWithinFourthSeasonWindow,
+} from "@/lib/fourth-season-contract";
+import { logServerFailure } from "@/lib/server-error-log";
 
 const RECORD_STATUSES = new Set(["certified", "needs_review", "missing", "rejected"]);
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function sanitizeNumber(value: unknown) {
   if (value === null || value === undefined || value === "") return null;
@@ -38,13 +44,16 @@ export async function PATCH(
   const { user, service: supabase } = access;
 
   const { id } = await context.params;
+  if (!UUID_PATTERN.test(id)) {
+    return NextResponse.json({ error: "수정할 기록을 다시 선택해주세요." }, { status: 400 });
+  }
   const body = await request.json().catch(() => ({}));
   const patch: Record<string, string | number | null> = {};
 
   if (typeof body.participant_id === "string") patch.participant_id = body.participant_id;
   if (typeof body.record_date === "string") patch.record_date = body.record_date;
-  if (typeof body.record_date === "string" && !isWithinChallengeWindow(body.record_date)) {
-    return NextResponse.json({ error: CHALLENGE_DATE_ERROR }, { status: 400 });
+  if (typeof body.record_date === "string" && !isWithinFourthSeasonWindow(body.record_date)) {
+    return NextResponse.json({ error: FOURTH_SEASON_DATE_ERROR }, { status: 400 });
   }
   if ("distance_km" in body) patch.distance_km = sanitizeNumber(body.distance_km);
   if ("duration_seconds" in body) patch.duration_seconds = sanitizeInteger(body.duration_seconds);
@@ -62,11 +71,12 @@ export async function PATCH(
       .select("id")
       .eq("id", patch.participant_id)
       .eq("user_id", user.id)
+      .eq("season_key", FOURTH_SEASON_KEY)
       .eq("active", true)
       .maybeSingle();
 
     if (participantError) {
-      console.error("Record participant validation error:", participantError);
+      logServerFailure("Record participant validation", participantError);
       return NextResponse.json({ error: "멤버 정보를 확인하지 못했어요." }, { status: 500 });
     }
     if (!participant) {
@@ -88,10 +98,11 @@ export async function PATCH(
     .from("daily_run_records")
     .update(patch)
     .eq("id", id)
-    .eq("user_id", user.id);
+    .eq("user_id", user.id)
+    .eq("season_key", FOURTH_SEASON_KEY);
 
   if (error) {
-    console.error("Record update error:", error);
+    logServerFailure("Record update", error);
     if (isUniqueConflictError(error)) {
       return NextResponse.json({ error: "이미 그 멤버의 같은 날짜 기록이 있어요. 기존 기록을 먼저 확인해주세요." }, { status: 409 });
     }
@@ -115,14 +126,18 @@ export async function DELETE(
   const { user, service: supabase } = access;
 
   const { id } = await context.params;
+  if (!UUID_PATTERN.test(id)) {
+    return NextResponse.json({ error: "삭제할 기록을 다시 선택해주세요." }, { status: 400 });
+  }
   const { error } = await supabase
     .from("daily_run_records")
     .delete()
     .eq("id", id)
-    .eq("user_id", user.id);
+    .eq("user_id", user.id)
+    .eq("season_key", FOURTH_SEASON_KEY);
 
   if (error) {
-    console.error("Record delete error:", error);
+    logServerFailure("Record delete", error);
     return NextResponse.json({ error: "러닝 기록을 삭제하지 못했어요." }, { status: 500 });
   }
 

@@ -44,6 +44,7 @@ app/api/records/analyze/route.ts    이미지 OCR 분석 및 기록 생성
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase 프로젝트 URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon key |
 | `SUPABASE_SERVICE_ROLE_KEY` | Storage 업로드용 service role key |
+| `FOURTH_DASHBOARD_LIVE` | 운영 전환 플래그. 정확히 `true`일 때만 `/4th`가 실데이터를 사용하며, 장애 시 빈 화면으로 실패-폐쇄 |
 | `GEMINI_API_KEY` | Gemini 이미지 분석 API 키 |
 | `GEMINI_OCR_MODEL` | 선택. 기본 OCR 모델이며 기본값은 `gemini-3.1-flash-lite` |
 | `GEMINI_OCR_FALLBACK_MODEL` | 선택. 품질 미달 때만 호출하며 기본값은 `gemini-3.5-flash` |

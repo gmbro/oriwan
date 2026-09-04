@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSafeAuthReturnPath } from "@/lib/auth-return-path";
 import { guardReadRequest } from "@/lib/request-security";
+import { logServerFailure } from "@/lib/server-error-log";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -73,7 +74,7 @@ export async function GET(request: NextRequest) {
 
     return authRedirect(authorizationUrl);
   } catch (error) {
-    console.error("Kakao OAuth start error:", error);
+    logServerFailure("Kakao OAuth start", error);
     return backToEntry(request, "auth_failed");
   }
 }

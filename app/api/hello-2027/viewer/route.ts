@@ -1,13 +1,28 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getServiceClient } from "@/lib/admin-data";
 import { resolveParticipantAccount } from "@/lib/participant-account-server";
+import { guardReadRequest } from "@/lib/request-security";
+import { logServerFailure } from "@/lib/server-error-log";
 import { createClient } from "@/lib/supabase/server";
 import { getKakaoDisplayName } from "@/lib/kakao-display-name";
 
 export const dynamic = "force-dynamic";
 const privateHeaders = { "Cache-Control": "private, no-store, max-age=0", Vary: "Cookie" };
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const guardResponse = guardReadRequest(request, {
+    rateLimit: {
+      key: "hello-2027-viewer-read",
+      limit: 120,
+      windowMs: 60_000,
+    },
+  });
+  if (guardResponse) {
+    guardResponse.headers.set("Cache-Control", privateHeaders["Cache-Control"]);
+    guardResponse.headers.set("Vary", privateHeaders.Vary);
+    return guardResponse;
+  }
+
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return NextResponse.json({
       authenticated: false,
@@ -52,7 +67,7 @@ export async function GET() {
       connectionStatus = connection.status;
       displayName = approvedParticipant ? connection.displayName : displayName;
     } catch (error) {
-      console.error("Hello 2027 viewer participant lookup error:", error);
+      logServerFailure("Hello 2027 viewer participant lookup", error);
     }
   }
 

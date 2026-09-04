@@ -14,7 +14,12 @@ const ADMIN_SESSION_COOKIE = "oriwan_admin_verified";
 const ADMIN_SESSION_MAX_AGE_SECONDS = 60 * 60 * 2;
 
 function getAdminSessionSecret() {
-  return process.env.ADMIN_SESSION_SECRET || null;
+  const secret = process.env.ADMIN_SESSION_SECRET;
+  if (!secret || Buffer.byteLength(secret, "utf8") < 32) return null;
+  if (secret === process.env.SUPABASE_SERVICE_ROLE_KEY || secret === process.env.DAILY_FORTUNE_SECRET) {
+    return null;
+  }
+  return secret;
 }
 
 function signAdminSession(userId: string, expiresAt: number) {

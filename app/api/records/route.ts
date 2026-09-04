@@ -3,9 +3,14 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireAdminDataAccess } from "@/lib/admin-data-access";
 import { calculatePaceSeconds } from "@/lib/run-records";
 import { isMissingTableError, missingSchemaResponse } from "@/lib/supabase-errors";
-import { CHALLENGE_DATE_ERROR, isWithinChallengeWindow } from "@/lib/challenge";
 import { guardMutationRequest } from "@/lib/request-security";
 import { invalidatePublicDashboardCache } from "@/lib/public-dashboard-data";
+import {
+  FOURTH_SEASON_DATE_ERROR,
+  FOURTH_SEASON_KEY,
+  isWithinFourthSeasonWindow,
+} from "@/lib/fourth-season-contract";
+import { logServerFailure } from "@/lib/server-error-log";
 
 const RECORD_STATUSES = new Set(["certified", "needs_review", "missing", "rejected"]);
 const RECORDS_PAGE_SIZE = 1000;
@@ -63,7 +68,8 @@ async function fetchAdminRecords({
         created_at,
         participants(id, name)
       `)
-      .eq("user_id", userId);
+      .eq("user_id", userId)
+      .eq("season_key", FOURTH_SEASON_KEY);
 
     if (from) query = query.gte("record_date", from);
     if (to) query = query.lte("record_date", to);
@@ -95,7 +101,7 @@ export async function GET(request: NextRequest) {
   const { data, error } = await fetchAdminRecords({ supabase, userId: user.id, from, to });
 
   if (error) {
-    console.error("Records query error:", error);
+    logServerFailure("Records query", error);
     if (isMissingTableError(error)) {
       return NextResponse.json(missingSchemaResponse("러닝 기록 테이블이 아직 준비되지 않았어요."), { status: 503 });
     }
@@ -123,8 +129,8 @@ export async function POST(request: NextRequest) {
   if (!participantId || !recordDate) {
     return NextResponse.json({ error: "멤버와 날짜를 함께 선택해주세요." }, { status: 400 });
   }
-  if (!isWithinChallengeWindow(recordDate)) {
-    return NextResponse.json({ error: CHALLENGE_DATE_ERROR }, { status: 400 });
+  if (!isWithinFourthSeasonWindow(recordDate)) {
+    return NextResponse.json({ error: FOURTH_SEASON_DATE_ERROR }, { status: 400 });
   }
   if (!hasPositiveMetric(distanceKm) && !hasPositiveMetric(durationSeconds)) {
     return NextResponse.json({ error: "거리 또는 시간 중 하나는 입력해주세요." }, { status: 400 });
@@ -135,23 +141,29 @@ export async function POST(request: NextRequest) {
     .select("id")
     .eq("id", participantId)
     .eq("user_id", user.id)
+    .eq("season_key", FOURTH_SEASON_KEY)
     .eq("active", true)
     .maybeSingle();
 
   if (participantError) {
-    console.error("Record participant validation error:", participantError);
+    logServerFailure("Record participant validation", participantError);
     return NextResponse.json({ error: "멤버 정보를 확인하지 못했어요." }, { status: 500 });
   }
   if (!participant) {
     return NextResponse.json({ error: "활성 멤버를 찾지 못했어요. 멤버 목록을 새로고침해주세요." }, { status: 400 });
   }
 
-  const status = sanitizeStatus(body.status) || "certified";
+  const statusProvided = Object.hasOwn(body, "status");
+  const status = statusProvided ? sanitizeStatus(body.status) : "certified";
+  if (!status) {
+    return NextResponse.json({ error: "기록 상태값을 다시 확인해주세요." }, { status: 400 });
+  }
   const { data, error } = await supabase
     .from("daily_run_records")
     .upsert(
       {
         user_id: user.id,
+        season_key: FOURTH_SEASON_KEY,
         participant_id: participantId,
         record_date: recordDate,
         distance_km: distanceKm,
@@ -164,13 +176,13 @@ export async function POST(request: NextRequest) {
         raw_extracted_text: body.raw_extracted_text || null,
         notes: body.notes || null,
       },
-      { onConflict: "user_id,participant_id,record_date" }
+      { onConflict: "season_key,user_id,participant_id,record_date" }
     )
     .select("id")
     .single();
 
   if (error) {
-    console.error("Record save error:", error);
+    logServerFailure("Record save", error);
     if (isMissingTableError(error)) {
       return NextResponse.json(missingSchemaResponse("러닝 기록 테이블이 아직 준비되지 않았어요."), { status: 503 });
     }

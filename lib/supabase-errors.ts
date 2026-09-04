@@ -5,8 +5,10 @@ export function isMissingTableError(error: unknown) {
   return (
     maybeError.code === "PGRST205" ||
     maybeError.code === "PGRST204" ||
+    maybeError.code === "PGRST202" ||
     maybeError.code === "42P01" ||
     Boolean(maybeError.message?.includes("Could not find the table")) ||
+    Boolean(maybeError.message?.includes("Could not find the function")) ||
     Boolean(maybeError.message?.includes("Could not find the") && maybeError.message?.includes("column")) ||
     Boolean(maybeError.message?.includes("does not exist"))
   );

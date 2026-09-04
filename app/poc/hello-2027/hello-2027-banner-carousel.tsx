@@ -158,6 +158,11 @@ export function Hello2027BannerCarousel({ ads, dayPhaseClass, todayRate }: Hello
                     fill
                     unoptimized={ad.isUploaded}
                     sizes="100vw"
+                    className={ad.mobileFocus === "left"
+                      ? styles.mobileFocusLeft
+                      : ad.mobileFocus === "right"
+                        ? styles.mobileFocusRight
+                        : styles.mobileFocusCenter}
                   />
                 ) : null}
               </div>
@@ -212,7 +217,19 @@ export function Hello2027BannerCarousel({ ads, dayPhaseClass, todayRate }: Hello
             ? "배너 자동 전환 정지됨"
             : isUserPaused ? "배너 자동 전환 재생" : "배너 자동 전환 일시정지"}
           disabled={prefersReducedMotion || slideCount <= 1}
-          onClick={() => setIsUserPaused((current) => !current)}
+          onClick={(event) => {
+            const shouldResume = isUserPaused;
+            setIsUserPaused(!isUserPaused);
+
+            // Pointer activation leaves focus on the button, which would keep
+            // the carousel paused via focus/hover. An explicit pointer resume
+            // wins until the pointer leaves and enters the banner again;
+            // keyboard focus still pauses it for accessibility.
+            if (shouldResume && event.detail > 0) {
+              setIsHovered(false);
+              event.currentTarget.blur();
+            }
+          }}
         >
           {prefersReducedMotion ? "정지됨" : isUserPaused ? "재생" : "일시정지"}
         </button>

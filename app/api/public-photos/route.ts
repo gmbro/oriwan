@@ -9,6 +9,7 @@ import {
   parseGalleryDate,
 } from "@/lib/gallery-photos";
 import { guardReadRequest } from "@/lib/request-security";
+import { logServerFailure } from "@/lib/server-error-log";
 
 const PUBLIC_PHOTOS_CACHE_CONTROL = "public, max-age=0, s-maxage=60, stale-while-revalidate=300";
 const PUBLIC_PHOTOS_MEMORY_CACHE_TTL_MS = 60_000;
@@ -257,7 +258,7 @@ export async function GET(request: NextRequest) {
     const { payload, cacheStatus } = await getPublicPhotosPayload(bypassCache);
     return publicPhotosResponse(payload, cacheStatus);
   } catch (error) {
-    console.error("Public photos error:", error);
+    logServerFailure("Public photos", error);
     return NextResponse.json({ error: "사진첩을 불러오는 중 문제가 생겼어요.", groups: [] }, { status: 500 });
   }
 }

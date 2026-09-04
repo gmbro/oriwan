@@ -1,7 +1,15 @@
 import { revalidatePath, revalidateTag, unstable_cache } from "next/cache";
 import type { PostgrestError, SupabaseClient } from "@supabase/supabase-js";
 import { findAdminUserId, getServiceClient } from "@/lib/admin-data";
-import { ACTUAL_CERTIFICATION_START_DATE, CERTIFICATION_DISPLAY_START_DATE, CHALLENGE_DAYS, CHALLENGE_END_DATE, CHALLENGE_START_DATE, clampToChallengeStart, isCertificationParticipant } from "@/lib/challenge";
+import {
+  FOURTH_SEASON_DAYS as CHALLENGE_DAYS,
+  FOURTH_SEASON_END_DATE as CHALLENGE_END_DATE,
+  FOURTH_SEASON_KEY,
+  FOURTH_SEASON_START_DATE as ACTUAL_CERTIFICATION_START_DATE,
+  FOURTH_SEASON_START_DATE as CERTIFICATION_DISPLAY_START_DATE,
+  FOURTH_SEASON_START_DATE as CHALLENGE_START_DATE,
+  clampToFourthSeasonWindow,
+} from "@/lib/fourth-season-contract";
 import {
   getPersonalGrowthBadgeEarnedDates,
   isKnownGrowthBadgeKey,
@@ -13,7 +21,7 @@ import { addDays, getCertificationCreditMetrics, isCertificationCountedStatus, i
 import { isMissingTableError, missingSchemaResponse } from "@/lib/supabase-errors";
 
 const PUBLIC_DASHBOARD_REVALIDATE_SECONDS = 60;
-const PUBLIC_DASHBOARD_PAYLOAD_VERSION = "recovery-growth-credit-v3-private-intros";
+const PUBLIC_DASHBOARD_PAYLOAD_VERSION = "4th-season-isolated-v1";
 export const PUBLIC_DASHBOARD_CACHE_TAG = "public-dashboard";
 export const PUBLIC_DASHBOARD_CACHE_CONTROL = "private, no-store, max-age=0, must-revalidate";
 const PUBLIC_DASHBOARD_MEMORY_CACHE_TTL_MS = PUBLIC_DASHBOARD_REVALIDATE_SECONDS * 1000;
@@ -61,6 +69,7 @@ type PublicDashboardCacheEntry = {
 
 type GrowthBadgeInsertRow = {
   user_id: string;
+  season_key: string;
   participant_id: string;
   badge_key: string;
   earned_at: string;
@@ -148,6 +157,7 @@ async function fetchDashboardRecords({
         notes
       `)
       .eq("user_id", adminUserId)
+      .eq("season_key", FOURTH_SEASON_KEY)
       .in("status", ["certified", "needs_review"])
       .gte("record_date", from)
       .lte("record_date", to)
@@ -200,7 +210,8 @@ function makeCalculatedGrowthBadgeRows({
               durationSeconds: record.duration_seconds || 0,
             }]
           : []
-      ))
+      )),
+      { seasonStartDate: ACTUAL_CERTIFICATION_START_DATE },
     );
 
     return PERSONAL_GROWTH_BADGE_KEYS.flatMap((badgeKey): GrowthBadgeInsertRow[] => {
@@ -209,6 +220,7 @@ function makeCalculatedGrowthBadgeRows({
 
       return [{
         user_id: adminUserId,
+        season_key: FOURTH_SEASON_KEY,
         participant_id: participant.id,
         badge_key: badgeKey,
         earned_at: new Date(`${earnedDate}T12:00:00+09:00`).toISOString(),
@@ -247,7 +259,8 @@ async function syncGrowthBadgeRows({
   const { data: existingRows, error: existingError } = await supabase
     .from("participant_growth_badges")
     .select("participant_id, badge_key, earned_at")
-    .eq("user_id", adminUserId);
+    .eq("user_id", adminUserId)
+    .eq("season_key", FOURTH_SEASON_KEY);
 
   if (existingError) {
     if (!isMissingTableError(existingError)) {
@@ -279,7 +292,7 @@ async function syncGrowthBadgeRows({
   const { data: updatedRows, error: updateError } = await supabase
     .from("participant_growth_badges")
     .upsert(changedRows, {
-      onConflict: "user_id,participant_id,badge_key",
+      onConflict: "season_key,user_id,participant_id,badge_key",
     })
     .select("participant_id, badge_key, earned_at");
 
@@ -307,9 +320,11 @@ export function getPublicDashboardDateRange({
   today?: string;
 }) {
   const days = Number.isFinite(daysParam) ? Math.min(Math.max(daysParam || 30, 7), 366) : 30;
-  const to = today;
+  const to = clampToFourthSeasonWindow(today);
   const rangeEnd = new Date(`${to}T00:00:00`);
-  const from = scope === "all" ? CHALLENGE_START_DATE : clampToChallengeStart(toIsoDate(addDays(rangeEnd, -(days - 1))));
+  const from = scope === "all"
+    ? CHALLENGE_START_DATE
+    : clampToFourthSeasonWindow(toIsoDate(addDays(rangeEnd, -(days - 1))));
   const cacheKey = `${PUBLIC_DASHBOARD_PAYLOAD_VERSION}:${scope || "range"}:${from}:${to}`;
 
   return { from, to, cacheKey };
@@ -330,7 +345,8 @@ export async function buildPublicDashboardPayload(
   let participantsQuery = supabase
     .from("participants")
     .select("id, name, active, display_order, created_at")
-    .eq("user_id", adminUserId);
+    .eq("user_id", adminUserId)
+    .eq("season_key", FOURTH_SEASON_KEY);
   if (participantScope === "active") participantsQuery = participantsQuery.eq("active", true);
 
   const [participantsResult, recordsResult] = await Promise.all([
@@ -363,7 +379,6 @@ export async function buildPublicDashboardPayload(
       .flatMap((record) => record.participant_id ? [record.participant_id] : []),
   );
   const participants = ((participantsResult.data || []) as PublicDashboardParticipant[])
-    .filter(isCertificationParticipant)
     .filter((participant) => (
       participantScope === "active"
       || Boolean(participant.created_at && participant.created_at.slice(0, 10) <= to)
@@ -424,6 +439,7 @@ export function invalidatePublicDashboardCache() {
   publicDashboardCache = null;
   revalidateTag(PUBLIC_DASHBOARD_CACHE_TAG, { expire: 0 });
   revalidatePath("/dashboard");
+  revalidatePath("/4th");
   revalidatePath("/api/public-dashboard");
   revalidatePath("/dashboard/report");
   revalidatePath("/dashboard/report/[participantId]", "page");

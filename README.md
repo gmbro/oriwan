@@ -16,7 +16,9 @@ TWTT 크루의 시즌별 러닝 인증, 공개 현황, 개인 오늘의 운세·
 
 ## 현재 오픈 전 상태
 
-`/4th`에는 화면 검증용 크루·배너·응원글·댓글 더미데이터가 들어 있으며 검색엔진 색인을 막아 두었습니다. 헤더에서 카카오 로그인·로그아웃 상태를 확인하고, 로그인 이용자는 인증 없이 오늘의 운세를 볼 수 있습니다. 운영자가 4기 시즌으로 다시 확인해 연결한 크루는 4기 기간의 오늘 인증을 완료한 뒤 응원 상자를 하루 한 번 엽니다. 서버 댓글 저장소가 준비되기 전까지 댓글·답글·반응은 읽기 전용입니다. 광고·응원글의 로컬 편집 내용은 현재 브라우저 IndexedDB에만 저장되어 기기나 어드민 사이에서 공유되지 않습니다. 정식 오픈 전 더미데이터를 제거하고 운영 Supabase API로 전환해야 합니다.
+`/4th`에는 화면 검증용 크루·배너·응원글·댓글 더미데이터가 들어 있으며 검색엔진 색인을 막아 두었습니다. 헤더에서 카카오 로그인·로그아웃 상태를 확인하고, 로그인 이용자는 인증 없이 오늘의 운세를 볼 수 있습니다. 운영자가 4기 시즌으로 다시 확인해 연결한 크루는 4기 기간의 오늘 인증을 완료한 뒤 응원 상자를 하루 한 번 엽니다.
+
+공개 응원글·배너·크루 자기소개는 Supabase 서버 API를 우선 사용하고, 스키마가 아직 없거나 조회에 실패하면 코드의 더미 콘텐츠로 안전하게 대체합니다. `/admin`에서 응원글 56개, 배너 10개, 크루 자기소개와 댓글 상태를 관리할 수 있습니다. 댓글·답글·반응도 서버 API가 구현되어 있지만, 운영 스키마를 적용하고 `HELLO_2027_COMMENTS_LIVE=true`로 명시하기 전에는 더미 댓글 읽기 전용으로 실패-폐쇄됩니다. 정식 오픈 전 더미데이터를 제거하고 실계정·권한·보존 정책을 최종 확인해야 합니다.
 
 3기 화면과 리포트는 `data/third-season-public-dashboard.json`의 2026-05-05~08-12 동결본을 함께 읽습니다. 공개본은 운영 UUID와 불필요한 생성 시각을 제거한 전용 식별자를 사용합니다.
 
@@ -56,6 +58,7 @@ npm run build
 - `ADMIN_SESSION_SECRET`
 - `DAILY_FORTUNE_SECRET` (32바이트 이상의 운세 전용 난수값)
 - `FOURTH_GIFT_BOX_LIVE` (`true`일 때만 4기 운영 기간 내 응원 상자 지급 활성화)
+- `HELLO_2027_COMMENTS_LIVE` (`true`일 때만 4기 댓글·답글·반응 쓰기 활성화)
 - `ADMIN_USER_ID`
 - `GEMINI_API_KEY`
 
@@ -71,7 +74,7 @@ npm run build
 - `YOUTUBE_API_KEY`
 - `GOOGLE_YOUTUBE_API_KEY`
 
-Kakao REST API 키와 Client Secret은 애플리케이션 환경 변수가 아니라 Supabase Authentication의 Kakao Provider 설정에 직접 등록합니다. `NEXT_PUBLIC_SUPABASE_ANON_KEY` 또는 publishable key는 공개 클라이언트 식별값이며 보안 경계는 RLS와 grants입니다. `SUPABASE_SERVICE_ROLE_KEY`, Kakao Client Secret, `ADMIN_SESSION_SECRET`, `DAILY_FORTUNE_SECRET`은 브라우저 코드와 `NEXT_PUBLIC_*` 변수에 넣지 않습니다. `FOURTH_GIFT_BOX_LIVE`는 운영 준비 점검을 모두 통과한 뒤에만 `true`로 전환합니다.
+Kakao REST API 키와 Client Secret은 애플리케이션 환경 변수가 아니라 Supabase Authentication의 Kakao Provider 설정에 직접 등록합니다. `NEXT_PUBLIC_SUPABASE_ANON_KEY` 또는 publishable key는 공개 클라이언트 식별값이며 보안 경계는 RLS와 grants입니다. `SUPABASE_SERVICE_ROLE_KEY`, Kakao Client Secret, `ADMIN_SESSION_SECRET`, `DAILY_FORTUNE_SECRET`은 브라우저 코드와 `NEXT_PUBLIC_*` 변수에 넣지 않습니다. `FOURTH_GIFT_BOX_LIVE`와 `HELLO_2027_COMMENTS_LIVE`는 각각의 운영 준비 점검을 통과한 뒤에만 `true`로 전환합니다.
 
 ## Supabase 적용 순서
 
@@ -80,7 +83,7 @@ Kakao REST API 키와 Client Secret은 애플리케이션 환경 변수가 아�
 1. 기본 스키마: [`docs/supabase-schema.sql`](docs/supabase-schema.sql)
 2. RLS·권한 하드닝: [`docs/supabase-security-hardening.sql`](docs/supabase-security-hardening.sql)
 
-적용 후 anon/authenticated 직접 쓰기 차단, service role 권한, private Storage, 관리자 OTP와 카카오 계정 연결을 실제 계정으로 확인합니다.
+두 SQL은 순서대로 모두 적용합니다. 기본 스키마도 일반 `anon`·`authenticated` 권한을 차단하고, 하드닝 SQL이 이를 다시 검증합니다. 적용 후 service role 권한, private Storage, 관리자 OTP, 기수별 카카오 계정 연결, 댓글 비식별 삭제를 실제 계정으로 확인합니다.
 
 ## 운영 문서
 

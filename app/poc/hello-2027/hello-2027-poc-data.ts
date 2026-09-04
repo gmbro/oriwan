@@ -12,9 +12,8 @@ export type Hello2027Ad = {
   alt: string;
   imageSrc: string;
   mediaId?: string;
+  mobileFocus?: "left" | "center" | "right";
 };
-
-export type Hello2027AuthorMode = "real" | "random" | "kakao";
 
 export type Hello2027Reaction = {
   emoji: "👍" | "❤️" | "👏" | "🌱" | "🏃";
@@ -30,7 +29,6 @@ export type Hello2027ProfileIntroduction = {
 export type Hello2027GuestbookReply = {
   id: string;
   author: string;
-  authorMode: Hello2027AuthorMode;
   body: string;
   createdAt: string;
   reactions: readonly Hello2027Reaction[];
@@ -39,7 +37,6 @@ export type Hello2027GuestbookReply = {
 export type Hello2027GuestbookThread = {
   id: string;
   author: string;
-  authorMode: Hello2027AuthorMode;
   body: string;
   createdAt: string;
   reactions: readonly Hello2027Reaction[];
@@ -63,6 +60,7 @@ export type Hello2027Participant = {
 export type Hello2027Snapshot = {
   seasonName: string;
   versionName: string;
+  referenceDateIso?: string;
   referenceDateLabel: string;
   referenceDateShort: string;
   dayNumber: number;
@@ -104,6 +102,7 @@ const participants: readonly Hello2027Participant[] = [
 export const hello2027Snapshot: Hello2027Snapshot = {
   seasonName: "TWTT 4th",
   versionName: "Hello 2027",
+  referenceDateIso: "2026-10-16",
   referenceDateLabel: "2026. 10. 16. 금요일",
   referenceDateShort: "10.16 금",
   dayNumber: 24,
@@ -203,7 +202,6 @@ export const hello2027Snapshot: Hello2027Snapshot = {
     {
       id: "guestbook-1",
       author: "새벽다람쥐",
-      authorMode: "random",
       body: "오늘은 출발할 때 조금 무거웠는데, 다녀오고 나니 하루가 훨씬 가벼워졌어요.",
       createdAt: "2026-10-16T07:42:00+09:00",
       reactions: [
@@ -214,7 +212,6 @@ export const hello2027Snapshot: Hello2027Snapshot = {
         {
           id: "guestbook-1-reply-1",
           author: "문서아",
-          authorMode: "real",
           body: "저도 그랬어요. 내일 아침에도 천천히 같이 나가요!",
           createdAt: "2026-10-16T08:06:00+09:00",
           reactions: [{ emoji: "👏", count: 1, reacted: false }],
@@ -224,7 +221,6 @@ export const hello2027Snapshot: Hello2027Snapshot = {
     {
       id: "guestbook-2",
       author: "저녁반딧불",
-      authorMode: "random",
       body: "주말 인증 시간도 평일과 동일한지 궁금해요.",
       createdAt: "2026-10-15T21:18:00+09:00",
       reactions: [{ emoji: "🌱", count: 3, reacted: false }],

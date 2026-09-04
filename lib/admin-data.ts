@@ -4,6 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ADMIN_EMAIL } from "@/lib/admin";
 import { normalizeRunnerName } from "@/lib/challenge";
+import { FOURTH_SEASON_KEY } from "@/lib/fourth-season-contract";
 
 type AdminUser = {
   id: string;
@@ -109,6 +110,7 @@ export async function getAdminParticipants(supabase: SupabaseClient, adminUserId
     .from("participants")
     .select("id, name, active, display_order, created_at")
     .eq("user_id", adminUserId)
+    .eq("season_key", FOURTH_SEASON_KEY)
     .eq("active", true)
     .order("display_order", { ascending: true })
     .order("created_at", { ascending: true });

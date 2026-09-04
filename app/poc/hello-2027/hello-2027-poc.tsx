@@ -64,14 +64,16 @@ export function Hello2027Poc({ snapshot, initialDayPhase = "day", memberFeatures
   const dialogRef = useRef<HTMLDialogElement>(null);
   const dialogTitleRef = useRef<HTMLHeadingElement>(null);
   const lastTriggerRef = useRef<HTMLButtonElement | null>(null);
-  const localContent = useLocalHello2027Content(snapshot.ads, snapshot.encouragements);
+  const localContent = useLocalHello2027Content(snapshot.ads, snapshot.encouragements, memberFeatures);
   const viewerState = useOptionalFourthViewer();
 
   const selectedParticipant = useMemo(
     () => snapshot.participants.find((participant) => participant.id === selectedParticipantId) ?? null,
     [selectedParticipantId, snapshot.participants],
   );
-  const todayRate = Math.round((snapshot.completedToday / snapshot.participantCount) * 100);
+  const todayRate = snapshot.participantCount > 0
+    ? Math.round((snapshot.completedToday / snapshot.participantCount) * 100)
+    : 0;
   const sortedParticipants = useMemo(() => {
     const participants = [...snapshot.participants];
     if (crewSort === "completed") {
@@ -138,7 +140,7 @@ export function Hello2027Poc({ snapshot, initialDayPhase = "day", memberFeatures
           </a>
 
           <div className={styles.headerMeta} aria-label="오늘과 시즌 진행 정보">
-            <time dateTime="2026-10-16">
+            <time dateTime={snapshot.referenceDateIso ?? "2026-10-16"}>
               <small>TODAY</small>
               <span className={styles.longDate}>{snapshot.referenceDateLabel}</span>
               <span className={styles.shortDate}>{snapshot.referenceDateShort}</span>
@@ -177,7 +179,7 @@ export function Hello2027Poc({ snapshot, initialDayPhase = "day", memberFeatures
 
         <MotivationBanner
           encouragements={localContent.encouragements}
-          initialIndex={snapshot.dayNumber - 1}
+          initialIndex={Math.max(snapshot.dayNumber - 1, 0)}
         />
 
         <Hello2027BannerCarousel
@@ -276,6 +278,7 @@ export function Hello2027Poc({ snapshot, initialDayPhase = "day", memberFeatures
           previewOnly={memberFeatures}
           externalViewer={memberFeatures ? viewerState?.viewer ?? null : undefined}
           externalViewerManaged={memberFeatures}
+          externalViewerLoading={memberFeatures ? viewerState?.loading ?? true : undefined}
         />
       </main>
 
@@ -285,7 +288,9 @@ export function Hello2027Poc({ snapshot, initialDayPhase = "day", memberFeatures
         participant={selectedParticipant}
         avatarUrl={selectedParticipant ? localContent.avatarUrls[selectedParticipant.id] : undefined}
         introduction={selectedParticipant
-          ? localContent.profileIntroductions[selectedParticipant.id] ?? {
+          ? localContent.profileIntroductions[selectedParticipant.id]
+            ?? localContent.profileIntroductions[`name:${selectedParticipant.fullName.replace(/\s+/g, "")}`]
+            ?? {
               title: selectedParticipant.product.name,
               body: selectedParticipant.product.description,
             }

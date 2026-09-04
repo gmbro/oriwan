@@ -4,6 +4,7 @@ import { getServiceClient } from "@/lib/admin-data";
 import { FOURTH_SEASON_KEY, resolveParticipantAccount } from "@/lib/participant-account-server";
 import { guardMutationRequest } from "@/lib/request-security";
 import { toKstIsoDate } from "@/lib/run-records";
+import { logServerFailure } from "@/lib/server-error-log";
 import { createClient } from "@/lib/supabase/server";
 import { isMissingTableError, missingSchemaResponse } from "@/lib/supabase-errors";
 
@@ -77,6 +78,7 @@ async function resolveGiftContext(): Promise<GiftContext | NextResponse> {
     .from("daily_run_records")
     .select("id")
     .eq("user_id", connection.adminUserId)
+    .eq("season_key", FOURTH_SEASON_KEY)
     .eq("participant_id", connection.participant.id)
     .eq("record_date", recordDate)
     .eq("status", "certified")
@@ -131,7 +133,7 @@ export async function GET() {
       claim: data || null,
     }, { headers: { "Cache-Control": "private, no-store, max-age=0", Vary: "Cookie" } });
   } catch (error) {
-    console.error("Gift box status error:", error);
+    logServerFailure("Gift box status", error);
     return NextResponse.json({ error: "응원 상자 상태를 불러오지 못했어요." }, { status: 500 });
   }
 }
@@ -197,7 +199,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ claim: data, already_claimed: false });
   } catch (error) {
-    console.error("Gift box claim error:", error);
+    logServerFailure("Gift box claim", error);
     return NextResponse.json({ error: "응원 상자를 열지 못했어요. 잠시 후 다시 시도해주세요." }, { status: 500 });
   }
 }

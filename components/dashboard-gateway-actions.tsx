@@ -1,8 +1,60 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useFourthViewer } from "@/components/fourth-viewer-provider";
 import { KakaoLoginButton } from "@/components/kakao-login-button";
+
+const authErrorNotices = {
+  auth_failed: {
+    title: "로그인을 완료하지 못했어요",
+    description: "카카오 로그인 화면을 닫았거나 연결 중 문제가 생겼어요. 다시 시도해 주세요.",
+  },
+  auth_unavailable: {
+    title: "카카오 로그인을 준비 중이에요",
+    description: "잠시 후 다시 시도하거나 로그인 없이 대시보드를 둘러보세요.",
+  },
+} as const;
+
+export function DashboardGatewayAuthNotice() {
+  const searchParams = useSearchParams();
+  const errorCode = searchParams.get("error");
+  const notice = errorCode && errorCode in authErrorNotices
+    ? authErrorNotices[errorCode as keyof typeof authErrorNotices]
+    : null;
+
+  if (!notice) return null;
+
+  return (
+    <section
+      className="mb-4 flex items-start gap-3 rounded-2xl bg-rose-50 px-4 py-3.5 text-left ring-1 ring-inset ring-rose-100"
+      role="alert"
+      aria-labelledby="gateway-auth-error-title"
+      aria-describedby="gateway-auth-error-description"
+    >
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-rose-100 text-sm font-black text-rose-600" aria-hidden="true">
+        !
+      </span>
+      <span className="min-w-0 flex-1">
+        <strong id="gateway-auth-error-title" className="block text-sm font-black text-slate-900">
+          {notice.title}
+        </strong>
+        <span id="gateway-auth-error-description" className="mt-1 block text-xs font-semibold leading-5 text-slate-600">
+          {notice.description}
+        </span>
+      </span>
+      <Link
+        href="/"
+        replace
+        scroll={false}
+        className="inline-flex min-h-8 shrink-0 items-center justify-center rounded-xl px-2 text-xs font-black text-rose-600 transition hover:bg-rose-100 focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-rose-300"
+        aria-label="로그인 오류 안내 닫기"
+      >
+        확인
+      </Link>
+    </section>
+  );
+}
 
 export function DashboardGatewayActions() {
   const { viewer, loading, actionPending, error, logout } = useFourthViewer();

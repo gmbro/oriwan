@@ -837,8 +837,8 @@
   align-items: center;
   justify-content: center;
   gap: 4px;
-  min-width: 34px;
-  min-height: 34px;
+  min-width: 44px;
+  min-height: 44px;
   padding: 0 10px;
   color: var(--text-secondary);
   border: 1px solid var(--line);
@@ -1054,6 +1054,9 @@
   .storyBanner h2 { font-size: clamp(0.7rem, 3.2cqi, 0.86rem); }
   .storyBanner > strong { font-size: clamp(2.8rem, 13.5cqi, 4.2rem); }
   .summaryCard > span { overflow: visible; white-space: normal; text-overflow: clip; }
+  .worldLayer img.mobileFocusLeft { object-position: left center; }
+  .worldLayer img.mobileFocusCenter { object-position: center; }
+  .worldLayer img.mobileFocusRight { object-position: right center; }
 }
 
 @media (prefers-reduced-motion: reduce) {

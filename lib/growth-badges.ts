@@ -207,8 +207,10 @@ function getCumulativeAchievementDate(
 }
 
 export function getPersonalGrowthBadgeEarnedDates(
-  records: GrowthBadgeAchievementRecord[]
+  records: GrowthBadgeAchievementRecord[],
+  options: { seasonStartDate?: string } = {},
 ): PersonalGrowthBadgeEarnedDates {
+  const seasonStartDate = options.seasonStartDate ?? ACTUAL_CERTIFICATION_START_DATE;
   const sortedRecords = [...records].sort((left, right) => left.recordDate.localeCompare(right.recordDate));
   const certifiedDates = Array.from(new Set(sortedRecords.map((record) => record.recordDate))).sort();
   const firstCertifiedDate = certifiedDates[0] || null;
@@ -218,7 +220,7 @@ export function getPersonalGrowthBadgeEarnedDates(
     "three-day-rhythm": getStreakAchievementDate(certifiedDates, 3),
     "seven-day-routine": getStreakAchievementDate(certifiedDates, 7),
     "weekday-morning": getWeekdayMorningAchievementDate(certifiedDates),
-    "season-pacer": firstCertifiedDate === ACTUAL_CERTIFICATION_START_DATE ? firstCertifiedDate : null,
+    "season-pacer": firstCertifiedDate === seasonStartDate ? firstCertifiedDate : null,
     "thirty-day-root": getStreakAchievementDate(certifiedDates, 30),
     "fifty-day-core": getStreakAchievementDate(certifiedDates, 50),
     "seventy-day-arc": getStreakAchievementDate(certifiedDates, 70),

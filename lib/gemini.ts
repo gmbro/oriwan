@@ -237,7 +237,28 @@ export function getGeminiErrorMessage(error: unknown) {
 
 export function getGeminiErrorDebug(error: unknown) {
   const message = error instanceof Error ? error.message : String(error || "Unknown OCR error");
-  return message.replace(/\s+/g, " ").slice(0, 500);
+  const normalized = message.toLowerCase();
+  if (isGeminiBillingError(error)) return "billing_or_credit_error";
+  if (normalized.includes("free_tier") || normalized.includes("free tier")) return "free_tier_quota";
+  if (normalized.includes("quota") || normalized.includes("rate limit") || normalized.includes("resource_exhausted")) {
+    return "quota_or_rate_limit";
+  }
+  if (normalized.includes("not_found") || normalized.includes("not found") || normalized.includes("404")) {
+    return "model_not_found";
+  }
+  if (normalized.includes("api key") || normalized.includes("gemini_api_key")) return "api_key_configuration";
+  if (normalized.includes("empty response")) return "empty_response";
+  if (normalized.includes("json")) return "invalid_ocr_response";
+
+  if (error && typeof error === "object") {
+    const record = error as { code?: unknown; status?: unknown; name?: unknown };
+    const code = record.code ?? record.status ?? record.name;
+    if (typeof code === "string" || typeof code === "number") {
+      const safeCode = String(code).replace(/[^A-Za-z0-9_.:-]/g, "").slice(0, 64);
+      if (safeCode) return `provider_${safeCode}`;
+    }
+  }
+  return "unclassified_ocr_error";
 }
 
 export function isGeminiBillingError(error: unknown) {

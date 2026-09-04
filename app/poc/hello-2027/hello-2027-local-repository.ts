@@ -2,7 +2,6 @@
 
 import type {
   Hello2027Ad,
-  Hello2027AuthorMode,
   Hello2027GuestbookReply,
   Hello2027GuestbookThread,
   Hello2027ProfileIntroduction,
@@ -222,10 +221,6 @@ export async function writeLocalGuestbook(threads: readonly Hello2027GuestbookTh
   await transactionComplete(transaction);
 }
 
-function isAuthorMode(value: unknown): value is Hello2027AuthorMode {
-  return value === "real" || value === "random" || value === "kakao";
-}
-
 function isIsoDate(value: unknown): value is string {
   return typeof value === "string" && value.length <= 40 && !Number.isNaN(Date.parse(value));
 }
@@ -234,7 +229,6 @@ function isGuestbookReply(value: unknown): value is Hello2027GuestbookReply {
   if (!isRecord(value)) return false;
   return isSafeToken(value.id, 120)
     && isNonEmptyText(value.author, MAX_GUESTBOOK_AUTHOR_LENGTH)
-    && isAuthorMode(value.authorMode)
     && isNonEmptyText(value.body, MAX_GUESTBOOK_BODY_LENGTH)
     && isIsoDate(value.createdAt)
     && isReactionList(value.reactions);
@@ -244,7 +238,6 @@ function isGuestbookThread(value: unknown): value is Hello2027GuestbookThread {
   if (!isRecord(value) || !Array.isArray(value.replies) || value.replies.length > MAX_GUESTBOOK_REPLIES) return false;
   return isSafeToken(value.id, 120)
     && isNonEmptyText(value.author, MAX_GUESTBOOK_AUTHOR_LENGTH)
-    && isAuthorMode(value.authorMode)
     && isNonEmptyText(value.body, MAX_GUESTBOOK_BODY_LENGTH)
     && isIsoDate(value.createdAt)
     && isReactionList(value.reactions)

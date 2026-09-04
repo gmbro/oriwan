@@ -12,6 +12,11 @@ ALTER TABLE public.daily_run_records ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.participant_growth_badges ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.participant_accounts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.daily_gift_claims ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.hello_2027_encouragements ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.hello_2027_banners ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.hello_2027_profile_introductions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.hello_2027_comments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.hello_2027_comment_reactions ENABLE ROW LEVEL SECURITY;
 
 -- 2. anon/public 역할의 직접 Data API 접근을 제거합니다.
 --    공개 대시보드는 Next.js 서버 API가 service key로 필요한 필드만 읽습니다.
@@ -25,6 +30,11 @@ REVOKE ALL ON TABLE public.daily_run_records FROM PUBLIC;
 REVOKE ALL ON TABLE public.participant_growth_badges FROM PUBLIC;
 REVOKE ALL ON TABLE public.participant_accounts FROM anon, authenticated, PUBLIC;
 REVOKE ALL ON TABLE public.daily_gift_claims FROM anon, authenticated, PUBLIC;
+REVOKE ALL ON TABLE public.hello_2027_encouragements FROM anon, authenticated, PUBLIC;
+REVOKE ALL ON TABLE public.hello_2027_banners FROM anon, authenticated, PUBLIC;
+REVOKE ALL ON TABLE public.hello_2027_profile_introductions FROM anon, authenticated, PUBLIC;
+REVOKE ALL ON TABLE public.hello_2027_comments FROM anon, authenticated, PUBLIC;
+REVOKE ALL ON TABLE public.hello_2027_comment_reactions FROM anon, authenticated, PUBLIC;
 
 -- 3. 공개 카카오 사용자는 Supabase Data API로 운영 데이터를 직접 쓰지 못합니다.
 --    모든 공개 조회·댓글·응원 상자·관리자 변경은 권한을 재검증하는 서버 API만 통과합니다.
@@ -37,41 +47,53 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.upload_batches TO service_r
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.daily_run_records TO service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.participant_growth_badges TO service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.participant_accounts TO service_role;
-GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.daily_gift_claims TO service_role;
+REVOKE UPDATE, DELETE ON TABLE public.daily_gift_claims FROM service_role;
+GRANT SELECT, INSERT ON TABLE public.daily_gift_claims TO service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.hello_2027_encouragements TO service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.hello_2027_banners TO service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.hello_2027_profile_introductions TO service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.hello_2027_comments TO service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.hello_2027_comment_reactions TO service_role;
+REVOKE ALL ON FUNCTION public.enforce_hello_2027_reply_limit() FROM anon, authenticated, PUBLIC;
+REVOKE ALL ON FUNCTION public.enforce_hello_2027_reaction_target() FROM anon, authenticated, PUBLIC;
+REVOKE ALL ON FUNCTION public.enforce_hello_2027_profile_introduction_limit() FROM anon, authenticated, PUBLIC;
+REVOKE ALL ON FUNCTION public.delete_hello_2027_comment(UUID, TEXT, TEXT, TEXT, UUID) FROM anon, authenticated, PUBLIC;
+REVOKE ALL ON FUNCTION public.anonymize_hello_2027_comments_on_auth_delete() FROM anon, authenticated, PUBLIC;
+GRANT EXECUTE ON FUNCTION public.enforce_hello_2027_reply_limit() TO service_role;
+GRANT EXECUTE ON FUNCTION public.enforce_hello_2027_reaction_target() TO service_role;
+GRANT EXECUTE ON FUNCTION public.enforce_hello_2027_profile_introduction_limit() TO service_role;
+GRANT EXECUTE ON FUNCTION public.delete_hello_2027_comment(UUID, TEXT, TEXT, TEXT, UUID) TO service_role;
 
 -- 4. 공개 브라우저에서 DB 변경 스트림을 직접 구독하지 않도록 Realtime publication에서 제외합니다.
 DO $$
+DECLARE
+  protected_table TEXT;
 BEGIN
   IF EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime') THEN
-    IF EXISTS (
-      SELECT 1
-      FROM pg_publication_tables
-      WHERE pubname = 'supabase_realtime'
-        AND schemaname = 'public'
-        AND tablename = 'participants'
-    ) THEN
-      EXECUTE 'ALTER PUBLICATION supabase_realtime DROP TABLE public.participants';
-    END IF;
-
-    IF EXISTS (
-      SELECT 1
-      FROM pg_publication_tables
-      WHERE pubname = 'supabase_realtime'
-        AND schemaname = 'public'
-        AND tablename = 'daily_run_records'
-    ) THEN
-      EXECUTE 'ALTER PUBLICATION supabase_realtime DROP TABLE public.daily_run_records';
-    END IF;
-
-    IF EXISTS (
-      SELECT 1
-      FROM pg_publication_tables
-      WHERE pubname = 'supabase_realtime'
-        AND schemaname = 'public'
-        AND tablename = 'participant_growth_badges'
-    ) THEN
-      EXECUTE 'ALTER PUBLICATION supabase_realtime DROP TABLE public.participant_growth_badges';
-    END IF;
+    FOREACH protected_table IN ARRAY ARRAY[
+      'participants',
+      'upload_batches',
+      'daily_run_records',
+      'participant_growth_badges',
+      'participant_accounts',
+      'daily_gift_claims',
+      'hello_2027_encouragements',
+      'hello_2027_banners',
+      'hello_2027_profile_introductions',
+      'hello_2027_comments',
+      'hello_2027_comment_reactions'
+    ]
+    LOOP
+      IF EXISTS (
+        SELECT 1
+        FROM pg_publication_tables
+        WHERE pubname = 'supabase_realtime'
+          AND schemaname = 'public'
+          AND tablename = protected_table
+      ) THEN
+        EXECUTE format('ALTER PUBLICATION supabase_realtime DROP TABLE public.%I', protected_table);
+      END IF;
+    END LOOP;
   END IF;
 END $$;
 
@@ -80,16 +102,53 @@ UPDATE storage.buckets
 SET public = false
 WHERE id IN ('photos', 'snasa-gallery');
 
+-- 버킷의 public 플래그만으로는 기존 storage.objects 허용 정책이 사라지지 않습니다.
+-- RESTRICTIVE 정책은 다른 PERMISSIVE 정책이 남아 있어도 두 보호 버킷에 대한
+-- anon/authenticated의 SELECT/INSERT/UPDATE/DELETE를 마지막 단계에서 모두 막습니다.
+DROP POLICY IF EXISTS "TWTT protected buckets deny browser access" ON storage.objects;
+CREATE POLICY "TWTT protected buckets deny browser access"
+  ON storage.objects
+  AS RESTRICTIVE
+  FOR ALL
+  TO anon, authenticated
+  USING (bucket_id NOT IN ('photos', 'snasa-gallery'))
+  WITH CHECK (bucket_id NOT IN ('photos', 'snasa-gallery'));
+
 COMMIT;
 
 -- 점검용 쿼리
 -- SELECT schemaname, tablename, rowsecurity
 -- FROM pg_tables
 -- WHERE schemaname = 'public'
---   AND tablename IN ('participants', 'upload_batches', 'daily_run_records', 'participant_growth_badges');
+--   AND tablename IN (
+--     'participants', 'upload_batches', 'daily_run_records', 'participant_growth_badges',
+--     'participant_accounts', 'daily_gift_claims', 'hello_2027_encouragements',
+--     'hello_2027_banners', 'hello_2027_profile_introductions',
+--     'hello_2027_comments', 'hello_2027_comment_reactions'
+--   );
 --
 -- SELECT grantee, table_name, privilege_type
 -- FROM information_schema.role_table_grants
 -- WHERE table_schema = 'public'
---   AND table_name IN ('participants', 'upload_batches', 'daily_run_records', 'participant_growth_badges')
+--   AND table_name IN (
+--     'participants', 'upload_batches', 'daily_run_records', 'participant_growth_badges',
+--     'participant_accounts', 'daily_gift_claims', 'hello_2027_encouragements',
+--     'hello_2027_banners', 'hello_2027_profile_introductions',
+--     'hello_2027_comments', 'hello_2027_comment_reactions'
+--   )
 -- ORDER BY table_name, grantee, privilege_type;
+--
+-- SELECT schemaname, tablename, policyname, permissive, roles, cmd, qual, with_check
+-- FROM pg_policies
+-- WHERE schemaname = 'storage'
+--   AND tablename = 'objects'
+-- ORDER BY policyname;
+-- 위 결과에서 "TWTT protected buckets deny browser access"가 RESTRICTIVE로 존재하는지 확인하고,
+-- 실제 anon/Kakao JWT로 두 버킷의 SELECT/INSERT/UPDATE/DELETE가 모두 거부되는지 시험합니다.
+--
+-- SELECT COUNT(*) AS unidentified_kakao_reactions
+-- FROM public.hello_2027_comment_reactions
+-- WHERE actor_key LIKE 'user:%'
+--   AND auth_user_id IS NULL;
+-- 댓글 기능을 열기 전에 위 결과가 반드시 0인지 확인합니다. 0이 아니면 작성자와 연결할 수
+-- 없는 레거시 반응이므로 백업 후 해당 행을 삭제하고 일관성 제약을 VALIDATE합니다.

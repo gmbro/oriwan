@@ -4,9 +4,16 @@ import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { TwttBrandMark } from "@/components/twtt-brand-mark";
+import { AdminContentWorkspace } from "@/components/admin-content-workspace";
+import { AdminProfileIntroductions } from "@/components/admin-profile-introductions";
 import { IconCalendar, IconCheck, IconRun, IconSync, IconTarget, IconTrash, IconX } from "@/components/icons";
 import { buildMemberPictogramMap, MemberPictogram } from "@/components/member-pictogram";
-import { ACTUAL_CERTIFICATION_START_DATE, CHALLENGE_DAYS, CHALLENGE_START_DATE, clampToChallengeWindow, isCertificationParticipant } from "@/lib/challenge";
+import {
+  FOURTH_SEASON_DAYS as CHALLENGE_DAYS,
+  FOURTH_SEASON_START_DATE as ACTUAL_CERTIFICATION_START_DATE,
+  FOURTH_SEASON_START_DATE as CHALLENGE_START_DATE,
+  clampToFourthSeasonWindow as clampToChallengeWindow,
+} from "@/lib/fourth-season-contract";
 import { broadcastDashboardRefresh } from "@/lib/dashboard-refresh";
 import { imageFileToOptimizedDataUrl } from "@/lib/image-client";
 import { PARTICIPANT_RANK_SORT_OPTIONS, type ParticipantRankSortMode, sortParticipantRanks } from "@/lib/participant-ranking";
@@ -958,15 +965,22 @@ function AdminWorkspacePanel({
           <div>
             <p className="text-[11px] font-black uppercase text-blue-600">Crew profile</p>
             <h2 id="crew-admin-title" className="mt-1 text-2xl font-black text-oriwan-text">크루프로필</h2>
-            <p className="mt-2 text-sm font-semibold leading-6 text-oriwan-text-muted">이름과 자기소개를 관리합니다. 카카오 계정 연결은 이름 자동 매칭 없이 운영자가 확인한 뒤 승인해야 해요.</p>
+            <p className="mt-2 text-sm font-semibold leading-6 text-oriwan-text-muted">크루 기본 정보와 4기 공개 자기소개를 관리합니다. 카카오 계정은 이름 자동 매칭 없이 운영자가 확인한 뒤 승인해야 해요.</p>
           </div>
           <button type="button" onClick={onOpenCrew} className="btn-primary min-h-12 shrink-0 px-5 text-sm">크루 등록·수정</button>
         </div>
-        <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <AdminProfileIntroductions />
+        <div className="mt-6">
+          <p className="text-[11px] font-black uppercase text-slate-500">Legacy internal note</p>
+          <h3 className="mt-1 text-lg font-black text-oriwan-text">기존 내부 메모</h3>
+          <p className="mt-1 break-keep text-xs font-semibold leading-5 text-oriwan-text-muted">기존 참가자 정보와 함께 보관하는 운영 메모입니다. 4기 대시보드에 공개되는 소개의 원본은 위 ‘4기 공개 자기소개’입니다.</p>
+        </div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {participants.map((participant) => (
             <button key={participant.id} type="button" onClick={onOpenCrew} className="rounded-[22px] bg-oriwan-surface-light p-4 text-left ring-1 ring-slate-950/5 transition hover:bg-white hover:shadow-lg">
               <p className="text-base font-black text-oriwan-text">{participant.name}</p>
-              <p className="mt-2 line-clamp-2 min-h-10 text-xs font-semibold leading-5 text-oriwan-text-muted">{participant.nickname || "자기소개를 입력해주세요."}</p>
+              <p className="mt-1 text-[11px] font-black text-slate-500">기존 내부 메모</p>
+              <p className="mt-1 line-clamp-2 min-h-10 text-xs font-semibold leading-5 text-oriwan-text-muted">{participant.nickname || "저장된 내부 메모가 없습니다."}</p>
             </button>
           ))}
           {!participants.length ? <p className="rounded-[22px] bg-oriwan-surface-light p-6 text-sm font-bold text-oriwan-text-muted">등록된 크루가 없습니다.</p> : null}
@@ -976,45 +990,7 @@ function AdminWorkspacePanel({
     );
   }
 
-  const content = {
-    encouragements: {
-      eyebrow: "Encouragements · 최대 56개",
-      title: "응원글",
-      description: "등록·수정·순서·활성 상태를 관리하는 영역입니다. 공개 배포 전 브라우저 IndexedDB 데이터를 Supabase 운영 테이블로 이전해야 합니다.",
-      checklist: ["120자 서버 검증", "순서 및 활성 상태", "변경 이력 저장"],
-    },
-    banners: {
-      eyebrow: "Banners · 최대 10개",
-      title: "배너",
-      description: "광고 이미지와 문구, 대체 텍스트, 모바일 초점, 게시 상태를 관리합니다. 이미지는 private Storage 원본과 공개용 변환본을 분리합니다.",
-      checklist: ["웹·모바일 미리보기", "이미지 재인코딩·EXIF 제거", "게시 순서 및 중지"],
-    },
-    comments: {
-      eyebrow: "Comments · moderation",
-      title: "댓글",
-      description: "익명과 카카오 작성자를 구분해 공개·숨김·복구·비식별 삭제를 관리합니다. 작성자명은 요청 본문이 아니라 서버 세션에서 결정합니다.",
-      checklist: ["150자 서버 검증", "숨김·복구·비식별 삭제", "반응 및 답글 조회"],
-    },
-  }[tab];
-
-  return (
-    <section className="card mobile-page-card overflow-hidden p-5 sm:p-7" aria-labelledby={`${tab}-admin-title`}>
-      <p className="text-[11px] font-black uppercase text-blue-600">{content.eyebrow}</p>
-      <h2 id={`${tab}-admin-title`} className="mt-1 text-2xl font-black text-oriwan-text">{content.title}</h2>
-      <p className="mt-3 max-w-3xl text-sm font-semibold leading-6 text-oriwan-text-muted">{content.description}</p>
-      <div className="mt-5 grid gap-3 sm:grid-cols-3">
-        {content.checklist.map((item, index) => (
-          <div key={item} className="rounded-[20px] bg-oriwan-surface-light p-4 ring-1 ring-slate-950/5">
-            <span className="inline-grid h-7 w-7 place-items-center rounded-full bg-blue-600 text-xs font-black text-white">{index + 1}</span>
-            <p className="mt-3 text-sm font-black text-oriwan-text">{item}</p>
-          </div>
-        ))}
-      </div>
-      <div className="mt-5 rounded-[20px] border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-bold leading-5 text-amber-900">
-        현재 이 탭의 기존 PoC 데이터는 이 브라우저에만 저장됩니다. 운영 DB 마이그레이션과 관리자 API를 적용하기 전에는 배포 화면에서 편집 기능을 열지 않습니다.
-      </div>
-    </section>
-  );
+  return <AdminContentWorkspace tab={tab} />;
 }
 
 export default function AdminPage() {
@@ -1159,7 +1135,7 @@ export default function AdminPage() {
   }, [authorized, loadData, mounted]);
 
   const participantPictogramById = useMemo(() => buildMemberPictogramMap(participants), [participants]);
-  const certificationParticipants = useMemo(() => participants.filter(isCertificationParticipant), [participants]);
+  const certificationParticipants = participants;
   const certificationParticipantIds = useMemo(
     () => new Set(certificationParticipants.map((participant) => participant.id)),
     [certificationParticipants]
@@ -1475,7 +1451,8 @@ export default function AdminPage() {
       setNewNickname("");
       await refreshAfterMutation();
     } else {
-      alert("멤버를 저장하지 못했어요. 이름을 다시 확인해주세요.");
+      const json = await res.json().catch(() => ({}));
+      alert(typeof json.error === "string" ? json.error : "멤버를 저장하지 못했어요. 이름을 다시 확인해주세요.");
     }
   }, [newName, newNickname, refreshAfterMutation]);
 
@@ -1532,7 +1509,8 @@ export default function AdminPage() {
       resetParticipantForm();
       await refreshAfterMutation();
     } else {
-      alert("멤버 정보를 수정하지 못했어요.");
+      const json = await res.json().catch(() => ({}));
+      alert(typeof json.error === "string" ? json.error : "멤버 정보를 수정하지 못했어요.");
     }
   }, [addParticipant, editingParticipantId, newName, newNickname, refreshAfterMutation, resetParticipantForm]);
 
@@ -2719,6 +2697,7 @@ export default function AdminPage() {
               <div className="mt-2 flex gap-2">
                 <input
                   value={uploadNewName}
+                  maxLength={40}
                   onChange={(event) => setUploadNewName(event.target.value)}
                   onKeyDown={(event) => {
                     if (event.key === "Enter") addUploadParticipant();
@@ -3029,7 +3008,7 @@ export default function AdminPage() {
               <div className="mb-4 flex items-start justify-between gap-3">
                 <div>
                   <h2 className="text-xl font-black leading-tight text-oriwan-text">멤버 관리</h2>
-                  <p className="mt-1 text-xs text-oriwan-text-muted">이름과 자기소개를 추가하고, 필요하면 빠르게 바꾸거나 정리해요.</p>
+                  <p className="mt-1 text-xs text-oriwan-text-muted">기본 이름과 기존 내부 메모를 추가하거나 수정해요. 공개 소개는 크루 탭의 별도 영역에서 관리합니다.</p>
                 </div>
                 <button
                   type="button"
@@ -3047,14 +3026,21 @@ export default function AdminPage() {
               <div className="rounded-3xl bg-oriwan-surface-light p-4">
                 <p className="mb-3 text-xs font-black text-oriwan-text">{editingParticipant ? "멤버 정보 수정" : "새 멤버 추가"}</p>
                 <div className="grid gap-2">
-                  <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="이름" className="rounded-xl border border-oriwan-border px-3 py-2.5 text-sm" />
-                  <textarea
-                    value={newNickname}
-                    onChange={(e) => setNewNickname(e.target.value)}
-                    placeholder="자기소개"
-                    rows={4}
-                    className="resize-none rounded-xl border border-oriwan-border px-3 py-2.5 text-sm leading-6"
-                  />
+                  <label className="text-xs font-black text-oriwan-text-muted">
+                    이름
+                    <input value={newName} maxLength={40} onChange={(e) => setNewName(e.target.value)} placeholder="이름" className="mt-1.5 min-h-11 w-full rounded-xl border border-oriwan-border px-3 py-2.5 text-base" />
+                  </label>
+                  <label className="text-xs font-black text-oriwan-text-muted">
+                    기존 내부 메모
+                    <textarea
+                      value={newNickname}
+                      maxLength={320}
+                      onChange={(e) => setNewNickname(e.target.value)}
+                      placeholder="운영 참고용 내부 메모"
+                      rows={4}
+                      className="mt-1.5 w-full resize-none rounded-xl border border-oriwan-border px-3 py-2.5 text-base leading-6"
+                    />
+                  </label>
                 </div>
                 <div className="mt-3 flex gap-2">
                   <button type="button" onClick={saveParticipant} className="btn-primary flex-1 py-3 text-sm">

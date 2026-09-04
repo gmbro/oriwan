@@ -3,6 +3,7 @@ import { getServiceClient } from "@/lib/admin-data";
 import { resolveParticipantAccount } from "@/lib/participant-account-server";
 import { createClient } from "@/lib/supabase/server";
 import { getKakaoDisplayName } from "@/lib/kakao-display-name";
+import { logServerFailure } from "@/lib/server-error-log";
 
 export const dynamic = "force-dynamic";
 const privateHeaders = { "Cache-Control": "private, no-store, max-age=0", Vary: "Cookie" };
@@ -37,7 +38,7 @@ export async function GET() {
       connection_message: connection.message,
     }, { headers: privateHeaders });
   } catch (err) {
-    console.error("Me profile error:", err);
+    logServerFailure("Me profile", err);
     return NextResponse.json({ error: "개인 기능을 불러오지 못했어요." }, { status: 500 });
   }
 }

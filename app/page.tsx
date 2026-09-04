@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { DashboardGatewayActions } from "@/components/dashboard-gateway-actions";
+import { Suspense } from "react";
+import { DashboardGatewayActions, DashboardGatewayAuthNotice } from "@/components/dashboard-gateway-actions";
 import { FourthViewerProvider } from "@/components/fourth-viewer-provider";
 import { TwttBrandMark } from "@/components/twtt-brand-mark";
 
@@ -18,6 +19,9 @@ export default function Home() {
           </p>
 
           <div className="animate-fade-up mt-7" style={{ animationDelay: "0.1s" }}>
+            <Suspense fallback={null}>
+              <DashboardGatewayAuthNotice />
+            </Suspense>
             <FourthViewerProvider>
               <DashboardGatewayActions />
             </FourthViewerProvider>
