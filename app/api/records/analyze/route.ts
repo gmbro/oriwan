@@ -46,7 +46,6 @@ import { guardMutationRequest } from "@/lib/request-security";
 import { invalidatePublicDashboardCache } from "@/lib/public-dashboard-data";
 import { isMissingTableError, missingSchemaResponse } from "@/lib/supabase-errors";
 import { logServerFailure } from "@/lib/server-error-log";
-import { PUBLIC_FOURTH_PARTICIPANT_ORDER_FILTER } from "@/lib/fourth-participant-visibility";
 
 type ExtractedRun = ExtractedRunBase & {
   participant_name?: string | null;
@@ -305,10 +304,7 @@ export async function POST(request: NextRequest) {
       .select("id, name")
       .eq("user_id", user.id)
       .eq("season_key", FOURTH_SEASON_KEY)
-      .eq("active", true)
-      // Auto-connected Kakao profiles are private personal-record owners, not
-      // official OCR name candidates. NULL preserves legacy operator-created rows.
-      .or(PUBLIC_FOURTH_PARTICIPANT_ORDER_FILTER);
+      .eq("active", true);
 
     if (participantError) throw participantError;
 

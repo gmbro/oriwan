@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/client";
 
 export const DASHBOARD_REFRESH_CHANNEL = "snasa-dashboard-refresh";
 export const DASHBOARD_REFRESH_EVENT = "records-updated";
+export const DASHBOARD_REFRESH_DOM_EVENT = "twtt:dashboard-refresh";
 
 function waitForSubscription(channel: ReturnType<ReturnType<typeof createClient>["channel"]>) {
   return new Promise<void>((resolve) => {

@@ -17,11 +17,11 @@ TWTT 크루의 시즌별 러닝 인증, 공개 현황, 개인 오늘의 운세·
 
 ## 현재 4기 준비 상태
 
-`/4th/dashboard`는 코드에 고정된 가상 크루·수치·배너·응원글·댓글을 사용하지 않습니다. Supabase의 실제 4기 데이터만 표시하며, 운영 저장소가 비어 있거나 조회에 실패하면 가짜 자료를 섞지 않는 빈 상태로 닫힙니다. 헤더에서 카카오 로그인·로그아웃 상태를 확인하고, 로그인 이용자는 인증 없이 오늘의 운세를 볼 수 있습니다. 운영자가 4기 시즌으로 다시 확인해 연결한 크루는 4기 기간의 오늘 인증을 완료한 뒤 응원 상자를 하루 한 번 열고, 운영자가 연 일정에 교정운동 상담을 신청할 수 있습니다.
+`/4th/dashboard`는 코드에 고정된 가상 멤버·수치·배너·응원글·댓글을 사용하지 않습니다. Supabase의 실제 4기 데이터만 표시하며, 운영 저장소가 비어 있거나 조회에 실패하면 가짜 자료를 섞지 않는 빈 상태로 닫힙니다. 카카오 로그인 계정은 별도 운영자 승인 없이 비공개 4기 멤버로 바로 연결되고, 로그인 이용자는 인증 없이 오늘의 운세를 볼 수 있습니다. 2026-08-13 이후 오늘 인증을 완료하면 응원 상자를 하루 한 번 열 수 있으며, 9월 23일 전 준비 러닝은 개인 기록과 상자 자격에만 반영하고 공식 인증률·D-day에서는 제외합니다. 교정운동 문의는 민감정보 파기와 운영 권한을 검증한 환경에서만 열립니다.
 
 4기 공식 100일 인증은 2026-09-23부터 2026-12-31까지 계산합니다. 3기 종료 다음 날인 2026-08-13부터 공식 시작 전까지 등록한 준비 러닝은 공용 인증률·D-day·크루 통계에서 제외하고, 승인된 본인의 `/me` 개인 기록에만 표시합니다. 개인 화면은 공식/준비 기록을 분리한 요약, 누적 거리, 주차별 거리, 100일 캘린더와 최근 기록을 제공해 시즌 종료 리포트에도 같은 구조를 이어 쓸 수 있습니다.
 
-공개 응원글·배너·크루 자기소개는 Supabase 서버 API만 사용합니다. `/admin`에서 응원글 56개, 배너 10개, 크루 자기소개와 댓글 상태를 관리할 수 있습니다. 댓글·답글·반응도 서버 API가 구현되어 있지만, 운영 스키마를 적용하고 `HELLO_2027_COMMENTS_LIVE=true`로 명시하기 전에는 빈 목록을 보여주고 입력을 실패-폐쇄합니다. 정식 오픈 전에는 실계정·권한·보존 정책을 최종 확인해야 합니다.
+공개 응원글·배너·멤버 자기소개는 Supabase 서버 API만 사용합니다. `/admin`에서 응원글 56개, 배너 10개, 멤버 자기소개와 댓글 상태를 관리할 수 있습니다. 댓글은 누구나 읽을 수 있고 카카오 로그인 이용자만 닉네임 또는 공개 익명을 선택해 댓글·답글·반응을 남길 수 있습니다. 정식 오픈 전에는 실계정·권한·보존 정책을 최종 확인해야 합니다.
 
 3기 화면과 리포트는 `data/third-season-public-dashboard.json`의 2026-05-05~08-12 동결본을 함께 읽습니다. 공개본은 운영 UUID와 불필요한 생성 시각을 제거한 전용 식별자를 사용합니다.
 
@@ -60,9 +60,6 @@ npm run build
 - `NEXT_PUBLIC_SITE_URL`
 - `ADMIN_SESSION_SECRET`
 - `DAILY_FORTUNE_SECRET` (32바이트 이상의 운세 전용 난수값)
-- `FOURTH_GIFT_BOX_LIVE` (`true`일 때만 4기 운영 기간 내 응원 상자 지급 활성화)
-- `HELLO_2027_COMMENTS_LIVE` (`true`일 때만 4기 댓글·답글·반응 쓰기 활성화)
-- `CORRECTIVE_EXERCISE_LIVE` (`true`일 때만 별도 동의를 받은 교정운동 신청 제출 활성화)
 - `ADMIN_USER_ID`
 - `GEMINI_API_KEY`
 
@@ -71,18 +68,22 @@ npm run build
 - `SITE_URL`
 - `SUPABASE_GALLERY_BUCKET`
 - `GEMINI_OCR_MODEL`
+- `GEMINI_FORTUNE_MODEL` (기본 `gemini-3.1-flash-lite`)
+- `GEMINI_FORTUNE_API_KEY` (권장. OCR 키와 쿼터를 분리한 운세 전용 키)
 - `GEMINI_OCR_FALLBACK_MODEL`
 - `GEMINI_OCR_MODEL_FALLBACKS`
 - `GEMINI_OCR_FALLBACK_CONFIDENCE`
 - `OCR_CONCURRENCY`
 - `YOUTUBE_API_KEY`
 - `GOOGLE_YOUTUBE_API_KEY`
+- `HELLO_2027_COMMENTS_DISABLED` (긴급 점검 시에만 `true`)
+- `CORRECTIVE_EXERCISE_LIVE` (민감정보 파기 Cron·권한 실검증 후에만 `true`)
 
-Kakao REST API 키와 Client Secret은 애플리케이션 환경 변수가 아니라 Supabase Authentication의 Kakao Provider 설정에 직접 등록합니다. `NEXT_PUBLIC_SUPABASE_ANON_KEY` 또는 publishable key는 공개 클라이언트 식별값이며 보안 경계는 RLS와 grants입니다. `SUPABASE_SERVICE_ROLE_KEY`, Kakao Client Secret, `ADMIN_SESSION_SECRET`, `DAILY_FORTUNE_SECRET`은 브라우저 코드와 `NEXT_PUBLIC_*` 변수에 넣지 않습니다. `FOURTH_GIFT_BOX_LIVE`, `HELLO_2027_COMMENTS_LIVE`, `CORRECTIVE_EXERCISE_LIVE`는 각 기능의 운영 준비 점검을 통과한 뒤에만 `true`로 전환합니다.
+Kakao REST API 키와 Client Secret은 애플리케이션 환경 변수가 아니라 Supabase Authentication의 Kakao Provider 설정에 직접 등록합니다. `NEXT_PUBLIC_SUPABASE_ANON_KEY` 또는 publishable key는 공개 클라이언트 식별값이며 보안 경계는 RLS와 grants입니다. `SUPABASE_SERVICE_ROLE_KEY`, Kakao Client Secret, `ADMIN_SESSION_SECRET`, `DAILY_FORTUNE_SECRET`, `GEMINI_API_KEY`는 브라우저 코드와 `NEXT_PUBLIC_*` 변수에 넣지 않습니다.
 
 Kakao 동의항목은 닉네임(`profile_nickname`) 필수, 프로필 이미지(`profile_image`) 선택, 이메일(`account_email`) 미요청으로 설정하고 Supabase Kakao Provider의 `Allow users without an email`을 반드시 켭니다. 현재 이메일 scope를 계속 요청하는 Supabase Auth 동작은 서버가 검증된 Kakao redirect의 scope만 최소화하는 임시 호환 처리로 대응합니다. 상세한 보안 검증과 제거 조건은 [4기 카카오 로그인·공개 대시보드·어드민 구조](docs/hello-2027-kakao-admin-architecture.md)를 따릅니다.
 
-`CORRECTIVE_EXERCISE_LIVE`가 `true`가 아니면 회원 API는 슬롯·기존 신청을 조회하지 않고 준비 중 상태만 반환하며, 새 문진 제출도 503으로 차단합니다. 데이터베이스 마이그레이션·권한·자동 파기 작업을 모두 검증한 뒤에만 활성화하세요. 관리자 API는 준비 작업을 위해 이 플래그와 무관하게 접근할 수 있습니다.
+운세 입력 원문은 저장·로깅하거나 Google에 보내지 않고, 서버에서 만든 별자리·띠·출생 시간대·광역 생활 권역·비가역 이름 지표만 Gemini에 전달합니다. 댓글은 기본 활성 상태이며 `HELLO_2027_COMMENTS_DISABLED=true` 또는 기존 `HELLO_2027_COMMENTS_LIVE=false`로 긴급 중단할 수 있습니다. 교정운동 문의는 민감정보 파기 Cron과 운영 권한을 실검증한 뒤 `CORRECTIVE_EXERCISE_LIVE=true`로 명시할 때만 활성화됩니다.
 
 ## Supabase 적용 순서
 
@@ -97,7 +98,7 @@ Kakao 동의항목은 닉네임(`profile_nickname`) 필수, 프로필 이미지(
 [`docs/migrations/2026-09-04-corrective-exercise.sql`](docs/migrations/2026-09-04-corrective-exercise.sql)을 적용합니다.
 만료 신청 자동 파기는 opt-in 파일
 [`docs/migrations/2026-09-04-corrective-exercise-retention-cron.sql`](docs/migrations/2026-09-04-corrective-exercise-retention-cron.sql)을
-SQL Editor에서 별도로 적용하고 `cron.job`·`cron.job_run_details` 결과까지 확인한 뒤에만 `CORRECTIVE_EXERCISE_LIVE=true`로 엽니다.
+SQL Editor에서 별도로 적용하고 `cron.job`·`cron.job_run_details` 결과까지 확인합니다.
 
 ## 운영 문서
 

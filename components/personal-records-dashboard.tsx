@@ -132,7 +132,7 @@ export function PersonalRecordsDashboard() {
           <div>
             <p className="text-xs font-black tracking-[0.1em] text-slate-500">PERSONAL ONLY</p>
             <h3 id="preseason-records-title" className="mt-1 text-lg font-black text-slate-950">시즌 전 기록</h3>
-            <p className="mt-1 text-sm font-bold leading-6 text-slate-500">공식 인증률, D-day, 크루 통계에는 포함되지 않아요.</p>
+            <p className="mt-1 text-sm font-bold leading-6 text-slate-500">공식 인증률, D-day, 멤버 통계에는 포함되지 않아요.</p>
           </div>
           {preseason.certifiedDays > 0 ? (
             <dl className="mt-4 grid grid-cols-3 gap-2 sm:mt-0 sm:min-w-[360px]">

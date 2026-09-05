@@ -1,0 +1,116 @@
+.stage {
+  position: relative;
+  min-height: 250px;
+  overflow: hidden;
+  border-radius: 24px;
+  background: #f5f8fc;
+}
+
+.visual {
+  display: flex;
+  min-height: 250px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  padding: 26px 20px 22px;
+}
+
+.box {
+  position: relative;
+  width: 148px;
+  height: 116px;
+  flex: 0 0 auto;
+  margin-top: 22px;
+}
+
+.body,
+.lid {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  border: 1px solid #c8d9f0;
+  background: #3182f6;
+  box-shadow: 0 16px 34px rgba(49, 130, 246, 0.2);
+}
+
+.body {
+  bottom: 0;
+  height: 90px;
+  border-radius: 10px 10px 22px 22px;
+}
+
+.lid {
+  z-index: 2;
+  top: 0;
+  height: 34px;
+  transform-origin: 16% 100%;
+  border-radius: 14px 14px 8px 8px;
+}
+
+.body::after,
+.lid::after {
+  position: absolute;
+  left: calc(50% - 9px);
+  width: 18px;
+  height: 100%;
+  content: "";
+  background: #fff;
+}
+
+.opening .lid {
+  animation: lidOpen 780ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.opening .body {
+  animation: boxSettle 780ms ease both;
+}
+
+.opened .lid {
+  transform: translate(-18px, -58px) rotate(-18deg);
+}
+
+.message {
+  position: relative;
+  z-index: 3;
+  width: min(100%, 440px);
+  margin: 2px 0 0;
+  padding: 16px 18px;
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  border-radius: 18px;
+  background: #fff;
+  opacity: 0;
+  color: #0f172a;
+  font-size: 1rem;
+  font-weight: 800;
+  line-height: 1.45;
+  text-align: center;
+  overflow-wrap: anywhere;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+  transform: translateY(-24px) scale(0.96);
+}
+
+.opened .message {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  transition: opacity 260ms ease 120ms, transform 320ms cubic-bezier(0.22, 1, 0.36, 1) 120ms;
+}
+
+@keyframes lidOpen {
+  0% { transform: translate(0, 0) rotate(0); }
+  42% { transform: translate(0, -22px) rotate(0); }
+  100% { transform: translate(-18px, -58px) rotate(-18deg); }
+}
+
+@keyframes boxSettle {
+  0%, 100% { transform: translateY(0); }
+  45% { transform: translateY(6px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .opening .lid,
+  .opening .body { animation: none; }
+  .opening .lid,
+  .opened .lid { transform: translate(-18px, -58px) rotate(-18deg); }
+  .opened .message { transition: none; }
+}

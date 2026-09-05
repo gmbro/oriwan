@@ -92,7 +92,7 @@ CREATE TABLE IF NOT EXISTS participant_accounts (
 
 ALTER TABLE participant_accounts
   ADD COLUMN IF NOT EXISTS display_name_override TEXT;
--- 기존 승인 연결도 3기로 분류하고, 이후 API가 만드는 행만 기본값 4기를 사용합니다.
+-- 기존 계정 연결도 3기로 분류하고, 이후 API가 만드는 행만 기본값 4기를 사용합니다.
 ALTER TABLE participant_accounts
   ADD COLUMN IF NOT EXISTS season_key TEXT;
 UPDATE participant_accounts
@@ -107,7 +107,7 @@ ALTER TABLE participant_accounts
   ADD CONSTRAINT participant_accounts_season_key_check
   CHECK (season_key ~ '^[0-9]+th$') NOT VALID;
 
--- 기수별 연결을 함께 보존합니다. 4기 승인이 기존 3기 연결을 덮어쓰면 안 됩니다.
+-- 기수별 연결을 함께 보존합니다. 4기 연결이 기존 3기 연결을 덮어쓰면 안 됩니다.
 DROP INDEX IF EXISTS idx_participant_accounts_auth_user;
 DROP INDEX IF EXISTS idx_participant_accounts_participant;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_participant_accounts_season_auth_user
@@ -128,10 +128,12 @@ REVOKE ALL ON TABLE participant_accounts FROM authenticated;
 REVOKE ALL ON TABLE participant_accounts FROM PUBLIC;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE participant_accounts TO service_role;
 
--- 승인 전 확인:
+-- 카카오 로그인 시 앱이 비공개 4기 참가자 연결을 자동 생성합니다.
+-- 아래 쿼리와 UPSERT 예시는 공개 멤버 지정·운영자 확인 표시명 연결이 필요할 때만 사용합니다.
+-- 연결 전 확인:
 -- SELECT id, email, raw_user_meta_data->>'runner_name' AS requested_name FROM auth.users ORDER BY created_at DESC;
 -- SELECT id, name FROM participants WHERE active = TRUE ORDER BY display_order, created_at;
--- 승인 예시(세 UUID는 운영자가 직접 확인한 값으로 교체):
+-- 공개 멤버 연결 예시(세 UUID는 운영자가 직접 확인한 값으로 교체):
 -- INSERT INTO participant_accounts (season_key, participant_id, auth_user_id, status, approved_at, approved_by)
 -- VALUES ('4th', 'participant-uuid', 'kakao-auth-user-uuid', 'approved', NOW(), 'admin-auth-user-uuid')
 -- ON CONFLICT (season_key, auth_user_id) DO UPDATE
@@ -280,10 +282,10 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE participant_growth_badges TO servi
 CREATE INDEX IF NOT EXISTS idx_participant_growth_badges_user_season_participant
   ON participant_growth_badges(user_id, season_key, participant_id, earned_at DESC);
 
--- 4-1. 승인 참가자의 일일 응원 상자 개봉 이력
+-- 4-1. 연결 참가자의 일일 응원 상자 개봉 이력
 -- 지급 권한과 랜덤 결과는 브라우저가 아니라 /api/me/gift-box 서버 경로에서 결정합니다.
--- 오늘의 운세는 DB에 저장하지 않고 /api/me/fortune에서 인증 사용자와 KST 날짜를
--- 전용 서버 비밀값으로 HMAC해 계산하므로 별도 fortune 테이블을 만들지 않습니다.
+-- 오늘의 운세 결과와 입력 원문은 DB에 저장하지 않습니다. 외부 API 호출량만 사용자별·KST 날짜별로
+-- 집계하고, 실제 결과는 서명된 HttpOnly 쿠키로 당일 재사용합니다.
 CREATE TABLE IF NOT EXISTS daily_gift_claims (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   season_key TEXT DEFAULT '4th' NOT NULL CHECK (season_key ~ '^[0-9]+th$'),
@@ -295,6 +297,98 @@ CREATE TABLE IF NOT EXISTS daily_gift_claims (
   claimed_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
   UNIQUE(season_key, user_id, participant_id, record_date)
 );
+
+CREATE TABLE IF NOT EXISTS daily_fortune_usage (
+  auth_user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  fortune_date DATE NOT NULL,
+  request_count SMALLINT DEFAULT 1 NOT NULL CHECK (request_count BETWEEN 1 AND 20),
+  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  last_requested_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  PRIMARY KEY (auth_user_id, fortune_date)
+);
+
+CREATE OR REPLACE FUNCTION public.claim_daily_fortune_usage(
+  p_auth_user_id UUID,
+  p_fortune_date DATE,
+  p_daily_limit INTEGER DEFAULT 3
+)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  claimed BOOLEAN;
+  effective_limit INTEGER := LEAST(GREATEST(COALESCE(p_daily_limit, 3), 1), 20);
+BEGIN
+  IF p_auth_user_id IS NULL OR p_fortune_date IS NULL THEN
+    RETURN FALSE;
+  END IF;
+
+  INSERT INTO public.daily_fortune_usage (
+    auth_user_id,
+    fortune_date,
+    request_count,
+    created_at,
+    last_requested_at
+  ) VALUES (
+    p_auth_user_id,
+    p_fortune_date,
+    1,
+    NOW(),
+    NOW()
+  )
+  ON CONFLICT (auth_user_id, fortune_date) DO UPDATE
+    SET request_count = public.daily_fortune_usage.request_count + 1,
+        last_requested_at = NOW()
+    WHERE public.daily_fortune_usage.request_count < effective_limit
+  RETURNING TRUE INTO claimed;
+
+  RETURN COALESCE(claimed, FALSE);
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.release_daily_fortune_usage(
+  p_auth_user_id UUID,
+  p_fortune_date DATE
+)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+BEGIN
+  IF p_auth_user_id IS NULL OR p_fortune_date IS NULL THEN
+    RETURN;
+  END IF;
+
+  UPDATE public.daily_fortune_usage
+  SET request_count = GREATEST(request_count - 1, 0),
+      last_requested_at = NOW()
+  WHERE auth_user_id = p_auth_user_id
+    AND fortune_date = p_fortune_date
+    AND request_count > 0;
+
+  DELETE FROM public.daily_fortune_usage
+  WHERE auth_user_id = p_auth_user_id
+    AND fortune_date = p_fortune_date
+    AND request_count = 0;
+END;
+$$;
+
+ALTER TABLE daily_fortune_usage ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE daily_fortune_usage FROM anon, authenticated, PUBLIC;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE daily_fortune_usage TO service_role;
+REVOKE ALL ON FUNCTION public.claim_daily_fortune_usage(UUID, DATE, INTEGER) FROM anon, authenticated, PUBLIC;
+GRANT EXECUTE ON FUNCTION public.claim_daily_fortune_usage(UUID, DATE, INTEGER) TO service_role;
+REVOKE ALL ON FUNCTION public.release_daily_fortune_usage(UUID, DATE) FROM anon, authenticated, PUBLIC;
+GRANT EXECUTE ON FUNCTION public.release_daily_fortune_usage(UUID, DATE) TO service_role;
+
+ALTER TABLE daily_gift_claims
+  DROP CONSTRAINT IF EXISTS daily_gift_claims_message_check;
+ALTER TABLE daily_gift_claims
+  ADD CONSTRAINT daily_gift_claims_message_check
+  CHECK (char_length(message) BETWEEN 1 AND 120);
 
 ALTER TABLE daily_gift_claims
   ADD COLUMN IF NOT EXISTS season_key TEXT DEFAULT '4th' NOT NULL;
@@ -959,6 +1053,8 @@ CREATE INDEX IF NOT EXISTS idx_hello_2027_comments_public
   ON hello_2027_comments(season_key, status, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_hello_2027_comments_parent
   ON hello_2027_comments(parent_id);
+CREATE INDEX IF NOT EXISTS idx_hello_2027_comments_actor_created
+  ON hello_2027_comments(season_key, actor_key, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_hello_2027_comment_reactions_comment
   ON hello_2027_comment_reactions(comment_id);
 CREATE INDEX IF NOT EXISTS idx_hello_2027_comment_reactions_season_comment

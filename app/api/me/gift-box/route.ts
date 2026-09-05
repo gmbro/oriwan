@@ -3,21 +3,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServiceClient } from "@/lib/admin-data";
 import { getKakaoDisplayName } from "@/lib/kakao-display-name";
 import { FOURTH_SEASON_KEY, ensureParticipantAccount } from "@/lib/participant-account-server";
-import { guardMutationRequest } from "@/lib/request-security";
+import { isWithinFourthPersonalRecordWindow } from "@/lib/fourth-season-contract";
+import { guardMutationRequest, guardReadRequest } from "@/lib/request-security";
 import { toKstIsoDate } from "@/lib/run-records";
 import { logServerFailure } from "@/lib/server-error-log";
 import { createClient } from "@/lib/supabase/server";
 import { isMissingTableError, missingSchemaResponse } from "@/lib/supabase-errors";
-
-const GIFT_MESSAGES = [
-  "부럽네요!",
-  "참 잘했어요!",
-  "오늘도 화이팅!",
-  "고생하셨어요 :)",
-] as const;
-const FOURTH_SEASON_START_DATE = "2026-09-23";
-const FOURTH_SEASON_END_DATE = "2026-12-31";
-const FOURTH_GIFT_BOX_LIVE = process.env.FOURTH_GIFT_BOX_LIVE === "true";
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +18,6 @@ type GiftContext = {
   participantId: string;
   participantName: string;
   recordDate: string;
-  seasonActive: boolean;
   eligible: boolean;
 };
 
@@ -61,19 +51,8 @@ async function resolveGiftContext(): Promise<GiftContext | NextResponse> {
   }
 
   const recordDate = toKstIsoDate(new Date());
-  const seasonActive = FOURTH_GIFT_BOX_LIVE
-    && recordDate >= FOURTH_SEASON_START_DATE
-    && recordDate <= FOURTH_SEASON_END_DATE;
-  if (!seasonActive) {
-    return {
-      authUserId: user.id,
-      adminUserId: connection.adminUserId,
-      participantId: connection.participant.id,
-      participantName: connection.participant.name,
-      recordDate,
-      seasonActive: false,
-      eligible: false,
-    };
+  if (!isWithinFourthPersonalRecordWindow(recordDate)) {
+    return NextResponse.json({ error: "4기 개인 기록 기간이 아니에요." }, { status: 403 });
   }
   const { data: certification, error: certificationError } = await service
     .from("daily_run_records")
@@ -93,7 +72,6 @@ async function resolveGiftContext(): Promise<GiftContext | NextResponse> {
     participantId: connection.participant.id,
     participantName: connection.participant.name,
     recordDate,
-    seasonActive,
     eligible: Boolean(certification),
   };
 }
@@ -112,7 +90,43 @@ async function readClaim(context: GiftContext) {
     .maybeSingle();
 }
 
-export async function GET() {
+async function pickManagedEncouragement(context: GiftContext) {
+  const service = getServiceClient();
+  if (!service) return { message: null, error: new Error("service_missing") };
+
+  const { data, error } = await service
+    .from("hello_2027_encouragements")
+    .select("message")
+    .eq("user_id", context.adminUserId)
+    .eq("season_key", FOURTH_SEASON_KEY)
+    .eq("active", true)
+    .order("display_order", { ascending: true })
+    .order("created_at", { ascending: true })
+    .limit(56);
+  if (error) return { message: null, error };
+
+  const messages = (data || []).flatMap((row) => {
+    const message = typeof row.message === "string" ? row.message.normalize("NFC").trim() : "";
+    return message && message.length <= 120 ? [message] : [];
+  });
+  return {
+    message: messages.length > 0 ? messages[randomInt(messages.length)] : null,
+    error: null,
+  };
+}
+
+export async function GET(request: NextRequest) {
+  const guardResponse = guardReadRequest(request, {
+    requireSameOrigin: true,
+    rateLimit: {
+      key: "daily-gift-box-read",
+      limit: 20,
+      windowMs: 60_000,
+      message: "응원 상자 상태 확인이 잠시 몰렸어요. 잠시 후 다시 확인해주세요.",
+    },
+  });
+  if (guardResponse) return guardResponse;
+
   try {
     const context = await resolveGiftContext();
     if (context instanceof NextResponse) return context;
@@ -127,8 +141,6 @@ export async function GET() {
 
     return NextResponse.json({
       eligible: context.eligible,
-      season_active: context.seasonActive,
-      season_starts_on: FOURTH_SEASON_START_DATE,
       participant_name: context.participantName,
       record_date: context.recordDate,
       claim: data || null,
@@ -154,9 +166,6 @@ export async function POST(request: NextRequest) {
   try {
     const context = await resolveGiftContext();
     if (context instanceof NextResponse) return context;
-    if (!context.seasonActive) {
-      return NextResponse.json({ error: "4기 운영 오픈 후 응원 상자를 열 수 있어요." }, { status: 403 });
-    }
     if (!context.eligible) {
       return NextResponse.json({ error: "오늘 인증을 완료하면 응원 상자가 열려요." }, { status: 403 });
     }
@@ -173,7 +182,18 @@ export async function POST(request: NextRequest) {
     const service = getServiceClient();
     if (!service) return NextResponse.json({ error: "운영 서버 연결이 아직 준비되지 않았어요." }, { status: 503 });
 
-    const message = GIFT_MESSAGES[randomInt(GIFT_MESSAGES.length)];
+    const encouragement = await pickManagedEncouragement(context);
+    if (encouragement.error) {
+      if (isMissingTableError(encouragement.error)) {
+        return NextResponse.json(missingSchemaResponse("운영 응원글 저장소가 아직 준비되지 않았어요."), { status: 503 });
+      }
+      throw encouragement.error;
+    }
+    if (!encouragement.message) {
+      return NextResponse.json({ error: "운영자가 오늘의 응원글을 준비하고 있어요." }, { status: 503 });
+    }
+
+    const message = encouragement.message;
     const { data, error } = await service
       .from("daily_gift_claims")
       .insert({

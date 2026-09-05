@@ -7,6 +7,7 @@ import {
   getOAuthProviderFailure,
   getSingleOAuthCode,
 } from "../lib/kakao-auth-validation.ts";
+import { getSafeAuthReturnPath } from "../lib/auth-return-path.ts";
 
 test("Kakao 권한은 닉네임과 이미지만 문서화된 쉼표 형식으로 요청한다", () => {
   assert.equal(KAKAO_PROFILE_SCOPES, "profile_nickname,profile_image");
@@ -54,4 +55,11 @@ test("PKCE 만료 오류만 재시도 안내로 분류하고 설명·토큰은 �
     userError: "auth_failed",
     logCode: "unexpectedvalue",
   });
+});
+
+test("로그인 복귀 위치는 개인 기능과 댓글 앵커만 허용한다", () => {
+  assert.equal(getSafeAuthReturnPath("/4th/dashboard#member-features"), "/4th/dashboard#member-features");
+  assert.equal(getSafeAuthReturnPath("/4th/dashboard#guestbook"), "/4th/dashboard#guestbook");
+  assert.equal(getSafeAuthReturnPath("/4th/dashboard#unknown", "/4th"), "/4th");
+  assert.equal(getSafeAuthReturnPath("//evil.example", "/4th"), "/4th");
 });

@@ -87,7 +87,7 @@ export function Hello2027BannerCarousel({ ads, dayPhaseClass, todayRate }: Hello
   return (
     <section
       className={styles.hero}
-      aria-label="오늘의 인증률과 크루 광고"
+      aria-label="오늘의 인증률과 멤버 광고"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       onFocusCapture={() => setHasFocus(true)}

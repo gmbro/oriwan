@@ -2,109 +2,140 @@
 
 import { useEffect, useState } from "react";
 
-type GiftClaim = {
+import styles from "./daily-gift-box.module.css";
+
+export type GiftClaim = {
   id: string;
   record_date: string;
   message: string;
   claimed_at: string;
 };
 
-type GiftStatus = {
+export type GiftStatus = {
   eligible: boolean;
-  season_active?: boolean;
-  season_starts_on?: string;
   participant_name: string;
   record_date: string;
   claim: GiftClaim | null;
 };
 
-export function DailyGiftBox() {
-  const [status, setStatus] = useState<GiftStatus | null>(null);
-  const [loading, setLoading] = useState(true);
+type DailyGiftBoxProps = {
+  initialStatus?: GiftStatus | null;
+  onStatusChange?: (status: GiftStatus) => void;
+};
+
+async function readJson(response: Response) {
+  return response.json().catch(() => ({})) as Promise<Partial<GiftStatus> & { error?: string; claim?: GiftClaim }>;
+}
+
+export function DailyGiftBox({ initialStatus = null, onStatusChange }: DailyGiftBoxProps) {
+  const [status, setStatus] = useState<GiftStatus | null>(initialStatus);
+  const [loading, setLoading] = useState(!initialStatus);
   const [opening, setOpening] = useState(false);
+  const [opened, setOpened] = useState(Boolean(initialStatus?.claim));
   const [message, setMessage] = useState("");
 
   useEffect(() => {
-    let active = true;
-    void fetch("/api/me/gift-box", { cache: "no-store" })
-      .then(async (response) => ({ response, json: await response.json() }))
+    if (initialStatus) return;
+
+    const controller = new AbortController();
+    void fetch("/api/me/gift-box", {
+      cache: "no-store",
+      credentials: "same-origin",
+      signal: controller.signal,
+    })
+      .then(async (response) => ({ response, json: await readJson(response) }))
       .then(({ response, json }) => {
-        if (!active) return;
-        if (!response.ok) {
-          setMessage(json.error || "응원 상자를 불러오지 못했어요.");
-          return;
+        if (!response.ok || typeof json.eligible !== "boolean" || !json.record_date) {
+          throw new Error(json.error || "응원 상자를 불러오지 못했어요.");
         }
-        setStatus(json);
-        setMessage("");
+        const nextStatus = json as GiftStatus;
+        setStatus(nextStatus);
+        setOpened(Boolean(nextStatus.claim));
+        onStatusChange?.(nextStatus);
       })
-      .catch(() => {
-        if (active) setMessage("응원 상자를 불러오지 못했어요.");
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        setMessage(error instanceof Error ? error.message : "응원 상자를 불러오지 못했어요.");
       })
       .finally(() => {
-        if (active) setLoading(false);
+        if (!controller.signal.aborted) setLoading(false);
       });
 
-    return () => {
-      active = false;
-    };
-  }, []);
+    return () => controller.abort();
+  }, [initialStatus, onStatusChange]);
 
   const openGift = async () => {
+    if (!status?.eligible || status.claim || opening) return;
     setOpening(true);
+    setOpened(false);
     setMessage("");
+
     try {
-      const response = await fetch("/api/me/gift-box", {
-        method: "POST",
-        credentials: "same-origin",
-        headers: { "Content-Type": "application/json" },
-        body: "{}",
-      });
-      const json = await response.json();
-      if (!response.ok) {
-        setMessage(json.error || "응원 상자를 열지 못했어요.");
-        return;
+      const [response] = await Promise.all([
+        fetch("/api/me/gift-box", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body: "{}",
+        }),
+        new Promise((resolve) => window.setTimeout(resolve, 820)),
+      ]);
+      const json = await readJson(response);
+      if (!response.ok || !json.claim) {
+        throw new Error(json.error || "응원 상자를 열지 못했어요.");
       }
-      setStatus((current) => current ? { ...current, claim: json.claim } : current);
-    } catch {
-      setMessage("응원 상자를 열지 못했어요. 잠시 후 다시 시도해주세요.");
+      const nextStatus = { ...status, claim: json.claim };
+      setStatus(nextStatus);
+      setOpened(true);
+      onStatusChange?.(nextStatus);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "응원 상자를 열지 못했어요. 잠시 후 다시 시도해주세요.");
+      setOpened(false);
     } finally {
       setOpening(false);
     }
   };
 
-  return (
-    <section className="relative mt-4 overflow-hidden rounded-[28px] bg-gradient-to-br from-[#3182f6] via-[#4b8ef0] to-[#6b9be8] p-5 text-white shadow-xl shadow-blue-500/15 sm:p-6" aria-labelledby="daily-gift-title">
-      <div className="pointer-events-none absolute -right-10 -top-14 h-44 w-44 rounded-full border-[28px] border-white/10" aria-hidden="true" />
-      <div className="relative grid gap-4 sm:grid-cols-[1fr_auto] sm:items-center">
-        <div>
-          <p className="text-[11px] font-black text-white/70">TODAY&apos;S CHEER</p>
-          <h2 id="daily-gift-title" className="mt-1 text-xl font-black sm:text-2xl">오늘의 응원 상자</h2>
-          {loading ? (
-            <p className="mt-2 text-sm font-bold text-white/75">오늘의 인증을 확인하고 있어요…</p>
-          ) : status?.claim ? (
-            <p className="mt-3 text-[clamp(1.45rem,6vw,2.25rem)] font-black leading-tight">{status.claim.message}</p>
-          ) : status && status.season_active === false ? (
-            <p className="mt-2 text-sm font-bold leading-6 text-white/85">4기 운영이 시작되면 매일의 인증과 함께 상자도 열려요.</p>
-          ) : status?.eligible ? (
-            <p className="mt-2 text-sm font-bold leading-6 text-white/85">오늘 인증 완료! 상자를 눌러 랜덤 응원을 받아보세요.</p>
-          ) : (
-            <p className="mt-2 text-sm font-bold leading-6 text-white/80">오늘 인증을 완료하면 이 상자를 열 수 있어요.</p>
-          )}
-          {message ? <p className="mt-3 rounded-xl bg-white/12 px-3 py-2 text-xs font-bold" role="status">{message}</p> : null}
-        </div>
+  if (!loading && status && !status.eligible && !status.claim) return null;
 
+  return (
+    <section className="space-y-4" aria-labelledby="daily-gift-title">
+      <div>
+        <p className="text-xs font-bold text-blue-600">오늘 인증 보상</p>
+        <h3 id="daily-gift-title" className="mt-1 text-xl font-black tracking-[-0.03em] text-slate-950">오늘의 응원 상자</h3>
+        <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
+          {status?.claim
+            ? "오늘의 상자를 열었어요. 내일 인증을 마치면 새 상자가 도착해요."
+            : "오늘 인증을 완료한 기록을 확인했어요. 상자를 열어 응원을 받아보세요."}
+        </p>
+      </div>
+
+      <div className={`${styles.stage} ${opening ? styles.opening : ""} ${opened ? styles.opened : ""}`} aria-live="polite">
+        {loading ? (
+          <p className="text-sm font-bold text-slate-500">인증 기록을 확인하고 있어요.</p>
+        ) : (
+          <div className={styles.visual}>
+            <div className={styles.box} aria-hidden="true">
+              <div className={styles.body} />
+              <div className={styles.lid} />
+            </div>
+            {status?.claim ? <p className={styles.message}>{status.claim.message}</p> : null}
+          </div>
+        )}
+      </div>
+
+      {message ? <p className="rounded-2xl bg-rose-50 px-4 py-3 text-sm font-bold leading-6 text-rose-700" role="status">{message}</p> : null}
+
+      {!loading && status?.eligible && !status.claim ? (
         <button
           type="button"
-          onClick={openGift}
-          disabled={loading || opening || !status?.eligible || Boolean(status?.claim)}
-          className="group grid min-h-24 w-full place-items-center rounded-[24px] bg-white px-6 py-4 text-center text-blue-700 shadow-lg ring-1 ring-white/50 transition hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-white disabled:translate-y-0 disabled:cursor-default disabled:opacity-70 sm:w-40"
+          onClick={() => void openGift()}
+          disabled={opening}
+          className="min-h-14 w-full rounded-2xl bg-blue-600 px-5 text-base font-black text-white shadow-[0_8px_22px_rgba(49,130,246,0.2)] transition hover:bg-blue-700 disabled:cursor-wait disabled:opacity-60"
         >
-          <span aria-hidden="true" className="text-4xl transition group-hover:scale-105">{status?.claim ? "🎉" : status?.eligible ? "🎁" : "🔒"}</span>
-          <span className="mt-1 text-xs font-black">
-            {loading ? "확인 중" : status?.claim ? "오늘 수령 완료" : status?.eligible ? opening ? "여는 중…" : "상자 열기" : status?.season_active === false ? "운영 오픈 전" : "인증 후 열기"}
-          </span>
+          {opening ? "상자를 여는 중" : "오늘의 상자 열기"}
         </button>
-      </div>
+      ) : null}
     </section>
   );
 }

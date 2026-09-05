@@ -46,8 +46,11 @@ app/api/records/analyze/route.ts    이미지 OCR 분석 및 기록 생성
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase 프로젝트 URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon key |
 | `SUPABASE_SERVICE_ROLE_KEY` | Storage 업로드용 service role key |
-| `CORRECTIVE_EXERCISE_LIVE` | 교정운동 운영 전환 플래그. 전용 SQL·Cron·권한 검증 후 정확히 `true`로 설정 |
-| `GEMINI_API_KEY` | Gemini 이미지 분석 API 키 |
+| `CORRECTIVE_EXERCISE_LIVE` | 선택. 민감정보 파기 Cron·운영 권한을 실검증한 뒤에만 `true`로 설정 |
+| `HELLO_2027_COMMENTS_DISABLED` | 선택. 긴급 점검 시에만 `true`로 설정해 댓글 쓰기·반응을 중단 |
+| `GEMINI_API_KEY` | Gemini 이미지 분석 및 비식별 파생 정보 기반 오늘의 운세 API 키 |
+| `GEMINI_FORTUNE_API_KEY` | 권장. OCR과 쿼터를 분리한 오늘의 운세 전용 Gemini API 키 |
+| `GEMINI_FORTUNE_MODEL` | 선택. 기본 운세 모델이며 기본값은 `gemini-3.1-flash-lite` |
 | `GEMINI_OCR_MODEL` | 선택. 기본 OCR 모델이며 기본값은 `gemini-3.1-flash-lite` |
 | `GEMINI_OCR_FALLBACK_MODEL` | 선택. 품질 미달 때만 호출하며 기본값은 `gemini-3.5-flash` |
 | `GEMINI_OCR_FALLBACK_CONFIDENCE` | 선택. 고급 모델 재분석 기준이며 기본값은 `0.8` |

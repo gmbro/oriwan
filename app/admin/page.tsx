@@ -971,7 +971,7 @@ function AdminWorkspacePanel({
           <div>
             <p className="text-[11px] font-black uppercase text-blue-600">Crew profile</p>
             <h2 id="crew-admin-title" className="mt-1 text-2xl font-black text-oriwan-text">크루프로필</h2>
-            <p className="mt-2 text-sm font-semibold leading-6 text-oriwan-text-muted">크루 기본 정보와 4기 공개 자기소개를 관리합니다. 카카오 계정은 이름 자동 매칭 없이 운영자가 확인한 뒤 승인해야 해요.</p>
+            <p className="mt-2 text-sm font-semibold leading-6 text-oriwan-text-muted">멤버 기본 정보와 4기 공개 자기소개를 관리합니다. 카카오 로그인 계정은 비공개 멤버로 바로 연결되며, 공개 멤버 지정과 표시명만 운영자가 확인해요.</p>
           </div>
           <button type="button" onClick={onOpenCrew} className="btn-primary min-h-12 shrink-0 px-5 text-sm">크루 등록·수정</button>
         </div>

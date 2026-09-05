@@ -379,7 +379,7 @@ export async function POST(request: NextRequest) {
         return json({ error: "선택한 일정의 신청이 마감됐어요. 다른 일정을 선택해주세요." }, 409);
       }
       if (error.code === "23514" && error.message?.includes("participant")) {
-        return json({ error: "크루 승인 상태가 변경됐어요. 운영자에게 확인해주세요." }, 403);
+        return json({ error: "멤버 연결 상태가 변경됐어요. 운영자에게 확인해주세요." }, 403);
       }
       throw error;
     }

@@ -12,6 +12,7 @@ ALTER TABLE public.daily_run_records ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.participant_growth_badges ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.participant_accounts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.daily_gift_claims ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.daily_fortune_usage ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.corrective_exercise_slots ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.corrective_exercise_applications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.corrective_exercise_audit_logs ENABLE ROW LEVEL SECURITY;
@@ -34,6 +35,7 @@ REVOKE ALL ON TABLE public.daily_run_records FROM PUBLIC;
 REVOKE ALL ON TABLE public.participant_growth_badges FROM PUBLIC;
 REVOKE ALL ON TABLE public.participant_accounts FROM anon, authenticated, PUBLIC;
 REVOKE ALL ON TABLE public.daily_gift_claims FROM anon, authenticated, PUBLIC;
+REVOKE ALL ON TABLE public.daily_fortune_usage FROM anon, authenticated, PUBLIC;
 REVOKE ALL ON TABLE public.corrective_exercise_slots FROM anon, authenticated, PUBLIC;
 REVOKE ALL ON TABLE public.corrective_exercise_applications FROM anon, authenticated, PUBLIC;
 REVOKE ALL ON TABLE public.corrective_exercise_audit_logs FROM anon, authenticated, PUBLIC;
@@ -57,6 +59,7 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.participant_growth_badges T
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.participant_accounts TO service_role;
 REVOKE UPDATE, DELETE ON TABLE public.daily_gift_claims FROM service_role;
 GRANT SELECT, INSERT ON TABLE public.daily_gift_claims TO service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.daily_fortune_usage TO service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.corrective_exercise_slots TO service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.corrective_exercise_applications TO service_role;
 GRANT SELECT, INSERT, DELETE ON TABLE public.corrective_exercise_audit_logs TO service_role;
@@ -71,6 +74,8 @@ REVOKE ALL ON FUNCTION public.enforce_hello_2027_reaction_target() FROM anon, au
 REVOKE ALL ON FUNCTION public.enforce_hello_2027_profile_introduction_limit() FROM anon, authenticated, PUBLIC;
 REVOKE ALL ON FUNCTION public.delete_hello_2027_comment(UUID, TEXT, TEXT, TEXT, UUID) FROM anon, authenticated, PUBLIC;
 REVOKE ALL ON FUNCTION public.anonymize_hello_2027_comments_on_auth_delete() FROM anon, authenticated, PUBLIC;
+REVOKE ALL ON FUNCTION public.claim_daily_fortune_usage(UUID, DATE, INTEGER) FROM anon, authenticated, PUBLIC;
+REVOKE ALL ON FUNCTION public.release_daily_fortune_usage(UUID, DATE) FROM anon, authenticated, PUBLIC;
 REVOKE ALL ON FUNCTION public.set_corrective_exercise_retention() FROM anon, authenticated, PUBLIC;
 REVOKE ALL ON FUNCTION public.update_corrective_exercise_slot(
   UUID, TEXT, UUID, TIMESTAMPTZ, DATE, TIME WITHOUT TIME ZONE, TIME WITHOUT TIME ZONE, INTEGER, BOOLEAN, TEXT
@@ -95,6 +100,8 @@ GRANT EXECUTE ON FUNCTION public.enforce_hello_2027_reply_limit() TO service_rol
 GRANT EXECUTE ON FUNCTION public.enforce_hello_2027_reaction_target() TO service_role;
 GRANT EXECUTE ON FUNCTION public.enforce_hello_2027_profile_introduction_limit() TO service_role;
 GRANT EXECUTE ON FUNCTION public.delete_hello_2027_comment(UUID, TEXT, TEXT, TEXT, UUID) TO service_role;
+GRANT EXECUTE ON FUNCTION public.claim_daily_fortune_usage(UUID, DATE, INTEGER) TO service_role;
+GRANT EXECUTE ON FUNCTION public.release_daily_fortune_usage(UUID, DATE) TO service_role;
 GRANT EXECUTE ON FUNCTION public.set_corrective_exercise_retention() TO service_role;
 GRANT EXECUTE ON FUNCTION public.update_corrective_exercise_slot(
   UUID, TEXT, UUID, TIMESTAMPTZ, DATE, TIME WITHOUT TIME ZONE, TIME WITHOUT TIME ZONE, INTEGER, BOOLEAN, TEXT
@@ -129,6 +136,7 @@ BEGIN
       'participant_growth_badges',
       'participant_accounts',
       'daily_gift_claims',
+      'daily_fortune_usage',
       'corrective_exercise_slots',
       'corrective_exercise_applications',
       'corrective_exercise_audit_logs',
@@ -178,7 +186,7 @@ COMMIT;
 -- WHERE schemaname = 'public'
 --   AND tablename IN (
 --     'participants', 'upload_batches', 'daily_run_records', 'participant_growth_badges',
---     'participant_accounts', 'daily_gift_claims', 'hello_2027_encouragements',
+--     'participant_accounts', 'daily_gift_claims', 'daily_fortune_usage', 'hello_2027_encouragements',
 --     'corrective_exercise_slots', 'corrective_exercise_applications', 'corrective_exercise_audit_logs',
 --     'corrective_exercise_change_audit_logs',
 --     'hello_2027_banners', 'hello_2027_profile_introductions',
@@ -190,7 +198,7 @@ COMMIT;
 -- WHERE table_schema = 'public'
 --   AND table_name IN (
 --     'participants', 'upload_batches', 'daily_run_records', 'participant_growth_badges',
---     'participant_accounts', 'daily_gift_claims', 'hello_2027_encouragements',
+--     'participant_accounts', 'daily_gift_claims', 'daily_fortune_usage', 'hello_2027_encouragements',
 --     'corrective_exercise_slots', 'corrective_exercise_applications', 'corrective_exercise_audit_logs',
 --     'corrective_exercise_change_audit_logs',
 --     'hello_2027_banners', 'hello_2027_profile_introductions',

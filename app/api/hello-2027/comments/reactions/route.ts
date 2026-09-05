@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
   });
   if (guardResponse) return guardResponse;
   if (!HELLO_2027_COMMENTS_LIVE) {
-    return reactionJson({ error: "정식 오픈 후 댓글에 반응할 수 있어요." }, 403);
+    return reactionJson({ error: "댓글 기능을 잠시 점검하고 있어요." }, 403);
   }
 
   const parsedBody = await readHello2027JsonBody(request, 2 * 1024);
@@ -59,6 +59,9 @@ export async function POST(request: NextRequest) {
   const actor = await resolveHello2027CommentActor(request);
   if (actor.authError) {
     return reactionJson({ error: "로그인 상태를 확인하지 못했어요. 잠시 후 다시 시도해주세요." }, 503);
+  }
+  if (!actor.user) {
+    return reactionJson({ error: "댓글 반응은 카카오 로그인 후 남길 수 있어요." }, 401);
   }
   const service = getHello2027CommentsService();
   if (!service) return reactionJson({ error: "공용 댓글 저장소가 아직 준비되지 않았어요." }, 503, actor);

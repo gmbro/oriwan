@@ -1,52 +1,118 @@
 "use client";
 
-import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
-import { useFourthViewer } from "@/components/fourth-viewer-provider";
+
+import type { GiftStatus } from "@/components/daily-gift-box";
+import { useOptionalFourthViewer } from "@/components/fourth-viewer-provider";
+import { DASHBOARD_REFRESH_DOM_EVENT } from "@/lib/dashboard-refresh";
 
 const DailyFortune = dynamic(() => import("@/components/daily-fortune").then((module) => module.DailyFortune), {
-  loading: () => <div className="h-44 animate-pulse rounded-[24px] bg-slate-100" aria-label="오늘의 운세를 불러오는 중" />,
+  loading: () => <div className="h-72 animate-pulse rounded-[24px] bg-slate-100" aria-label="오늘의 운세를 불러오는 중" />,
 });
 const DailyGiftBox = dynamic(() => import("@/components/daily-gift-box").then((module) => module.DailyGiftBox), {
-  loading: () => <div className="h-56 animate-pulse rounded-[24px] bg-slate-100" aria-label="응원 상자를 불러오는 중" />,
+  loading: () => <div className="h-72 animate-pulse rounded-[24px] bg-slate-100" aria-label="응원 상자를 불러오는 중" />,
 });
 const CorrectiveExerciseApplication = dynamic(
   () => import("@/components/corrective-exercise-application").then((module) => module.CorrectiveExerciseApplication),
-  { loading: () => <div className="h-72 animate-pulse rounded-[24px] bg-slate-100" aria-label="교정운동 신청을 불러오는 중" /> },
+  { loading: () => <div className="h-72 animate-pulse rounded-[24px] bg-slate-100" aria-label="교정운동 문의를 불러오는 중" /> },
 );
 
 type FeatureModal = "fortune" | "gift" | "corrective" | null;
 
-export function FourthDashboardMemberArea() {
-  const { viewer, loading, actionPending, error, logout } = useFourthViewer();
+type GiftStatusResponse = Partial<GiftStatus> & { error?: string };
+
+export function FourthDashboardMemberArea({
+  displayName,
+  embedded = false,
+}: {
+  displayName?: string;
+  embedded?: boolean;
+} = {}) {
+  const viewerState = useOptionalFourthViewer();
+  const viewer = viewerState?.viewer ?? null;
+  const loading = viewerState?.loading ?? false;
+  const authenticated = Boolean(displayName || viewer?.authenticated);
+  const resolvedDisplayName = displayName || viewer?.display_name || "";
   const [modal, setModal] = useState<FeatureModal>(null);
+  const [giftStatus, setGiftStatus] = useState<GiftStatus | null>(null);
+  const [giftStatusError, setGiftStatusError] = useState("");
   const dialogRef = useRef<HTMLDialogElement>(null);
   const dialogTitleRef = useRef<HTMLHeadingElement>(null);
   const lastTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const giftAvailable = Boolean(giftStatus?.eligible || giftStatus?.claim);
+
+  useEffect(() => {
+    if (!authenticated) {
+      queueMicrotask(() => setGiftStatus(null));
+      return;
+    }
+
+    const controller = new AbortController();
+    const refreshGiftStatus = async () => {
+      try {
+        const response = await fetch("/api/me/gift-box", {
+          cache: "no-store",
+          credentials: "same-origin",
+          signal: controller.signal,
+        });
+        const payload = await response.json().catch(() => ({})) as GiftStatusResponse;
+        if (response.ok && typeof payload.eligible === "boolean" && payload.record_date && payload.participant_name) {
+          setGiftStatus(payload as GiftStatus);
+          setGiftStatusError("");
+        } else if (response.status !== 403) {
+          setGiftStatusError(payload.error || "응원 상자 상태를 확인하지 못했어요.");
+        }
+      } catch (error) {
+        if (!(error instanceof DOMException && error.name === "AbortError")) {
+          setGiftStatusError("응원 상자 상태를 확인하지 못했어요. 잠시 후 다시 확인해주세요.");
+        }
+      }
+    };
+
+    void refreshGiftStatus();
+    const intervalId = giftAvailable ? null : window.setInterval(() => {
+      if (document.visibilityState === "visible") void refreshGiftStatus();
+    }, 30_000);
+    const handleFocus = () => void refreshGiftStatus();
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") void refreshGiftStatus();
+    };
+    window.addEventListener("focus", handleFocus);
+    window.addEventListener(DASHBOARD_REFRESH_DOM_EVENT, handleFocus);
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    return () => {
+      controller.abort();
+      if (intervalId !== null) window.clearInterval(intervalId);
+      window.removeEventListener("focus", handleFocus);
+      window.removeEventListener(DASHBOARD_REFRESH_DOM_EVENT, handleFocus);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, [authenticated, giftAvailable]);
 
   useEffect(() => {
     const dialog = dialogRef.current;
-    if (!viewer?.authenticated || !dialog || !modal || dialog.open) return;
+    if (!authenticated || !dialog || !modal || dialog.open) return;
     dialog.showModal();
     window.requestAnimationFrame(() => dialogTitleRef.current?.focus());
-  }, [modal, viewer?.authenticated]);
+  }, [authenticated, modal]);
 
   useEffect(() => {
-    if (!viewer?.authenticated || !modal) return;
+    if (!authenticated || !modal) return;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
       document.body.style.overflow = previousOverflow;
     };
-  }, [modal, viewer?.authenticated]);
+  }, [authenticated, modal]);
 
   useEffect(() => {
-    if (!viewer?.authenticated || window.location.hash !== "#member-features") return;
+    if (!authenticated || embedded || window.location.hash !== "#member-features") return;
     window.requestAnimationFrame(() => {
       document.getElementById("member-features")?.scrollIntoView({ block: "start" });
     });
-  }, [viewer?.authenticated]);
+  }, [authenticated, embedded]);
 
   const openModal = (kind: Exclude<FeatureModal, null>, trigger: HTMLButtonElement) => {
     lastTriggerRef.current = trigger;
@@ -59,113 +125,68 @@ export function FourthDashboardMemberArea() {
     window.requestAnimationFrame(() => lastTriggerRef.current?.focus());
   };
 
-  const openFortune = (trigger: HTMLButtonElement) => {
-    openModal("fortune", trigger);
-  };
-
-  const openGift = (trigger: HTMLButtonElement) => {
-    openModal("gift", trigger);
-  };
-
-  const openCorrective = (trigger: HTMLButtonElement) => {
-    openModal("corrective", trigger);
-  };
-
   const modalTitle = modal === "fortune"
     ? "오늘의 운세"
     : modal === "gift"
       ? "오늘의 응원 상자"
       : modal === "corrective"
-        ? "교정운동 신청"
+        ? "교정운동 문의"
         : "개인 기능";
 
-  if (loading || !viewer?.authenticated) return null;
+  if (loading || !authenticated) return null;
+
+  const actions = [
+    ...(giftAvailable ? [{
+      id: "gift" as const,
+      title: "오늘의 응원 상자",
+      description: giftStatus?.claim ? "오늘 받은 응원 다시 보기" : "인증 완료 보상 열기",
+      action: giftStatus?.claim ? "다시 보기" : "열기",
+    }] : []),
+    {
+      id: "fortune" as const,
+      title: "오늘의 운세",
+      description: "내 정보로 오늘의 흐름 확인",
+      action: "보기",
+    },
+    {
+      id: "corrective" as const,
+      title: "교정운동 문의",
+      description: "가능한 일정과 불편한 움직임 전달",
+      action: "문의",
+    },
+  ];
 
   return (
     <>
       <section
         id="member-features"
-        className="mx-auto mt-3 w-[calc(100%_-_var(--page-gutter)_*_2)] max-w-[1200px] scroll-mt-20 rounded-[22px] bg-white p-2 shadow-[0_10px_30px_rgba(25,31,40,0.06)] ring-1 ring-slate-950/5 sm:mt-4 sm:rounded-[26px] sm:p-4"
+        className={`${embedded ? "mt-5 w-full" : "mx-auto mt-3 w-[calc(100%_-_var(--page-gutter)_*_2)] max-w-[1200px] sm:mt-4"} scroll-mt-20 rounded-[24px] bg-white p-2 shadow-[0_10px_30px_rgba(25,31,40,0.06)] ring-1 ring-slate-950/5 sm:p-3`}
         aria-labelledby="member-features-title"
       >
-        <div className="mb-2.5 flex min-h-9 items-center justify-between gap-2 px-1 sm:mb-3">
-              <div className="min-w-0">
-                <p className="text-[10px] font-black tracking-[0.08em] text-blue-600 sm:text-[11px]">PERSONAL</p>
-                <h2 id="member-features-title" className="truncate text-[12px] font-black text-slate-900 sm:text-sm">
-                  {viewer.display_name || "카카오 사용자"}님의 개인 화면
-                </h2>
-                <p className="mt-0.5 hidden truncate text-[10px] font-bold text-slate-500 sm:block">
-                  {viewer.verified_name
-                    ? "운영자가 확인한 이름이 적용됐어요."
-                    : "카카오 로그인과 함께 개인 기능이 바로 연결됐어요."}
-                </p>
-              </div>
-              <div className="flex shrink-0 items-center gap-1">
-                <Link href="/me" className="inline-flex min-h-10 items-center rounded-full bg-slate-100 px-3 text-[11px] font-black text-slate-700 sm:min-h-11">
-                  내 정보
-                </Link>
-                <button
-                  type="button"
-                  disabled={actionPending}
-                  onClick={() => {
-                    closeModal();
-                    void logout();
-                  }}
-                  className="min-h-10 rounded-full px-2 text-[11px] font-black text-slate-500 transition hover:bg-slate-100 disabled:opacity-50 sm:min-h-11 sm:px-2.5"
-                >
-                  {actionPending ? "처리 중" : "로그아웃"}
-                </button>
-              </div>
+        <h2 id="member-features-title" className="sr-only">개인 기능</h2>
+        <div className={`grid gap-2 ${actions.length === 3 ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
+          {actions.map((action) => (
+            <button
+              key={action.id}
+              type="button"
+              onClick={(event) => openModal(action.id, event.currentTarget)}
+              className="group flex min-h-[84px] items-center justify-between gap-4 rounded-[18px] bg-slate-50 px-4 py-4 text-left ring-1 ring-slate-200/80 transition hover:-translate-y-0.5 hover:bg-white hover:shadow-[0_10px_24px_rgba(15,23,42,0.08)] focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-blue-500 sm:min-h-[100px] sm:flex-col sm:items-start sm:justify-between"
+            >
+              <span className="min-w-0">
+                <strong className="block text-[15px] font-black tracking-[-0.02em] text-slate-950">{action.title}</strong>
+                <small className="mt-1 block text-xs font-semibold leading-5 text-slate-500">{action.description}</small>
+              </span>
+              <span className="shrink-0 rounded-full bg-white px-3 py-1.5 text-xs font-black text-blue-600 ring-1 ring-slate-200 transition group-hover:bg-blue-600 group-hover:text-white group-hover:ring-blue-600">
+                {action.action}
+              </span>
+            </button>
+          ))}
         </div>
-
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3">
-              <button
-                type="button"
-                onClick={(event) => openFortune(event.currentTarget)}
-                className="group flex min-h-[116px] min-w-0 flex-col justify-between rounded-[18px] bg-gradient-to-br from-violet-50 to-blue-50 p-3 text-left ring-1 ring-violet-100 transition hover:-translate-y-0.5 hover:shadow-md focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-violet-400 sm:min-h-[124px] sm:rounded-[22px] sm:p-4"
-              >
-                <span className="flex w-full items-start justify-between gap-1">
-                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white text-base shadow-sm ring-1 ring-violet-100 sm:h-11 sm:w-11 sm:rounded-2xl sm:text-xl" aria-hidden="true">✨</span>
-                  <span className="text-violet-400" aria-hidden="true">›</span>
-                </span>
-                <span className="mt-2 min-w-0">
-                  <strong className="block text-[12px] font-black leading-4 text-slate-950 sm:text-[15px] sm:leading-5">오늘의 운세</strong>
-                  <small className="mt-1 block text-[11px] font-bold leading-4 text-violet-600">인증 없이 바로 확인</small>
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={(event) => openGift(event.currentTarget)}
-                className="group flex min-h-[116px] min-w-0 flex-col justify-between rounded-[18px] bg-gradient-to-br from-blue-50 to-cyan-50 p-3 text-left ring-1 ring-blue-100 transition hover:-translate-y-0.5 hover:shadow-md focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-blue-400 sm:min-h-[124px] sm:rounded-[22px] sm:p-4"
-              >
-                <span className="flex w-full items-start justify-between gap-1">
-                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white text-base shadow-sm ring-1 ring-blue-100 sm:h-11 sm:w-11 sm:rounded-2xl sm:text-xl" aria-hidden="true">🎁</span>
-                  <span className="text-blue-400" aria-hidden="true">›</span>
-                </span>
-                <span className="mt-2 min-w-0">
-                  <strong className="block text-[12px] font-black leading-4 text-slate-950 sm:text-[15px] sm:leading-5">응원 상자</strong>
-                  <small className="mt-1 block text-[11px] font-bold leading-4 text-blue-600">오늘 인증 후 열기</small>
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={(event) => openCorrective(event.currentTarget)}
-                className="group col-span-2 flex min-h-[104px] min-w-0 flex-col justify-between rounded-[18px] bg-gradient-to-br from-emerald-50 to-teal-50 p-3 text-left ring-1 ring-emerald-100 transition hover:-translate-y-0.5 hover:shadow-md focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 sm:col-span-1 sm:min-h-[124px] sm:rounded-[22px] sm:p-4"
-              >
-                <span className="flex w-full items-start justify-between gap-1">
-                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white text-base shadow-sm ring-1 ring-emerald-100 sm:h-11 sm:w-11 sm:rounded-2xl sm:text-xl" aria-hidden="true">🧘</span>
-                  <span className="text-emerald-500" aria-hidden="true">›</span>
-                </span>
-                <span className="mt-2 min-w-0">
-                  <strong className="block text-[12px] font-black leading-4 text-slate-950 sm:text-[15px] sm:leading-5">교정운동</strong>
-                  <small className="mt-1 block text-[11px] font-bold leading-4 text-emerald-700">가능한 날짜로 신청</small>
-                </span>
-              </button>
-        </div>
-
-        {error ? <p className="mt-2 px-1 text-[10px] font-bold text-rose-600" role="status">{error}</p> : null}
+        {giftStatusError ? (
+          <p className="px-3 pb-2 pt-3 text-xs font-semibold leading-5 text-slate-500" role="status">
+            {giftStatusError}
+          </p>
+        ) : null}
       </section>
 
       <dialog
@@ -182,7 +203,7 @@ export function FourthDashboardMemberArea() {
         onClose={() => setModal(null)}
       >
         <div className="max-h-[92dvh] overflow-y-auto p-4 pb-[max(24px,env(safe-area-inset-bottom))] sm:p-6">
-          <div className="sticky -top-4 z-10 mb-3 flex items-center justify-between gap-4 border-b border-slate-100 bg-white/95 px-1 py-3 backdrop-blur sm:-top-6 sm:py-4">
+          <div className="sticky -top-4 z-10 mb-4 flex items-center justify-between gap-4 border-b border-slate-100 bg-white/95 px-1 py-3 backdrop-blur sm:-top-6 sm:py-4">
             <h2 id="member-feature-dialog-title" ref={dialogTitleRef} tabIndex={-1} className="text-lg font-black outline-none">
               {modalTitle}
             </h2>
@@ -196,8 +217,8 @@ export function FourthDashboardMemberArea() {
             </button>
           </div>
 
-          {modal === "fortune" ? <DailyFortune /> : null}
-          {modal === "gift" ? <div className="-mt-4"><DailyGiftBox /></div> : null}
+          {modal === "fortune" ? <DailyFortune defaultName={resolvedDisplayName} /> : null}
+          {modal === "gift" ? <DailyGiftBox initialStatus={giftStatus} onStatusChange={setGiftStatus} /> : null}
           {modal === "corrective" ? <CorrectiveExerciseApplication /> : null}
         </div>
       </dialog>

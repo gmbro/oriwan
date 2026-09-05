@@ -286,9 +286,9 @@ export function Hello2027Poc({
               <div className={styles.crewHeading}>
                 <div>
                   <span className={styles.crewCount}>{snapshot.participantCount}명</span>
-                  <h2 id="crew-title">CREW</h2>
+                  <h2 id="crew-title">멤버</h2>
                 </div>
-                <div className={styles.crewSort} role="group" aria-label="크루 정렬 방식">
+                <div className={styles.crewSort} role="group" aria-label="멤버 정렬 방식">
                   <button
                     type="button"
                     aria-pressed={crewSort === "name"}
@@ -401,11 +401,11 @@ function FourthSeasonPreopenState({ seasonStarted }: { seasonStarted: boolean })
       </div>
       <p className={styles.preopenStateEyebrow}>{seasonStarted ? "TWTT 4TH" : "STARTS SEP 23"}</p>
       <h2 id="fourth-season-preopen-title">
-        {seasonStarted ? "공개할 크루 데이터를 준비하고 있어요" : "공식 100일은 9월 23일에 시작해요"}
+        {seasonStarted ? "공개할 멤버 데이터를 준비하고 있어요" : "공식 100일은 9월 23일에 시작해요"}
       </h2>
       <p>
         {seasonStarted
-          ? "실제 크루와 인증 기록이 연결되면 이곳에 바로 표시됩니다."
+          ? "실제 멤버와 인증 기록이 연결되면 이곳에 바로 표시됩니다."
           : "그전에 남긴 준비 러닝은 공식 인증률에 더하지 않고, 로그인한 본인의 개인 기록에서만 보여드려요."}
       </p>
     </section>
@@ -541,9 +541,9 @@ function ParticipantDialog({
           )}
 
           <section className={styles.introductionCard} aria-labelledby="participant-introduction-title">
-            <span>크루 소개 · {participant.fullName}</span>
+            <span>멤버 소개 · {participant.fullName}</span>
             <strong id="participant-introduction-title">{introduction?.title ?? "자기소개를 준비 중이에요"}</strong>
-            <p>{introduction?.body ?? "곧 이 크루의 이야기를 만나볼 수 있어요."}</p>
+            <p>{introduction?.body ?? "곧 이 멤버의 이야기를 만나볼 수 있어요."}</p>
           </section>
         </div>
       ) : null}

@@ -64,7 +64,8 @@ export type Hello2027CommentActor = {
   authError: boolean;
 };
 
-export const HELLO_2027_COMMENTS_LIVE = process.env.HELLO_2027_COMMENTS_LIVE === "true";
+export const HELLO_2027_COMMENTS_LIVE = process.env.HELLO_2027_COMMENTS_DISABLED !== "true"
+  && process.env.HELLO_2027_COMMENTS_LIVE !== "false";
 export const HELLO_2027_COMMENTS_SEASON = FOURTH_SEASON_KEY;
 export const hello2027PrivateHeaders = {
   "Cache-Control": "private, no-store, max-age=0",
@@ -124,7 +125,9 @@ export async function resolveHello2027CommentActor(request: NextRequest): Promis
     if (service) {
       try {
         const connection = await resolveParticipantAccount(service, user.id);
-        if (connection.status === "approved" && connection.displayName) {
+        // Automatically enrolled personal profiles keep following the current
+        // Kakao nickname. Only an operator-confirmed public member may override it.
+        if (connection.status === "approved" && !connection.automaticallyEnrolled && connection.displayName) {
           kakaoName = connection.displayName;
         }
       } catch (error) {

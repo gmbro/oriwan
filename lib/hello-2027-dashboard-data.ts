@@ -315,7 +315,7 @@ async function loadHello2027DashboardSnapshot(): Promise<Hello2027Snapshot> {
 
 export const getHello2027DashboardSnapshot = unstable_cache(
   loadHello2027DashboardSnapshot,
-  ["hello-2027-dashboard", FOURTH_SEASON_KEY, "v3-dummy-free"],
+  ["hello-2027-dashboard", FOURTH_SEASON_KEY, "v4-live"],
   {
     revalidate: SNAPSHOT_REVALIDATE_SECONDS,
     tags: ["public-dashboard"],

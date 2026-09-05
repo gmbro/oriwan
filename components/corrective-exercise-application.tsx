@@ -141,16 +141,11 @@ function ApplicationSummary({
   return (
     <div className="space-y-4">
       <div className="rounded-[24px] bg-blue-50 p-4 ring-1 ring-blue-100 sm:p-5">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-[11px] font-black text-blue-600">신청 상태</p>
-            <h3 className="mt-1 text-xl font-black text-slate-950">
-              {CORRECTIVE_APPLICATION_STATUS_LABELS[application.status]}
-            </h3>
-          </div>
-          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-white text-xl shadow-sm" aria-hidden="true">
-            {application.status === "confirmed" ? "📅" : application.status === "completed" ? "🙌" : isActive ? "📝" : "↩️"}
-          </span>
+        <div>
+          <p className="text-[11px] font-black text-blue-600">문의 상태</p>
+          <h3 className="mt-1 text-xl font-black text-slate-950">
+            {CORRECTIVE_APPLICATION_STATUS_LABELS[application.status]}
+          </h3>
         </div>
 
         <dl className="mt-4 grid gap-2 text-sm">
@@ -389,8 +384,7 @@ export function CorrectiveExerciseApplication() {
   if (!data) {
     return (
       <div className="rounded-[24px] bg-slate-50 p-5 text-center ring-1 ring-slate-950/5">
-        <span className="text-4xl" aria-hidden="true">🗓️</span>
-        <h3 className="mt-3 text-lg font-black text-slate-950">일정을 불러오지 못했어요</h3>
+        <h3 className="text-lg font-black text-slate-950">일정을 불러오지 못했어요</h3>
         <p className="mt-2 text-sm font-bold leading-6 text-slate-600">{error || "잠시 후 다시 확인해주세요."}</p>
         <button
           type="button"
@@ -428,8 +422,7 @@ export function CorrectiveExerciseApplication() {
   if (!data.accepting_applications) {
     return (
       <div className="rounded-[24px] bg-slate-50 p-5 text-center ring-1 ring-slate-950/5">
-        <span className="text-4xl" aria-hidden="true">🗓️</span>
-        <h3 className="mt-3 text-lg font-black text-slate-950">교정운동 신청을 준비하고 있어요</h3>
+        <h3 className="text-lg font-black text-slate-950">교정운동 문의를 준비하고 있어요</h3>
         <p className="mt-2 text-sm font-bold leading-6 text-slate-600">
           일정, 개인정보 보호와 자동 파기 설정을 모두 확인한 뒤 신청을 열어드릴게요.
         </p>
@@ -439,10 +432,10 @@ export function CorrectiveExerciseApplication() {
 
   return (
     <form className="space-y-5" onSubmit={(event) => void submitApplication(event)} noValidate>
-      <div className="rounded-[24px] bg-gradient-to-br from-blue-600 to-cyan-500 p-5 text-white">
-        <p className="text-[11px] font-black text-white/75">CORRECTIVE MOVEMENT</p>
-        <h3 className="mt-1 text-xl font-black">{data.participant_name}님의 움직임 상담</h3>
-        <p className="mt-2 text-sm font-semibold leading-6 text-white/90">
+      <div className="rounded-[24px] bg-slate-50 p-5 ring-1 ring-slate-200">
+        <p className="text-[11px] font-black text-blue-600">교정운동 문의</p>
+        <h3 className="mt-1 text-xl font-black text-slate-950">{data.participant_name}님의 움직임 상담</h3>
+        <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
           가능한 일정을 고르고 통증이 생기는 상황을 알려주세요. 운영자가 확인 후 일정을 조율해요.
         </p>
       </div>
@@ -646,7 +639,7 @@ export function CorrectiveExerciseApplication() {
         disabled={submitting || availableSlots.length === 0}
         className="min-h-14 w-full rounded-[20px] bg-blue-600 px-5 text-base font-black text-white shadow-lg shadow-blue-500/15 transition hover:bg-blue-700 focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-blue-400 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none"
       >
-        {submitting ? "신청하는 중…" : availableSlots.length ? "교정운동 신청하기" : "신청 가능한 일정 없음"}
+        {submitting ? "문의하는 중…" : availableSlots.length ? "교정운동 문의하기" : "문의 가능한 일정 없음"}
       </button>
     </form>
   );

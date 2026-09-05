@@ -1,6 +1,6 @@
 const AUTH_RETURN_PATHS = new Set(["/", "/4th", "/4th/dashboard", "/me"]);
 const UNSAFE_PATH_CHARACTERS = /[\\\u0000-\u001f\u007f]/;
-type AuthReturnFallback = "/" | "/4th" | "/4th/dashboard" | "/4th/dashboard#member-features" | "/me";
+type AuthReturnFallback = "/" | "/4th" | "/4th/dashboard" | "/4th/dashboard#member-features" | "/4th/dashboard#guestbook" | "/me";
 
 /**
  * OAuth 복귀 위치는 제품에서 실제로 쓰는 내부 화면만 허용합니다.
@@ -21,7 +21,8 @@ export function getSafeAuthReturnPath(
       return fallback;
     }
 
-    const allowedHash = target.hash === "" || (target.pathname === "/4th/dashboard" && target.hash === "#member-features");
+    const allowedHash = target.hash === ""
+      || (target.pathname === "/4th/dashboard" && ["#member-features", "#guestbook"].includes(target.hash));
     return allowedHash ? `${target.pathname}${target.hash}` : fallback;
   } catch {
     return fallback;

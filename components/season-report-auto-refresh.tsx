@@ -2,27 +2,36 @@
 
 import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { DASHBOARD_REFRESH_CHANNEL, DASHBOARD_REFRESH_EVENT } from "@/lib/dashboard-refresh";
+import {
+  DASHBOARD_REFRESH_CHANNEL,
+  DASHBOARD_REFRESH_DOM_EVENT,
+  DASHBOARD_REFRESH_EVENT,
+} from "@/lib/dashboard-refresh";
 import { createClient } from "@/lib/supabase/client";
 
 const SEASON_REPORT_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 
-export function SeasonReportAutoRefresh() {
+export function SeasonReportAutoRefresh({ intervalMs = SEASON_REPORT_REFRESH_INTERVAL_MS }: { intervalMs?: number } = {}) {
   const router = useRouter();
   const lastRefreshAtRef = useRef(0);
 
   useEffect(() => {
     lastRefreshAtRef.current = Date.now();
 
-    const refreshIfDue = () => {
-      if (document.visibilityState !== "visible") return;
-      if (Date.now() - lastRefreshAtRef.current < SEASON_REPORT_REFRESH_INTERVAL_MS) return;
-
-      lastRefreshAtRef.current = Date.now();
+    const refreshDashboard = () => {
+      window.dispatchEvent(new Event(DASHBOARD_REFRESH_DOM_EVENT));
       router.refresh();
     };
 
-    const interval = window.setInterval(refreshIfDue, SEASON_REPORT_REFRESH_INTERVAL_MS);
+    const refreshIfDue = () => {
+      if (document.visibilityState !== "visible") return;
+      if (Date.now() - lastRefreshAtRef.current < intervalMs) return;
+
+      lastRefreshAtRef.current = Date.now();
+      refreshDashboard();
+    };
+
+    const interval = window.setInterval(refreshIfDue, intervalMs);
     window.addEventListener("focus", refreshIfDue);
     document.addEventListener("visibilitychange", refreshIfDue);
 
@@ -34,11 +43,11 @@ export function SeasonReportAutoRefresh() {
         .channel(DASHBOARD_REFRESH_CHANNEL)
         .on("broadcast", { event: DASHBOARD_REFRESH_EVENT }, () => {
           lastRefreshAtRef.current = Date.now();
-          router.refresh();
+          refreshDashboard();
         })
         .subscribe();
     } catch {
-      // The five-minute refresh remains the fallback when realtime is unavailable.
+      // The configured interval remains the fallback when realtime is unavailable.
     }
 
     return () => {
@@ -47,7 +56,7 @@ export function SeasonReportAutoRefresh() {
       document.removeEventListener("visibilitychange", refreshIfDue);
       if (supabase && channel) void supabase.removeChannel(channel);
     };
-  }, [router]);
+  }, [intervalMs, router]);
 
   return null;
 }

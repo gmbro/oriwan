@@ -4,16 +4,11 @@ import Image from "next/image";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useState } from "react";
+import { FourthDashboardMemberArea } from "@/components/fourth-dashboard-member-area";
 import { KakaoLoginButton } from "@/components/kakao-login-button";
 import { TwttBrandMark } from "@/components/twtt-brand-mark";
 import riversideImage from "@/public/images/poc/hello-2027/hello-2027-riverside.webp";
 
-const DailyFortune = dynamic(() => import("@/components/daily-fortune").then((module) => module.DailyFortune), {
-  loading: () => <div className="h-48 animate-pulse rounded-[26px] bg-slate-100" aria-label="오늘의 운세를 불러오는 중" />,
-});
-const DailyGiftBox = dynamic(() => import("@/components/daily-gift-box").then((module) => module.DailyGiftBox), {
-  loading: () => <div className="h-48 animate-pulse rounded-[26px] bg-slate-100" aria-label="응원 상자를 불러오는 중" />,
-});
 const PersonalRecordsDashboard = dynamic(
   () => import("@/components/personal-records-dashboard").then((module) => module.PersonalRecordsDashboard),
   { loading: () => <div className="mt-4 h-64 animate-pulse rounded-[28px] bg-slate-100" aria-label="개인 러닝 기록을 불러오는 중" /> },
@@ -145,10 +140,7 @@ export default function MyPage() {
           </p>
         </div>
 
-        <div className="mt-5 grid gap-3 lg:grid-cols-2 lg:gap-4">
-          <DailyFortune />
-          <div className="[&>section]:mt-0"><DailyGiftBox /></div>
-        </div>
+        <FourthDashboardMemberArea displayName={name} embedded />
 
         <nav className="mt-5 grid grid-cols-2 gap-2" aria-label="개인 화면 바로가기">
           <Link href="/4th/dashboard#guestbook" className="flex min-h-12 items-center justify-center rounded-2xl bg-blue-600 px-3 text-sm font-black text-white">댓글로 이동</Link>
