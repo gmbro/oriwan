@@ -465,7 +465,7 @@ export function CorrectiveExerciseApplication() {
                     const available = calendarMonth.availableDates.has(date);
                     const selected = selectedDate === date;
                     if (!available) {
-                      return <span key={date} className="grid aspect-square place-items-center rounded-xl text-[11px] font-bold text-slate-300" aria-hidden="true">{day}</span>;
+                      return <span key={date} className="grid min-h-11 place-items-center rounded-xl text-xs font-bold text-slate-300" aria-hidden="true">{day}</span>;
                     }
                     return (
                       <button
@@ -477,7 +477,7 @@ export function CorrectiveExerciseApplication() {
                           setSelectedDate(date);
                           setSelectedSlotId("");
                         }}
-                        className={`grid aspect-square place-items-center rounded-xl text-xs font-black ring-1 transition focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-1 focus-visible:outline-blue-400 ${selected ? "bg-blue-600 text-white ring-blue-600 shadow-sm" : "bg-white text-blue-700 ring-blue-100 hover:bg-blue-50"}`}
+                        className={`grid min-h-11 place-items-center rounded-xl text-xs font-black ring-1 transition focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-1 focus-visible:outline-blue-400 ${selected ? "bg-blue-600 text-white ring-blue-600 shadow-sm" : "bg-white text-blue-700 ring-blue-100 hover:bg-blue-50"}`}
                       >
                         {day}
                       </button>

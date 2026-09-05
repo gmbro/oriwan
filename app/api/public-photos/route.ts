@@ -254,8 +254,9 @@ export async function GET(request: NextRequest) {
   if (guardResponse) return guardResponse;
 
   try {
-    const bypassCache = request.nextUrl.searchParams.get("refresh") === "1";
-    const { payload, cacheStatus } = await getPublicPhotosPayload(bypassCache);
+    // Public callers never bypass the storage walk cache. This keeps a forged
+    // refresh query from multiplying signed-URL and bucket-list operations.
+    const { payload, cacheStatus } = await getPublicPhotosPayload(false);
     return publicPhotosResponse(payload, cacheStatus);
   } catch (error) {
     logServerFailure("Public photos", error);

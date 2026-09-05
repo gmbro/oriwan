@@ -122,11 +122,11 @@ export function FourthDashboardMemberArea() {
               </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-2 sm:gap-3">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3">
               <button
                 type="button"
                 onClick={(event) => openFortune(event.currentTarget)}
-                className="group flex min-h-[120px] min-w-0 flex-col justify-between rounded-[18px] bg-gradient-to-br from-violet-50 to-blue-50 p-3 text-left ring-1 ring-violet-100 transition hover:-translate-y-0.5 hover:shadow-md focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-violet-400 sm:min-h-[124px] sm:rounded-[22px] sm:p-4"
+                className="group flex min-h-[116px] min-w-0 flex-col justify-between rounded-[18px] bg-gradient-to-br from-violet-50 to-blue-50 p-3 text-left ring-1 ring-violet-100 transition hover:-translate-y-0.5 hover:shadow-md focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-violet-400 sm:min-h-[124px] sm:rounded-[22px] sm:p-4"
               >
                 <span className="flex w-full items-start justify-between gap-1">
                   <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white text-base shadow-sm ring-1 ring-violet-100 sm:h-11 sm:w-11 sm:rounded-2xl sm:text-xl" aria-hidden="true">✨</span>
@@ -141,7 +141,7 @@ export function FourthDashboardMemberArea() {
               <button
                 type="button"
                 onClick={(event) => openGift(event.currentTarget)}
-                className="group flex min-h-[120px] min-w-0 flex-col justify-between rounded-[18px] bg-gradient-to-br from-blue-50 to-cyan-50 p-3 text-left ring-1 ring-blue-100 transition hover:-translate-y-0.5 hover:shadow-md focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-blue-400 sm:min-h-[124px] sm:rounded-[22px] sm:p-4"
+                className="group flex min-h-[116px] min-w-0 flex-col justify-between rounded-[18px] bg-gradient-to-br from-blue-50 to-cyan-50 p-3 text-left ring-1 ring-blue-100 transition hover:-translate-y-0.5 hover:shadow-md focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-blue-400 sm:min-h-[124px] sm:rounded-[22px] sm:p-4"
               >
                 <span className="flex w-full items-start justify-between gap-1">
                   <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white text-base shadow-sm ring-1 ring-blue-100 sm:h-11 sm:w-11 sm:rounded-2xl sm:text-xl" aria-hidden="true">🎁</span>
@@ -158,7 +158,7 @@ export function FourthDashboardMemberArea() {
               <button
                 type="button"
                 onClick={(event) => openCorrective(event.currentTarget)}
-                className="group flex min-h-[120px] min-w-0 flex-col justify-between rounded-[18px] bg-gradient-to-br from-emerald-50 to-teal-50 p-3 text-left ring-1 ring-emerald-100 transition hover:-translate-y-0.5 hover:shadow-md focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 sm:min-h-[124px] sm:rounded-[22px] sm:p-4"
+                className="group col-span-2 flex min-h-[104px] min-w-0 flex-col justify-between rounded-[18px] bg-gradient-to-br from-emerald-50 to-teal-50 p-3 text-left ring-1 ring-emerald-100 transition hover:-translate-y-0.5 hover:shadow-md focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 sm:col-span-1 sm:min-h-[124px] sm:rounded-[22px] sm:p-4"
               >
                 <span className="flex w-full items-start justify-between gap-1">
                   <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white text-base shadow-sm ring-1 ring-emerald-100 sm:h-11 sm:w-11 sm:rounded-2xl sm:text-xl" aria-hidden="true">🧘</span>

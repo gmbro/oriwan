@@ -54,8 +54,9 @@ export function FourthViewerProvider({
   }, []);
 
   useEffect(() => {
+    if (initialViewer !== undefined) return;
     queueMicrotask(() => void reload());
-  }, [reload]);
+  }, [initialViewer, reload]);
 
   const logout = useCallback(async () => {
     setActionPending(true);

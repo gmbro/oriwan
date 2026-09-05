@@ -5,7 +5,10 @@ import {
   KAKAO_AUTH_START_COOKIE,
   kakaoAuthStartCookieOptions,
 } from "@/lib/kakao-auth-flow";
+import { guardReadRequest } from "@/lib/request-security";
 import { createClient } from "@/lib/supabase/server";
+
+const OAUTH_CODE_PATTERN = /^[A-Za-z0-9._~-]{8,2048}$/;
 
 function callbackRedirect(target: URL) {
   const response = NextResponse.redirect(target, {
@@ -40,6 +43,16 @@ function callbackConfigurationError(message: string, status: number) {
  * Kakao OAuth 완료 후 요청한 화면으로 이동합니다.
  */
 export async function GET(request: NextRequest) {
+  const guardResponse = guardReadRequest(request, {
+    rateLimit: {
+      key: "kakao-oauth-callback",
+      limit: 30,
+      windowMs: 60_000,
+      message: "로그인 확인 요청이 잠시 몰렸어요. 잠시 후 다시 시도해주세요.",
+    },
+  });
+  if (guardResponse) return guardResponse;
+
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
   // Keep compatibility with any authorization started immediately before this
@@ -55,7 +68,11 @@ export async function GET(request: NextRequest) {
   }
   if (configuredSiteUrl) {
     try {
-      redirectOrigin = new URL(/^https?:\/\//i.test(configuredSiteUrl) ? configuredSiteUrl : `https://${configuredSiteUrl}`).origin;
+      const siteUrl = new URL(/^https?:\/\//i.test(configuredSiteUrl) ? configuredSiteUrl : `https://${configuredSiteUrl}`);
+      if (process.env.NODE_ENV === "production" && siteUrl.protocol !== "https:") {
+        throw new Error("Production SITE_URL must use HTTPS.");
+      }
+      redirectOrigin = siteUrl.origin;
     } catch {
       console.error("Invalid SITE_URL configured for auth callback.");
       if (process.env.NODE_ENV === "production") {
@@ -64,7 +81,7 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  if (code) {
+  if (code && OAUTH_CODE_PATTERN.test(code)) {
     try {
       const supabase = await createClient({ requireCookieWrites: true });
       const { error } = await supabase.auth.exchangeCodeForSession(code);

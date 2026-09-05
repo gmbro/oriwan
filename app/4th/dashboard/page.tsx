@@ -20,9 +20,11 @@ export const metadata: Metadata = {
 
 export default async function FourthSeasonDashboardPage() {
   await connection();
-  const initialViewer = await getFourthViewer();
   const currentDateIso = toKstIsoDate();
-  const snapshot = await getHello2027DashboardSnapshot();
+  const [initialViewer, snapshot] = await Promise.all([
+    getFourthViewer(),
+    getHello2027DashboardSnapshot(),
+  ]);
 
   return (
     <FourthViewerProvider initialViewer={initialViewer}>

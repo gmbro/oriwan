@@ -140,13 +140,11 @@ export function useLocalHello2027Content(
   defaultEncouragements: readonly string[] = [],
   preferPublishedContent = false,
 ) {
-  void defaultAds;
-  void defaultEncouragements;
   void preferPublishedContent;
   const [content, setContent] = useState<LocalContent>(() => ({
-    ads: [],
+    ads: defaultAds.map((ad) => ({ ...ad, isUploaded: ad.imageSrc.startsWith("https://") })),
     avatarUrls: {},
-    encouragements: [],
+    encouragements: [...defaultEncouragements],
     profileIntroductions: {},
   }));
   const refresh = useCallback(async () => {

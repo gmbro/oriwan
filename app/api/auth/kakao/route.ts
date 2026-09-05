@@ -25,6 +25,7 @@ function configuredOrigin(request: NextRequest) {
 
   try {
     const url = new URL(/^https?:\/\//i.test(configured) ? configured : `https://${configured}`);
+    if (process.env.NODE_ENV === "production" && url.protocol !== "https:") return null;
     return url.origin;
   } catch {
     return null;

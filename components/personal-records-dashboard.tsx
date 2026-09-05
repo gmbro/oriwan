@@ -89,7 +89,7 @@ export function PersonalRecordsDashboard() {
   if (state === "error" || !payload) {
     return (
       <section className="mt-6 rounded-[28px] bg-white p-5 ring-1 ring-slate-200 sm:p-7" aria-labelledby="personal-records-error-title">
-        <p className="text-[11px] font-black tracking-[0.16em] text-blue-600">MY RUN</p>
+        <p className="text-xs font-black tracking-[0.12em] text-blue-600">MY RUN</p>
         <h2 id="personal-records-error-title" className="mt-2 text-xl font-black text-slate-950">기록을 불러오지 못했어요</h2>
         <p className="mt-2 text-sm font-semibold leading-6 text-slate-500">{errorMessage}</p>
         <button type="button" onClick={() => void loadRecords()} className="mt-4 min-h-11 rounded-2xl bg-blue-600 px-5 text-sm font-black text-white">
@@ -108,7 +108,7 @@ export function PersonalRecordsDashboard() {
       <div className="rounded-[30px] bg-slate-950 p-5 text-white sm:p-7">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <p className="text-[11px] font-black tracking-[0.16em] text-lime-300">MY RUN · 4TH</p>
+            <p className="text-xs font-black tracking-[0.12em] text-lime-300">MY RUN · 4TH</p>
             <h2 id="personal-records-title" className="mt-2 text-2xl font-black sm:text-3xl">나의 러닝 기록</h2>
             <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-slate-300">
               9월 23일부터 공식 100일 기록을 계산해요. 그 전에 남긴 러닝은 이 개인 화면에서만 따로 보여드려요.
@@ -130,9 +130,9 @@ export function PersonalRecordsDashboard() {
       {(payload.season.phase === "preseason" || hasPreseasonRecords) ? (
         <section className="rounded-[26px] bg-slate-100 p-5 ring-1 ring-slate-200 sm:flex sm:items-center sm:justify-between sm:gap-6 sm:p-6" aria-labelledby="preseason-records-title">
           <div>
-            <p className="text-[11px] font-black tracking-[0.12em] text-slate-500">PERSONAL ONLY</p>
+            <p className="text-xs font-black tracking-[0.1em] text-slate-500">PERSONAL ONLY</p>
             <h3 id="preseason-records-title" className="mt-1 text-lg font-black text-slate-950">시즌 전 기록</h3>
-            <p className="mt-1 text-xs font-bold leading-5 text-slate-500">공식 인증률, D-day, 크루 통계에는 포함되지 않아요.</p>
+            <p className="mt-1 text-sm font-bold leading-6 text-slate-500">공식 인증률, D-day, 크루 통계에는 포함되지 않아요.</p>
           </div>
           {preseason.certifiedDays > 0 ? (
             <dl className="mt-4 grid grid-cols-3 gap-2 sm:mt-0 sm:min-w-[360px]">
@@ -162,9 +162,9 @@ export function PersonalRecordsDashboard() {
 function SummaryMetric({ label, value, detail }: { label: string; value: string; detail: string }) {
   return (
     <div className="rounded-2xl bg-white/[0.07] p-4 ring-1 ring-white/10">
-      <dt className="text-[11px] font-black text-slate-400">{label}</dt>
+      <dt className="text-xs font-black text-slate-400">{label}</dt>
       <dd className="mt-1 text-xl font-black text-white sm:text-2xl">{value}</dd>
-      <dd className="mt-1 truncate text-[10px] font-bold text-slate-400">{detail}</dd>
+      <dd className="mt-1 text-xs font-bold leading-5 text-slate-400">{detail}</dd>
     </div>
   );
 }
@@ -172,7 +172,7 @@ function SummaryMetric({ label, value, detail }: { label: string; value: string;
 function MiniMetric({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-2xl bg-white px-3 py-3 text-center ring-1 ring-slate-200">
-      <dt className="text-[10px] font-black text-slate-400">{label}</dt>
+      <dt className="text-xs font-black text-slate-400">{label}</dt>
       <dd className="mt-1 text-sm font-black text-slate-800">{value}</dd>
     </div>
   );
@@ -225,26 +225,26 @@ function CumulativeDistanceChart({
   return (
     <figure className="rounded-[28px] bg-white p-5 ring-1 ring-slate-200 sm:p-6">
       <figcaption>
-        <p className="text-[11px] font-black tracking-[0.12em] text-blue-600">DISTANCE</p>
+        <p className="text-xs font-black tracking-[0.1em] text-blue-600">DISTANCE</p>
         <h3 className="mt-1 text-lg font-black text-slate-950">누적 거리 흐름</h3>
         <p className="mt-1 text-xs font-bold text-slate-500">시즌 전과 공식 시즌 누적값을 각각 0km부터 계산해요.</p>
       </figcaption>
 
       {certifiedPoints.length > 0 ? (
         <div className="mt-4 overflow-x-auto">
-          <svg className="min-w-[560px]" viewBox={`0 0 ${width} ${height}`} role="img" aria-labelledby={`${titleId} ${descriptionId}`}>
+          <svg className="min-w-[540px] snap-start" viewBox={`0 0 ${width} ${height}`} role="img" aria-labelledby={`${titleId} ${descriptionId}`}>
             <title id={titleId}>개인 누적 거리 그래프</title>
             <desc id={descriptionId}>회색선은 시즌 전 개인 기록, 파란선은 9월 23일부터 계산한 공식 기록입니다.</desc>
             {[0, 0.5, 1].map((ratio) => (
               <g key={ratio}>
                 <line x1={padding.left} x2={width - padding.right} y1={padding.top + plotHeight * ratio} y2={padding.top + plotHeight * ratio} stroke="#e2e8f0" strokeWidth="1" />
-                <text x={padding.left - 8} y={padding.top + plotHeight * ratio + 4} textAnchor="end" fontSize="10" fontWeight="700" fill="#94a3b8">
+                <text x={padding.left - 8} y={padding.top + plotHeight * ratio + 4} textAnchor="end" fontSize="12" fontWeight="700" fill="#64748b">
                   {(maxDistance * (1 - ratio)).toFixed(maxDistance >= 10 ? 0 : 1)}
                 </text>
               </g>
             ))}
             <line x1={startMarkerX} x2={startMarkerX} y1={padding.top - 8} y2={height - padding.bottom} stroke="#2563eb" strokeDasharray="4 5" strokeWidth="1.5" />
-            <text x={Math.min(startMarkerX + 6, width - 76)} y={padding.top - 12} fontSize="10" fontWeight="800" fill="#2563eb">9.23 공식 시작</text>
+            <text x={Math.min(startMarkerX + 6, width - 90)} y={padding.top - 12} fontSize="12" fontWeight="800" fill="#2563eb">9.23 공식 시작</text>
             {phasePoints("preseason") ? <polyline points={phasePoints("preseason")} fill="none" stroke="#94a3b8" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" /> : null}
             {phasePoints("official") ? <polyline points={phasePoints("official")} fill="none" stroke="#2563eb" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" /> : null}
             {certifiedPoints.map((point) => (
@@ -252,15 +252,15 @@ function CumulativeDistanceChart({
                 <title>{formatShortDate(point.date)} · {point.phase === "official" ? "공식" : "시즌 전"} 누적 {formatDistance(point.cumulativeKm)}</title>
               </circle>
             ))}
-            <text x={padding.left} y={height - 8} fontSize="10" fontWeight="700" fill="#94a3b8">{formatShortDate(payload.season.personalRecordStartDate)}</text>
-            <text x={width - padding.right} y={height - 8} textAnchor="end" fontSize="10" fontWeight="700" fill="#94a3b8">{formatShortDate(visibleEnd)}</text>
+            <text x={padding.left} y={height - 8} fontSize="12" fontWeight="700" fill="#64748b">{formatShortDate(payload.season.personalRecordStartDate)}</text>
+            <text x={width - padding.right} y={height - 8} textAnchor="end" fontSize="12" fontWeight="700" fill="#64748b">{formatShortDate(visibleEnd)}</text>
           </svg>
         </div>
       ) : (
         <ChartEmptyState message="첫 인증이 쌓이면 누적 거리 흐름이 나타나요." />
       )}
 
-      <div className="mt-3 flex flex-wrap gap-4 text-[11px] font-black text-slate-500" aria-hidden="true">
+      <div className="mt-3 flex flex-wrap gap-4 text-xs font-black text-slate-500" aria-hidden="true">
         <span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-slate-400" />시즌 전 개인 기록</span>
         <span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-blue-600" />공식 100일 기록</span>
       </div>
@@ -273,23 +273,23 @@ function WeeklyBars({ weeks, seasonPhase }: { weeks: PersonalWeeklyProgress[]; s
   return (
     <figure className="rounded-[28px] bg-white p-5 ring-1 ring-slate-200 sm:p-6">
       <figcaption>
-        <p className="text-[11px] font-black tracking-[0.12em] text-blue-600">WEEKLY</p>
+        <p className="text-xs font-black tracking-[0.1em] text-blue-600">WEEKLY</p>
         <h3 className="mt-1 text-lg font-black text-slate-950">공식 주간 거리</h3>
         <p className="mt-1 text-xs font-bold text-slate-500">9월 23일부터 100일을 15개 주차로 나눠요.</p>
       </figcaption>
       {seasonPhase === "preseason" ? (
         <p className="mt-4 rounded-2xl bg-blue-50 px-4 py-3 text-xs font-black text-blue-700">공식 시즌이 시작되면 주간 막대가 채워져요.</p>
       ) : null}
-      <ol className="mt-5 grid grid-flow-col auto-cols-[42px] gap-2 overflow-x-auto pb-2" aria-label="공식 주차별 러닝 거리">
+      <ol className="mt-5 grid snap-x grid-flow-col auto-cols-[46px] gap-2 overflow-x-auto pb-3" aria-label="공식 주차별 러닝 거리">
         {weeks.map((week) => {
           const barHeight = week.distanceKm > 0 ? Math.max(8, (week.distanceKm / maxDistance) * 100) : 3;
           return (
-            <li key={week.weekNumber} className="flex min-h-[168px] flex-col items-center justify-end" aria-label={`${week.weekNumber}주차, ${formatShortDate(week.from)}부터 ${formatShortDate(week.to)}, 인증 ${week.certifiedDays}일, 거리 ${formatDistance(week.distanceKm)}`}>
-              <span className="mb-1 text-[9px] font-black text-slate-500">{week.distanceKm > 0 ? week.distanceKm.toFixed(1) : ""}</span>
+            <li key={week.weekNumber} className="flex min-h-[168px] snap-start flex-col items-center justify-end" aria-label={`${week.weekNumber}주차, ${formatShortDate(week.from)}부터 ${formatShortDate(week.to)}, 인증 ${week.certifiedDays}일, 거리 ${formatDistance(week.distanceKm)}`}>
+              <span className="mb-1 text-xs font-black text-slate-500">{week.distanceKm > 0 ? week.distanceKm.toFixed(1) : ""}</span>
               <span className="flex h-28 w-7 items-end overflow-hidden rounded-full bg-slate-100" aria-hidden="true">
                 <span className={`w-full rounded-full ${week.elapsedDays > 0 ? "bg-blue-600" : "bg-slate-200"}`} style={{ height: `${barHeight}%` }} />
               </span>
-              <span className="mt-2 text-[9px] font-black text-slate-400">{week.weekNumber}주</span>
+              <span className="mt-2 text-xs font-black text-slate-400">{week.weekNumber}주</span>
             </li>
           );
         })}
@@ -301,7 +301,7 @@ function WeeklyBars({ weeks, seasonPhase }: { weeks: PersonalWeeklyProgress[]; s
 function HundredDayCalendar({ days, today }: { days: PersonalCalendarDay[]; today: string }) {
   return (
     <section className="rounded-[28px] bg-white p-5 ring-1 ring-slate-200 sm:p-6" aria-labelledby="hundred-day-calendar-title">
-      <p className="text-[11px] font-black tracking-[0.12em] text-blue-600">100 DAYS</p>
+      <p className="text-xs font-black tracking-[0.1em] text-blue-600">100 DAYS</p>
       <h3 id="hundred-day-calendar-title" className="mt-1 text-lg font-black text-slate-950">100일 인증 캘린더</h3>
       <p className="mt-1 text-xs font-bold text-slate-500">한 칸이 하루예요. 시즌 전 기록은 이 캘린더에 섞이지 않아요.</p>
       <ol className="mt-5 grid grid-cols-10 gap-1.5" aria-label="9월 23일부터 12월 31일까지 공식 인증 현황">
@@ -316,7 +316,7 @@ function HundredDayCalendar({ days, today }: { days: PersonalCalendarDay[]; toda
           </li>
         ))}
       </ol>
-      <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-[10px] font-black text-slate-500" aria-hidden="true">
+      <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-xs font-black text-slate-500" aria-hidden="true">
         <CalendarLegend className="bg-blue-600" label="인증" />
         <CalendarLegend className="bg-lime-400" label="리커버리" />
         <CalendarLegend className="bg-amber-300" label="검수 중" />
@@ -342,7 +342,7 @@ function CalendarLegend({ className, label }: { className: string; label: string
 function RecentRecords({ records }: { records: PersonalRunRecord[] }) {
   return (
     <section className="rounded-[28px] bg-white p-5 ring-1 ring-slate-200 sm:p-6" aria-labelledby="recent-personal-records-title">
-      <p className="text-[11px] font-black tracking-[0.12em] text-blue-600">RECENT</p>
+      <p className="text-xs font-black tracking-[0.1em] text-blue-600">RECENT</p>
       <h3 id="recent-personal-records-title" className="mt-1 text-lg font-black text-slate-950">최근 기록</h3>
       {records.length > 0 ? (
         <ol className="mt-4 divide-y divide-slate-100">
@@ -352,14 +352,14 @@ function RecentRecords({ records }: { records: PersonalRunRecord[] }) {
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-1.5">
                     <time dateTime={record.date} className="text-sm font-black text-slate-900">{formatShortDate(record.date)}</time>
-                    <span className={`rounded-full px-2 py-1 text-[9px] font-black ${record.phase === "preseason" ? "bg-slate-100 text-slate-600" : "bg-blue-50 text-blue-700"}`}>
+                    <span className={`rounded-full px-2 py-1 text-[11px] font-black ${record.phase === "preseason" ? "bg-slate-100 text-slate-600" : "bg-blue-50 text-blue-700"}`}>
                       {record.phase === "preseason" ? "개인 전용" : "공식 시즌"}
                     </span>
-                    <span className={`rounded-full px-2 py-1 text-[9px] font-black ${record.status === "certified" ? "bg-lime-100 text-lime-800" : "bg-amber-100 text-amber-800"}`}>
+                    <span className={`rounded-full px-2 py-1 text-[11px] font-black ${record.status === "certified" ? "bg-lime-100 text-lime-800" : "bg-amber-100 text-amber-800"}`}>
                       {record.isRecovery && record.status === "certified" ? "리커버리" : STATUS_LABEL[record.status]}
                     </span>
                   </div>
-                  <p className="mt-1 truncate text-[11px] font-bold text-slate-400">
+                  <p className="mt-1 text-xs font-bold leading-5 text-slate-500">
                     {record.status === "certified"
                       ? `${record.distanceKm === null ? "거리 -" : formatDistance(record.distanceKm)} · ${record.durationSeconds === null ? "시간 -" : formatDuration(record.durationSeconds)}`
                       : record.status === "needs_review"

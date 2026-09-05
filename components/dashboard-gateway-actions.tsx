@@ -64,39 +64,37 @@ export function DashboardGatewayActions() {
   const { viewer, loading, actionPending, error, logout } = useFourthViewer();
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2.5">
       {loading ? (
-        <div className="flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-[#FEE500] px-5 text-sm font-black text-[#191919]" role="status" aria-live="polite">
+        <div className="flex min-h-14 w-full items-center justify-center gap-2 rounded-[18px] bg-[#FEE500] px-5 text-sm font-black text-[#191919]" role="status" aria-live="polite">
           <span className="h-2 w-2 animate-pulse rounded-full bg-[#191919]/55" aria-hidden="true" />
           로그인 상태 확인 중
         </div>
       ) : viewer?.authenticated ? (
         <>
-          <p className="px-2 text-center text-[11px] font-bold text-slate-500">
+          <p className="mb-3 rounded-2xl bg-blue-50 px-4 py-3 text-center text-xs font-bold leading-5 text-blue-700">
             {viewer.display_name ? `${viewer.display_name}님으로 로그인되어 있어요.` : "카카오로 로그인되어 있어요."}
           </p>
-          <div className="grid grid-cols-2 gap-2.5">
-            <Link href="/4th/dashboard#member-features" className="flex min-h-14 w-full items-center justify-center rounded-2xl bg-blue-600 px-2 text-center text-xs font-black leading-tight text-white shadow-lg shadow-blue-500/15 transition hover:bg-blue-700 focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-blue-300">
-              4기 대시보드 들어가기
-            </Link>
-            <button
-              type="button"
-              onClick={() => void logout()}
-              disabled={actionPending}
-              className="flex min-h-14 w-full items-center justify-center rounded-2xl bg-oriwan-surface-light px-2 text-center text-xs font-black leading-tight text-oriwan-text-muted ring-1 ring-slate-950/5 transition hover:text-oriwan-text disabled:cursor-wait disabled:opacity-60"
-            >
-              {actionPending ? "로그아웃 중" : "로그아웃하고 익명으로 보기"}
-            </button>
-          </div>
+          <Link href="/4th/dashboard#member-features" className="flex min-h-14 w-full items-center justify-center rounded-[18px] bg-blue-600 px-5 text-center text-sm font-black text-white shadow-[0_10px_24px_rgba(37,99,235,0.2)] transition hover:bg-blue-700 focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-blue-300">
+            4기 대시보드 들어가기
+          </Link>
+          <button
+            type="button"
+            onClick={() => void logout()}
+            disabled={actionPending}
+            className="flex min-h-11 w-full items-center justify-center rounded-2xl px-4 text-center text-xs font-black text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 disabled:cursor-wait disabled:opacity-60"
+          >
+            {actionPending ? "로그아웃 중" : "로그아웃하고 익명으로 보기"}
+          </button>
         </>
       ) : (
-        <div className="grid grid-cols-2 gap-2.5">
+        <div className="space-y-1.5">
           <KakaoLoginButton
             nextPath="/4th/dashboard#member-features"
             label="카카오로 시작하기"
-            className="min-h-14 px-2 text-xs leading-tight"
+            className="min-h-14 rounded-[18px] px-5 text-sm"
           />
-          <Link href="/4th/dashboard" className="flex min-h-14 w-full items-center justify-center rounded-2xl bg-blue-600 px-2 text-center text-xs font-black leading-tight text-white shadow-lg shadow-blue-500/15 transition hover:bg-blue-700 focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-blue-300">
+          <Link href="/4th/dashboard" className="flex min-h-11 w-full items-center justify-center rounded-2xl px-4 text-center text-xs font-black text-slate-500 transition hover:bg-slate-100 hover:text-blue-700 focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-blue-300">
             로그인 없이 대시보드 보기
           </Link>
         </div>

@@ -1,10 +1,10 @@
 "use client";
 
 import Image from "next/image";
+import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
 import { Hello2027BannerCarousel } from "./hello-2027-banner-carousel";
-import { Hello2027Guestbook } from "./hello-2027-guestbook";
 import type {
   Hello2027Participant,
   Hello2027ProfileIntroduction,
@@ -28,6 +28,10 @@ type Hello2027PocProps = {
 type DayPhase = "night" | "dawn" | "morning" | "day" | "sunset" | "evening";
 type CrewSort = "name" | "completed";
 const ENCOURAGEMENT_ROTATION_MS = 8_000;
+const Hello2027Guestbook = dynamic(
+  () => import("./hello-2027-guestbook").then((module) => module.Hello2027Guestbook),
+  { loading: () => <div className={styles.guestbookLoading} aria-label="응원 댓글을 불러오는 중" /> },
+);
 
 function subscribeToClock(onStoreChange: () => void) {
   const intervalId = window.setInterval(onStoreChange, 60_000);
@@ -102,6 +106,8 @@ export function Hello2027Poc({
   const dialogRef = useRef<HTMLDialogElement>(null);
   const dialogTitleRef = useRef<HTMLHeadingElement>(null);
   const lastTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const guestbookGateRef = useRef<HTMLDivElement>(null);
+  const [guestbookReady, setGuestbookReady] = useState(false);
   const localContent = useLocalHello2027Content(snapshot.ads, snapshot.encouragements, memberFeatures);
   const viewerState = useOptionalFourthViewer();
   const dashboardDate = formatKoreanDate(seoulToday);
@@ -154,6 +160,26 @@ export function Hello2027Poc({
     };
   }, [selectedParticipant]);
 
+  useEffect(() => {
+    if (guestbookReady) return;
+    const gate = guestbookGateRef.current;
+    if (!gate || typeof IntersectionObserver === "undefined") {
+      window.requestAnimationFrame(() => setGuestbookReady(true));
+      return;
+    }
+    if (window.location.hash === "#guestbook") {
+      window.requestAnimationFrame(() => setGuestbookReady(true));
+      return;
+    }
+    const observer = new IntersectionObserver((entries) => {
+      if (!entries.some((entry) => entry.isIntersecting)) return;
+      setGuestbookReady(true);
+      observer.disconnect();
+    }, { rootMargin: "700px 0px" });
+    observer.observe(gate);
+    return () => observer.disconnect();
+  }, [guestbookReady]);
+
   const openParticipant = (participantId: string, trigger: HTMLButtonElement) => {
     lastTriggerRef.current = trigger;
     setSelectedParticipantId(participantId);
@@ -177,7 +203,6 @@ export function Hello2027Poc({
               alt=""
               width={640}
               height={310}
-              preload
               sizes="(max-width: 760px) 58px, 78px"
             />
           </a>
@@ -325,12 +350,21 @@ export function Hello2027Poc({
             <FourthSeasonPreopenState seasonStarted={seasonStarted} />
           )}
 
-          <Hello2027Guestbook
-            initialThreads={snapshot.guestbook}
-            externalViewer={memberFeatures ? viewerState?.viewer ?? null : undefined}
-            externalViewerManaged={memberFeatures}
-            externalViewerLoading={memberFeatures ? viewerState?.loading ?? true : undefined}
-          />
+          <div ref={guestbookGateRef}>
+            {guestbookReady ? (
+              <Hello2027Guestbook
+                initialThreads={snapshot.guestbook}
+                externalViewer={memberFeatures ? viewerState?.viewer ?? null : undefined}
+                externalViewerManaged={memberFeatures}
+                externalViewerLoading={memberFeatures ? viewerState?.loading ?? true : undefined}
+              />
+            ) : (
+              <section id="guestbook" className={styles.guestbookPlaceholder} aria-label="응원 댓글">
+                <span aria-hidden="true" />
+                <p>응원 댓글을 준비하고 있어요</p>
+              </section>
+            )}
+          </div>
         </>
       </main>
 

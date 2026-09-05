@@ -8,16 +8,16 @@ export const metadata = {
 export default function TermsPage() {
   return (
     <main className="min-h-screen overflow-x-hidden pb-20">
-      <header className="sticky top-0 z-50 border-b border-oriwan-border bg-oriwan-bg/90 px-3 py-3.5 backdrop-blur-md sm:px-5">
-        <div className="mx-auto flex max-w-lg items-center justify-between">
+      <header className="sticky top-0 z-50 border-b border-oriwan-border bg-white/95 px-3 py-3.5 backdrop-blur-sm sm:px-5">
+        <div className="mx-auto flex max-w-3xl items-center justify-between">
           <Link href="/4th" className="text-oriwan-text-muted text-sm hover:text-oriwan-text transition-colors">← 돌아가기</Link>
           <h1 className="gradient-text text-lg font-black">이용약관</h1>
           <div className="w-16" />
         </div>
       </header>
 
-      <div className="mx-auto max-w-lg px-3 py-4 sm:px-5 sm:py-8">
-        <div className="card mobile-page-card space-y-6 p-4 text-sm leading-relaxed text-oriwan-text-muted sm:p-6">
+      <div className="mx-auto max-w-3xl px-3 py-4 sm:px-5 sm:py-8">
+        <div className="rounded-[26px] bg-white space-y-7 p-5 text-sm leading-7 text-oriwan-text-muted shadow-sm ring-1 ring-slate-950/5 sm:p-8 sm:text-[15px]">
           <section>
             <h2 className="mb-2 text-base font-bold text-oriwan-text">제1조 (목적과 현재 상태)</h2>
             <p>

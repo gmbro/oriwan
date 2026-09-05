@@ -1,3 +1,5 @@
+import "server-only";
+
 import { revalidatePath, revalidateTag, unstable_cache } from "next/cache";
 import type { PostgrestError, SupabaseClient } from "@supabase/supabase-js";
 import { findAdminUserId, getServiceClient } from "@/lib/admin-data";
