@@ -329,7 +329,9 @@ export function Hello2027Guestbook({
     <section id="guestbook" className={styles.guestbookSection} aria-labelledby="guestbook-title">
       <div className={styles.guestbookHeading}>
         <h2 id="guestbook-title">댓글</h2>
-        <p>문의사항이나 하고 싶은 이야기 떠들어재끼기</p>
+        {!viewerLoading && !viewer?.authenticated ? (
+          <div className={styles.loginPromptTitle}>로그인해야 댓글을 남길 수 있어요</div>
+        ) : null}
       </div>
 
       {commentsLoading ? (
@@ -350,7 +352,9 @@ export function Hello2027Guestbook({
             maxLength={MAX_GUESTBOOK_BODY_LENGTH}
             required
             disabled={!canWrite || Boolean(pendingAction)}
-            placeholder={commentsLocked ? "댓글 기능을 잠시 점검하고 있어요." : "오늘의 느낌이나 궁금한 점을 적어주세요."}
+            placeholder={commentsLocked
+              ? "댓글 기능을 잠시 점검하고 있어요."
+              : "기록 수정, 광고 배너 문의 및 오류 제보, 하고 싶은 말 모두 자유롭게 써주세요"}
             onChange={(event) => {
               setDraft(event.target.value);
               if (validationMessage) setValidationMessage("");
@@ -375,7 +379,6 @@ export function Hello2027Guestbook({
         </form>
       ) : (
         <div className={styles.guestbookComposer}>
-          <p className={styles.loginPromptTitle}>댓글은 로그인 후 남길 수 있어요</p>
           <p className={styles.loginPromptBody}>댓글은 누구나 읽을 수 있고, 카카오 로그인 후 내 닉네임 또는 익명을 선택해 작성할 수 있어요.</p>
           <div className={styles.loginPromptAction}>
             <KakaoLoginButton nextPath="/4th/dashboard#guestbook" label="카카오로 로그인" />
@@ -386,7 +389,7 @@ export function Hello2027Guestbook({
       <p className={styles.guestbookAnnouncement} role="status" aria-live="polite">{announcement}</p>
 
       {!commentsLoading && commentsLive && threads.length === 0 ? (
-        <p className={styles.guestbookEmpty}>아직 댓글이 없어요. 로그인하고 첫 이야기를 남겨보세요.</p>
+        <p className={styles.guestbookEmpty}>아직 댓글이 없어요</p>
       ) : null}
 
       <ol className={styles.threadList}>

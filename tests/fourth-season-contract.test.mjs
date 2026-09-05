@@ -8,10 +8,23 @@ import {
   FOURTH_SEASON_START_DATE,
   clampToFourthPersonalRecordWindow,
   clampToFourthSeasonWindow,
+  formatFourthSeasonDday,
   isFourthOfficialCertificationDate,
   isWithinFourthPersonalRecordWindow,
   isWithinFourthSeasonWindow,
 } from "../lib/fourth-season-contract.ts";
+
+test("4기 D-day는 KST 달력 날짜를 시작일 기준으로 표시한다", () => {
+  assert.equal(formatFourthSeasonDday("2026-09-22"), "D-1");
+  assert.equal(formatFourthSeasonDday("2026-09-23"), "D-DAY");
+  assert.equal(formatFourthSeasonDday("2026-09-24"), "D+1");
+});
+
+test("4기 D-day는 올바르지 않은 ISO 달력 날짜를 거부한다", () => {
+  for (const value of [null, undefined, "", "2026-9-23", "2026-09-31", "2026-09-23T00:00:00Z"]) {
+    assert.equal(formatFourthSeasonDday(value), null, String(value));
+  }
+});
 
 test("4기 날짜 계약은 2026년 경계를 단일 기준으로 유지한다", () => {
   assert.equal(FOURTH_PERSONAL_RECORD_START_DATE, "2026-08-13");

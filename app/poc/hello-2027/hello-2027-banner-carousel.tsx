@@ -14,11 +14,24 @@ type Hello2027BannerCarouselProps = {
 
 const DEFAULT_SCENE = "/images/poc/hello-2027/hello-2027-riverside.webp";
 const AUTO_ADVANCE_MS = 5_000;
+const CLOCK_PLACEHOLDER = "--:--:--";
+const SEOUL_CLOCK_FORMATTER = new Intl.DateTimeFormat("en-GB", {
+  timeZone: "Asia/Seoul",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hourCycle: "h23",
+});
+
+function getSeoulClockTime(date = new Date()) {
+  return SEOUL_CLOCK_FORMATTER.format(date);
+}
 
 export function Hello2027BannerCarousel({ ads, dayPhaseClass, todayRate }: Hello2027BannerCarouselProps) {
   const trackRef = useRef<HTMLDivElement>(null);
   const scrollFrameRef = useRef<number | null>(null);
   const [currentSlide, setCurrentSlide] = useState(0);
+  const [seoulClockTime, setSeoulClockTime] = useState(CLOCK_PLACEHOLDER);
   const [isHovered, setIsHovered] = useState(false);
   const [hasFocus, setHasFocus] = useState(false);
   const [isInteracting, setIsInteracting] = useState(false);
@@ -52,6 +65,13 @@ export function Hello2027BannerCarousel({ ads, dayPhaseClass, todayRate }: Hello
     syncVisibility();
     document.addEventListener("visibilitychange", syncVisibility);
     return () => document.removeEventListener("visibilitychange", syncVisibility);
+  }, []);
+
+  useEffect(() => {
+    const updateClock = () => setSeoulClockTime(getSeoulClockTime());
+    updateClock();
+    const intervalId = window.setInterval(updateClock, 1_000);
+    return () => window.clearInterval(intervalId);
   }, []);
 
   useEffect(() => {
@@ -141,6 +161,19 @@ export function Hello2027BannerCarousel({ ads, dayPhaseClass, todayRate }: Hello
                 <small>%</small>
               </strong>
             </div>
+            <div className={styles.todayClockPanel}>
+              <time
+                className={styles.todayClock}
+                dateTime={seoulClockTime === CLOCK_PLACEHOLDER ? undefined : seoulClockTime}
+                aria-label={seoulClockTime === CLOCK_PLACEHOLDER
+                  ? "현재 서울 시각 불러오는 중"
+                  : `현재 서울 시각 ${seoulClockTime}`}
+              >
+                {seoulClockTime}
+              </time>
+              <p>시간의 흐름에 따라 배경이 달라집니다.</p>
+            </div>
+            <p className={styles.bannerInquiry}>배너 광고 문의는 하단의 댓글로 문의주세요.</p>
           </div>
         </article>
 
@@ -176,6 +209,7 @@ export function Hello2027BannerCarousel({ ads, dayPhaseClass, todayRate }: Hello
                 <strong>{ad.title}</strong>
                 <p>{ad.description}</p>
               </div>
+              <p className={styles.bannerInquiry}>배너 광고 문의는 하단의 댓글로 문의주세요.</p>
             </div>
           </article>
         ))}

@@ -10,10 +10,27 @@ export const FOURTH_PERSONAL_RECORD_START_DATE = "2026-08-13";
 export const FOURTH_SEASON_DATE_ERROR = `4기 러닝 기록은 ${FOURTH_SEASON_START_DATE}부터 ${FOURTH_SEASON_END_DATE}까지만 남길 수 있어요.`;
 export const FOURTH_PERSONAL_RECORD_DATE_ERROR = `4기 개인 러닝 기록은 ${FOURTH_PERSONAL_RECORD_START_DATE}부터 ${FOURTH_SEASON_END_DATE}까지만 남길 수 있어요. ${FOURTH_SEASON_START_DATE} 전 기록은 개인 기록에만 표시되고 공식 인증에는 포함되지 않아요.`;
 
+const MILLISECONDS_PER_DAY = 86_400_000;
+
 function isIsoCalendarDate(value: string | null | undefined): value is string {
   if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
   const [year, month, day] = value.split("-").map(Number);
   return new Date(Date.UTC(year, month - 1, day)).toISOString().slice(0, 10) === value;
+}
+
+function isoCalendarDateToUtcDay(value: string) {
+  const [year, month, day] = value.split("-").map(Number);
+  return Date.UTC(year, month - 1, day) / MILLISECONDS_PER_DAY;
+}
+
+export function formatFourthSeasonDday(kstDateIso: string | null | undefined) {
+  if (!isIsoCalendarDate(kstDateIso)) return null;
+
+  const daysUntilStart = isoCalendarDateToUtcDay(FOURTH_SEASON_START_DATE)
+    - isoCalendarDateToUtcDay(kstDateIso);
+  if (daysUntilStart > 0) return `D-${daysUntilStart}`;
+  if (daysUntilStart === 0) return "D-DAY";
+  return `D+${Math.abs(daysUntilStart)}`;
 }
 
 export function isWithinFourthSeasonWindow(value: string | null | undefined) {

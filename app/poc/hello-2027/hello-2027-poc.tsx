@@ -16,7 +16,7 @@ import { useLocalHello2027Content } from "./use-local-hello-2027-content";
 import { FourthDashboardMemberArea } from "@/components/fourth-dashboard-member-area";
 import { KakaoLoginButton } from "@/components/kakao-login-button";
 import { useOptionalFourthViewer } from "@/components/fourth-viewer-provider";
-import { FOURTH_SEASON_START_DATE } from "@/lib/fourth-season-contract";
+import { formatFourthSeasonDday } from "@/lib/fourth-season-contract";
 
 type Hello2027PocProps = {
   snapshot: Hello2027Snapshot;
@@ -114,8 +114,7 @@ export function Hello2027Poc({
   const referenceDateIso = seoulToday;
   const referenceDateLabel = dashboardDate.label;
   const referenceDateShort = dashboardDate.short;
-  const seasonStarted = referenceDateIso >= FOURTH_SEASON_START_DATE;
-  const dashboardModeLabel = viewerState?.viewer?.authenticated ? "개인 대시보드" : "공통 대시보드";
+  const seasonDday = formatFourthSeasonDday(referenceDateIso) ?? "D-DAY";
 
   const selectedParticipant = useMemo(
     () => snapshot.participants.find((participant) => participant.id === selectedParticipantId) ?? null,
@@ -208,11 +207,10 @@ export function Hello2027Poc({
             />
           </a>
 
-          <div className={styles.headerMeta} aria-label={`${dashboardModeLabel}, 오늘 날짜와 계정`}>
+          <div className={styles.headerMeta} aria-label={`4기 시작 ${seasonDday}, 오늘 날짜와 계정`}>
             {memberFeatures ? (
-              <span className={styles.dashboardMode}>
-                <span className={styles.dashboardModeLong}>{dashboardModeLabel}</span>
-                <span className={styles.dashboardModeShort}>{viewerState?.viewer?.authenticated ? "개인" : "공통"}</span>
+              <span className={styles.seasonDday} aria-label={`4기 시작일 기준 ${seasonDday}`}>
+                {seasonDday}
               </span>
             ) : null}
             <time dateTime={referenceDateIso}>
@@ -351,9 +349,7 @@ export function Hello2027Poc({
                 ))}
               </ul>
             </section>
-          ) : (
-            <FourthSeasonPreopenState seasonStarted={seasonStarted} />
-          )}
+          ) : <FourthSeasonMemberEmptyState />}
 
           <div ref={guestbookGateRef}>
             {guestbookReady ? (
@@ -393,21 +389,17 @@ export function Hello2027Poc({
   );
 }
 
-function FourthSeasonPreopenState({ seasonStarted }: { seasonStarted: boolean }) {
+function FourthSeasonMemberEmptyState() {
   return (
-    <section className={styles.preopenState} aria-labelledby="fourth-season-preopen-title">
-      <div className={styles.preopenStateMark} aria-hidden="true">
-        <span />
+    <section id="crew" className={styles.crewSection} aria-labelledby="crew-title">
+      <div className={styles.crewHeading}>
+        <div>
+          <h2 id="crew-title">멤버</h2>
+        </div>
       </div>
-      <p className={styles.preopenStateEyebrow}>{seasonStarted ? "TWTT 4TH" : "STARTS SEP 23"}</p>
-      <h2 id="fourth-season-preopen-title">
-        {seasonStarted ? "공개할 멤버 데이터를 준비하고 있어요" : "공식 100일은 9월 23일에 시작해요"}
-      </h2>
-      <p>
-        {seasonStarted
-          ? "실제 멤버와 인증 기록이 연결되면 이곳에 바로 표시됩니다."
-          : "그전에 남긴 준비 러닝은 공식 인증률에 더하지 않고, 로그인한 본인의 개인 기록에서만 보여드려요."}
-      </p>
+      <div className={styles.memberEmptyState}>
+        <p>4기 멤버 확정 전</p>
+      </div>
     </section>
   );
 }

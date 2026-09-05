@@ -42,6 +42,7 @@ export function FourthDashboardMemberArea({
   const dialogTitleRef = useRef<HTMLHeadingElement>(null);
   const lastTriggerRef = useRef<HTMLButtonElement | null>(null);
   const giftAvailable = Boolean(giftStatus?.eligible || giftStatus?.claim);
+  const giftStatusLoading = connected && giftStatus === null && !giftStatusError;
 
   useEffect(() => {
     if (!connected) {
@@ -137,24 +138,30 @@ export function FourthDashboardMemberArea({
   if (loading || !authenticated) return null;
 
   const actions = [
-    ...(connected && giftAvailable ? [{
+    {
       id: "gift" as const,
       title: "오늘의 응원 상자",
-      description: giftStatus?.claim ? "오늘 받은 응원 다시 보기" : "인증 완료 보상 열기",
-      action: giftStatus?.claim ? "다시 보기" : "열기",
-    }] : []),
+      description: giftStatus?.claim
+        ? "오늘 받은 응원을 다시 확인해보세요"
+        : giftStatusLoading
+          ? "오늘 인증 기록을 확인하고 있어요"
+          : connected
+            ? "오늘 인증을 완료하면 열 수 있어요"
+            : "개인 멤버 연결 후 이용할 수 있어요",
+      disabled: !giftAvailable,
+    },
     {
       id: "fortune" as const,
       title: "오늘의 운세",
-      description: "내 정보로 오늘의 흐름 확인",
-      action: "보기",
+      description: "행복한 오늘의 운세를 확인해보세요",
+      disabled: false,
     },
-    ...(connected ? [{
+    {
       id: "corrective" as const,
       title: "교정운동 문의",
-      description: "가능한 일정과 불편한 움직임 전달",
-      action: "문의",
-    }] : []),
+      description: "교정운동이 필요하거나 궁금한 내용을 문의하시면 확인 후에 답변해드립니다.",
+      disabled: !connected,
+    },
   ];
 
   const connectionMessage = viewer?.connection_status === "revoked"
@@ -183,20 +190,19 @@ export function FourthDashboardMemberArea({
             </button>
           </div>
         ) : null}
-        <div className={`grid gap-2 ${actions.length === 3 ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
+        <div className="grid gap-2 sm:grid-cols-3">
           {actions.map((action) => (
             <button
               key={action.id}
               type="button"
+              disabled={action.disabled}
+              aria-label={`${action.title}. ${action.description}${action.disabled ? ". 잠김" : ""}`}
               onClick={(event) => openModal(action.id, event.currentTarget)}
-              className="group flex min-h-[84px] items-center justify-between gap-4 rounded-[18px] bg-slate-50 px-4 py-4 text-left ring-1 ring-slate-200/80 transition hover:-translate-y-0.5 hover:bg-white hover:shadow-[0_10px_24px_rgba(15,23,42,0.08)] focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-blue-500 sm:min-h-[100px] sm:flex-col sm:items-start sm:justify-between"
+              className="group flex min-h-[84px] items-center rounded-[18px] bg-slate-50 px-4 py-4 text-left ring-1 ring-slate-200/80 transition hover:-translate-y-0.5 hover:bg-white hover:shadow-[0_10px_24px_rgba(15,23,42,0.08)] focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:opacity-60 disabled:hover:translate-y-0 disabled:hover:bg-slate-100 disabled:hover:shadow-none sm:min-h-[100px]"
             >
               <span className="min-w-0">
                 <strong className="block text-[15px] font-black tracking-[-0.02em] text-slate-950">{action.title}</strong>
                 <small className="mt-1 block text-xs font-semibold leading-5 text-slate-500">{action.description}</small>
-              </span>
-              <span className="shrink-0 rounded-full bg-white px-3 py-1.5 text-xs font-black text-blue-600 ring-1 ring-slate-200 transition group-hover:bg-blue-600 group-hover:text-white group-hover:ring-blue-600">
-                {action.action}
               </span>
             </button>
           ))}
@@ -210,7 +216,7 @@ export function FourthDashboardMemberArea({
 
       <dialog
         ref={dialogRef}
-        className={`${modal === "corrective" ? "w-[min(720px,calc(100%_-_24px))]" : "w-[min(520px,calc(100%_-_24px))]"} m-auto max-h-[92dvh] overflow-visible rounded-[30px] bg-white p-0 text-slate-950 shadow-2xl backdrop:bg-slate-950/45 max-sm:mb-0 max-sm:w-full max-sm:max-w-none max-sm:rounded-b-none max-sm:rounded-t-[30px]`}
+        className={`${modal === "corrective" ? "w-[min(720px,calc(100%_-_24px))]" : "w-[min(520px,calc(100%_-_24px))]"} m-auto max-h-[92dvh] overflow-visible rounded-[30px] bg-white p-0 text-slate-950 shadow-2xl backdrop:bg-slate-950/45`}
         aria-labelledby="member-feature-dialog-title"
         onCancel={(event) => {
           event.preventDefault();

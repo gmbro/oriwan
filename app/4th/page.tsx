@@ -1,18 +1,28 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { connection } from "next/server";
 import { Suspense } from "react";
 import { DashboardGatewayActions, DashboardGatewayAuthNotice } from "@/components/dashboard-gateway-actions";
 import { FourthViewerProvider } from "@/components/fourth-viewer-provider";
 import { TwttBrandMark } from "@/components/twtt-brand-mark";
+import { getFourthViewer } from "@/lib/fourth-viewer-server";
 
 export const metadata: Metadata = {
-  title: "TWTT 4기 공통 대시보드",
-  description: "TWTT 4기 공통 대시보드 입구",
+  title: "TWTT 4기 시작",
+  description: "TWTT 4기 로그인 및 공통 대시보드 입구",
   alternates: { canonical: "/4th" },
   robots: { index: false, follow: false },
 };
 
-export default function FourthSeasonGatewayPage() {
+export default async function FourthSeasonGatewayPage() {
+  await connection();
+  const initialViewer = await getFourthViewer();
+
+  if (initialViewer.authenticated) {
+    redirect("/4th/dashboard#member-features");
+  }
+
   return (
     <main className="grid min-h-dvh grid-rows-[1fr_auto] overflow-x-hidden bg-[#f4f7fb] px-3 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-[max(1.5rem,env(safe-area-inset-top))] sm:px-5 sm:pb-8 sm:pt-10">
       <section className="flex items-center justify-center py-8 sm:py-10" aria-labelledby="gateway-title">
@@ -31,7 +41,7 @@ export default function FourthSeasonGatewayPage() {
               <Suspense fallback={null}>
                 <DashboardGatewayAuthNotice />
               </Suspense>
-              <FourthViewerProvider>
+              <FourthViewerProvider initialViewer={initialViewer}>
                 <DashboardGatewayActions />
               </FourthViewerProvider>
             </div>
