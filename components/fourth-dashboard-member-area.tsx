@@ -33,6 +33,7 @@ export function FourthDashboardMemberArea({
   const viewer = viewerState?.viewer ?? null;
   const loading = viewerState?.loading ?? false;
   const authenticated = Boolean(displayName || viewer?.authenticated);
+  const connected = Boolean(displayName || viewer?.approved_participant);
   const resolvedDisplayName = displayName || viewer?.display_name || "";
   const [modal, setModal] = useState<FeatureModal>(null);
   const [giftStatus, setGiftStatus] = useState<GiftStatus | null>(null);
@@ -43,7 +44,7 @@ export function FourthDashboardMemberArea({
   const giftAvailable = Boolean(giftStatus?.eligible || giftStatus?.claim);
 
   useEffect(() => {
-    if (!authenticated) {
+    if (!connected) {
       queueMicrotask(() => setGiftStatus(null));
       return;
     }
@@ -89,7 +90,7 @@ export function FourthDashboardMemberArea({
       window.removeEventListener(DASHBOARD_REFRESH_DOM_EVENT, handleFocus);
       document.removeEventListener("visibilitychange", handleVisibility);
     };
-  }, [authenticated, giftAvailable]);
+  }, [connected, giftAvailable]);
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -136,7 +137,7 @@ export function FourthDashboardMemberArea({
   if (loading || !authenticated) return null;
 
   const actions = [
-    ...(giftAvailable ? [{
+    ...(connected && giftAvailable ? [{
       id: "gift" as const,
       title: "오늘의 응원 상자",
       description: giftStatus?.claim ? "오늘 받은 응원 다시 보기" : "인증 완료 보상 열기",
@@ -148,13 +149,19 @@ export function FourthDashboardMemberArea({
       description: "내 정보로 오늘의 흐름 확인",
       action: "보기",
     },
-    {
+    ...(connected ? [{
       id: "corrective" as const,
       title: "교정운동 문의",
       description: "가능한 일정과 불편한 움직임 전달",
       action: "문의",
-    },
+    }] : []),
   ];
+
+  const connectionMessage = viewer?.connection_status === "revoked"
+    ? "개인 멤버 연결이 중지됐어요. 운영자에게 확인해주세요."
+    : viewer?.connection_status === "setup_required" || viewer?.connection_status === "admin_missing"
+      ? "개인 멤버 연결 설정을 준비하고 있어요. 잠시 후 다시 확인해주세요."
+      : "개인 멤버 연결을 완료하지 못했어요. 다시 확인해주세요.";
 
   return (
     <>
@@ -164,6 +171,18 @@ export function FourthDashboardMemberArea({
         aria-labelledby="member-features-title"
       >
         <h2 id="member-features-title" className="sr-only">개인 기능</h2>
+        {!connected ? (
+          <div className="mb-2 flex flex-col gap-3 rounded-[18px] bg-amber-50 px-4 py-4 ring-1 ring-amber-200/80 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm font-bold leading-6 text-amber-950" role="status">{connectionMessage}</p>
+            <button
+              type="button"
+              onClick={() => void viewerState?.reload()}
+              className="min-h-11 shrink-0 rounded-2xl bg-white px-4 text-xs font-black text-amber-900 ring-1 ring-amber-200"
+            >
+              다시 확인
+            </button>
+          </div>
+        ) : null}
         <div className={`grid gap-2 ${actions.length === 3 ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
           {actions.map((action) => (
             <button

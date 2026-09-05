@@ -362,17 +362,17 @@ BEGIN
     RETURN;
   END IF;
 
-  UPDATE public.daily_fortune_usage
-  SET request_count = GREATEST(request_count - 1, 0),
-      last_requested_at = NOW()
-  WHERE auth_user_id = p_auth_user_id
-    AND fortune_date = p_fortune_date
-    AND request_count > 0;
-
   DELETE FROM public.daily_fortune_usage
   WHERE auth_user_id = p_auth_user_id
     AND fortune_date = p_fortune_date
-    AND request_count = 0;
+    AND request_count = 1;
+
+  UPDATE public.daily_fortune_usage
+  SET request_count = request_count - 1,
+      last_requested_at = NOW()
+  WHERE auth_user_id = p_auth_user_id
+    AND fortune_date = p_fortune_date
+    AND request_count > 1;
 END;
 $$;
 
@@ -1063,6 +1063,48 @@ CREATE INDEX IF NOT EXISTS idx_hello_2027_comment_reactions_auth_user
   ON hello_2027_comment_reactions(auth_user_id)
   WHERE auth_user_id IS NOT NULL;
 
+-- 같은 작성자의 분당 6개·24시간 40개 한도를 DB 트랜잭션에서 강제합니다.
+-- actor별 advisory lock을 사용해 여러 서버리스 인스턴스의 동시 INSERT도 우회하지 못합니다.
+CREATE OR REPLACE FUNCTION enforce_hello_2027_comment_rate_limit()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  recent_count INTEGER;
+  daily_count INTEGER;
+BEGIN
+  PERFORM pg_advisory_xact_lock(
+    hashtextextended('hello_2027_comment_rate:' || NEW.season_key || ':' || NEW.actor_key, 0)
+  );
+
+  SELECT COUNT(*) INTO recent_count
+  FROM hello_2027_comments
+  WHERE season_key = NEW.season_key
+    AND actor_key = NEW.actor_key
+    AND created_at >= NOW() - INTERVAL '1 minute';
+  IF recent_count >= 6 THEN
+    RAISE EXCEPTION 'hello_2027_comment_rate_limit_minute' USING ERRCODE = 'P0001';
+  END IF;
+
+  SELECT COUNT(*) INTO daily_count
+  FROM hello_2027_comments
+  WHERE season_key = NEW.season_key
+    AND actor_key = NEW.actor_key
+    AND created_at >= NOW() - INTERVAL '24 hours';
+  IF daily_count >= 40 THEN
+    RAISE EXCEPTION 'hello_2027_comment_rate_limit_day' USING ERRCODE = 'P0001';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_enforce_hello_2027_comment_rate_limit ON hello_2027_comments;
+CREATE TRIGGER trg_enforce_hello_2027_comment_rate_limit
+  BEFORE INSERT ON hello_2027_comments
+  FOR EACH ROW EXECUTE FUNCTION enforce_hello_2027_comment_rate_limit();
+
 -- 답글 작성은 부모 행을 잠근 뒤 개수를 검사해, 동시 요청에도 댓글당 50개를 넘지 않습니다.
 CREATE OR REPLACE FUNCTION enforce_hello_2027_reply_limit()
 RETURNS TRIGGER
@@ -1224,9 +1266,11 @@ REVOKE ALL ON TABLE hello_2027_comment_reactions FROM anon, authenticated, PUBLI
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE hello_2027_comments TO service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE hello_2027_comment_reactions TO service_role;
 REVOKE ALL ON FUNCTION enforce_hello_2027_reply_limit() FROM anon, authenticated, PUBLIC;
+REVOKE ALL ON FUNCTION enforce_hello_2027_comment_rate_limit() FROM anon, authenticated, PUBLIC;
 REVOKE ALL ON FUNCTION enforce_hello_2027_reaction_target() FROM anon, authenticated, PUBLIC;
 REVOKE ALL ON FUNCTION delete_hello_2027_comment(UUID, TEXT, TEXT, TEXT, UUID) FROM anon, authenticated, PUBLIC;
 GRANT EXECUTE ON FUNCTION enforce_hello_2027_reply_limit() TO service_role;
+GRANT EXECUTE ON FUNCTION enforce_hello_2027_comment_rate_limit() TO service_role;
 GRANT EXECUTE ON FUNCTION enforce_hello_2027_reaction_target() TO service_role;
 GRANT EXECUTE ON FUNCTION delete_hello_2027_comment(UUID, TEXT, TEXT, TEXT, UUID) TO service_role;
 

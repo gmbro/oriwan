@@ -217,6 +217,9 @@ export async function POST(request: NextRequest) {
       if (isMissingTableError(error)) {
         return publicJson(missingSchemaResponse("공용 댓글 저장소가 아직 준비되지 않았어요."), 503, actor);
       }
+      if (error.code === "P0001" && error.message?.includes("hello_2027_comment_rate_limit")) {
+        return publicJson({ error: "댓글을 잠시 많이 남겼어요. 조금 뒤 다시 이어주세요." }, 429, actor);
+      }
       if (error.code === "23514") {
         return publicJson({ error: "답글을 더 남길 수 없거나 원문 상태가 변경됐어요." }, 409, actor);
       }

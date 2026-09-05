@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getServiceClient } from "@/lib/admin-data";
-import { ensureParticipantAccount } from "@/lib/participant-account-server";
+import { ensureParticipantAccount, participantAccountMutationError } from "@/lib/participant-account-server";
 import { createClient } from "@/lib/supabase/server";
 import { getKakaoDisplayName } from "@/lib/kakao-display-name";
 import { logServerFailure } from "@/lib/server-error-log";
@@ -29,6 +29,10 @@ export async function GET() {
   try {
     const kakaoDisplayName = getKakaoDisplayName(user);
     const connection = await ensureParticipantAccount(service, user.id, kakaoDisplayName);
+    if (connection.status !== "approved" || !connection.participant) {
+      const failure = participantAccountMutationError(connection);
+      return NextResponse.json(failure.payload, { status: failure.status, headers: privateHeaders });
+    }
     const usesKakaoName = connection.automaticallyEnrolled || !connection.displayName;
     return NextResponse.json({
       user: { id: user.id },

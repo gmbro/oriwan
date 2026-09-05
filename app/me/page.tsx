@@ -35,6 +35,7 @@ export default function MyPage() {
   const [data, setData] = useState<MeData | null>(null);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
+  const [needsLogin, setNeedsLogin] = useState(true);
 
   const loadMe = useCallback(async () => {
     setLoading(true);
@@ -43,13 +44,16 @@ export default function MyPage() {
       const json = await response.json();
       if (!response.ok) {
         setData(null);
+        setNeedsLogin(response.status === 401);
         setMessage(json.error || "카카오 로그인이 필요해요.");
         return;
       }
       setData(json);
+      setNeedsLogin(false);
       setMessage("");
     } catch {
       setData(null);
+      setNeedsLogin(false);
       setMessage("개인 기능을 불러오지 못했어요. 잠시 후 다시 시도해주세요.");
     } finally {
       setLoading(false);
@@ -70,6 +74,7 @@ export default function MyPage() {
       });
       if (!response.ok) throw new Error("logout_failed");
       setData(null);
+      setNeedsLogin(true);
       setMessage("로그아웃됐어요.");
     } catch {
       setMessage("로그아웃하지 못했어요. 잠시 후 다시 시도해주세요.");
@@ -105,10 +110,19 @@ export default function MyPage() {
             <p className="text-xs font-black text-blue-600">PERSONAL · TWTT 4TH</p>
             <h1 className="mt-2 text-[1.75rem] font-black leading-tight tracking-[-0.035em] text-slate-950 sm:text-3xl">나만의 100일<br />러닝 화면</h1>
             <p className="mt-3 text-sm font-semibold leading-6 text-slate-600">
-              카카오로 로그인하면 오늘의 운세를 보고, 인증 후 응원 상자와 개인 러닝 리포트를 확인할 수 있어요.
+              {needsLogin
+                ? "카카오로 로그인하면 오늘의 운세를 보고, 인증 후 응원 상자와 개인 러닝 리포트를 확인할 수 있어요."
+                : "로그인은 완료됐지만 개인 멤버 연결을 확인하지 못했어요. 로그인 화면으로 되돌리지 않고 현재 상태에서 다시 확인할 수 있어요."}
             </p>
             {message ? <p className="mt-4 rounded-2xl bg-rose-50 px-4 py-3 text-xs font-bold leading-5 text-rose-700" role="status">{message}</p> : null}
-            <div className="mt-6"><KakaoLoginButton nextPath="/me" label="카카오로 로그인" className="min-h-14 rounded-[18px]" /></div>
+            {needsLogin ? (
+              <div className="mt-6"><KakaoLoginButton nextPath="/me" label="카카오로 로그인" className="min-h-14 rounded-[18px]" /></div>
+            ) : (
+              <div className="mt-6 grid grid-cols-2 gap-2">
+                <button type="button" onClick={() => void loadMe()} className="min-h-12 rounded-[18px] bg-blue-600 px-4 text-sm font-black text-white">다시 확인</button>
+                <button type="button" onClick={() => void logout()} className="min-h-12 rounded-[18px] bg-slate-100 px-4 text-sm font-black text-slate-600">로그아웃</button>
+              </div>
+            )}
             <Link href="/4th/dashboard" className="mt-2 flex min-h-11 items-center justify-center rounded-2xl text-xs font-black text-slate-500 transition hover:bg-slate-100 hover:text-blue-700">로그인 없이 4기 대시보드 보기</Link>
             <div className="mt-5 flex justify-center gap-4 text-[11px] font-bold text-slate-400">
               <Link href="/terms" className="min-h-9 inline-flex items-center underline underline-offset-2">이용약관</Link>

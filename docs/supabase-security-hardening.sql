@@ -70,6 +70,7 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.hello_2027_profile_introduc
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.hello_2027_comments TO service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.hello_2027_comment_reactions TO service_role;
 REVOKE ALL ON FUNCTION public.enforce_hello_2027_reply_limit() FROM anon, authenticated, PUBLIC;
+REVOKE ALL ON FUNCTION public.enforce_hello_2027_comment_rate_limit() FROM anon, authenticated, PUBLIC;
 REVOKE ALL ON FUNCTION public.enforce_hello_2027_reaction_target() FROM anon, authenticated, PUBLIC;
 REVOKE ALL ON FUNCTION public.enforce_hello_2027_profile_introduction_limit() FROM anon, authenticated, PUBLIC;
 REVOKE ALL ON FUNCTION public.delete_hello_2027_comment(UUID, TEXT, TEXT, TEXT, UUID) FROM anon, authenticated, PUBLIC;
@@ -97,6 +98,7 @@ REVOKE ALL ON FUNCTION public.delete_corrective_exercise_application_admin(
   UUID, TEXT, UUID, UUID, TIMESTAMPTZ
 ) FROM anon, authenticated, PUBLIC;
 GRANT EXECUTE ON FUNCTION public.enforce_hello_2027_reply_limit() TO service_role;
+GRANT EXECUTE ON FUNCTION public.enforce_hello_2027_comment_rate_limit() TO service_role;
 GRANT EXECUTE ON FUNCTION public.enforce_hello_2027_reaction_target() TO service_role;
 GRANT EXECUTE ON FUNCTION public.enforce_hello_2027_profile_introduction_limit() TO service_role;
 GRANT EXECUTE ON FUNCTION public.delete_hello_2027_comment(UUID, TEXT, TEXT, TEXT, UUID) TO service_role;
