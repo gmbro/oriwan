@@ -1,8 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useFourthViewer } from "@/components/fourth-viewer-provider";
 import { KakaoLoginButton } from "@/components/kakao-login-button";
 
@@ -44,7 +43,7 @@ export function DashboardGatewayAuthNotice() {
 
   return (
     <section
-      className="mb-4 grid grid-cols-[auto_1fr] items-start gap-x-3 gap-y-3 rounded-2xl bg-rose-50 px-4 py-3.5 text-left ring-1 ring-inset ring-rose-100"
+      className="mb-4 flex items-start gap-3 rounded-2xl bg-rose-50 px-4 py-3.5 text-left ring-1 ring-inset ring-rose-100"
       role="alert"
       aria-labelledby="gateway-auth-error-title"
       aria-describedby="gateway-auth-error-description"
@@ -60,57 +59,57 @@ export function DashboardGatewayAuthNotice() {
           {notice.description}
         </span>
       </span>
-      <div className="col-span-2 grid grid-cols-[1fr_auto] gap-2">
-        <KakaoLoginButton
-          nextPath="/4th/dashboard#member-features"
-          label="다시 로그인"
-          restart
-          className="min-h-10 rounded-xl px-4 text-xs"
-        />
-        <Link
-          href="/4th"
-          replace
-          scroll={false}
-          className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-xl px-3 text-xs font-black text-rose-600 transition hover:bg-rose-100 focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-rose-300"
-          aria-label="로그인 오류 안내 닫기"
-        >
-          닫기
-        </Link>
-      </div>
+      <Link
+        href="/4th"
+        replace
+        scroll={false}
+        className="inline-flex min-h-8 shrink-0 items-center justify-center rounded-xl px-2 text-xs font-black text-rose-600 transition hover:bg-rose-100 focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-rose-300"
+        aria-label="로그인 오류 안내 닫기"
+      >
+        닫기
+      </Link>
     </section>
   );
 }
 
 export function DashboardGatewayActions() {
-  const router = useRouter();
-  const { viewer, loading, error } = useFourthViewer();
-
-  useEffect(() => {
-    if (!loading && viewer?.authenticated) {
-      router.replace("/4th/dashboard#member-features");
-    }
-  }, [loading, router, viewer?.authenticated]);
+  const { viewer, loading, actionPending, error, logout } = useFourthViewer();
 
   return (
-    <div className="space-y-2.5">
+    <div className="space-y-3">
       {loading ? (
-        <div className="flex min-h-14 w-full items-center justify-center gap-2 rounded-[18px] bg-[#FEE500] px-5 text-sm font-black text-[#191919]" role="status" aria-live="polite">
+        <div className="flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-[#FEE500] px-5 text-sm font-black text-[#191919]" role="status" aria-live="polite">
           <span className="h-2 w-2 animate-pulse rounded-full bg-[#191919]/55" aria-hidden="true" />
           로그인 상태 확인 중
         </div>
       ) : viewer?.authenticated ? (
-        <div className="flex min-h-14 w-full items-center justify-center gap-2 rounded-[18px] bg-blue-600 px-5 text-sm font-black text-white" role="status" aria-live="polite">
-          <span className="h-2 w-2 animate-pulse rounded-full bg-white/70" aria-hidden="true" />
-          개인 화면으로 이동 중
-        </div>
+        <>
+          <p className="px-2 text-center text-[11px] font-bold text-slate-500">
+            {viewer.display_name ? `${viewer.display_name}님으로 로그인되어 있어요.` : "카카오로 로그인되어 있어요."}
+          </p>
+          <div className="grid grid-cols-2 gap-2.5">
+            <Link href="/4th/dashboard#member-features" className="flex min-h-14 w-full items-center justify-center rounded-2xl bg-blue-600 px-2 text-center text-xs font-black leading-tight text-white shadow-lg shadow-blue-500/15 transition hover:bg-blue-700 focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-blue-300">
+              로그인 후 대시보드
+            </Link>
+            <button
+              type="button"
+              onClick={() => void logout()}
+              disabled={actionPending}
+              className="flex min-h-14 w-full items-center justify-center rounded-2xl bg-slate-100 px-2 text-center text-xs font-black leading-tight text-slate-600 ring-1 ring-slate-950/5 transition hover:bg-slate-200 hover:text-slate-900 disabled:cursor-wait disabled:opacity-60"
+            >
+              {actionPending ? "전환 중" : "로그아웃 후 공통 보기"}
+            </button>
+          </div>
+        </>
       ) : (
-        <div className="space-y-1.5">
+        <div className="grid grid-cols-2 gap-2.5">
           <KakaoLoginButton
             nextPath="/4th/dashboard#member-features"
             label="카카오로 시작하기"
-            className="min-h-14 rounded-[18px] px-5 text-sm"
+            restart
+            className="min-h-14 px-2 text-xs leading-tight"
           />
-          <Link href="/4th/dashboard" className="flex min-h-11 w-full items-center justify-center rounded-2xl px-4 text-center text-xs font-black text-slate-500 transition hover:bg-slate-100 hover:text-blue-700 focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-blue-300">
+          <Link href="/4th/dashboard" className="flex min-h-14 w-full items-center justify-center rounded-2xl bg-blue-600 px-2 text-center text-xs font-black leading-tight text-white shadow-lg shadow-blue-500/15 transition hover:bg-blue-700 focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-blue-300">
             로그인 없이 대시보드 보기
           </Link>
         </div>

@@ -115,6 +115,7 @@ export function Hello2027Poc({
   const referenceDateLabel = dashboardDate.label;
   const referenceDateShort = dashboardDate.short;
   const seasonStarted = referenceDateIso >= FOURTH_SEASON_START_DATE;
+  const dashboardModeLabel = viewerState?.viewer?.authenticated ? "개인 대시보드" : "공통 대시보드";
 
   const selectedParticipant = useMemo(
     () => snapshot.participants.find((participant) => participant.id === selectedParticipantId) ?? null,
@@ -207,7 +208,13 @@ export function Hello2027Poc({
             />
           </a>
 
-          <div className={styles.headerMeta} aria-label="오늘 날짜와 개인 계정">
+          <div className={styles.headerMeta} aria-label={`${dashboardModeLabel}, 오늘 날짜와 계정`}>
+            {memberFeatures ? (
+              <span className={styles.dashboardMode}>
+                <span className={styles.dashboardModeLong}>{dashboardModeLabel}</span>
+                <span className={styles.dashboardModeShort}>{viewerState?.viewer?.authenticated ? "개인" : "공통"}</span>
+              </span>
+            ) : null}
             <time dateTime={referenceDateIso}>
               <small>TODAY</small>
               <span className={styles.longDate}>{referenceDateLabel}</span>
