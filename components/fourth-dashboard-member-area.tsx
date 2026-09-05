@@ -193,7 +193,7 @@ export function FourthDashboardMemberArea({
             </button>
           </div>
         ) : null}
-        <div className="grid gap-2 sm:grid-cols-3">
+        <div className="grid grid-cols-3 gap-2">
           {actions.map((action) => (
             <button
               key={action.id}
@@ -201,10 +201,10 @@ export function FourthDashboardMemberArea({
               disabled={action.disabled}
               aria-label={`${action.title}. ${action.description}${action.disabled ? ". 잠김" : ""}`}
               onClick={(event) => openModal(action.id, event.currentTarget)}
-              className="group flex min-h-[112px] flex-col items-center justify-center gap-3 rounded-[18px] bg-slate-50 px-3 py-4 text-center ring-1 ring-slate-200/80 transition hover:-translate-y-0.5 hover:bg-white hover:shadow-[0_10px_24px_rgba(15,23,42,0.08)] focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:hover:translate-y-0 disabled:hover:bg-slate-50 disabled:hover:shadow-none"
+              className="group flex min-h-[108px] flex-col items-center justify-center gap-3 rounded-[18px] bg-slate-50 px-2 py-4 text-center ring-1 ring-slate-200/80 transition hover:-translate-y-0.5 hover:bg-white hover:shadow-[0_10px_24px_rgba(15,23,42,0.08)] focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:hover:translate-y-0 disabled:hover:bg-slate-50 disabled:hover:shadow-none sm:min-h-[112px] sm:px-3"
             >
               <span aria-hidden="true" className="block text-[28px] leading-none">{action.icon}</span>
-              <strong className="block text-[15px] font-black tracking-[-0.02em] text-slate-950">{action.title}</strong>
+              <strong className="block break-keep text-[13px] font-black leading-5 tracking-[-0.02em] text-slate-950 sm:text-[15px]">{action.title}</strong>
             </button>
           ))}
         </div>
