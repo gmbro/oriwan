@@ -581,7 +581,7 @@
   display: grid;
   grid-template-columns: 64px max-content;
   align-items: center;
-  justify-content: center;
+  justify-content: space-around;
   gap: 14px;
   width: 100%;
   min-height: 120px;
