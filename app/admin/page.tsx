@@ -10,10 +10,11 @@ import { AdminProfileIntroductions } from "@/components/admin-profile-introducti
 import { IconCalendar, IconCheck, IconRun, IconSync, IconTarget, IconTrash, IconX } from "@/components/icons";
 import { buildMemberPictogramMap, MemberPictogram } from "@/components/member-pictogram";
 import {
+  FOURTH_PERSONAL_RECORD_START_DATE,
   FOURTH_SEASON_DAYS as CHALLENGE_DAYS,
+  FOURTH_SEASON_END_DATE,
   FOURTH_SEASON_START_DATE as ACTUAL_CERTIFICATION_START_DATE,
-  FOURTH_SEASON_START_DATE as CHALLENGE_START_DATE,
-  clampToFourthSeasonWindow as clampToChallengeWindow,
+  clampToFourthPersonalRecordWindow,
 } from "@/lib/fourth-season-contract";
 import { broadcastDashboardRefresh } from "@/lib/dashboard-refresh";
 import { imageFileToOptimizedDataUrl } from "@/lib/image-client";
@@ -198,9 +199,11 @@ const now = new Date();
 const today = toKstIsoDate(now);
 const effectiveToday = today;
 const officialCertificationEndDate = toIsoDate(addDays(new Date(`${ACTUAL_CERTIFICATION_START_DATE}T00:00:00`), CHALLENGE_DAYS - 1));
-const initialRecordDate = clampToChallengeWindow(today);
-const initialUploadDate = clampToChallengeWindow(today);
-const rangeStart = CHALLENGE_START_DATE;
+const initialRecordDate = clampToFourthPersonalRecordWindow(today);
+const initialUploadDate = clampToFourthPersonalRecordWindow(today);
+const rangeStart = FOURTH_PERSONAL_RECORD_START_DATE;
+const isOfficialCertificationToday = effectiveToday >= ACTUAL_CERTIFICATION_START_DATE
+  && effectiveToday <= officialCertificationEndDate;
 
 function statusLabel(status: AnalysisStatus) {
   if (status === "duplicate") return "이미 인증됨";
@@ -1205,7 +1208,9 @@ export default function AdminPage() {
       if (record.status === "needs_review" && isCertificationTargetRecord) reviewCount += 1;
       if (!isCertificationCountedStatus(record.status)) return;
       if (!record.participant_id || !certificationParticipantIds.has(record.participant_id)) return;
-      if (record.record_date === effectiveToday) todayCertifiedIds.add(record.participant_id);
+      if (isOfficialCertificationToday && record.record_date === effectiveToday) {
+        todayCertifiedIds.add(record.participant_id);
+      }
       if (
         record.record_date &&
         record.record_date >= ACTUAL_CERTIFICATION_START_DATE &&
@@ -1226,6 +1231,7 @@ export default function AdminPage() {
   }, [certificationParticipantIds, certificationParticipants.length, records]);
 
   const todayMissingParticipants = useMemo(() => {
+    if (!isOfficialCertificationToday) return [];
     const todayCertifiedIds = new Set<string>();
 
     records.forEach((record) => {
@@ -1918,7 +1924,10 @@ export default function AdminPage() {
   const deleteExistingRecord = useCallback(async (record: RunRecord) => {
     if (!record.record_date) return;
     const participantName = selectedRecordsParticipant?.name || "선택한 멤버";
-    if (!window.confirm(`${participantName}님의 ${record.record_date} 인증을 삭제할까요? 삭제하면 인증률과 누적 거리/시간에서도 빠집니다.`)) return;
+    const impact = record.record_date < ACTUAL_CERTIFICATION_START_DATE
+      ? "개인 누적 거리와 시간에서 빠집니다. 공식 인증률에는 원래 포함되지 않은 준비 기록이에요."
+      : "공식 인증률과 개인 누적 거리·시간에서 빠집니다.";
+    if (!window.confirm(`${participantName}님의 ${record.record_date} 기록을 삭제할까요? 삭제하면 ${impact}`)) return;
 
     setDeletingRecordId(record.id);
     try {
@@ -2152,9 +2161,15 @@ export default function AdminPage() {
 
               <div className="mt-5 grid grid-cols-[minmax(0,1fr)_auto] items-end gap-4 rounded-[26px] bg-white/[0.07] p-4 ring-1 ring-white/10 sm:p-5">
                 <div className="min-w-0">
-                  <p className="text-xs font-black text-white/45">오늘 인증</p>
+                  <p className="text-xs font-black text-white/45">
+                    {isOfficialCertificationToday ? "오늘 인증" : "공식 인증 시작 전"}
+                  </p>
                   <p className="mt-1 text-[clamp(3rem,14vw,5rem)] font-black leading-none text-lime-200">{adminStats.todayRate}%</p>
-                  <p className="mt-2 text-xs font-semibold text-white/55">{adminStats.todayCertifiedCount}/{certificationParticipants.length}명 인증 완료</p>
+                  <p className="mt-2 text-xs font-semibold text-white/55">
+                    {isOfficialCertificationToday
+                      ? `${adminStats.todayCertifiedCount}/${certificationParticipants.length}명 인증 완료`
+                      : "9월 23일부터 공식 인증률을 계산해요"}
+                  </p>
                 </div>
                 <div className="grid gap-2 text-right">
                   <span className="rounded-2xl bg-white/10 px-3 py-2 ring-1 ring-white/10">
@@ -2178,7 +2193,9 @@ export default function AdminPage() {
               <div className="mt-3 grid gap-2 lg:grid-cols-2">
                 <div className="rounded-2xl bg-white/[0.08] p-3 ring-1 ring-white/10">
                   <div className="flex items-center justify-between gap-2">
-                    <p className="text-[10px] font-black text-white/40">오늘 미인증</p>
+                    <p className="text-[10px] font-black text-white/40">
+                      {isOfficialCertificationToday ? "오늘 미인증" : "공식 인증 대상"}
+                    </p>
                     <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-black text-white ring-1 ring-white/10">
                       {todayMissingParticipants.length}
                     </span>
@@ -2200,7 +2217,7 @@ export default function AdminPage() {
                       </div>
                     ) : (
                       <p className="rounded-xl bg-lime-300/15 px-3 py-3 text-center text-xs font-black text-lime-200 ring-1 ring-lime-300/20">
-                        모두 완료
+                        {isOfficialCertificationToday ? "모두 완료" : "시작 전 · 준비 기록은 개인 전용"}
                       </p>
                     )}
                   </div>
@@ -2273,7 +2290,7 @@ export default function AdminPage() {
               />
               <AdminActionButton
                 title="직접 입력"
-                meta="기록 추가"
+                meta={isOfficialCertificationToday ? "기록 추가" : "준비 기록 추가"}
                 icon={<IconCheck size={18} />}
                 onClick={() => openManualRecordForDate(effectiveToday)}
               />
@@ -2682,11 +2699,15 @@ export default function AdminPage() {
                   기준 날짜
                   <input
                     type="date"
-                    min={CHALLENGE_START_DATE}
+                    min={FOURTH_PERSONAL_RECORD_START_DATE}
+                    max={FOURTH_SEASON_END_DATE}
                     value={targetDate}
                     onChange={(e) => setTargetDate(e.target.value)}
                     className="mt-1 block w-full rounded-xl border border-oriwan-border bg-white px-3 py-2.5 text-base font-black text-oriwan-text sm:text-sm"
                   />
+                  <span className="mt-2 block text-[10px] font-bold leading-4 text-blue-600">
+                    9월 23일 전 기록은 개인 기록에만 표시되고 공식 인증률에서는 제외돼요.
+                  </span>
                 </label>
 
                 <div className="rounded-2xl bg-oriwan-surface-light p-3">
@@ -2927,6 +2948,9 @@ export default function AdminPage() {
                   const isSaving = updatingRecordId === record.id;
                   const isDeleting = deletingRecordId === record.id;
                   const isRecoveryRecord = isRecoveryCertificationRecord(record);
+                  const isPreparationRecord = Boolean(
+                    record.record_date && record.record_date < ACTUAL_CERTIFICATION_START_DATE,
+                  );
                   const recoveryToggleDisabled = isSaving || isDeleting;
                   const recoveryToggleTitle = isRecoveryRecord ? "리커버리 쉴드 사용 해제" : "리커버리 쉴드 사용";
                   const displayNotes = formatVisibleRecordNotes(record.notes);
@@ -2935,8 +2959,15 @@ export default function AdminPage() {
                     <div key={record.id} className="rounded-[22px] bg-white p-3 ring-1 ring-slate-950/5">
                       <div className="mb-2 flex items-center justify-between gap-2">
                         <p className="text-sm font-black text-oriwan-text">{record.record_date}</p>
-                        <span className={`rounded-full border px-2 py-1 text-[10px] font-black ${statusClass(record.status)}`}>
-                          {statusLabel(record.status)}
+                        <span className="flex flex-wrap justify-end gap-1">
+                          {isPreparationRecord ? (
+                            <span className="rounded-full border border-blue-200 bg-blue-50 px-2 py-1 text-[10px] font-black text-blue-700">
+                              개인 기록 · 공식 제외
+                            </span>
+                          ) : null}
+                          <span className={`rounded-full border px-2 py-1 text-[10px] font-black ${statusClass(record.status)}`}>
+                            {statusLabel(record.status)}
+                          </span>
                         </span>
                       </div>
                       <div className="grid gap-2">
@@ -3114,10 +3145,13 @@ export default function AdminPage() {
               </div>
               <div className="grid gap-2 sm:grid-cols-2">
                 <MemberPicker participants={participants} value={manualParticipantId} onChange={setManualParticipantId} />
-                <input type="date" min={CHALLENGE_START_DATE} value={manualDate} onChange={(e) => setManualDate(e.target.value)} className="rounded-xl border border-oriwan-border px-3 py-2.5 text-sm" />
+                <input type="date" min={FOURTH_PERSONAL_RECORD_START_DATE} max={FOURTH_SEASON_END_DATE} value={manualDate} onChange={(e) => setManualDate(e.target.value)} className="rounded-xl border border-oriwan-border px-3 py-2.5 text-sm" />
                 <input value={manualDistance} onChange={(e) => setManualDistance(e.target.value)} placeholder="거리 km" inputMode="decimal" className="rounded-xl border border-oriwan-border px-3 py-2.5 text-sm" />
                 <input value={manualDuration} onChange={(e) => setManualDuration(e.target.value)} placeholder="시간 예: 32:10" className="rounded-xl border border-oriwan-border px-3 py-2.5 text-sm" />
               </div>
+              <p className="mt-2 text-[11px] font-bold leading-5 text-blue-600">
+                9월 23일 전 기록은 준비 러닝으로 저장해 개인 기록에만 보여요. 공식 100일 인증에는 포함되지 않습니다.
+              </p>
               <button type="button" onClick={saveManualRecord} className="btn-primary mt-4 w-full py-3 text-sm">
                 기록 저장하기
               </button>

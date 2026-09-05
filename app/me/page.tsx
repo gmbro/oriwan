@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { DailyGiftBox } from "@/components/daily-gift-box";
 import { DailyFortune } from "@/components/daily-fortune";
 import { KakaoLoginButton } from "@/components/kakao-login-button";
+import { PersonalRecordsDashboard } from "@/components/personal-records-dashboard";
 import { TwttBrandMark } from "@/components/twtt-brand-mark";
 
 type MeData = {
@@ -16,10 +17,10 @@ type MeData = {
   connection_message: string;
 };
 
-function PageShell({ children }: { children: React.ReactNode }) {
+function PageShell({ children, wide = false }: { children: React.ReactNode; wide?: boolean }) {
   return (
-    <main className="flex min-h-screen items-center justify-center overflow-x-hidden bg-oriwan-bg px-3 py-6 sm:px-5 sm:py-10">
-      <div className="w-full max-w-[520px]">{children}</div>
+    <main className={`flex min-h-screen justify-center overflow-x-hidden bg-oriwan-bg px-3 py-6 sm:px-5 sm:py-10 ${wide ? "items-start" : "items-center"}`}>
+      <div className={`w-full ${wide ? "max-w-[1120px]" : "max-w-[520px]"}`}>{children}</div>
     </main>
   );
 }
@@ -100,7 +101,7 @@ export default function MyPage() {
   const name = data.display_name || data.matched_participant?.name || "이름 확인 중";
 
   return (
-    <PageShell>
+    <PageShell wide>
       <div className="card mobile-page-card overflow-hidden p-5 sm:p-8">
         <div className="flex items-center justify-between gap-3">
           <TwttBrandMark className="aspect-[640/310] w-[104px] sm:w-[120px]" sizes="(max-width: 640px) 104px, 120px" priority />
@@ -117,19 +118,21 @@ export default function MyPage() {
           </p>
         </div>
 
-        <div className="mt-5"><DailyFortune /></div>
-
-        {data.matched_participant ? <DailyGiftBox /> : (
-          <div className="mt-5 rounded-3xl bg-amber-50 px-5 py-4 text-sm font-bold leading-6 text-amber-900 ring-1 ring-amber-100">
-            댓글은 카카오 프로필 이름으로 작성할 수 있어요. 운영자가 4기 크루와 연결하면 응원 상자 기능도 열립니다.
-          </div>
-        )}
+        <div className="mt-5 grid gap-4 lg:grid-cols-2">
+          <DailyFortune />
+          {data.matched_participant ? <div className="[&>section]:mt-0"><DailyGiftBox /></div> : (
+            <div className="flex min-h-48 items-center rounded-[28px] bg-amber-50 px-5 py-5 text-sm font-bold leading-6 text-amber-900 ring-1 ring-amber-100">
+              댓글은 카카오 프로필 이름으로 작성할 수 있어요. 운영자가 4기 크루와 연결하면 응원 상자와 개인 기록 기능도 열립니다.
+            </div>
+          )}
+        </div>
 
         <div className="mt-5 grid grid-cols-2 gap-2">
           <Link href="/4th/dashboard#guestbook" className="flex min-h-12 items-center justify-center rounded-2xl bg-blue-600 px-3 text-sm font-black text-white">댓글로 이동</Link>
           <Link href="/4th/dashboard" className="flex min-h-12 items-center justify-center rounded-2xl bg-slate-100 px-3 text-sm font-black text-slate-700">4기 대시보드</Link>
         </div>
       </div>
+      {data.matched_participant ? <PersonalRecordsDashboard /> : null}
     </PageShell>
   );
 }

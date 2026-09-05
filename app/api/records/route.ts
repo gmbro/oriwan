@@ -6,9 +6,9 @@ import { isMissingTableError, missingSchemaResponse } from "@/lib/supabase-error
 import { guardMutationRequest } from "@/lib/request-security";
 import { invalidatePublicDashboardCache } from "@/lib/public-dashboard-data";
 import {
-  FOURTH_SEASON_DATE_ERROR,
+  FOURTH_PERSONAL_RECORD_DATE_ERROR,
   FOURTH_SEASON_KEY,
-  isWithinFourthSeasonWindow,
+  isWithinFourthPersonalRecordWindow,
 } from "@/lib/fourth-season-contract";
 import { logServerFailure } from "@/lib/server-error-log";
 
@@ -129,8 +129,8 @@ export async function POST(request: NextRequest) {
   if (!participantId || !recordDate) {
     return NextResponse.json({ error: "멤버와 날짜를 함께 선택해주세요." }, { status: 400 });
   }
-  if (!isWithinFourthSeasonWindow(recordDate)) {
-    return NextResponse.json({ error: FOURTH_SEASON_DATE_ERROR }, { status: 400 });
+  if (!isWithinFourthPersonalRecordWindow(recordDate)) {
+    return NextResponse.json({ error: FOURTH_PERSONAL_RECORD_DATE_ERROR }, { status: 400 });
   }
   if (!hasPositiveMetric(distanceKm) && !hasPositiveMetric(durationSeconds)) {
     return NextResponse.json({ error: "거리 또는 시간 중 하나는 입력해주세요." }, { status: 400 });

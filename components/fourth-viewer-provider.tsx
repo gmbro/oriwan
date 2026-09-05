@@ -45,7 +45,7 @@ export function FourthViewerProvider({
       setError("");
     } catch {
       // A transient viewer refresh failure must not replace a trusted
-      // server-rendered session with the public dummy preview.
+      // 서버가 확인한 로그인 상태와 브라우저의 최신 세션을 맞춥니다.
       setViewer((current) => current ?? anonymousFourthViewer);
       setError("로그인 상태를 확인하지 못했어요. 잠시 후 다시 시도해주세요.");
     } finally {

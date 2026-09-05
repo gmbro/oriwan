@@ -25,10 +25,10 @@ import {
   isRecoveryCertificationFlag,
 } from "@/lib/run-records";
 import {
-  FOURTH_SEASON_DATE_ERROR,
+  FOURTH_PERSONAL_RECORD_DATE_ERROR,
   FOURTH_SEASON_KEY,
   FOURTH_SEASON_START_DATE,
-  isWithinFourthSeasonWindow,
+  isWithinFourthPersonalRecordWindow,
 } from "@/lib/fourth-season-contract";
 import {
   ExtractedRunBase,
@@ -295,8 +295,8 @@ export async function POST(request: NextRequest) {
     if (images.length !== rawImages.length) {
       return NextResponse.json({ error: "지원하지 않는 이미지 형식이거나 파일 용량이 너무 큽니다." }, { status: 400 });
     }
-    if (targetDate && !isWithinFourthSeasonWindow(targetDate)) {
-      return NextResponse.json({ error: FOURTH_SEASON_DATE_ERROR }, { status: 400 });
+    if (targetDate && !isWithinFourthPersonalRecordWindow(targetDate)) {
+      return NextResponse.json({ error: FOURTH_PERSONAL_RECORD_DATE_ERROR }, { status: 400 });
     }
 
     const { data: participantsData, error: participantError } = await supabase
@@ -464,8 +464,8 @@ export async function POST(request: NextRequest) {
       const durationSeconds = isRecoveryCertification ? RECOVERY_CERTIFICATION_DURATION_SECONDS : extractedDurationSeconds;
       const distanceKm = isRecoveryCertification ? RECOVERY_CERTIFICATION_DISTANCE_KM : extractedDistanceKm;
 
-      if (recordDate && !isWithinFourthSeasonWindow(recordDate)) {
-        return NextResponse.json({ error: FOURTH_SEASON_DATE_ERROR }, { status: 400 });
+      if (recordDate && !isWithinFourthPersonalRecordWindow(recordDate)) {
+        return NextResponse.json({ error: FOURTH_PERSONAL_RECORD_DATE_ERROR }, { status: 400 });
       }
 
       let existingRecord: ExistingRunRecord | null = null;

@@ -3,19 +3,14 @@ import "server-only";
 import { unstable_cache } from "next/cache";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import {
-  hello2027Snapshot,
-  type Hello2027Participant,
-  type Hello2027Snapshot,
-} from "@/app/poc/hello-2027/hello-2027-poc-data";
 import { findAdminUserId, getServiceClient } from "@/lib/admin-data";
-import { isFourthDashboardLive } from "@/lib/fourth-dashboard-live";
 import {
   FOURTH_SEASON_DAYS,
   FOURTH_SEASON_END_DATE,
   FOURTH_SEASON_KEY,
   FOURTH_SEASON_START_DATE,
 } from "@/lib/fourth-season-contract";
+import type { Hello2027Participant, Hello2027Snapshot } from "@/lib/hello-2027-types";
 import { toKstIsoDate } from "@/lib/run-records";
 import { logServerFailure } from "@/lib/server-error-log";
 
@@ -272,8 +267,6 @@ function buildLiveSnapshot({
 }
 
 async function loadHello2027DashboardSnapshot(): Promise<Hello2027Snapshot> {
-  if (!isFourthDashboardLive()) return hello2027Snapshot;
-
   const today = toKstIsoDate();
   const emptySnapshot = makeEmptyHello2027DashboardSnapshot(today);
   try {
@@ -320,7 +313,7 @@ async function loadHello2027DashboardSnapshot(): Promise<Hello2027Snapshot> {
 
 export const getHello2027DashboardSnapshot = unstable_cache(
   loadHello2027DashboardSnapshot,
-  ["hello-2027-dashboard", FOURTH_SEASON_KEY, "v2-live-cutover"],
+  ["hello-2027-dashboard", FOURTH_SEASON_KEY, "v3-dummy-free"],
   {
     revalidate: SNAPSHOT_REVALIDATE_SECONDS,
     tags: ["public-dashboard"],

@@ -575,7 +575,7 @@ function BannerForm({
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         <label className="text-xs font-black text-oriwan-text-muted">
           광고주 이름
-          <input required autoFocus maxLength={20} value={draft.owner_name} onChange={(event) => setDraft((current) => ({ ...current, owner_name: event.target.value }))} placeholder="예: 강태윤님의 광고" className="mt-1.5 min-h-11 w-full rounded-xl border border-blue-100 bg-white px-3 text-sm font-bold text-oriwan-text outline-none focus:border-blue-500" />
+          <input required autoFocus maxLength={20} value={draft.owner_name} onChange={(event) => setDraft((current) => ({ ...current, owner_name: event.target.value }))} placeholder="예: 러닝 파트너" className="mt-1.5 min-h-11 w-full rounded-xl border border-blue-100 bg-white px-3 text-sm font-bold text-oriwan-text outline-none focus:border-blue-500" />
         </label>
         <label className="text-xs font-black text-oriwan-text-muted">
           제목

@@ -85,7 +85,7 @@ export async function GET(request: NextRequest) {
       threads: [],
       live: false,
       source: "fallback",
-      error: "댓글을 불러오지 못해 미리보기 댓글을 보여드려요.",
+      error: "댓글을 불러오지 못해 빈 목록으로 표시해요.",
     });
   }
 }

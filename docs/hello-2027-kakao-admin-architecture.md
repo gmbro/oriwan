@@ -1,6 +1,6 @@
 # TWTT 4기 카카오 로그인·공개 대시보드·운영 어드민 아키텍처
 
-- 기준일: 2026-09-05
+- 기준일: 2026-09-06
 - 운영 origin: `https://xn--220bw61afob.kro.kr`
 - 상태: 4기 사전 공개(prelaunch). 실제 오픈 전 서버 데이터 이전과 외부 인증 검증이 남아 있음
 - 관련 운영정책: [TWTT 4기 서비스 운영정책](./twtt-4th-operating-policy.md)
@@ -13,18 +13,20 @@
 | --- | --- | --- | --- |
 | `/` | TWTT 공통 진입 페이지 | 불필요 | `카카오로 시작하기`, `로그인 없이 대시보드 보기`, 3기 기록 진입 제공 |
 | `/3th` | TWTT 3기 공통 대시보드 | 불필요 | 종료 시점 정적 스냅샷을 사용하는 읽기 전용 화면 |
-| `/4th` | TWTT 4기 공통 대시보드 | 열람은 불필요 | `FOURTH_DASHBOARD_LIVE=true` 전에는 더미 사전 공개. 전환 후에는 4기 실데이터만 사용하고 장애 시 빈 상태로 실패-폐쇄. 오픈 안내 팝업과 `noindex` 적용 |
+| `/4th` | TWTT 4기 진입 화면 | 불필요 | 카카오 로그인 또는 비로그인 공개 보기 선택 |
+| `/4th/dashboard` | TWTT 4기 공통 대시보드 | 열람은 불필요 | 항상 4기 실데이터만 사용하고 누락·장애 시 빈 상태로 실패-폐쇄. 오픈 안내 팝업과 `noindex` 적용 |
 | `/admin` | 인증·크루프로필·응원글·배너·댓글 운영 | 관리자 OTP 필요 | 기존 인증/OCR과 Supabase 콘텐츠·댓글 관리 API 연결. 운영 DB 스키마 적용 필요 |
 | `/dashboard/report/3th` | TWTT 3기 전체 상세 아카이브 | 불필요 | 3기 전체 통계와 개인 기록 링크 제공 |
 | `/dashboard/report/3th/[participantId]` | TWTT 3기 개인 상세 아카이브 | 불필요 | 선택한 3기 참가자의 개인 기록 제공 |
 
 `/3th`와 `/dashboard/report/3th`는 용도가 다르다. `/3th`는 기존 공통 대시보드의 종료 스냅샷이고, `/dashboard/report/3th`는 시즌 전체·개인 상세 리포트다. 둘 다 3기 읽기 전용 데이터만 사용한다.
 
-개인 기능은 `/4th` 안에서 제공하는 것이 기본 동선이다. `/me`가 호환 경로로 남아 있어도 별도의 인증 등록·OCR·프로필 자기수정 권한을 만들지 않는다.
+개인 기능은 `/4th`에서 로그인한 뒤 `/4th/dashboard`에서 제공하는 것이 기본 동선이다. `/me`가 호환 경로로 남아 있어도 별도의 인증 등록·OCR·프로필 자기수정 권한을 만들지 않는다.
 
 ```text
 /
-├─ /4th ───────────────── 4기 공개 대시보드 + 카카오 개인 영역
+├─ /4th ───────────────── 4기 로그인·비로그인 진입 화면
+├─ /4th/dashboard ─────── 4기 공개 대시보드 + 카카오 개인 영역
 │  ├─ 비로그인 ────────── 공개 현황 열람, 정식 오픈 후 랜덤 익명 댓글
 │  └─ 카카오 로그인 ───── 오늘의 운세 + Kakao/운영자 이름 댓글 + 조건부 응원 상자
 ├─ /3th ───────────────── 3기 공통 대시보드 읽기 전용 스냅샷
@@ -55,7 +57,7 @@
 | `/api/me/records/analyze` | `POST` | 항상 `403`. OCR은 운영자 어드민에서만 실행 |
 | `/api/me/gift-box` | `GET` | 승인·오늘 인증·기존 지급 결과 조회 |
 | `/api/me/gift-box` | `POST` | 조건을 다시 검증한 뒤 하루 한 번 응원 문구 지급 |
-| `/api/hello-2027/content` | `GET` | 활성 응원글·배너·크루 자기소개 공개 DTO 조회. 저장소 장애 시 코드 기본값 사용 |
+| `/api/hello-2027/content` | `GET` | 활성 응원글·배너·크루 자기소개 공개 DTO 조회. 저장소 누락·장애 시 빈 목록 반환 |
 | `/api/hello-2027/comments` | `GET/POST/DELETE` | 댓글·답글 조회, 서버 결정 이름으로 작성, 작성자 소유 댓글 비식별 삭제 |
 | `/api/hello-2027/comments/reactions` | `POST` | 허용 이모지 반응 토글 |
 | `/api/admin/hello-2027/content` | `GET/POST/PATCH/DELETE` | 관리자 OTP 재검증 후 응원글·배너 CRUD |
@@ -116,7 +118,7 @@ Supabase에는 쿼리가 없는 고정 앱 callback URL만 전달한다. 앱 내
 
 공개 댓글·답글·반응 API와 관리자 숨김·복구·비식별 삭제는 구현돼 있다. 비로그인 방문자에게는 256비트 랜덤 HttpOnly 쿠키를 발급하고 DB에는 원문 대신 SHA-256 actor key만 저장한다. 로그인 작성자 이름은 Kakao identity 또는 운영자 확인 이름으로 서버가 정하며, 본문은 서버와 DB에서 150자로 제한한다. 삭제는 service-role 전용 PostgreSQL 함수가 행 잠금·작성자 소유권 확인·작성자명/본문/계정 ID/소유 키 치환·반응 제거를 한 트랜잭션에서 처리한다.
 
-다만 운영자가 `docs/supabase-schema.sql`과 하드닝 SQL을 적용하고 실제 계정으로 권한을 검증한 뒤 `HELLO_2027_COMMENTS_LIVE=true`를 명시하기 전에는 `/4th`가 더미 댓글을 읽기 전용으로 표시한다. 플래그가 없거나 `true`가 아니면 쓰기 API는 실패-폐쇄된다. 정식 오픈 전에는 서버리스 인스턴스가 공유하는 지속형 rate limit·스팸 방지, 관리자 감사 로그, Kakao 연결 해제 자동화도 추가해야 한다.
+다만 운영자가 `docs/supabase-schema.sql`과 하드닝 SQL을 적용하고 실제 계정으로 권한을 검증한 뒤 `HELLO_2027_COMMENTS_LIVE=true`를 명시하기 전에는 `/4th/dashboard`가 빈 댓글 목록을 표시하고 입력을 잠근다. 플래그가 없거나 `true`가 아니면 쓰기 API는 실패-폐쇄된다. 정식 오픈 전에는 서버리스 인스턴스가 공유하는 지속형 rate limit·스팸 방지, 관리자 감사 로그, Kakao 연결 해제 자동화도 추가해야 한다.
 
 ## 5. 오늘의 운세와 응원 상자
 
@@ -152,11 +154,11 @@ Supabase에는 쿼리가 없는 고정 앱 callback URL만 전달한다. 앱 내
 | 배너 | 최대 10개, 이미지·대체텍스트·모바일 초점·순서·게시 상태 관리 | Supabase CRUD API·허용 URL 검증·공개 화면 연결 구현. 운영 스키마 적용 필요 |
 | 댓글 | 댓글·답글·반응 공개·숨김·복구·비식별 삭제 | 공개/관리 API와 UI 구현. 운영 스키마·오픈 플래그 적용 필요 |
 
-공개 운영 원본은 Supabase이며 브라우저 IndexedDB는 개발용 `/poc` 화면에만 남는다. 콘텐츠·댓글 CRUD가 구현됐더라도 운영 DB에 검토한 SQL을 적용하고 권한·감사·복구 절차를 검증하기 전에는 운영 완료로 보지 않는다.
+공개 운영 원본은 Supabase뿐이며 제거된 `/poc` 화면이나 브라우저 IndexedDB를 운영 fallback으로 사용하지 않는다. 콘텐츠·댓글 CRUD가 구현됐더라도 운영 DB에 검토한 SQL을 적용하고 권한·감사·복구 절차를 검증하기 전에는 운영 완료로 보지 않는다.
 
 ## 7. 시즌과 데이터 경계
 
-현재 3기는 코드의 읽기 전용 스냅샷으로 `/3th`와 `/dashboard/report/3th`에 분리돼 있다. 운영 API는 과도기용 `season_key`로 4기만 읽고 쓴다. `/4th`는 명시적 운영 전환 전까지 사전 공개용 더미 스냅샷만 사용하고, `FOURTH_DASHBOARD_LIVE=true` 이후에는 4기 인증 데이터로 당일·주간·월간 수치를 만들며 누락·장애 시 더미 대신 빈 4기 상태를 반환한다. 운영 DB는 다음 순서로 전환한다.
+현재 3기는 코드의 읽기 전용 스냅샷으로 `/3th`와 `/dashboard/report/3th`에 분리돼 있다. 운영 API는 과도기용 `season_key`로 4기만 읽고 쓴다. 과거 사전 공개 단계에는 코드 fixture와 명시적 전환 플래그를 사용했지만, 현재 `/4th/dashboard`는 별도 전환 없이 4기 인증 데이터로 당일·주간·월간 수치를 만들며 누락·장애 시 항상 빈 4기 상태를 반환한다. 운영 DB는 다음 순서로 전환한다.
 
 1. DB와 private Storage를 각각 백업한다.
 2. 아직 `season_key`가 없는 기존 참가자·인증·업로드 배치·성장 뱃지·계정 연결이 모두 3기 데이터인지 확인한다.
@@ -165,7 +167,7 @@ Supabase에는 쿼리가 없는 고정 앱 callback URL만 전달한다. 앱 내
 5. 4기 크루와 인증은 반드시 4기 관리자 API로 새로 등록한다. SQL 기본값에만 의존하는 직접 입력은 피한다.
 6. 3기 snapshot과 해시를 저장하고 DB 원본도 수정 불가 상태로 동결한다.
 7. 정식 `seasons`, `season_participants`를 도입할 때 문자열 키를 외래키로 치환한다.
-8. 정식 오픈 직전 코드 더미데이터가 아닌 실제 4기 크루가 표시되는지 확인하고 3기 기준값이 변하지 않았는지 다시 대조한다.
+8. 정식 오픈 직전 실제 4기 크루 또는 올바른 빈 상태만 표시되는지 확인하고 3기 기준값이 변하지 않았는지 다시 대조한다.
 
 과도기 스키마에서는 운영 데이터의 관리자 `user_id` FK를 `ON DELETE RESTRICT`로 바꿔 실수 삭제의 연쇄 손실을 막는다. 이후 시즌 데이터 소유권을 `seasons`/`app_admins`와 같은 별도 엔터티로 분리한다.
 
@@ -241,7 +243,6 @@ Production 환경에 아래 이름을 설정한다. 값은 Vercel의 암호화�
 | `SITE_URL` | 서버 설정 | `https://xn--220bw61afob.kro.kr` |
 | `ADMIN_SESSION_SECRET` | 서버 비밀 | 관리자 쿠키 서명 전용 32바이트 이상 난수 |
 | `DAILY_FORTUNE_SECRET` | 서버 비밀 | 오늘의 운세 HMAC 전용 32바이트 이상 난수 |
-| `FOURTH_DASHBOARD_LIVE` | 서버 설정 | DB 백필·4기 크루·인증·콘텐츠 검증을 마친 뒤 `true`; 전환 후 장애 시 더미를 노출하지 않음 |
 | `FOURTH_GIFT_BOX_LIVE` | 서버 설정 | 운영 점검 완료 뒤 `true`로 바꿀 때만 응원 상자 지급 허용 |
 | `HELLO_2027_COMMENTS_LIVE` | 서버 설정 | 댓글 DB·권한·삭제 점검 완료 뒤 `true`로 바꿀 때만 쓰기 허용 |
 | `CORRECTIVE_EXERCISE_LIVE` | 서버 설정 | 민감정보 동의·전용 DB·파기 Cron·운영 권한을 검증한 뒤 `true`로 바꿀 때만 교정운동 신청 허용 |
@@ -258,7 +259,7 @@ Kakao REST API key와 Client Secret은 Supabase Provider가 토큰 교환에 사
 2. 기존 운영행이 3기임을 확인한 뒤 저장소의 `docs/supabase-schema.sql`을 적용한다. SQL은 참가자·인증·업로드 배치·성장 뱃지·기존 계정 연결의 NULL 시즌을 `3th`로 백필하고, 신규행 기본값과 시즌별 고유 제약을 `4th` 기준으로 적용한다. 이미 수동으로 4기 데이터를 넣었다면 실행 전에 반드시 해당 행에 `season_key = '4th'`를 명시해 백필 대상에서 제외한다.
 3. 모든 public 테이블의 RLS와 grants를 확인한다.
 4. 일반 `anon`·`authenticated`가 참가자·인증·계정 연결·선물상자를 직접 변경하지 못하는지 테스트한다.
-5. Vercel Production 배포 후 custom domain의 `/`, `/3th`, `/4th`, `/admin`, `/dashboard/report/3th`를 확인한다.
+5. Vercel Production 배포 후 custom domain의 `/`, `/3th`, `/4th`, `/4th/dashboard`, `/admin`, `/dashboard/report/3th`를 확인한다.
 6. 실제 Kakao 테스트 계정으로 로그인·취소·로그아웃·승인·해제·세션 만료를 테스트한다.
 
 ## 9. 비밀값 보관 위치
@@ -280,7 +281,7 @@ Kakao REST API key와 Client Secret은 Supabase Provider가 토큰 교환에 사
 
 - `/`의 4기·카카오 로그인·3기 진입 동선
 - `/3th` 읽기 전용 공통 대시보드 스냅샷
-- `/4th` 명시적 운영 전환 전 더미 미리보기, 전환 후 4기 실데이터 전용·빈 상태 fail-closed 대시보드, 멤버 영역, 오픈 전 팝업, `noindex`
+- `/4th` 진입 화면과 `/4th/dashboard`의 4기 실데이터 전용·빈 상태 fail-closed 대시보드, 멤버 영역, 오픈 전 팝업, `noindex`
 - `/dashboard/report/3th`와 개인 상세 리포트
 - 서버 `/api/auth/kakao`에서 시작하는 Supabase Kakao OAuth, 검증된 최소 scope redirect 호환 처리와 PKCE callback code 교환
 - `/4th` 헤더의 compact 로그인·로그아웃과 공유 viewer 상태
@@ -293,7 +294,7 @@ Kakao REST API key와 Client Secret은 Supabase Provider가 토큰 교환에 사
 - 개인 표시명 변경 `PATCH`, 개인 인증 저장 `POST`, 개인 OCR `POST`의 `403` 차단
 - 응원 상자의 Kakao provider·승인·KST 오늘 인증·4기 시즌 키·auth user 재검증
 - 서버 난수와 DB 고유 제약을 이용한 응원 상자 중복 방지
-- 공개 응원글·배너·크루 자기소개 서버 조회와 장애 시 코드 기본값 fallback
+- 공개 응원글·배너·크루 자기소개 서버 조회와 누락·장애 시 빈 상태 fallback
 - `/admin` 응원글 56개·배너 10개 CRUD 및 DB 동시성 상한
 - 공개 댓글·답글·이모지 반응 API와 익명 HttpOnly 방문자 식별
 - `/admin` 댓글 숨김·복구·실제 비식별 삭제
@@ -304,12 +305,11 @@ Kakao REST API key와 Client Secret은 Supabase Provider가 토큰 교환에 사
 - Supabase SSR 세션 갱신 Proxy는 구현됐으나 운영 세션 만료·쿠키 갱신 실계정 테스트가 남아 있음
 - Kakao 외부 연결 해제 webhook과 계정 삭제·익명화 자동화가 없음
 - 운영 Supabase에 새 콘텐츠·댓글 테이블/RLS/grants SQL을 아직 적용·실계정 검증하지 않음
-- `FOURTH_DASHBOARD_LIVE`가 기본 비활성이라 `/4th`는 아직 더미 사전 공개 상태
-- `HELLO_2027_COMMENTS_LIVE`가 기본 비활성이라 `/4th` 댓글은 더미 읽기 전용 상태
+- `HELLO_2027_COMMENTS_LIVE`가 기본 비활성이라 `/4th/dashboard` 댓글은 빈 목록·입력 잠금 상태
 - 콘텐츠·댓글 변경의 별도 관리자 감사 로그가 아직 없음
 - 배너 이미지는 허용된 내부 경로 또는 현재 Supabase public Storage URL을 입력해야 하며 업로드 UI는 별도 구현이 남아 있음
 - 3기 Supabase 데이터의 `season_key` 백필 SQL은 준비됐으나 운영 백업·실행·합계 대조·DB 동결이 완료되지 않음
-- 4기 정식 `seasons`, `season_participants`와 더미데이터 삭제 절차가 DB에 연결되지 않음
+- 4기 정식 `seasons`, `season_participants`가 아직 DB 외래키 구조로 연결되지 않음
 - in-memory rate limit을 서버리스 공유 저장소로 교체하지 않음
 - 운영 연락처, Supabase 리전, 실제 백업 보존기간과 Storage 별도 백업이 확정되지 않음
 
@@ -318,7 +318,7 @@ Kakao REST API key와 Client Secret은 Supabase Provider가 토큰 교환에 사
 - `/4th`의 오픈 전 안내 팝업과 `오늘 그만보기`
 - `/4th`의 검색엔진 `noindex`
 - 댓글·답글·반응 입력 잠금
-- 더미데이터임을 알 수 있는 사전 공개 상태
+- 실데이터가 없거나 조회에 실패했음을 명확히 알리는 빈 상태
 - 3기 화면과 데이터의 읽기 전용 처리
 
 ## 11. 운영 전 검증 게이트
@@ -347,8 +347,8 @@ Kakao REST API key와 Client Secret은 Supabase Provider가 토큰 교환에 사
 ### 데이터
 
 - [ ] 3기 백업·백필·합계 대조·snapshot·동결이 완료됐다.
-- [ ] 4기 더미데이터가 실제 데이터와 구분되고 제거 리허설을 마쳤다.
-- [ ] 4기 크루·인증·콘텐츠를 점검한 뒤 `FOURTH_DASHBOARD_LIVE=true`로 전환하고, DB 장애 시 가짜 데이터 대신 빈 상태가 표시된다.
+- [x] 4기 코드 fixture와 개발 PoC 저장 경로를 제거했다.
+- [ ] 4기 크루·인증·콘텐츠를 점검하고, DB 장애 시 가짜 데이터 대신 빈 상태가 표시되는지 검증한다.
 - [x] 공용 댓글·콘텐츠 서버 API와 관리자 CRUD 코드를 연결했다.
 - [ ] 운영 Supabase에 최신 스키마·하드닝 SQL을 적용하고 댓글 오픈 플래그 전환을 실계정으로 검증했다.
 - [ ] 응원 상자 동시 요청, 재요청, 계정 재연결, KST 자정 경계를 검증했다.

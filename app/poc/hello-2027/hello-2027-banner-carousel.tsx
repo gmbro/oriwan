@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import styles from "./hello-2027-poc.module.css";
+import { TwttRunnerPictogram } from "./twtt-runner-pictogram";
 import type { ResolvedHello2027Ad } from "./use-local-hello-2027-content";
 
 type Hello2027BannerCarouselProps = {
@@ -27,6 +28,7 @@ export function Hello2027BannerCarousel({ ads, dayPhaseClass, todayRate }: Hello
   const [isDocumentVisible, setIsDocumentVisible] = useState(true);
   const slideCount = ads.length + 1;
   const visibleSlide = Math.min(currentSlide, slideCount - 1);
+  const normalizedTodayRate = Math.min(100, Math.max(0, todayRate));
 
   const goToSlide = useCallback((index: number) => {
     const track = trackRef.current;
@@ -105,7 +107,7 @@ export function Hello2027BannerCarousel({ ads, dayPhaseClass, todayRate }: Hello
         tabIndex={0}
         role="region"
         aria-roledescription="캐러셀"
-        aria-label={`배너 ${slideCount}개${prefersReducedMotion ? "" : ", 5초마다 자동 전환"}`}
+        aria-label={`배너 ${slideCount}개${slideCount > 1 && !prefersReducedMotion ? ", 5초마다 자동 전환" : ""}`}
         onKeyDown={(event) => {
           if (event.key === "ArrowLeft") goToSlide(visibleSlide - 1);
           if (event.key === "ArrowRight") goToSlide(visibleSlide + 1);
@@ -133,9 +135,36 @@ export function Hello2027BannerCarousel({ ads, dayPhaseClass, todayRate }: Hello
               <Image src={DEFAULT_SCENE} alt="" fill preload sizes="100vw" />
             </div>
             <div className={styles.timeTint} aria-hidden="true" />
+            <div className={styles.todaySceneWash} aria-hidden="true" />
             <div className={styles.storyBanner}>
-              <h2>오늘의 인증률</h2>
-              <strong>{todayRate}%</strong>
+              <div className={styles.todayEyebrow}>
+                <span>TODAY</span>
+                <span>한강 러닝</span>
+              </div>
+              <div className={styles.todayMetric}>
+                <div>
+                  <h2>오늘의 인증률</h2>
+                  <strong>
+                    {todayRate}
+                    <small>%</small>
+                  </strong>
+                </div>
+                <span className={styles.todayRunner} aria-hidden="true">
+                  <TwttRunnerPictogram
+                    variant={5}
+                    name="TWTT"
+                    completed={normalizedTodayRate >= 100}
+                    pose="run"
+                    animated
+                    decorative
+                    size="hero"
+                  />
+                </span>
+              </div>
+              <div className={styles.todayProgress} aria-hidden="true">
+                <span style={{ width: `${normalizedTodayRate}%` }} />
+              </div>
+              <p>오늘도 각자의 속도로, 한강처럼 꾸준히</p>
             </div>
           </div>
         </article>
@@ -177,66 +206,70 @@ export function Hello2027BannerCarousel({ ads, dayPhaseClass, todayRate }: Hello
         ))}
       </div>
 
-      <button
-        className={`${styles.carouselArrow} ${styles.carouselArrowPrevious}`}
-        type="button"
-        aria-label="이전 배너"
-        disabled={visibleSlide === 0}
-        onClick={() => goToSlide(visibleSlide - 1)}
-      >
-        <span aria-hidden="true">‹</span>
-      </button>
-      <button
-        className={`${styles.carouselArrow} ${styles.carouselArrowNext}`}
-        type="button"
-        aria-label="다음 배너"
-        disabled={visibleSlide === slideCount - 1}
-        onClick={() => goToSlide(visibleSlide + 1)}
-      >
-        <span aria-hidden="true">›</span>
-      </button>
+      {slideCount > 1 ? (
+        <>
+          <button
+            className={`${styles.carouselArrow} ${styles.carouselArrowPrevious}`}
+            type="button"
+            aria-label="이전 배너"
+            disabled={visibleSlide === 0}
+            onClick={() => goToSlide(visibleSlide - 1)}
+          >
+            <span aria-hidden="true">‹</span>
+          </button>
+          <button
+            className={`${styles.carouselArrow} ${styles.carouselArrowNext}`}
+            type="button"
+            aria-label="다음 배너"
+            disabled={visibleSlide === slideCount - 1}
+            onClick={() => goToSlide(visibleSlide + 1)}
+          >
+            <span aria-hidden="true">›</span>
+          </button>
 
-      <div className={styles.carouselFooter}>
-        <div className={styles.carouselDots} aria-label="배너 선택">
-          {Array.from({ length: slideCount }, (_, index) => (
+          <div className={styles.carouselFooter}>
+            <div className={styles.carouselDots} aria-label="배너 선택">
+              {Array.from({ length: slideCount }, (_, index) => (
+                <button
+                  type="button"
+                  key={index}
+                  aria-label={`${index + 1}번째 배너 보기`}
+                  aria-current={index === visibleSlide ? "true" : undefined}
+                  onClick={() => goToSlide(index)}
+                />
+              ))}
+            </div>
+            <span>{visibleSlide + 1} / {slideCount}</span>
             <button
+              className={styles.carouselToggle}
               type="button"
-              key={index}
-              aria-label={`${index + 1}번째 배너 보기`}
-              aria-current={index === visibleSlide ? "true" : undefined}
-              onClick={() => goToSlide(index)}
-            />
-          ))}
-        </div>
-        <span>{visibleSlide + 1} / {slideCount}</span>
-        <button
-          className={styles.carouselToggle}
-          type="button"
-          aria-pressed={isUserPaused}
-          aria-label={prefersReducedMotion
-            ? "배너 자동 전환 정지됨"
-            : isUserPaused ? "배너 자동 전환 재생" : "배너 자동 전환 일시정지"}
-          disabled={prefersReducedMotion || slideCount <= 1}
-          onClick={(event) => {
-            const shouldResume = isUserPaused;
-            setIsUserPaused(!isUserPaused);
+              aria-pressed={isUserPaused}
+              aria-label={prefersReducedMotion
+                ? "배너 자동 전환 정지됨"
+                : isUserPaused ? "배너 자동 전환 재생" : "배너 자동 전환 일시정지"}
+              disabled={prefersReducedMotion}
+              onClick={(event) => {
+                const shouldResume = isUserPaused;
+                setIsUserPaused(!isUserPaused);
 
-            // Pointer activation leaves focus on the button, which would keep
-            // the carousel paused via focus/hover. An explicit pointer resume
-            // wins until the pointer leaves and enters the banner again;
-            // keyboard focus still pauses it for accessibility.
-            if (shouldResume && event.detail > 0) {
-              setIsHovered(false);
-              event.currentTarget.blur();
-            }
-          }}
-        >
-          <span
-            className={isUserPaused ? styles.carouselPlayIcon : styles.carouselPauseIcon}
-            aria-hidden="true"
-          />
-        </button>
-      </div>
+                // Pointer activation leaves focus on the button, which would keep
+                // the carousel paused via focus/hover. An explicit pointer resume
+                // wins until the pointer leaves and enters the banner again;
+                // keyboard focus still pauses it for accessibility.
+                if (shouldResume && event.detail > 0) {
+                  setIsHovered(false);
+                  event.currentTarget.blur();
+                }
+              }}
+            >
+              <span
+                className={isUserPaused ? styles.carouselPlayIcon : styles.carouselPauseIcon}
+                aria-hidden="true"
+              />
+            </button>
+          </div>
+        </>
+      ) : null}
     </section>
   );
 }

@@ -2,9 +2,7 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { hello2027Snapshot } from "@/app/poc/hello-2027/hello-2027-poc-data";
 import { findAdminUserId, getServiceClient } from "@/lib/admin-data";
-import { isFourthDashboardLive } from "@/lib/fourth-dashboard-live";
 import { FOURTH_SEASON_KEY } from "@/lib/fourth-season-contract";
 import {
   MAX_HELLO_2027_PROFILE_INTRODUCTIONS,
@@ -156,31 +154,6 @@ export function isHello2027ContentType(value: unknown): value is Hello2027Conten
   return value === "encouragement" || value === "banner";
 }
 
-function fallbackEncouragements(): PublicHello2027Encouragement[] {
-  return hello2027Snapshot.encouragements
-    .slice(0, MAX_HELLO_2027_ENCOURAGEMENTS)
-    .map((message, index) => ({
-      id: `fallback-encouragement-${index + 1}`,
-      message,
-      displayOrder: index,
-    }));
-}
-
-function fallbackBanners(): PublicHello2027Banner[] {
-  return hello2027Snapshot.ads
-    .slice(0, MAX_HELLO_2027_BANNERS)
-    .map((banner, index) => ({
-      id: banner.id,
-      ownerName: banner.ownerName,
-      title: banner.title,
-      description: banner.description,
-      alt: banner.alt,
-      imageSrc: banner.imageSrc,
-      mobileFocus: "center",
-      displayOrder: index,
-    }));
-}
-
 async function loadEncouragements(supabase: SupabaseClient, adminUserId: string) {
   const { data, error } = await supabase
     .from("hello_2027_encouragements")
@@ -285,23 +258,11 @@ async function loadProfileIntroductions(supabase: SupabaseClient, adminUserId: s
 }
 
 export async function getPublicHello2027Content(): Promise<PublicHello2027Content> {
-  const live = isFourthDashboardLive();
   const fallback = {
-    encouragements: live ? [] : fallbackEncouragements(),
-    banners: live ? [] : fallbackBanners(),
+    encouragements: [] as PublicHello2027Encouragement[],
+    banners: [] as PublicHello2027Banner[],
     profileIntroductions: [] as PublicHello2027ProfileIntroduction[],
   };
-  if (!live) {
-    return {
-      ...fallback,
-      source: {
-        encouragements: "fallback",
-        banners: "fallback",
-        profileIntroductions: "fallback",
-      },
-    };
-  }
-
   let supabase: SupabaseClient | null = null;
   try {
     supabase = getServiceClient();

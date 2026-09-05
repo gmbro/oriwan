@@ -46,12 +46,13 @@ app/api/records/analyze/route.ts    이미지 OCR 분석 및 기록 생성
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase 프로젝트 URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon key |
 | `SUPABASE_SERVICE_ROLE_KEY` | Storage 업로드용 service role key |
-| `FOURTH_DASHBOARD_LIVE` | 운영 전환 플래그. 정확히 `true`일 때만 `/4th`가 실데이터를 사용하며, 장애 시 빈 화면으로 실패-폐쇄 |
 | `CORRECTIVE_EXERCISE_LIVE` | 교정운동 운영 전환 플래그. 전용 SQL·Cron·권한 검증 후 정확히 `true`로 설정 |
 | `GEMINI_API_KEY` | Gemini 이미지 분석 API 키 |
 | `GEMINI_OCR_MODEL` | 선택. 기본 OCR 모델이며 기본값은 `gemini-3.1-flash-lite` |
 | `GEMINI_OCR_FALLBACK_MODEL` | 선택. 품질 미달 때만 호출하며 기본값은 `gemini-3.5-flash` |
 | `GEMINI_OCR_FALLBACK_CONFIDENCE` | 선택. 고급 모델 재분석 기준이며 기본값은 `0.8` |
+
+4기 공통 대시보드는 별도의 전환 플래그 없이 항상 Supabase의 실제 4기 데이터만 조회합니다. 설정·테이블·데이터가 없거나 조회에 실패하면 코드 fixture로 대체하지 않고 빈 상태로 실패-폐쇄합니다.
 
 ## 데이터베이스
 

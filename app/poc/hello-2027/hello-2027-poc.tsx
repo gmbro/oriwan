@@ -9,13 +9,14 @@ import type {
   Hello2027Participant,
   Hello2027ProfileIntroduction,
   Hello2027Snapshot,
-} from "./hello-2027-poc-data";
+} from "@/lib/hello-2027-types";
 import styles from "./hello-2027-poc.module.css";
 import { TwttRunnerPictogram } from "./twtt-runner-pictogram";
 import { useLocalHello2027Content } from "./use-local-hello-2027-content";
 import { FourthDashboardMemberArea } from "@/components/fourth-dashboard-member-area";
 import { KakaoLoginButton } from "@/components/kakao-login-button";
 import { useOptionalFourthViewer } from "@/components/fourth-viewer-provider";
+import { FOURTH_SEASON_START_DATE } from "@/lib/fourth-season-contract";
 
 type Hello2027PocProps = {
   snapshot: Hello2027Snapshot;
@@ -103,11 +104,11 @@ export function Hello2027Poc({
   const lastTriggerRef = useRef<HTMLButtonElement | null>(null);
   const localContent = useLocalHello2027Content(snapshot.ads, snapshot.encouragements, memberFeatures);
   const viewerState = useOptionalFourthViewer();
-  const authenticatedDashboard = Boolean(memberFeatures && viewerState?.viewer?.authenticated);
-  const dashboardDate = authenticatedDashboard ? formatKoreanDate(seoulToday) : null;
-  const referenceDateIso = dashboardDate ? seoulToday : snapshot.referenceDateIso ?? "2026-10-16";
-  const referenceDateLabel = dashboardDate?.label ?? snapshot.referenceDateLabel;
-  const referenceDateShort = dashboardDate?.short ?? snapshot.referenceDateShort;
+  const dashboardDate = formatKoreanDate(seoulToday);
+  const referenceDateIso = seoulToday;
+  const referenceDateLabel = dashboardDate.label;
+  const referenceDateShort = dashboardDate.short;
+  const seasonStarted = referenceDateIso >= FOURTH_SEASON_START_DATE;
 
   const selectedParticipant = useMemo(
     () => snapshot.participants.find((participant) => participant.id === selectedParticipantId) ?? null,
@@ -188,7 +189,7 @@ export function Hello2027Poc({
               <span className={styles.shortDate}>{referenceDateShort}</span>
             </time>
             <span className={styles.metaDivider} aria-hidden="true">·</span>
-            <strong>{authenticatedDashboard ? "시작 전" : `D-${snapshot.daysUntil2027}`}</strong>
+            <strong>{seasonStarted ? `D-${snapshot.daysUntil2027}` : "9.23 시작"}</strong>
             {memberFeatures ? (
               <div className={styles.headerAccount} aria-label="개인 계정">
                 {viewerState?.loading ? (
@@ -219,41 +220,38 @@ export function Hello2027Poc({
       <main id="top" className={styles.main}>
         <h1 className={styles.visuallyHidden}>{snapshot.seasonName} {snapshot.versionName}</h1>
 
-        {authenticatedDashboard ? (
-          <>
-            <FourthDashboardMemberArea />
-            <FourthSeasonPreopenState />
-          </>
-        ) : (
-          <>
+        <>
+          {localContent.encouragements.length > 0 ? (
             <MotivationBanner
               encouragements={localContent.encouragements}
               initialIndex={Math.max(snapshot.dayNumber - 1, 0)}
             />
+          ) : null}
 
-            <Hello2027BannerCarousel
-              ads={localContent.ads}
-              dayPhaseClass={dayPhaseClass[dayPhase]}
-              todayRate={todayRate}
-            />
+          <Hello2027BannerCarousel
+            ads={localContent.ads}
+            dayPhaseClass={dayPhaseClass[dayPhase]}
+            todayRate={todayRate}
+          />
 
-            <section className={styles.summarySection} aria-label="시즌 인증 요약">
-              <div className={styles.summaryGrid}>
-                <article className={styles.summaryCard}>
-                  <span>{snapshot.totalDays}일 중</span>
-                  <strong>{snapshot.dayNumber}일</strong>
+          <section className={styles.summarySection} aria-label="시즌 인증 요약">
+            <div className={styles.summaryGrid}>
+              <article className={styles.summaryCard}>
+                <span>{snapshot.totalDays}일 중</span>
+                <strong>{snapshot.dayNumber}일</strong>
+              </article>
+              {snapshot.rates.map((rate) => (
+                <article className={styles.summaryCard} key={rate.key}>
+                  <span>{rate.label} 인증률</span>
+                  <strong>{rate.value}%</strong>
                 </article>
-                {snapshot.rates.map((rate) => (
-                  <article className={styles.summaryCard} key={rate.key}>
-                    <span>{rate.label} 인증률</span>
-                    <strong>{rate.value}%</strong>
-                  </article>
-                ))}
-              </div>
-            </section>
+              ))}
+            </div>
+          </section>
 
-            {memberFeatures ? <FourthDashboardMemberArea /> : null}
+          {memberFeatures ? <FourthDashboardMemberArea /> : null}
 
+          {sortedParticipants.length > 0 ? (
             <section id="crew" className={styles.crewSection} aria-labelledby="crew-title">
               <div className={styles.crewHeading}>
                 <div>
@@ -323,15 +321,17 @@ export function Hello2027Poc({
                 ))}
               </ul>
             </section>
+          ) : (
+            <FourthSeasonPreopenState seasonStarted={seasonStarted} />
+          )}
 
-            <Hello2027Guestbook
-              initialThreads={snapshot.guestbook}
-              externalViewer={memberFeatures ? viewerState?.viewer ?? null : undefined}
-              externalViewerManaged={memberFeatures}
-              externalViewerLoading={memberFeatures ? viewerState?.loading ?? true : undefined}
-            />
-          </>
-        )}
+          <Hello2027Guestbook
+            initialThreads={snapshot.guestbook}
+            externalViewer={memberFeatures ? viewerState?.viewer ?? null : undefined}
+            externalViewerManaged={memberFeatures}
+            externalViewerLoading={memberFeatures ? viewerState?.loading ?? true : undefined}
+          />
+        </>
       </main>
 
       <ParticipantDialog
@@ -354,15 +354,21 @@ export function Hello2027Poc({
   );
 }
 
-function FourthSeasonPreopenState() {
+function FourthSeasonPreopenState({ seasonStarted }: { seasonStarted: boolean }) {
   return (
     <section className={styles.preopenState} aria-labelledby="fourth-season-preopen-title">
       <div className={styles.preopenStateMark} aria-hidden="true">
         <span />
       </div>
-      <p className={styles.preopenStateEyebrow}>TWTT 4TH</p>
-      <h2 id="fourth-season-preopen-title">4기는 아직 시작 전이에요</h2>
-      <p>시즌이 시작되면 인증 기록과 크루 현황이 이곳에 표시됩니다.</p>
+      <p className={styles.preopenStateEyebrow}>{seasonStarted ? "TWTT 4TH" : "STARTS SEP 23"}</p>
+      <h2 id="fourth-season-preopen-title">
+        {seasonStarted ? "공개할 크루 데이터를 준비하고 있어요" : "공식 100일은 9월 23일에 시작해요"}
+      </h2>
+      <p>
+        {seasonStarted
+          ? "실제 크루와 인증 기록이 연결되면 이곳에 바로 표시됩니다."
+          : "그전에 남긴 준비 러닝은 공식 인증률에 더하지 않고, 로그인한 본인의 개인 기록에서만 보여드려요."}
+      </p>
     </section>
   );
 }
@@ -399,7 +405,9 @@ function MotivationBanner({ encouragements, initialIndex }: MotivationBannerProp
   }, [encouragements.length, rotationEnabled]);
 
   const visibleQuoteIndex = encouragements.length > 0 ? quoteIndex % encouragements.length : 0;
-  const encouragement = encouragements[visibleQuoteIndex] ?? "오늘도 안전하게, 편안하게, 그리고 함께 돌아와요.";
+  const encouragement = encouragements[visibleQuoteIndex] ?? "";
+
+  if (!encouragement) return null;
 
   return (
     <section className={styles.motivationBanner} aria-labelledby="motivation-title">

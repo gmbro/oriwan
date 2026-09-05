@@ -22,7 +22,7 @@ export default function TermsPage() {
             <h2 className="mb-2 text-base font-bold text-oriwan-text">제1조 (목적과 현재 상태)</h2>
             <p>
               이 약관은 (주)아키랩이 운영하는 TWTT 러닝보드의 이용 조건과 운영 기준을 안내합니다. 현재 4기 화면은
-              더미데이터를 사용하는 사전 공개 버전이며, 정식 운영 전 미확정 정책과 외부 설정을 보완합니다.
+              운영 준비 버전이며 실제 운영 저장소의 데이터만 표시하고, 정식 운영 전 미확정 정책과 외부 설정을 보완합니다.
             </p>
           </section>
 

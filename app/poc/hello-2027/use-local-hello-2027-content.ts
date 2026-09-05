@@ -1,19 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
-import type { Hello2027Ad, Hello2027ProfileIntroduction } from "./hello-2027-poc-data";
+import type { Hello2027Ad, Hello2027ProfileIntroduction } from "@/lib/hello-2027-types";
 import {
   MAX_HELLO_2027_PROFILE_INTRODUCTIONS,
   MAX_PROFILE_INTRO_LENGTH,
   MAX_PROFILE_INTRO_NAME_LENGTH,
   MAX_PROFILE_INTRO_TITLE_LENGTH,
 } from "@/lib/hello-2027-profile-introduction-contract";
-import {
-  readLocalHello2027Config,
-  readLocalMedia,
-  subscribeToLocalHello2027Content,
-} from "./hello-2027-local-repository";
 
 export type ResolvedHello2027Ad = Hello2027Ad & {
   isUploaded: boolean;
@@ -103,7 +98,7 @@ function cleanPublishedAd(value: unknown): ResolvedHello2027Ad | null {
   };
 }
 
-function cleanPublishedContent(value: PublishedContent, defaultAds: readonly Hello2027Ad[], defaultEncouragements: readonly string[]): LocalContent {
+function cleanPublishedContent(value: PublishedContent): LocalContent {
   const source = isRecord(value.source) ? value.source : null;
   const encouragementsPublished = value.source === "supabase" || source?.encouragements === "supabase";
   const bannersPublished = value.source === "supabase" || source?.banners === "supabase";
@@ -133,11 +128,9 @@ function cleanPublishedContent(value: PublishedContent, defaultAds: readonly Hel
   }
 
   return {
-    ads: bannersPublished
-      ? publishedAds
-      : defaultAds.map((ad) => ({ ...ad, isUploaded: false })),
+    ads: bannersPublished ? publishedAds : [],
     avatarUrls: {},
-    encouragements: encouragementsPublished ? publishedEncouragements : [...defaultEncouragements],
+    encouragements: encouragementsPublished ? publishedEncouragements : [],
     profileIntroductions: profilesPublished ? profileIntroductions : {},
   };
 }
@@ -147,85 +140,33 @@ export function useLocalHello2027Content(
   defaultEncouragements: readonly string[] = [],
   preferPublishedContent = false,
 ) {
+  void defaultAds;
+  void defaultEncouragements;
+  void preferPublishedContent;
   const [content, setContent] = useState<LocalContent>(() => ({
-    ads: defaultAds.map((ad) => ({ ...ad, isUploaded: false })),
+    ads: [],
     avatarUrls: {},
-    encouragements: [...defaultEncouragements],
+    encouragements: [],
     profileIntroductions: {},
   }));
-  const objectUrlsRef = useRef<string[]>([]);
-
   const refresh = useCallback(async () => {
-    if (preferPublishedContent) {
-      try {
-        const response = await fetch("/api/hello-2027/content", {
-          cache: "no-store",
-          credentials: "same-origin",
-        });
-        if (!response.ok) throw new Error("published_content_failed");
-        const published = await response.json() as PublishedContent;
-        objectUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
-        objectUrlsRef.current = [];
-        setContent(cleanPublishedContent(published, defaultAds, defaultEncouragements));
-        return;
-      } catch {
-        objectUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
-        objectUrlsRef.current = [];
-        setContent({
-          ads: defaultAds.map((ad) => ({ ...ad, isUploaded: false })),
-          avatarUrls: {},
-          encouragements: [...defaultEncouragements],
-          profileIntroductions: {},
-        });
-        return;
-      }
-    }
-
-    const config = await readLocalHello2027Config().catch(() => null);
-    if (!config) {
-      objectUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
-      objectUrlsRef.current = [];
+    try {
+      const response = await fetch("/api/hello-2027/content", {
+        cache: "no-store",
+        credentials: "same-origin",
+      });
+      if (!response.ok) throw new Error("published_content_failed");
+      const published = await response.json() as PublishedContent;
+      setContent(cleanPublishedContent(published));
+    } catch {
       setContent({
-        ads: defaultAds.map((ad) => ({ ...ad, isUploaded: false })),
+        ads: [],
         avatarUrls: {},
-        encouragements: [...defaultEncouragements],
+        encouragements: [],
         profileIntroductions: {},
       });
-      return;
     }
-
-    const nextObjectUrls: string[] = [];
-    const ads = await Promise.all(config.ads.map(async (ad) => {
-      if (!ad.mediaId) return { ...ad, isUploaded: false };
-      const blob = await readLocalMedia(ad.mediaId).catch(() => null);
-      if (!blob) return { ...ad, isUploaded: false };
-      const imageSrc = URL.createObjectURL(blob);
-      nextObjectUrls.push(imageSrc);
-      return { ...ad, imageSrc, isUploaded: true };
-    }));
-
-    const avatarUrls: Record<string, string> = {};
-    await Promise.all(Object.entries(config.avatars).map(async ([participantId, mediaId]) => {
-      const blob = await readLocalMedia(mediaId).catch(() => null);
-      if (!blob) return;
-      const url = URL.createObjectURL(blob);
-      nextObjectUrls.push(url);
-      avatarUrls[participantId] = url;
-    }));
-
-    objectUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
-    objectUrlsRef.current = nextObjectUrls;
-    setContent({
-      ads,
-      avatarUrls,
-      encouragements: config.encouragements.length > 0
-        ? [...config.encouragements]
-        : [...defaultEncouragements],
-      profileIntroductions: Object.fromEntries(
-        Object.entries(config.profileIntroductions).map(([participantId, introduction]) => [participantId, { ...introduction }]),
-      ),
-    });
-  }, [defaultAds, defaultEncouragements, preferPublishedContent]);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -235,16 +176,10 @@ export function useLocalHello2027Content(
     };
 
     runRefresh();
-    const unsubscribe = preferPublishedContent
-      ? () => undefined
-      : subscribeToLocalHello2027Content(runRefresh);
     return () => {
       active = false;
-      unsubscribe();
-      objectUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
-      objectUrlsRef.current = [];
     };
-  }, [preferPublishedContent, refresh]);
+  }, [refresh]);
 
   return content;
 }

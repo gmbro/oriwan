@@ -4,9 +4,9 @@ import { calculatePaceSeconds } from "@/lib/run-records";
 import { guardMutationRequest } from "@/lib/request-security";
 import { invalidatePublicDashboardCache } from "@/lib/public-dashboard-data";
 import {
-  FOURTH_SEASON_DATE_ERROR,
+  FOURTH_PERSONAL_RECORD_DATE_ERROR,
   FOURTH_SEASON_KEY,
-  isWithinFourthSeasonWindow,
+  isWithinFourthPersonalRecordWindow,
 } from "@/lib/fourth-season-contract";
 import { logServerFailure } from "@/lib/server-error-log";
 
@@ -52,8 +52,8 @@ export async function PATCH(
 
   if (typeof body.participant_id === "string") patch.participant_id = body.participant_id;
   if (typeof body.record_date === "string") patch.record_date = body.record_date;
-  if (typeof body.record_date === "string" && !isWithinFourthSeasonWindow(body.record_date)) {
-    return NextResponse.json({ error: FOURTH_SEASON_DATE_ERROR }, { status: 400 });
+  if (typeof body.record_date === "string" && !isWithinFourthPersonalRecordWindow(body.record_date)) {
+    return NextResponse.json({ error: FOURTH_PERSONAL_RECORD_DATE_ERROR }, { status: 400 });
   }
   if ("distance_km" in body) patch.distance_km = sanitizeNumber(body.distance_km);
   if ("duration_seconds" in body) patch.duration_seconds = sanitizeInteger(body.duration_seconds);

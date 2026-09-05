@@ -6,7 +6,7 @@ import { HELLO_2027_COMMENT_BODY_MAX_LENGTH } from "@/lib/hello-2027-comments-co
 import type {
   Hello2027GuestbookThread,
   Hello2027Reaction,
-} from "./hello-2027-poc-data";
+} from "@/lib/hello-2027-types";
 import styles from "./hello-2027-poc.module.css";
 
 type Hello2027GuestbookProps = {
@@ -137,13 +137,13 @@ export function Hello2027Guestbook({
           setThreads(cloneThreads(payload.threads));
           setCommentsLive(true);
         } else {
-          setThreads(cloneThreads(initialThreads));
+          setThreads([]);
           setCommentsLive(false);
         }
       })
       .catch(() => {
         if (active) {
-          setThreads(cloneThreads(initialThreads));
+          setThreads([]);
           setCommentsLive(false);
         }
       })

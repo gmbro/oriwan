@@ -8,7 +8,7 @@ import type {
   Hello2027GuestbookReply,
   Hello2027GuestbookThread,
   Hello2027Reaction,
-} from "@/app/poc/hello-2027/hello-2027-poc-data";
+} from "@/lib/hello-2027-types";
 import { getServiceClient } from "@/lib/admin-data";
 import {
   HELLO_2027_COMMENT_AUTHOR_MAX_LENGTH,
