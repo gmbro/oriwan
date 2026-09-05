@@ -579,9 +579,10 @@
 .participantCard {
   position: relative;
   display: grid;
-  grid-template-columns: 64px minmax(0, 1fr);
+  grid-template-columns: 64px max-content;
   align-items: center;
-  gap: 6px;
+  justify-content: center;
+  gap: 14px;
   width: 100%;
   min-height: 120px;
   padding: 10px 12px 10px 10px;
@@ -955,7 +956,7 @@
   .crewSort { width: 170px; }
   .crewSort button { min-height: 34px; padding: 0 5px; font-size: 0.7rem; }
   .participantGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-  .participantCard { grid-template-columns: 54px minmax(0, 1fr); gap: 4px; min-height: 96px; padding: 7px 8px 7px 7px; border-radius: 18px; }
+  .participantCard { grid-template-columns: 54px max-content; gap: 10px; min-height: 96px; padding: 7px 8px 7px 7px; border-radius: 18px; }
   .participantIdentity { gap: 2px; }
   .characterWrap { width: 52px; height: 52px; }
   .characterWrap > span { width: 48px; height: 48px; }
@@ -1022,7 +1023,7 @@
   .brand { width: 48px; }
   .headerAccountLink { display: none; }
   .participantGrid { gap: 6px; }
-  .participantCard { grid-template-columns: 47px minmax(0, 1fr); gap: 3px; min-height: 90px; padding: 6px; }
+  .participantCard { grid-template-columns: 47px max-content; gap: 8px; min-height: 90px; padding: 6px; }
   .characterWrap { width: 46px; height: 46px; }
   .characterWrap > span { width: 43px; height: 43px; }
   .participantNameRow > strong { font-size: 0.7rem; }
