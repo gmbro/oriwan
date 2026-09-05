@@ -17,7 +17,8 @@ import {
   type CorrectiveExercisePainArea,
   type CorrectiveExerciseSlot,
 } from "@/lib/corrective-exercise-contract";
-import { resolveParticipantAccount } from "@/lib/participant-account-server";
+import { getKakaoDisplayName } from "@/lib/kakao-display-name";
+import { ensureParticipantAccount } from "@/lib/participant-account-server";
 import { guardMutationRequest, guardReadRequest } from "@/lib/request-security";
 import { toKstIsoDate } from "@/lib/run-records";
 import { logServerFailure } from "@/lib/server-error-log";
@@ -127,10 +128,10 @@ async function resolveMemberContext(): Promise<MemberContext | NextResponse> {
   const service = getServiceClient();
   if (!service) return json({ error: "운영 서버 연결이 아직 준비되지 않았어요." }, 503);
 
-  const connection = await resolveParticipantAccount(service, user.id);
+  const connection = await ensureParticipantAccount(service, user.id, getKakaoDisplayName(user));
   if (connection.status !== "approved" || !connection.adminUserId || !connection.participant) {
     return json({
-      error: "운영자 확인이 완료된 4기 크루만 교정운동을 신청할 수 있어요.",
+      error: "개인 계정 연결을 완료하지 못했어요. 잠시 후 다시 시도해주세요.",
       connection_status: connection.status,
       ...(connection.setupRequired ? {
         setup_required: true,

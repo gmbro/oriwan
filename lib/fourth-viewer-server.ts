@@ -6,7 +6,7 @@ import {
   type FourthViewer,
 } from "@/lib/fourth-viewer-contract";
 import { getKakaoDisplayName } from "@/lib/kakao-display-name";
-import { resolveParticipantAccount } from "@/lib/participant-account-server";
+import { ensureParticipantAccount } from "@/lib/participant-account-server";
 import { logServerFailure } from "@/lib/server-error-log";
 import { createClient } from "@/lib/supabase/server";
 
@@ -31,10 +31,21 @@ export async function getFourthViewer(): Promise<FourthViewer> {
   const service = getServiceClient();
   if (service) {
     try {
-      const connection = await resolveParticipantAccount(service, user.id);
+      const connection = await ensureParticipantAccount(service, user.id, displayName);
       approvedParticipant = connection.status === "approved";
       connectionStatus = connection.status;
       displayName = approvedParticipant ? connection.displayName : displayName;
+      const operatorVerified = approvedParticipant && !connection.automaticallyEnrolled;
+
+      return {
+        authenticated: true,
+        provider: "kakao",
+        display_name: connection.automaticallyEnrolled ? getKakaoDisplayName(user) || displayName : displayName,
+        approved_participant: approvedParticipant,
+        verified_name: Boolean(operatorVerified && displayName),
+        name_source: operatorVerified && displayName ? "admin" : displayName ? "kakao" : null,
+        connection_status: connectionStatus,
+      };
     } catch (error) {
       logServerFailure("Hello 2027 viewer participant lookup", error);
     }

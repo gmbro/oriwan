@@ -207,14 +207,12 @@ export function Hello2027Poc({
             />
           </a>
 
-          <div className={styles.headerMeta} aria-label="오늘과 시즌 진행 정보">
+          <div className={styles.headerMeta} aria-label="오늘 날짜와 개인 계정">
             <time dateTime={referenceDateIso}>
               <small>TODAY</small>
               <span className={styles.longDate}>{referenceDateLabel}</span>
               <span className={styles.shortDate}>{referenceDateShort}</span>
             </time>
-            <span className={styles.metaDivider} aria-hidden="true">·</span>
-            <strong>{seasonStarted ? `D-${snapshot.daysUntil2027}` : "9.23 시작"}</strong>
             {memberFeatures ? (
               <div className={styles.headerAccount} aria-label="개인 계정">
                 {viewerState?.loading ? (

@@ -25,8 +25,11 @@ export function FourthSeasonOpeningNotice() {
     let active = true;
     queueMicrotask(() => {
       if (!active) return;
-      // 로그인 직후에는 개인 영역이 먼저 보여야 하므로 오픈 안내가 가리지 않습니다.
-      if (viewer?.authenticated && window.location.hash === "#member-features") return;
+      // 로그인한 사용자는 해시 유무와 관계없이 개인 영역을 먼저 봅니다.
+      if (viewer?.authenticated) {
+        setOpen(false);
+        return;
+      }
       const today = seoulDateKey();
       let dismissedToday = false;
       try {

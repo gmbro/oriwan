@@ -3,6 +3,7 @@ import "server-only";
 import { revalidatePath, revalidateTag, unstable_cache } from "next/cache";
 import type { PostgrestError, SupabaseClient } from "@supabase/supabase-js";
 import { findAdminUserId, getServiceClient } from "@/lib/admin-data";
+import { PUBLIC_FOURTH_PARTICIPANT_ORDER_FILTER } from "@/lib/fourth-participant-visibility";
 import {
   FOURTH_SEASON_DAYS as CHALLENGE_DAYS,
   FOURTH_SEASON_END_DATE as CHALLENGE_END_DATE,
@@ -348,7 +349,8 @@ export async function buildPublicDashboardPayload(
     .from("participants")
     .select("id, name, active, display_order, created_at")
     .eq("user_id", adminUserId)
-    .eq("season_key", FOURTH_SEASON_KEY);
+    .eq("season_key", FOURTH_SEASON_KEY)
+    .or(PUBLIC_FOURTH_PARTICIPANT_ORDER_FILTER);
   if (participantScope === "active") participantsQuery = participantsQuery.eq("active", true);
 
   const [participantsResult, recordsResult] = await Promise.all([

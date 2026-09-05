@@ -3,6 +3,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { findAdminUserId, getServiceClient } from "@/lib/admin-data";
+import { PUBLIC_FOURTH_PARTICIPANT_ORDER_FILTER } from "@/lib/fourth-participant-visibility";
 import { FOURTH_SEASON_KEY } from "@/lib/fourth-season-contract";
 import {
   MAX_HELLO_2027_PROFILE_INTRODUCTIONS,
@@ -234,6 +235,7 @@ async function loadProfileIntroductions(supabase: SupabaseClient, adminUserId: s
     .eq("user_id", adminUserId)
     .eq("season_key", HELLO_2027_SEASON_KEY)
     .eq("active", true)
+    .or(PUBLIC_FOURTH_PARTICIPANT_ORDER_FILTER)
     .in("id", rows.map((row) => row.participant_id));
   if (participantError) throw participantError;
   const activeParticipantNames = new Map(

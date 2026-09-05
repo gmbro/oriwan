@@ -19,6 +19,7 @@ import {
 import { broadcastDashboardRefresh } from "@/lib/dashboard-refresh";
 import { imageFileToOptimizedDataUrl } from "@/lib/image-client";
 import { PARTICIPANT_RANK_SORT_OPTIONS, type ParticipantRankSortMode, sortParticipantRanks } from "@/lib/participant-ranking";
+import { isPublicFourthParticipantOrder } from "@/lib/fourth-participant-visibility";
 import {
   RECOVERY_CERTIFICATION_DISTANCE_KM,
   RECOVERY_CERTIFICATION_DURATION_SECONDS,
@@ -42,7 +43,7 @@ type Participant = {
   name: string;
   nickname: string | null;
   active: boolean;
-  display_order: number;
+  display_order: number | null;
 };
 
 type RecordStatus = "certified" | "needs_review" | "missing" | "rejected";
@@ -895,9 +896,9 @@ function ParticipantAccountManager({ participants }: { participants: Participant
     <section className="mt-6 rounded-[24px] bg-slate-950 p-4 text-white sm:p-5" aria-labelledby="kakao-account-title">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-[10px] font-black uppercase text-[#FEE500]">Kakao account approval</p>
+          <p className="text-[10px] font-black uppercase text-[#FEE500]">Kakao account links</p>
           <h3 id="kakao-account-title" className="mt-1 text-lg font-black">카카오 계정 연결</h3>
-          <p className="mt-1 text-xs font-semibold leading-5 text-white/55">같은 이름만으로 자동 연결하지 않고, 로그인 계정과 실제 크루를 직접 확인해 승인합니다.</p>
+          <p className="mt-1 text-xs font-semibold leading-5 text-white/55">로그인 계정은 개인 프로필에 자동 연결됩니다. 필요할 때 실제 크루를 다시 지정하거나 연결을 해제하세요.</p>
         </div>
         <span className="w-fit rounded-full bg-white/10 px-3 py-1 text-[10px] font-black text-white/70">{accounts.length}개 계정</span>
       </div>
@@ -944,7 +945,7 @@ function ParticipantAccountManager({ participants }: { participants: Participant
               />
             </label>
             <div className="grid grid-cols-2 gap-2 lg:flex">
-              <button type="button" onClick={() => void updateAccount(account, "approved")} disabled={savingAccountId === account.auth_user_id} className="min-h-11 rounded-xl bg-[#FEE500] px-4 text-xs font-black text-[#191919] disabled:opacity-50">승인 연결</button>
+              <button type="button" onClick={() => void updateAccount(account, "approved")} disabled={savingAccountId === account.auth_user_id} className="min-h-11 rounded-xl bg-[#FEE500] px-4 text-xs font-black text-[#191919] disabled:opacity-50">연결 저장</button>
               <button type="button" onClick={() => void updateAccount(account, "revoked")} disabled={savingAccountId === account.auth_user_id || account.status !== "approved"} className="min-h-11 rounded-xl bg-white/10 px-4 text-xs font-black text-white disabled:opacity-30">연결 해제</button>
             </div>
           </article>
@@ -1142,7 +1143,12 @@ export default function AdminPage() {
   }, [authorized, loadData, mounted]);
 
   const participantPictogramById = useMemo(() => buildMemberPictogramMap(participants), [participants]);
-  const certificationParticipants = participants;
+  // A Kakao login creates a private personal profile at display_order -1.
+  // It enters official/public crew metrics only after an operator promotes it.
+  const certificationParticipants = useMemo(
+    () => participants.filter((participant) => isPublicFourthParticipantOrder(participant.display_order)),
+    [participants]
+  );
   const certificationParticipantIds = useMemo(
     () => new Set(certificationParticipants.map((participant) => participant.id)),
     [certificationParticipants]

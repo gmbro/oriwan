@@ -11,7 +11,8 @@ import {
   type PersonalRunRecordInput,
   type PersonalRunRecordStatus,
 } from "@/lib/personal-records";
-import { resolveParticipantAccount } from "@/lib/participant-account-server";
+import { getKakaoDisplayName } from "@/lib/kakao-display-name";
+import { ensureParticipantAccount } from "@/lib/participant-account-server";
 import { guardReadRequest } from "@/lib/request-security";
 import {
   calculatePaceSeconds,
@@ -112,7 +113,7 @@ export async function GET(request: NextRequest) {
   if (!service) return privateJson({ error: "운영 서버 연결이 아직 준비되지 않았어요." }, 503);
 
   try {
-    const connection = await resolveParticipantAccount(service, user.id);
+    const connection = await ensureParticipantAccount(service, user.id, getKakaoDisplayName(user));
     if (connection.status !== "approved" || !connection.adminUserId || !connection.participant) {
       return privateJson({
         error: connection.message,

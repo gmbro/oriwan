@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
 
     if (connectionError) {
       if (isMissingTableError(connectionError)) {
-        return NextResponse.json(missingSchemaResponse("카카오 계정 승인 테이블이 아직 준비되지 않았어요."), { status: 503 });
+        return NextResponse.json(missingSchemaResponse("카카오 계정 연결 테이블이 아직 준비되지 않았어요."), { status: 503 });
       }
       throw connectionError;
     }
@@ -102,7 +102,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "댓글에 표시할 이름은 2~40자의 일반 텍스트로 입력해주세요." }, { status: 400 });
   }
   if (!status) {
-    return NextResponse.json({ error: "계정 연결 상태는 승인 또는 해제로 선택해주세요." }, { status: 400 });
+    return NextResponse.json({ error: "계정 연결 상태를 다시 선택해주세요." }, { status: 400 });
   }
   if (!UUID_PATTERN.test(authUserId) || !UUID_PATTERN.test(participantId)) {
     return NextResponse.json({ error: "연결할 카카오 계정과 크루를 다시 선택해주세요." }, { status: 400 });
@@ -151,7 +151,7 @@ export async function POST(request: NextRequest) {
     }
     if (error) {
       if (isMissingTableError(error)) {
-        return NextResponse.json(missingSchemaResponse("카카오 계정 승인 테이블이 아직 준비되지 않았어요."), { status: 503 });
+        return NextResponse.json(missingSchemaResponse("카카오 계정 연결 테이블이 아직 준비되지 않았어요."), { status: 503 });
       }
       throw error;
     }

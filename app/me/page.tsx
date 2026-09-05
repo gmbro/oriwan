@@ -141,19 +141,13 @@ export default function MyPage() {
           <p className="text-xs font-black text-blue-600">PERSONAL · TWTT 4TH</p>
           <h1 id="personal-page-title" className="mt-1 text-2xl font-black tracking-[-0.03em] text-slate-950 sm:text-3xl">{name}님, 오늘도 반가워요</h1>
           <p className="mt-2 text-sm font-semibold leading-6 text-oriwan-text-muted">
-            {data.matched_participant
-              ? "운영자가 4기 크루와 연결한 계정이며 운영자 확인 이름으로 댓글을 작성해요."
-              : `${data.display_name ? `${data.display_name} 카카오 이름을 사용해요. ` : ""}${data.connection_message}`}
+            카카오 계정으로 바로 연결된 4기 개인 화면이에요. 오늘의 운세와 응원 상자, 개인 러닝 기록을 한곳에서 확인할 수 있어요.
           </p>
         </div>
 
         <div className="mt-5 grid gap-3 lg:grid-cols-2 lg:gap-4">
           <DailyFortune />
-          {data.matched_participant ? <div className="[&>section]:mt-0"><DailyGiftBox /></div> : (
-            <div className="flex min-h-48 items-center rounded-[28px] bg-amber-50 px-5 py-5 text-sm font-bold leading-6 text-amber-900 ring-1 ring-amber-100">
-              댓글은 카카오 프로필 이름으로 작성할 수 있어요. 운영자가 4기 크루와 연결하면 응원 상자와 개인 기록 기능도 열립니다.
-            </div>
-          )}
+          <div className="[&>section]:mt-0"><DailyGiftBox /></div>
         </div>
 
         <nav className="mt-5 grid grid-cols-2 gap-2" aria-label="개인 화면 바로가기">
@@ -161,7 +155,7 @@ export default function MyPage() {
           <Link href="/4th/dashboard" className="flex min-h-12 items-center justify-center rounded-2xl bg-slate-100 px-3 text-sm font-black text-slate-700">4기 대시보드</Link>
         </nav>
       </section>
-      {data.matched_participant ? <PersonalRecordsDashboard /> : null}
+      <PersonalRecordsDashboard />
     </PageShell>
   );
 }

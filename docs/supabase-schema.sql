@@ -74,9 +74,9 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE participants TO service_role;
 CREATE INDEX IF NOT EXISTS idx_participants_user_season_order
   ON participants(user_id, season_key, active, display_order, created_at);
 
--- 1-1. 참가자 로그인 계정 승인 연결
+-- 1-1. 참가자 로그인 계정 연결
 -- runner_name 같은 사용자 수정 가능 metadata는 권한 판정에 사용하지 않습니다.
--- 운영자가 실제 참가자를 확인한 뒤 service role 또는 SQL Editor에서 approved로 연결합니다.
+-- 앱 서버가 인증된 Kakao 계정마다 격리된 참가자를 자동 연결하며, 운영자는 연결을 조정·해제할 수 있습니다.
 CREATE TABLE IF NOT EXISTS participant_accounts (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   season_key TEXT DEFAULT '4th' NOT NULL CHECK (season_key ~ '^[0-9]+th$'),

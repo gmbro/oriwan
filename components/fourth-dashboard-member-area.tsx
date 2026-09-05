@@ -16,7 +16,7 @@ const CorrectiveExerciseApplication = dynamic(
   { loading: () => <div className="h-72 animate-pulse rounded-[24px] bg-slate-100" aria-label="교정운동 신청을 불러오는 중" /> },
 );
 
-type FeatureModal = "fortune" | "gift" | "corrective" | "approval" | null;
+type FeatureModal = "fortune" | "gift" | "corrective" | null;
 
 export function FourthDashboardMemberArea() {
   const { viewer, loading, actionPending, error, logout } = useFourthViewer();
@@ -64,13 +64,11 @@ export function FourthDashboardMemberArea() {
   };
 
   const openGift = (trigger: HTMLButtonElement) => {
-    if (!viewer?.approved_participant) openModal("approval", trigger);
-    else openModal("gift", trigger);
+    openModal("gift", trigger);
   };
 
   const openCorrective = (trigger: HTMLButtonElement) => {
-    if (!viewer?.approved_participant) openModal("approval", trigger);
-    else openModal("corrective", trigger);
+    openModal("corrective", trigger);
   };
 
   const modalTitle = modal === "fortune"
@@ -79,9 +77,7 @@ export function FourthDashboardMemberArea() {
       ? "오늘의 응원 상자"
       : modal === "corrective"
         ? "교정운동 신청"
-        : modal === "approval"
-          ? "크루 연결 확인 중"
-          : "개인 기능";
+        : "개인 기능";
 
   if (loading || !viewer?.authenticated) return null;
 
@@ -101,7 +97,7 @@ export function FourthDashboardMemberArea() {
                 <p className="mt-0.5 hidden truncate text-[10px] font-bold text-slate-500 sm:block">
                   {viewer.verified_name
                     ? "운영자가 확인한 이름이 적용됐어요."
-                    : "카카오 이름을 사용하며 운영자가 크루 확인 이름으로 변경할 수 있어요."}
+                    : "카카오 로그인과 함께 개인 기능이 바로 연결됐어요."}
                 </p>
               </div>
               <div className="flex shrink-0 items-center gap-1">
@@ -149,9 +145,7 @@ export function FourthDashboardMemberArea() {
                 </span>
                 <span className="mt-2 min-w-0">
                   <strong className="block text-[12px] font-black leading-4 text-slate-950 sm:text-[15px] sm:leading-5">응원 상자</strong>
-                  <small className="mt-1 block text-[11px] font-bold leading-4 text-blue-600">
-                    {viewer.approved_participant ? "오늘 인증 후 열기" : "크루 연결 후 이용"}
-                  </small>
+                  <small className="mt-1 block text-[11px] font-bold leading-4 text-blue-600">오늘 인증 후 열기</small>
                 </span>
               </button>
 
@@ -166,9 +160,7 @@ export function FourthDashboardMemberArea() {
                 </span>
                 <span className="mt-2 min-w-0">
                   <strong className="block text-[12px] font-black leading-4 text-slate-950 sm:text-[15px] sm:leading-5">교정운동</strong>
-                  <small className="mt-1 block text-[11px] font-bold leading-4 text-emerald-700">
-                    {viewer.approved_participant ? "가능한 날짜로 신청" : "크루 연결 후 신청"}
-                  </small>
+                  <small className="mt-1 block text-[11px] font-bold leading-4 text-emerald-700">가능한 날짜로 신청</small>
                 </span>
               </button>
         </div>
@@ -207,16 +199,6 @@ export function FourthDashboardMemberArea() {
           {modal === "fortune" ? <DailyFortune /> : null}
           {modal === "gift" ? <div className="-mt-4"><DailyGiftBox /></div> : null}
           {modal === "corrective" ? <CorrectiveExerciseApplication /> : null}
-          {modal === "approval" ? (
-            <div className="rounded-[26px] bg-blue-50 p-5 ring-1 ring-blue-100">
-              <span className="text-4xl" aria-hidden="true">🔗</span>
-              <h3 className="mt-3 text-lg font-black text-slate-950">운영자가 크루를 연결하고 있어요</h3>
-              <p className="mt-2 text-sm font-bold leading-6 text-slate-600">
-                운세는 지금 바로 볼 수 있어요. 운영자가 카카오 계정과 크루를 연결하면 응원 상자와 교정운동 신청도 이용할 수 있습니다.
-              </p>
-              <Link href="/me" className="mt-5 flex min-h-12 items-center justify-center rounded-2xl bg-blue-600 px-4 text-sm font-black text-white">내 연결 상태 보기</Link>
-            </div>
-          ) : null}
         </div>
       </dialog>
     </>

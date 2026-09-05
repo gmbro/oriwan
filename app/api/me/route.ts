@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getServiceClient } from "@/lib/admin-data";
-import { resolveParticipantAccount } from "@/lib/participant-account-server";
+import { ensureParticipantAccount } from "@/lib/participant-account-server";
 import { createClient } from "@/lib/supabase/server";
 import { getKakaoDisplayName } from "@/lib/kakao-display-name";
 import { logServerFailure } from "@/lib/server-error-log";
@@ -27,12 +27,13 @@ export async function GET() {
   if (!service) return NextResponse.json({ error: "운영 서버 연결이 아직 준비되지 않았어요." }, { status: 503 });
 
   try {
-    const connection = await resolveParticipantAccount(service, user.id);
     const kakaoDisplayName = getKakaoDisplayName(user);
+    const connection = await ensureParticipantAccount(service, user.id, kakaoDisplayName);
+    const usesKakaoName = connection.automaticallyEnrolled || !connection.displayName;
     return NextResponse.json({
       user: { id: user.id },
-      display_name: connection.displayName || kakaoDisplayName,
-      name_source: connection.displayName ? "admin" : kakaoDisplayName ? "kakao" : null,
+      display_name: usesKakaoName ? kakaoDisplayName || connection.displayName : connection.displayName,
+      name_source: usesKakaoName ? "kakao" : connection.displayName ? "admin" : null,
       matched_participant: connection.participant,
       connection_status: connection.status,
       connection_message: connection.message,

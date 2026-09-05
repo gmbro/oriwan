@@ -4,7 +4,6 @@ import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import styles from "./hello-2027-poc.module.css";
-import { TwttRunnerPictogram } from "./twtt-runner-pictogram";
 import type { ResolvedHello2027Ad } from "./use-local-hello-2027-content";
 
 type Hello2027BannerCarouselProps = {
@@ -28,7 +27,6 @@ export function Hello2027BannerCarousel({ ads, dayPhaseClass, todayRate }: Hello
   const [isDocumentVisible, setIsDocumentVisible] = useState(true);
   const slideCount = ads.length + 1;
   const visibleSlide = Math.min(currentSlide, slideCount - 1);
-  const normalizedTodayRate = Math.min(100, Math.max(0, todayRate));
 
   const goToSlide = useCallback((index: number) => {
     const track = trackRef.current;
@@ -136,35 +134,12 @@ export function Hello2027BannerCarousel({ ads, dayPhaseClass, todayRate }: Hello
             </div>
             <div className={styles.timeTint} aria-hidden="true" />
             <div className={styles.todaySceneWash} aria-hidden="true" />
-            <div className={styles.storyBanner}>
-              <div className={styles.todayEyebrow}>
-                <span>TODAY</span>
-                <span>한강 러닝</span>
-              </div>
-              <div className={styles.todayMetric}>
-                <div>
-                  <h2>오늘의 인증률</h2>
-                  <strong>
-                    {todayRate}
-                    <small>%</small>
-                  </strong>
-                </div>
-                <span className={styles.todayRunner} aria-hidden="true">
-                  <TwttRunnerPictogram
-                    variant={5}
-                    name="TWTT"
-                    completed={normalizedTodayRate >= 100}
-                    pose="run"
-                    animated
-                    decorative
-                    size="hero"
-                  />
-                </span>
-              </div>
-              <div className={styles.todayProgress} aria-hidden="true">
-                <span style={{ width: `${normalizedTodayRate}%` }} />
-              </div>
-              <p>오늘도 각자의 속도로, 한강처럼 꾸준히</p>
+            <div className={styles.todayRatePanel}>
+              <h2>오늘의 인증률</h2>
+              <strong>
+                {todayRate}
+                <small>%</small>
+              </strong>
             </div>
           </div>
         </article>

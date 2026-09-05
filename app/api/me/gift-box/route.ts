@@ -1,7 +1,8 @@
 import { randomInt } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { getServiceClient } from "@/lib/admin-data";
-import { FOURTH_SEASON_KEY, resolveParticipantAccount } from "@/lib/participant-account-server";
+import { getKakaoDisplayName } from "@/lib/kakao-display-name";
+import { FOURTH_SEASON_KEY, ensureParticipantAccount } from "@/lib/participant-account-server";
 import { guardMutationRequest } from "@/lib/request-security";
 import { toKstIsoDate } from "@/lib/run-records";
 import { logServerFailure } from "@/lib/server-error-log";
@@ -51,10 +52,10 @@ async function resolveGiftContext(): Promise<GiftContext | NextResponse> {
     return NextResponse.json({ error: "운영 서버 연결이 아직 준비되지 않았어요." }, { status: 503 });
   }
 
-  const connection = await resolveParticipantAccount(service, user.id);
+  const connection = await ensureParticipantAccount(service, user.id, getKakaoDisplayName(user));
   if (connection.status !== "approved" || !connection.adminUserId || !connection.participant) {
     return NextResponse.json({
-      error: "승인된 크루만 오늘의 응원 상자를 받을 수 있어요.",
+      error: "개인 계정 연결을 완료하지 못했어요. 잠시 후 다시 시도해주세요.",
       connection_status: connection.status,
     }, { status: 403 });
   }

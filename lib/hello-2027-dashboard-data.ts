@@ -4,6 +4,7 @@ import { unstable_cache } from "next/cache";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { findAdminUserId, getServiceClient } from "@/lib/admin-data";
+import { PUBLIC_FOURTH_PARTICIPANT_ORDER_FILTER } from "@/lib/fourth-participant-visibility";
 import {
   FOURTH_SEASON_DAYS,
   FOURTH_SEASON_END_DATE,
@@ -282,6 +283,7 @@ async function loadHello2027DashboardSnapshot(): Promise<Hello2027Snapshot> {
       .eq("user_id", adminUserId)
       .eq("season_key", FOURTH_SEASON_KEY)
       .eq("active", true)
+      .or(PUBLIC_FOURTH_PARTICIPANT_ORDER_FILTER)
       .order("display_order", { ascending: true })
       .order("created_at", { ascending: true })
       .limit(MAX_LIVE_PARTICIPANTS);
