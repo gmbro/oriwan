@@ -8,7 +8,19 @@ import { KakaoLoginButton } from "@/components/kakao-login-button";
 const authErrorNotices = {
   auth_failed: {
     title: "로그인을 완료하지 못했어요",
-    description: "카카오 로그인 화면을 닫았거나 연결 중 문제가 생겼어요. 다시 시도해 주세요.",
+    description: "연결 정보를 새로 준비했어요. 아래 버튼으로 다시 로그인해 주세요.",
+  },
+  auth_cancelled: {
+    title: "카카오 로그인이 취소됐어요",
+    description: "원할 때 다시 로그인할 수 있어요.",
+  },
+  auth_expired: {
+    title: "로그인 시간이 만료됐어요",
+    description: "새 로그인 요청으로 안전하게 다시 연결해 주세요.",
+  },
+  auth_provider_failed: {
+    title: "로그인 서버 연결을 마치지 못했어요",
+    description: "잠시 후 새 로그인 요청으로 다시 연결해 주세요.",
   },
   auth_unavailable: {
     title: "카카오 로그인을 준비 중이에요",
@@ -31,7 +43,7 @@ export function DashboardGatewayAuthNotice() {
 
   return (
     <section
-      className="mb-4 flex items-start gap-3 rounded-2xl bg-rose-50 px-4 py-3.5 text-left ring-1 ring-inset ring-rose-100"
+      className="mb-4 grid grid-cols-[auto_1fr] items-start gap-x-3 gap-y-3 rounded-2xl bg-rose-50 px-4 py-3.5 text-left ring-1 ring-inset ring-rose-100"
       role="alert"
       aria-labelledby="gateway-auth-error-title"
       aria-describedby="gateway-auth-error-description"
@@ -47,15 +59,23 @@ export function DashboardGatewayAuthNotice() {
           {notice.description}
         </span>
       </span>
-      <Link
-        href="/4th"
-        replace
-        scroll={false}
-        className="inline-flex min-h-8 shrink-0 items-center justify-center rounded-xl px-2 text-xs font-black text-rose-600 transition hover:bg-rose-100 focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-rose-300"
-        aria-label="로그인 오류 안내 닫기"
-      >
-        확인
-      </Link>
+      <div className="col-span-2 grid grid-cols-[1fr_auto] gap-2">
+        <KakaoLoginButton
+          nextPath="/4th/dashboard#member-features"
+          label="다시 로그인"
+          restart
+          className="min-h-10 rounded-xl px-4 text-xs"
+        />
+        <Link
+          href="/4th"
+          replace
+          scroll={false}
+          className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-xl px-3 text-xs font-black text-rose-600 transition hover:bg-rose-100 focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-rose-300"
+          aria-label="로그인 오류 안내 닫기"
+        >
+          닫기
+        </Link>
+      </div>
     </section>
   );
 }

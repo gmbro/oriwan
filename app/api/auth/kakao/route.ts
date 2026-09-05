@@ -11,12 +11,12 @@ import {
 import { guardReadRequest } from "@/lib/request-security";
 import { logServerFailure } from "@/lib/server-error-log";
 import { createClient } from "@/lib/supabase/server";
+import { KAKAO_PROFILE_SCOPES } from "@/lib/kakao-auth-validation";
 
 export const dynamic = "force-dynamic";
 
 const KAKAO_AUTHORIZATION_ORIGIN = "https://kauth.kakao.com";
 const KAKAO_AUTHORIZATION_PATH = "/oauth/authorize";
-const KAKAO_PROFILE_SCOPES = "profile_nickname profile_image";
 const OAUTH_REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
 
 function configuredOrigin(request: NextRequest) {
@@ -131,11 +131,6 @@ export async function GET(request: NextRequest) {
   });
   if (guardResponse) return guardResponse;
 
-  const cookieStore = await cookies();
-  if (cookieStore.has(KAKAO_AUTH_START_COOKIE)) {
-    return backToEntry(request, "auth_in_progress");
-  }
-
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   const siteOrigin = configuredOrigin(request);
@@ -143,11 +138,27 @@ export async function GET(request: NextRequest) {
     return backToEntry(request, "auth_unavailable");
   }
 
+  const nextPath = getSafeAuthReturnPath(
+    request.nextUrl.searchParams.get("next"),
+    "/4th/dashboard#member-features",
+  );
+  const shouldRestart = request.nextUrl.searchParams.get("restart") === "1";
+
+  // PKCE verifier cookies belong to the host where the flow starts. Normalize
+  // aliases before Supabase creates that cookie so the callback sees it too.
+  if (request.nextUrl.origin !== siteOrigin) {
+    const canonicalStart = new URL("/api/auth/kakao", siteOrigin);
+    canonicalStart.searchParams.set("next", nextPath);
+    if (shouldRestart) canonicalStart.searchParams.set("restart", "1");
+    return authRedirect(canonicalStart);
+  }
+
+  const cookieStore = await cookies();
+  if (cookieStore.has(KAKAO_AUTH_START_COOKIE) && !shouldRestart) {
+    return backToEntry(request, "auth_in_progress");
+  }
+
   try {
-    const nextPath = getSafeAuthReturnPath(
-      request.nextUrl.searchParams.get("next"),
-      "/4th/dashboard#member-features",
-    );
     const callback = new URL("/api/auth/callback", siteOrigin);
 
     const supabase = await createClient({ requireCookieWrites: true });
@@ -158,7 +169,10 @@ export async function GET(request: NextRequest) {
         skipBrowserRedirect: true,
       },
     });
-    if (error || !data.url) return backToEntry(request, "auth_failed");
+    if (error || !data.url) {
+      logServerFailure("Kakao OAuth initialization", error || { code: "missing_authorize_url" });
+      return backToEntry(request, "auth_failed");
+    }
 
     const supabaseOrigin = new URL(supabaseUrl).origin;
     const authorizationUrl = new URL(data.url);

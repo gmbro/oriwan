@@ -5,10 +5,15 @@ import {
   KAKAO_AUTH_START_COOKIE,
   kakaoAuthStartCookieOptions,
 } from "@/lib/kakao-auth-flow";
+import {
+  getOAuthExchangeFailure,
+  getOAuthProviderFailure,
+  getSingleOAuthCode,
+  type KakaoCallbackError,
+} from "@/lib/kakao-auth-validation";
 import { guardReadRequest } from "@/lib/request-security";
+import { logServerFailure } from "@/lib/server-error-log";
 import { createClient } from "@/lib/supabase/server";
-
-const OAUTH_CODE_PATTERN = /^[A-Za-z0-9._~-]{8,2048}$/;
 
 function callbackRedirect(target: URL) {
   const response = NextResponse.redirect(target, {
@@ -37,6 +42,12 @@ function callbackConfigurationError(message: string, status: number) {
   return response;
 }
 
+function callbackFailureUrl(origin: string, error: KakaoCallbackError) {
+  const target = new URL("/4th", origin);
+  target.searchParams.set("error", error);
+  return target;
+}
+
 /**
  * GET /api/auth/callback
  *
@@ -54,7 +65,7 @@ export async function GET(request: NextRequest) {
   if (guardResponse) return guardResponse;
 
   const { searchParams, origin } = new URL(request.url);
-  const code = searchParams.get("code");
+  const code = getSingleOAuthCode(searchParams);
   // Keep compatibility with any authorization started immediately before this
   // deployment, while preferring the fixed-callback return cookie for new flows.
   const requestedReturnPath = request.cookies.get(KAKAO_AUTH_RETURN_COOKIE)?.value
@@ -81,7 +92,13 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  if (code && OAUTH_CODE_PATTERN.test(code)) {
+  const providerFailure = getOAuthProviderFailure(searchParams);
+  if (providerFailure) {
+    logServerFailure("Kakao OAuth provider", { code: providerFailure.logCode });
+    return callbackRedirect(callbackFailureUrl(redirectOrigin, providerFailure.userError));
+  }
+
+  if (code) {
     try {
       const supabase = await createClient({ requireCookieWrites: true });
       const { error } = await supabase.auth.exchangeCodeForSession(code);
@@ -94,10 +111,17 @@ export async function GET(request: NextRequest) {
         );
         return callbackRedirect(redirectTarget);
       }
-    } catch {
-      console.error("Kakao OAuth callback exchange failed.");
+
+      const exchangeFailure = getOAuthExchangeFailure(error);
+      logServerFailure("Kakao OAuth exchange", { code: exchangeFailure.logCode });
+      return callbackRedirect(callbackFailureUrl(redirectOrigin, exchangeFailure.userError));
+    } catch (error) {
+      const exchangeFailure = getOAuthExchangeFailure(error);
+      logServerFailure("Kakao OAuth exchange", { code: exchangeFailure.logCode });
+      return callbackRedirect(callbackFailureUrl(redirectOrigin, exchangeFailure.userError));
     }
   }
 
-  return callbackRedirect(new URL("/4th?error=auth_failed", redirectOrigin));
+  logServerFailure("Kakao OAuth callback", { code: "missing_or_invalid_code" });
+  return callbackRedirect(callbackFailureUrl(redirectOrigin, "auth_failed"));
 }
