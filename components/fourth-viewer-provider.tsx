@@ -69,7 +69,7 @@ export function FourthViewerProvider({
       });
       if (!response.ok) throw new Error("logout_failed");
       setViewer(anonymousFourthViewer);
-      router.replace("/4th");
+      router.replace("/4th/dashboard");
     } catch {
       setError("로그아웃하지 못했어요. 잠시 후 다시 시도해주세요.");
     } finally {

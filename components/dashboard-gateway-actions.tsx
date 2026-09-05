@@ -72,20 +72,22 @@ export function DashboardGatewayActions() {
         </div>
       ) : viewer?.authenticated ? (
         <>
-          <Link href="/4th/dashboard#member-features" className="flex min-h-12 w-full items-center justify-center rounded-2xl bg-blue-600 px-5 text-sm font-black text-white shadow-lg shadow-blue-500/15 transition hover:bg-blue-700 focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-blue-300">
-            4기 대시보드 들어가기
-          </Link>
           <p className="px-2 text-center text-[11px] font-bold text-slate-500">
             {viewer.display_name ? `${viewer.display_name}님으로 로그인되어 있어요.` : "카카오로 로그인되어 있어요."}
           </p>
-          <button
-            type="button"
-            onClick={() => void logout()}
-            disabled={actionPending}
-            className="flex min-h-11 w-full items-center justify-center rounded-2xl bg-oriwan-surface-light px-4 text-sm font-black text-oriwan-text-muted ring-1 ring-slate-950/5 transition hover:text-oriwan-text disabled:cursor-wait disabled:opacity-60"
-          >
-            {actionPending ? "로그아웃 중" : "로그아웃하고 익명으로 보기"}
-          </button>
+          <div className="grid grid-cols-2 gap-2.5">
+            <Link href="/4th/dashboard#member-features" className="flex min-h-14 w-full items-center justify-center rounded-2xl bg-blue-600 px-2 text-center text-xs font-black leading-tight text-white shadow-lg shadow-blue-500/15 transition hover:bg-blue-700 focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-blue-300">
+              4기 대시보드 들어가기
+            </Link>
+            <button
+              type="button"
+              onClick={() => void logout()}
+              disabled={actionPending}
+              className="flex min-h-14 w-full items-center justify-center rounded-2xl bg-oriwan-surface-light px-2 text-center text-xs font-black leading-tight text-oriwan-text-muted ring-1 ring-slate-950/5 transition hover:text-oriwan-text disabled:cursor-wait disabled:opacity-60"
+            >
+              {actionPending ? "로그아웃 중" : "로그아웃하고 익명으로 보기"}
+            </button>
+          </div>
         </>
       ) : (
         <div className="grid grid-cols-2 gap-2.5">
