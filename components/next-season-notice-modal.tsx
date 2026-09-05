@@ -72,7 +72,6 @@ export function NextSeasonNoticeModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="next-season-notice-title"
-        aria-describedby="next-season-notice-description"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-3">
@@ -91,12 +90,8 @@ export function NextSeasonNoticeModal({
         </div>
 
         <h2 id="next-season-notice-title" className="mt-4 text-2xl font-black leading-tight sm:text-[28px]">
-          오픈 전입니다.
+          9월 중순에 셔터 올립니다!
         </h2>
-        <div id="next-season-notice-description" className="mt-3 text-sm font-bold leading-6 text-slate-600">
-          <p className="text-base text-slate-800">9월 중순에 셔터 올립니다.</p>
-          <p className="mt-2 text-xs leading-5 text-slate-500">지금 보이는 기록과 크루는 화면 점검을 위한 더미데이터예요. 정식 오픈 전에 깨끗하게 비웁니다.</p>
-        </div>
 
         <div className="mt-5 grid grid-cols-2 gap-2">
           <button
