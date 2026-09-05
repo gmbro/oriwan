@@ -1,6 +1,6 @@
 # TWTT 4기 서비스 운영정책
 
-- 기준일: 2026-09-04
+- 기준일: 2026-09-05
 - 적용 서비스: TWTT 3기 기록, TWTT 4기 공통 대시보드, 개인 카카오 로그인 기능, 운영 어드민
 - 운영 주체: (주)아키랩
 - 운영·개인정보·삭제 요청 연락처: `gmbro7942@gmail.com`
@@ -154,12 +154,12 @@ Hello 2027 공개 댓글은 Supabase 테이블을 사용하는 서버 API와 `/a
 
 ## 5. 처리하는 데이터와 목적
 
-아래 보관기간은 운영 공개 전에 실제 운영 목적과 적용 법률을 검토해 확정한다. 불필요한 정보는 수집하지 않고, 특히 카카오 이메일은 서비스 기능에 필요하지 않으면 요청하지 않는다.
+아래 보관기간은 운영 공개 전에 실제 운영 목적과 적용 법률을 검토해 확정한다. 불필요한 정보는 수집하지 않으며 카카오 이메일은 요청하지 않는다. 닉네임은 필수 동의, 프로필 이미지는 선택 동의로 운영하고 이미지 제공 거부를 로그인 거절 사유로 사용하지 않는다.
 
 | 데이터 항목 | 예시 | 처리 목적 | 접근 권한 | 보관·삭제 기준 |
 | --- | --- | --- | --- | --- |
 | 카카오 로그인 식별 정보 | Supabase auth user ID, Kakao provider 연결 정보 | 로그인, 계정 중복 방지, 연결 해제 처리 | 인증 서버, 제한된 운영자 | 연결 해제·탈퇴 시 운영 DB에서 지체 없이 삭제 또는 분리. 백업 잔존기간 `[운영 전 확정 필요]` |
-| 카카오 프로필 정보 | 프로필 닉네임 | 로그인 댓글 기본 표시, 운영자 계정 연결 참고 | 댓글에 사용된 표시명은 공개, 계정 상세는 제한된 운영자 | 연결 해제 시 계정 정보 삭제. 기존 댓글 익명화 기준 `[운영 전 확정 필요]` |
+| 카카오 프로필 정보 | 필수 프로필 닉네임, 선택 프로필 이미지 URL | 로그인 댓글 기본 표시, 운영자 계정 연결 참고 | 댓글에 사용된 표시명은 공개, 선택 이미지를 포함한 계정 상세는 제한된 운영자 | 연결 해제 시 계정 정보 삭제. 기존 댓글 익명화 기준 `[운영 전 확정 필요]` |
 | 오늘의 운세 | 저장하지 않음. 인증된 사용자 ID와 KST 날짜로 서버에서 일시 계산 | 하루 응원 메시지 제공 | 로그인한 본인 | 별도 DB 보관 없음. 일반 인증·보안 로그에는 결과·ID·seed를 남기지 않음 |
 | 운영자 확인 표시명 | 크루 명단과 대조한 이름, 확인 상태·시각·확인자 | 로그인 댓글 표시, 크루 연결 | 공개 대시보드에는 표시명만, 상세 이력은 운영자 | 계정 활성 기간. 시즌 기록과 별도 보존할 근거·기간 `[운영 전 확정 필요]` |
 | 시즌 참가자 프로필 | 시즌 표시명, 소개, 캐릭터, 표시 순서, 공개 동의 | 크루 카드와 시즌 기록 제공 | 공개 허용 필드만 방문자, 전체는 운영자 | 3기 동결 기록 및 4기 보관기간 `[운영 전 확정 필요]` |
@@ -214,10 +214,25 @@ Supabase의 실제 자동 DB 백업 기간은 사용 요금제에 따라 다르�
 - Kakao Redirect URI에는 Supabase Dashboard에 표시되는 `https://<project-ref>.supabase.co/auth/v1/callback`을 정확히 등록한다.
 - Supabase Site URL은 `https://xn--220bw61afob.kro.kr`로 설정한다.
 - Supabase Redirect Allow List에는 `https://xn--220bw61afob.kro.kr/api/auth/callback`을 정확히 등록하고, 운영 환경에서 과도한 wildcard를 사용하지 않는다.
-- `profile_nickname`만 우선 요청하고 프로필 이미지·이메일은 실제 기능에 필요할 때만 추가한다.
-- 이메일을 요청하지 않는 경우 Supabase Kakao provider의 `Allow users without an email`을 활성화한다.
+- 닉네임(`profile_nickname`)은 필수 동의, 프로필 이미지(`profile_image`)는 선택 동의로 요청한다. 카카오계정 이메일(`account_email`)은 요청하지 않으며 이미지 제공 거부는 로그인과 개인 기능을 막지 않는다.
+- Supabase Kakao provider의 `Allow users without an email`을 반드시 활성화한다. 사용자 계정과 운영 기능은 이메일이 아니라 Supabase auth user ID, Kakao provider identity와 운영자 승인 연결로 식별한다.
 - Kakao REST API key와 Client Secret은 Supabase provider 설정에 저장한다. 별도 Kakao API를 서버에서 직접 호출하지 않는 한 브라우저 또는 일반 공개 환경변수에 넣지 않는다.
 - Kakao 앱 Owner 계정은 강한 인증수단으로 보호하고 불필요한 팀원을 제거한다.
+
+### 이메일 미요청 scope 호환 처리
+
+현재 Supabase Kakao provider는 `Allow users without an email`이 켜져 있어도 Kakao authorize scope에 `account_email`을 포함할 수 있다. 이메일 동의항목을 제공하지 않는 앱에서는 이 요청이 `KOE205`가 될 수 있으므로 서버 `/api/auth/kakao`가 임시로 최소 scope redirect를 구성한다.
+
+- 먼저 `supabase.auth.signInWithOAuth({ provider: "kakao" })`를 호출해 Supabase의 DB-backed state와 앱 PKCE code verifier를 생성한다.
+- 반환된 Supabase authorize URL은 설정된 Supabase origin과 일치할 때만 서버가 `redirect: "manual"`로 첫 응답을 요청한다.
+- redirect `Location`은 정확한 `https://kauth.kakao.com/oauth/authorize`여야 한다. `response_type=code`, 비어 있지 않은 `state`·`client_id`, 현재 Supabase origin의 `/auth/v1/callback`을 가리키는 `redirect_uri`도 모두 검사한다.
+- 모든 검증을 통과했을 때만 다른 매개변수와 state는 보존하고 scope를 정확히 `profile_nickname profile_image`로 바꾼다. 예상하지 못한 status·응답·origin·경로·매개변수 또는 네트워크 오류는 실패-폐쇄한다.
+- authorize URL, OAuth state, callback code, access/refresh token은 애플리케이션 로그와 오류 응답에 남기지 않는다. 인증 응답은 `private, no-store`로 처리한다.
+- 이 방식은 Supabase의 state 검증, 일회성 flow, PKCE와 callback code 교환을 유지하며 Kakao REST API key나 Client Secret을 애플리케이션에 복제하지 않는다.
+
+이 처리는 [supabase/auth issue #2574](https://github.com/supabase/auth/issues/2574)에 대한 임시 호환 계층이다. 관련 [PR #2579](https://github.com/supabase/auth/pull/2579)가 실제 사용 중인 hosted Auth에 반영됐는지 확인하고, scope rewrite 없이도 이메일 미제공 로그인이 성공하는 것을 실계정으로 검증한 뒤에만 제거한다.
+
+설정 변경은 과거 Supabase Auth 사용자에 이미 저장된 이메일을 자동 삭제하지 않는다. 운영 전 기존 Kakao 사용자의 Auth metadata와 identity를 별도로 점검하고, 수집 근거가 없는 기존 이메일이 있으면 계정 연결·댓글 소유권·탈퇴 절차를 보존하는 삭제 계획을 먼저 검토한다.
 
 ### 세션
 
@@ -275,8 +290,8 @@ Supabase의 실제 자동 DB 백업 기간은 사용 요금제에 따라 다르�
 ### 외부 설정
 
 - [ ] TWTT 전용 Kakao 앱의 이름·아이콘·운영 주체·도메인을 확인했다.
-- [ ] Kakao Login, Client Secret, Redirect URI, 최소 동의항목을 설정했다.
-- [ ] Supabase Kakao provider, Site URL, 정확한 Redirect Allow List를 설정했다.
+- [ ] Kakao Login, Client Secret, Redirect URI와 닉네임 필수·프로필 이미지 선택·이메일 미요청 동의항목을 설정했다.
+- [ ] Supabase Kakao provider에서 `Allow users without an email`, Site URL, 정확한 Redirect Allow List를 설정했다.
 - [ ] Kakao 연결 해제 webhook과 내부 삭제 재처리 절차를 검증했다.
 - [x] 운영·개인정보·삭제 요청 연락처를 공개 방침에 반영했다.
 - [ ] 실제 Supabase 리전, 요금제, DB 백업 기간을 정책에 반영했다.
@@ -284,6 +299,8 @@ Supabase의 실제 자동 DB 백업 기간은 사용 요금제에 따라 다르�
 ### 인증과 권한
 
 - [ ] SSR Proxy로 세션 갱신을 검증했다.
+- [ ] 이메일 미제공·프로필 이미지 거부 계정으로 로그인하고 Kakao 닉네임이 정상 표시된다.
+- [ ] scope 호환 처리의 잘못된 Supabase/Kakao origin·경로·redirect URI·누락 state가 모두 실패-폐쇄된다.
 - [ ] 로그인 취소, 잘못된 redirect, 세션 만료, 로그아웃, 외부 연결 해제를 테스트했다.
 - [ ] 비카카오·미승인·승인 해제 계정의 응원 상자 접근이 거부된다.
 - [ ] Kakao 로그인 계정은 승인·인증 없이 운세를 볼 수 있고, 비로그인·비Kakao 계정은 볼 수 없다.
@@ -371,5 +388,7 @@ Supabase의 실제 자동 DB 백업 기간은 사용 요금제에 따라 다르�
 - [Kakao Login 사전 설정](https://developers.kakao.com/docs/en/kakaologin/prerequisite)
 - [Kakao Platform 보안 가이드](https://developers.kakao.com/docs/en/getting-started/security-guideline)
 - [Kakao Login 연결 해제 Webhook](https://developers.kakao.com/docs/en/kakaologin/callback)
+- [supabase/auth issue #2574: Kakao email scope with email-optional users](https://github.com/supabase/auth/issues/2574)
+- [supabase/auth PR #2579: omit Kakao email scope when email is optional](https://github.com/supabase/auth/pull/2579)
 - [개인정보 보호법 제23조: 민감정보의 처리 제한](https://law.go.kr/LSW/lsLinkCommonInfo.do?chrClsCd=010202&lsJoLnkSeq=1020399025)
 - [개인정보보호위원회: 개인정보 처리방침 작성지침 개정 안내](https://pipc.go.kr/np/cop/bbs/selectBoardArticle.do?bbsId=BS074&mCode=C020010000&nttId=11133)

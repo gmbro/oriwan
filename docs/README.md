@@ -1,5 +1,7 @@
 # 스내사 3기 대시보드 개발 가이드
 
+> 4기 운영·인증의 현행 기준은 [4기 카카오 로그인·공개 대시보드·어드민 구조](./hello-2027-kakao-admin-architecture.md)와 [TWTT 4기 서비스 운영정책](./twtt-4th-operating-policy.md)을 따릅니다. 이 문서의 본문은 3기 개발 가이드입니다.
+
 ## 프로젝트 소개
 
 스내사 3기 대시보드는 운영자가 참가자들의 러닝 인증 이미지를 업로드하면 AI가 이미지 속 텍스트를 읽어 날짜, 이름, 거리, 시간, 페이스를 추출하고, 인증 여부와 향상도를 대시보드로 보여주는 이미지 기반 러닝 인증 운영 도구입니다.
@@ -94,3 +96,5 @@ app/api/records/analyze/route.ts    이미지 OCR 분석 및 기록 생성
 
 - [이미지 기반 러닝 인증 대시보드 제품 기획](./image-dashboard-product-plan.md)
 - [다음 시즌 운영·광고·OCR 에이전트 기획](./next-season-dashboard-ad-and-ocr-agent-plan.md)
+- [4기 카카오 로그인·공개 대시보드·어드민 구조](./hello-2027-kakao-admin-architecture.md)
+- [TWTT 4기 서비스 운영정책](./twtt-4th-operating-policy.md)

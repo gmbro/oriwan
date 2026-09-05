@@ -14,6 +14,10 @@ const authErrorNotices = {
     title: "카카오 로그인을 준비 중이에요",
     description: "잠시 후 다시 시도하거나 로그인 없이 대시보드를 둘러보세요.",
   },
+  auth_in_progress: {
+    title: "로그인 연결 중이에요",
+    description: "열려 있는 카카오 로그인 화면을 먼저 완료하거나 잠시 후 다시 시도해 주세요.",
+  },
 } as const;
 
 export function DashboardGatewayAuthNotice() {

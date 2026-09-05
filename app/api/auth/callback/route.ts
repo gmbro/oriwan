@@ -1,6 +1,21 @@
 import { NextResponse } from "next/server";
 import { getSafeAuthReturnUrl } from "@/lib/auth-return-path";
+import {
+  KAKAO_AUTH_START_COOKIE,
+  kakaoAuthStartCookieOptions,
+} from "@/lib/kakao-auth-flow";
 import { createClient } from "@/lib/supabase/server";
+
+function callbackRedirect(target: URL) {
+  const response = NextResponse.redirect(target, {
+    headers: { "Cache-Control": "private, no-store, max-age=0", Vary: "Cookie" },
+  });
+  response.cookies.set(KAKAO_AUTH_START_COOKIE, "", {
+    ...kakaoAuthStartCookieOptions(),
+    maxAge: 0,
+  });
+  return response;
+}
 
 /**
  * GET /api/auth/callback
@@ -36,21 +51,17 @@ export async function GET(request: Request) {
 
   if (code) {
     try {
-      const supabase = await createClient();
+      const supabase = await createClient({ requireCookieWrites: true });
       const { error } = await supabase.auth.exchangeCodeForSession(code);
 
       if (!error) {
         const redirectTarget = getSafeAuthReturnUrl(searchParams.get("next"), redirectOrigin);
-        return NextResponse.redirect(redirectTarget, {
-          headers: { "Cache-Control": "private, no-store, max-age=0", Vary: "Cookie" },
-        });
+        return callbackRedirect(redirectTarget);
       }
     } catch {
       console.error("Kakao OAuth callback exchange failed.");
     }
   }
 
-  return NextResponse.redirect(new URL("/?error=auth_failed", redirectOrigin), {
-    headers: { "Cache-Control": "private, no-store, max-age=0", Vary: "Cookie" },
-  });
+  return callbackRedirect(new URL("/?error=auth_failed", redirectOrigin));
 }

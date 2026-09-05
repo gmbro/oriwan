@@ -77,6 +77,8 @@ npm run build
 
 Kakao REST API 키와 Client Secret은 애플리케이션 환경 변수가 아니라 Supabase Authentication의 Kakao Provider 설정에 직접 등록합니다. `NEXT_PUBLIC_SUPABASE_ANON_KEY` 또는 publishable key는 공개 클라이언트 식별값이며 보안 경계는 RLS와 grants입니다. `SUPABASE_SERVICE_ROLE_KEY`, Kakao Client Secret, `ADMIN_SESSION_SECRET`, `DAILY_FORTUNE_SECRET`은 브라우저 코드와 `NEXT_PUBLIC_*` 변수에 넣지 않습니다. `FOURTH_GIFT_BOX_LIVE`, `HELLO_2027_COMMENTS_LIVE`, `CORRECTIVE_EXERCISE_LIVE`는 각 기능의 운영 준비 점검을 통과한 뒤에만 `true`로 전환합니다.
 
+Kakao 동의항목은 닉네임(`profile_nickname`) 필수, 프로필 이미지(`profile_image`) 선택, 이메일(`account_email`) 미요청으로 설정하고 Supabase Kakao Provider의 `Allow users without an email`을 반드시 켭니다. 현재 이메일 scope를 계속 요청하는 Supabase Auth 동작은 서버가 검증된 Kakao redirect의 scope만 최소화하는 임시 호환 처리로 대응합니다. 상세한 보안 검증과 제거 조건은 [4기 카카오 로그인·공개 대시보드·어드민 구조](docs/hello-2027-kakao-admin-architecture.md)를 따릅니다.
+
 `CORRECTIVE_EXERCISE_LIVE`가 `true`가 아니면 회원 API는 슬롯·기존 신청을 조회하지 않고 준비 중 상태만 반환하며, 새 문진 제출도 503으로 차단합니다. 데이터베이스 마이그레이션·권한·자동 파기 작업을 모두 검증한 뒤에만 활성화하세요. 관리자 API는 준비 작업을 위해 이 플래그와 무관하게 접근할 수 있습니다.
 
 ## Supabase 적용 순서

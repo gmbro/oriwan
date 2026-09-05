@@ -1,6 +1,6 @@
 # TWTT 4기 카카오 로그인·공개 대시보드·운영 어드민 아키텍처
 
-- 기준일: 2026-09-04
+- 기준일: 2026-09-05
 - 운영 origin: `https://xn--220bw61afob.kro.kr`
 - 상태: 4기 사전 공개(prelaunch). 실제 오픈 전 서버 데이터 이전과 외부 인증 검증이 남아 있음
 - 관련 운영정책: [TWTT 4기 서비스 운영정책](./twtt-4th-operating-policy.md)
@@ -46,7 +46,7 @@
 
 | API | 메서드 | 동작 |
 | --- | --- | --- |
-| `/api/auth/kakao` | `GET` | 서버에서 PKCE OAuth를 시작하고 검증된 내부 `next` 경로를 callback에 전달 |
+| `/api/auth/kakao` | `GET` | 서버에서 PKCE OAuth를 시작하고 Supabase→Kakao redirect를 검증한 뒤 이메일을 제외한 최소 scope로 전달 |
 | `/api/hello-2027/viewer` | `GET` | Kakao 로그인, 운영자 승인, 운영자 확인 표시명 상태 조회 |
 | `/api/me` | `GET` | 현재 Kakao 계정의 연결 상태와 표시명만 조회 |
 | `/api/me/fortune` | `GET` | Kakao 세션만 확인하고 KST 날짜별 고정 운세를 서버 HMAC으로 계산 |
@@ -72,6 +72,8 @@
 / 또는 /4th
   → /api/auth/kakao?next=/4th
   → 서버 supabase.auth.signInWithOAuth({ provider: "kakao" })
+  → Supabase authorize 응답의 Kakao Location을 서버에서 fail-closed 검증
+  → scope를 profile_nickname profile_image로 한정
   → Kakao 동의 화면
   → https://<project-ref>.supabase.co/auth/v1/callback
   → https://xn--220bw61afob.kro.kr/api/auth/callback?next=/4th
@@ -80,6 +82,10 @@
 ```
 
 앱 callback은 `next`를 `/`, `/4th`, `/4th#member-features`, `/me` allowlist로 제한하고 제어문자·역슬래시·쿼리를 거부한다. URL 파싱 뒤에도 최종 origin을 `NEXT_PUBLIC_SITE_URL` 또는 `SITE_URL`의 운영 origin과 다시 비교한다. 인증 응답과 사용자별 API 응답은 `private, no-store`로 처리한다.
+
+현재 Supabase Kakao provider는 이메일 없는 사용자를 허용해도 Kakao authorize scope에 `account_email`을 포함할 수 있다. 이메일 동의항목을 사용하지 않는 Kakao 앱에서는 이 요청이 `KOE205`로 거부될 수 있어 `/api/auth/kakao`가 임시 호환 처리를 수행한다. 먼저 Supabase OAuth 시작 요청으로 DB-backed state와 앱 PKCE code verifier를 정상 생성하고, 반환된 Supabase authorize URL의 origin을 확인한 다음 해당 URL의 첫 redirect 응답만 `manual`로 가져온다. 이후 `Location`이 정확한 `https://kauth.kakao.com/oauth/authorize`인지, `response_type=code`인지, `state`와 `client_id`가 존재하는지, `redirect_uri`가 현재 Supabase origin의 `/auth/v1/callback`인지 검증한다. 검증을 모두 통과한 경우에만 다른 매개변수는 그대로 두고 `scope`를 정확히 `profile_nickname profile_image`로 교체한다.
+
+이 호환 처리는 Supabase state와 PKCE를 새로 구현하거나 우회하지 않는다. 응답 형식, redirect status, origin, 경로 또는 필수 매개변수가 예상과 다르면 로그인은 실패-폐쇄되고, authorize URL·state·code·token은 로그에 남기지 않는다. 이 처리는 [supabase/auth issue #2574](https://github.com/supabase/auth/issues/2574)에 대한 임시 대응이며, 관련 [PR #2579](https://github.com/supabase/auth/pull/2579)가 실제 사용 중인 hosted Auth에 반영되고 이메일 미요청 로그인을 실계정으로 검증한 뒤에만 제거한다.
 
 ### Kakao 이름과 운영자 확인 표시명
 
@@ -181,7 +187,7 @@ https://xn--220bw61afob.kro.kr
 6. REST API key를 확인한다. 이 값은 Supabase Kakao Provider의 Client ID로 사용한다.
 7. Kakao Login Client Secret을 생성하고 활성화한다.
 8. Kakao Login을 활성화한다.
-9. 동의항목은 `profile_nickname`부터 최소 범위로 설정한다. 서비스에서 필요하지 않으면 이메일·프로필 이미지를 요청하지 않는다.
+9. 동의항목은 닉네임(`profile_nickname`)을 **필수 동의**, 프로필 이미지(`profile_image`)를 **선택 동의**로 설정한다. 카카오계정 이메일(`account_email`)은 동의항목으로 요청하지 않는다. 이미지 제공을 거부해도 로그인이 실패해서는 안 된다.
 
 ### 2단계: Kakao Redirect URI 등록
 
@@ -199,10 +205,10 @@ Kakao Developers에 등록하는 URI는 TWTT의 `/api/auth/callback`이 아니�
 2. Kakao Enabled를 켠다.
 3. Client ID에 Kakao REST API key를 입력한다.
 4. Client Secret에 활성화한 Kakao Login Client Secret을 입력한다.
-5. Kakao 이메일을 요청하지 않을 경우 `Allow users without an email`을 켠다.
+5. `Allow users without an email`을 반드시 켠다. TWTT 로그인은 카카오 이메일을 요청하지 않으므로 정상 사용자에게 `email`이 없어도 계정 생성과 세션 발급이 가능해야 한다.
 6. 저장한다.
 
-Kakao Client Secret은 Supabase Provider 비밀 설정에만 입력한다. 앱 코드나 Vercel의 `NEXT_PUBLIC_*` 환경변수에는 넣지 않는다.
+Kakao REST API key와 Client Secret은 Supabase Provider 설정에만 입력한다. 앱 코드나 Vercel 환경변수에 중복 저장하지 않고, 특히 브라우저 번들과 `NEXT_PUBLIC_*`에 넣지 않는다. `/api/auth/kakao`의 scope 호환 처리는 이 두 값을 읽거나 전달받지 않는다.
 
 ### 4단계: Supabase URL Configuration
 
@@ -275,7 +281,7 @@ Kakao REST API key와 Client Secret은 Supabase Provider가 토큰 교환에 사
 - `/3th` 읽기 전용 공통 대시보드 스냅샷
 - `/4th` 명시적 운영 전환 전 더미 미리보기, 전환 후 4기 실데이터 전용·빈 상태 fail-closed 대시보드, 멤버 영역, 오픈 전 팝업, `noindex`
 - `/dashboard/report/3th`와 개인 상세 리포트
-- 서버 `/api/auth/kakao`에서 시작하는 Supabase Kakao OAuth와 PKCE callback code 교환
+- 서버 `/api/auth/kakao`에서 시작하는 Supabase Kakao OAuth, 검증된 최소 scope redirect 호환 처리와 PKCE callback code 교환
 - `/4th` 헤더의 compact 로그인·로그아웃과 공유 viewer 상태
 - 로그인만 요구하는 KST 날짜별 오늘의 운세 모달
 - 운영 origin 고정과 내부 `next` 경로 검증
@@ -321,7 +327,9 @@ Kakao REST API key와 Client Secret은 Supabase Provider가 토큰 교환에 사
 - [ ] TWTT 전용 앱 이름·로고·운영 주체·도메인을 확인했다.
 - [ ] Supabase 화면의 callback을 Kakao Redirect URI에 정확히 등록했다.
 - [ ] Supabase Site URL과 production Redirect Allow List가 정확하다.
-- [ ] 이메일 미수집 계정으로 로그인이 성공한다.
+- [ ] Kakao 동의항목은 닉네임 필수·프로필 이미지 선택이며 이메일은 요청하지 않는다.
+- [ ] Supabase의 `Allow users without an email`을 켰고, 이메일 미제공·이미지 동의 거부 계정으로도 로그인이 성공한다.
+- [ ] scope 호환 처리에서 잘못된 Supabase/Kakao origin·경로·redirect URI·누락된 state가 모두 실패-폐쇄된다.
 - [ ] 로그인 취소, callback 오류, 잘못된 `next`, 로그아웃, 만료 세션을 처리한다.
 - [ ] 외부 Kakao 연결 해제 후 신규 권한이 즉시 차단되고 개인정보 삭제가 완료된다.
 
@@ -366,3 +374,5 @@ Kakao REST API key와 Client Secret은 Supabase Provider가 토큰 교환에 사
 - [Kakao Login 사전 설정](https://developers.kakao.com/docs/en/kakaologin/prerequisite)
 - [Kakao Platform 보안 가이드](https://developers.kakao.com/docs/en/getting-started/security-guideline)
 - [Kakao Login 연결 해제 Webhook](https://developers.kakao.com/docs/en/kakaologin/callback)
+- [supabase/auth issue #2574: Kakao email scope with email-optional users](https://github.com/supabase/auth/issues/2574)
+- [supabase/auth PR #2579: omit Kakao email scope when email is optional](https://github.com/supabase/auth/pull/2579)
