@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { requireAdminDataAccess } from "@/lib/admin-data-access";
+import { hydrateLegacyFourthSeasonBanner } from "@/lib/hello-2027-banner-presets";
 import {
   HELLO_2027_SEASON_KEY,
   isHello2027ContentType,
@@ -206,7 +207,18 @@ export async function GET(request: NextRequest) {
     .limit(maxItemsFor(typeValue));
 
   if (error) return databaseError(typeValue, "read", error);
-  return json({ items: data || [] });
+  const items = typeValue === "banner"
+    ? (data || []).map((item) => hydrateLegacyFourthSeasonBanner(item as unknown as {
+      id: string;
+      owner_name: string;
+      title: string;
+      description: string;
+      alt_text: string;
+      image_url: string;
+      mobile_focus: "left" | "center" | "right";
+    }))
+    : data || [];
+  return json({ items });
 }
 
 export async function POST(request: NextRequest) {

@@ -5,6 +5,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { findAdminUserId, getServiceClient } from "@/lib/admin-data";
 import { PUBLIC_FOURTH_PARTICIPANT_ORDER_FILTER } from "@/lib/fourth-participant-visibility";
 import { FOURTH_SEASON_KEY } from "@/lib/fourth-season-contract";
+import { hydrateLegacyFourthSeasonBanner } from "@/lib/hello-2027-banner-presets";
 import {
   MAX_HELLO_2027_PROFILE_INTRODUCTIONS,
   MAX_PROFILE_INTRO_LENGTH,
@@ -192,7 +193,7 @@ async function loadBanners(supabase: SupabaseClient, adminUserId: string) {
 
   if (error) throw error;
 
-  return ((data || []) as BannerRow[]).flatMap((row) => {
+  return ((data || []) as BannerRow[]).map(hydrateLegacyFourthSeasonBanner).flatMap((row) => {
     const ownerName = normalizeContentText(row.owner_name, MAX_BANNER_OWNER_LENGTH);
     const title = normalizeContentText(row.title, MAX_BANNER_TITLE_LENGTH);
     const description = normalizeContentText(row.description, MAX_BANNER_DESCRIPTION_LENGTH);

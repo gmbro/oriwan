@@ -140,6 +140,7 @@ export function FourthDashboardMemberArea({
   const actions = [
     {
       id: "gift" as const,
+      icon: "🎁",
       title: "오늘의 응원 상자",
       description: giftStatus?.claim
         ? "오늘 받은 응원을 다시 확인해보세요"
@@ -152,12 +153,14 @@ export function FourthDashboardMemberArea({
     },
     {
       id: "fortune" as const,
+      icon: "🙏",
       title: "오늘의 운세",
       description: "행복한 오늘의 운세를 확인해보세요",
       disabled: false,
     },
     {
       id: "corrective" as const,
+      icon: "🏃",
       title: "교정운동 문의",
       description: "교정운동이 필요하거나 궁금한 내용을 문의하시면 확인 후에 답변해드립니다.",
       disabled: !connected,
@@ -198,12 +201,10 @@ export function FourthDashboardMemberArea({
               disabled={action.disabled}
               aria-label={`${action.title}. ${action.description}${action.disabled ? ". 잠김" : ""}`}
               onClick={(event) => openModal(action.id, event.currentTarget)}
-              className="group flex min-h-[84px] items-center rounded-[18px] bg-slate-50 px-4 py-4 text-left ring-1 ring-slate-200/80 transition hover:-translate-y-0.5 hover:bg-white hover:shadow-[0_10px_24px_rgba(15,23,42,0.08)] focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:opacity-60 disabled:hover:translate-y-0 disabled:hover:bg-slate-100 disabled:hover:shadow-none sm:min-h-[100px]"
+              className="group flex min-h-[112px] flex-col items-center justify-center gap-3 rounded-[18px] bg-slate-50 px-3 py-4 text-center ring-1 ring-slate-200/80 transition hover:-translate-y-0.5 hover:bg-white hover:shadow-[0_10px_24px_rgba(15,23,42,0.08)] focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:hover:translate-y-0 disabled:hover:bg-slate-50 disabled:hover:shadow-none"
             >
-              <span className="min-w-0">
-                <strong className="block text-[15px] font-black tracking-[-0.02em] text-slate-950">{action.title}</strong>
-                <small className="mt-1 block text-xs font-semibold leading-5 text-slate-500">{action.description}</small>
-              </span>
+              <span aria-hidden="true" className="block text-[28px] leading-none">{action.icon}</span>
+              <strong className="block text-[15px] font-black tracking-[-0.02em] text-slate-950">{action.title}</strong>
             </button>
           ))}
         </div>
