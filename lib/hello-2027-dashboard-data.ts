@@ -95,7 +95,7 @@ function getDaysUntil2027(today: string) {
   );
 }
 
-function makeEmptyLiveSnapshot(today: string): Hello2027Snapshot {
+export function makeEmptyHello2027DashboardSnapshot(today: string): Hello2027Snapshot {
   const formattedDate = formatKoreanDate(today);
   return {
     seasonName: "TWTT 4th",
@@ -246,7 +246,7 @@ function buildLiveSnapshot({
   const formattedDate = formatKoreanDate(today);
 
   return {
-    ...makeEmptyLiveSnapshot(today),
+    ...makeEmptyHello2027DashboardSnapshot(today),
     referenceDateIso: today,
     referenceDateLabel: formattedDate.label,
     referenceDateShort: formattedDate.short,
@@ -275,7 +275,7 @@ async function loadHello2027DashboardSnapshot(): Promise<Hello2027Snapshot> {
   if (!isFourthDashboardLive()) return hello2027Snapshot;
 
   const today = toKstIsoDate();
-  const emptySnapshot = makeEmptyLiveSnapshot(today);
+  const emptySnapshot = makeEmptyHello2027DashboardSnapshot(today);
   try {
     const service = getServiceClient();
     if (!service) return emptySnapshot;

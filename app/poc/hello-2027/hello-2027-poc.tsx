@@ -20,6 +20,7 @@ import { useOptionalFourthViewer } from "@/components/fourth-viewer-provider";
 type Hello2027PocProps = {
   snapshot: Hello2027Snapshot;
   initialDayPhase?: DayPhase;
+  currentDateIso?: string;
   memberFeatures?: boolean;
 };
 
@@ -53,7 +54,38 @@ function getDayPhaseSnapshot() {
   return getDayPhase(new Date());
 }
 
-export function Hello2027Poc({ snapshot, initialDayPhase = "day", memberFeatures = false }: Hello2027PocProps) {
+function getSeoulDateIso(date = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const value = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${value.year}-${value.month}-${value.day}`;
+}
+
+function getSeoulDateSnapshot() {
+  return getSeoulDateIso();
+}
+
+function formatKoreanDate(value: string) {
+  const [year, month, day] = value.split("-").map(Number);
+  const weekday = ["일", "월", "화", "수", "목", "금", "토"][
+    new Date(`${value}T00:00:00Z`).getUTCDay()
+  ];
+  return {
+    label: `${year}. ${month}. ${day}. ${weekday}요일`,
+    short: `${month}.${day} ${weekday}`,
+  };
+}
+
+export function Hello2027Poc({
+  snapshot,
+  initialDayPhase = "day",
+  currentDateIso,
+  memberFeatures = false,
+}: Hello2027PocProps) {
   const [selectedParticipantId, setSelectedParticipantId] = useState<string | null>(null);
   const [crewSort, setCrewSort] = useState<CrewSort>("name");
   const dayPhase = useSyncExternalStore(
@@ -61,11 +93,21 @@ export function Hello2027Poc({ snapshot, initialDayPhase = "day", memberFeatures
     getDayPhaseSnapshot,
     () => initialDayPhase,
   );
+  const seoulToday = useSyncExternalStore(
+    subscribeToClock,
+    getSeoulDateSnapshot,
+    () => currentDateIso ?? snapshot.referenceDateIso ?? "2026-09-06",
+  );
   const dialogRef = useRef<HTMLDialogElement>(null);
   const dialogTitleRef = useRef<HTMLHeadingElement>(null);
   const lastTriggerRef = useRef<HTMLButtonElement | null>(null);
   const localContent = useLocalHello2027Content(snapshot.ads, snapshot.encouragements, memberFeatures);
   const viewerState = useOptionalFourthViewer();
+  const authenticatedDashboard = Boolean(memberFeatures && viewerState?.viewer?.authenticated);
+  const dashboardDate = authenticatedDashboard ? formatKoreanDate(seoulToday) : null;
+  const referenceDateIso = dashboardDate ? seoulToday : snapshot.referenceDateIso ?? "2026-10-16";
+  const referenceDateLabel = dashboardDate?.label ?? snapshot.referenceDateLabel;
+  const referenceDateShort = dashboardDate?.short ?? snapshot.referenceDateShort;
 
   const selectedParticipant = useMemo(
     () => snapshot.participants.find((participant) => participant.id === selectedParticipantId) ?? null,
@@ -140,13 +182,13 @@ export function Hello2027Poc({ snapshot, initialDayPhase = "day", memberFeatures
           </a>
 
           <div className={styles.headerMeta} aria-label="오늘과 시즌 진행 정보">
-            <time dateTime={snapshot.referenceDateIso ?? "2026-10-16"}>
+            <time dateTime={referenceDateIso}>
               <small>TODAY</small>
-              <span className={styles.longDate}>{snapshot.referenceDateLabel}</span>
-              <span className={styles.shortDate}>{snapshot.referenceDateShort}</span>
+              <span className={styles.longDate}>{referenceDateLabel}</span>
+              <span className={styles.shortDate}>{referenceDateShort}</span>
             </time>
             <span className={styles.metaDivider} aria-hidden="true">·</span>
-            <strong>D-{snapshot.daysUntil2027}</strong>
+            <strong>{authenticatedDashboard ? "시작 전" : `D-${snapshot.daysUntil2027}`}</strong>
             {memberFeatures ? (
               <div className={styles.headerAccount} aria-label="개인 계정">
                 {viewerState?.loading ? (
@@ -177,110 +219,119 @@ export function Hello2027Poc({ snapshot, initialDayPhase = "day", memberFeatures
       <main id="top" className={styles.main}>
         <h1 className={styles.visuallyHidden}>{snapshot.seasonName} {snapshot.versionName}</h1>
 
-        <MotivationBanner
-          encouragements={localContent.encouragements}
-          initialIndex={Math.max(snapshot.dayNumber - 1, 0)}
-        />
+        {authenticatedDashboard ? (
+          <>
+            <FourthDashboardMemberArea />
+            <FourthSeasonPreopenState />
+          </>
+        ) : (
+          <>
+            <MotivationBanner
+              encouragements={localContent.encouragements}
+              initialIndex={Math.max(snapshot.dayNumber - 1, 0)}
+            />
 
-        <Hello2027BannerCarousel
-          ads={localContent.ads}
-          dayPhaseClass={dayPhaseClass[dayPhase]}
-          todayRate={todayRate}
-        />
+            <Hello2027BannerCarousel
+              ads={localContent.ads}
+              dayPhaseClass={dayPhaseClass[dayPhase]}
+              todayRate={todayRate}
+            />
 
-        <section className={styles.summarySection} aria-label="시즌 인증 요약">
-          <div className={styles.summaryGrid}>
-            <article className={styles.summaryCard}>
-              <span>{snapshot.totalDays}일 중</span>
-              <strong>{snapshot.dayNumber}일</strong>
-            </article>
-            {snapshot.rates.map((rate) => (
-              <article className={styles.summaryCard} key={rate.key}>
-                <span>{rate.label} 인증률</span>
-                <strong>{rate.value}%</strong>
-              </article>
-            ))}
-          </div>
-        </section>
+            <section className={styles.summarySection} aria-label="시즌 인증 요약">
+              <div className={styles.summaryGrid}>
+                <article className={styles.summaryCard}>
+                  <span>{snapshot.totalDays}일 중</span>
+                  <strong>{snapshot.dayNumber}일</strong>
+                </article>
+                {snapshot.rates.map((rate) => (
+                  <article className={styles.summaryCard} key={rate.key}>
+                    <span>{rate.label} 인증률</span>
+                    <strong>{rate.value}%</strong>
+                  </article>
+                ))}
+              </div>
+            </section>
 
-        {memberFeatures ? <FourthDashboardMemberArea /> : null}
+            {memberFeatures ? <FourthDashboardMemberArea /> : null}
 
-        <section id="crew" className={styles.crewSection} aria-labelledby="crew-title">
-          <div className={styles.crewHeading}>
-            <div>
-              <span className={styles.crewCount}>{snapshot.participantCount}명</span>
-              <h2 id="crew-title">CREW</h2>
-            </div>
-            <div className={styles.crewSort} role="group" aria-label="크루 정렬 방식">
-              <button
-                type="button"
-                aria-pressed={crewSort === "name"}
-                onClick={() => setCrewSort("name")}
-              >
-                이름순
-              </button>
-              <button
-                type="button"
-                aria-pressed={crewSort === "completed"}
-                onClick={() => setCrewSort("completed")}
-              >
-                인증완료순
-              </button>
-            </div>
-          </div>
+            <section id="crew" className={styles.crewSection} aria-labelledby="crew-title">
+              <div className={styles.crewHeading}>
+                <div>
+                  <span className={styles.crewCount}>{snapshot.participantCount}명</span>
+                  <h2 id="crew-title">CREW</h2>
+                </div>
+                <div className={styles.crewSort} role="group" aria-label="크루 정렬 방식">
+                  <button
+                    type="button"
+                    aria-pressed={crewSort === "name"}
+                    onClick={() => setCrewSort("name")}
+                  >
+                    이름순
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={crewSort === "completed"}
+                    onClick={() => setCrewSort("completed")}
+                  >
+                    인증완료순
+                  </button>
+                </div>
+              </div>
 
-          <ul className={styles.participantGrid}>
-            {sortedParticipants.map((participant) => (
-              <li key={participant.id}>
-                <button
-                  className={`${styles.participantCard} ${participant.completed ? styles.completedCard : styles.waitingCard}`}
-                  type="button"
-                  onClick={(event) => openParticipant(participant.id, event.currentTarget)}
-                  aria-label={`${participant.fullName}님, 오늘까지 인증률 ${participant.seasonCompletionRate}%, ${participant.completed ? "오늘 인증 완료" : "오늘 기록 없음"}. 상세 보기`}
-                >
-                  {participant.completed ? (
-                    <span className={styles.completionBadge} aria-hidden="true">✓</span>
-                  ) : null}
-                  <span className={styles.participantIdentity}>
-                    <span className={styles.characterWrap} aria-hidden="true">
-                      {localContent.avatarUrls[participant.id] ? (
-                        <Image
-                          src={localContent.avatarUrls[participant.id]}
-                          alt=""
-                          fill
-                          unoptimized
-                          sizes="96px"
-                        />
-                      ) : (
-                        <TwttRunnerPictogram
-                          variant={participant.pictogramIndex}
-                          name={participant.fullName}
-                          completed={participant.completed}
-                          pose="stand"
-                          portrait
-                        />
-                      )}
-                    </span>
-                    <span className={styles.participantNameRow}>
-                      <strong>{participant.fullName}<small>님</small></strong>
-                    </span>
-                  </span>
-                  <span className={styles.participantRate}>
-                    <small>오늘까지 인증률</small>
-                    <strong>{participant.seasonCompletionRate}%</strong>
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </section>
+              <ul className={styles.participantGrid}>
+                {sortedParticipants.map((participant) => (
+                  <li key={participant.id}>
+                    <button
+                      className={`${styles.participantCard} ${participant.completed ? styles.completedCard : styles.waitingCard}`}
+                      type="button"
+                      onClick={(event) => openParticipant(participant.id, event.currentTarget)}
+                      aria-label={`${participant.fullName}님, 오늘까지 인증률 ${participant.seasonCompletionRate}%, ${participant.completed ? "오늘 인증 완료" : "오늘 기록 없음"}. 상세 보기`}
+                    >
+                      {participant.completed ? (
+                        <span className={styles.completionBadge} aria-hidden="true">✓</span>
+                      ) : null}
+                      <span className={styles.participantIdentity}>
+                        <span className={styles.characterWrap} aria-hidden="true">
+                          {localContent.avatarUrls[participant.id] ? (
+                            <Image
+                              src={localContent.avatarUrls[participant.id]}
+                              alt=""
+                              fill
+                              unoptimized
+                              sizes="96px"
+                            />
+                          ) : (
+                            <TwttRunnerPictogram
+                              variant={participant.pictogramIndex}
+                              name={participant.fullName}
+                              completed={participant.completed}
+                              pose="stand"
+                              portrait
+                            />
+                          )}
+                        </span>
+                        <span className={styles.participantNameRow}>
+                          <strong>{participant.fullName}<small>님</small></strong>
+                        </span>
+                      </span>
+                      <span className={styles.participantRate}>
+                        <small>오늘까지 인증률</small>
+                        <strong>{participant.seasonCompletionRate}%</strong>
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </section>
 
-        <Hello2027Guestbook
-          initialThreads={snapshot.guestbook}
-          externalViewer={memberFeatures ? viewerState?.viewer ?? null : undefined}
-          externalViewerManaged={memberFeatures}
-          externalViewerLoading={memberFeatures ? viewerState?.loading ?? true : undefined}
-        />
+            <Hello2027Guestbook
+              initialThreads={snapshot.guestbook}
+              externalViewer={memberFeatures ? viewerState?.viewer ?? null : undefined}
+              externalViewerManaged={memberFeatures}
+              externalViewerLoading={memberFeatures ? viewerState?.loading ?? true : undefined}
+            />
+          </>
+        )}
       </main>
 
       <ParticipantDialog
@@ -296,10 +347,23 @@ export function Hello2027Poc({ snapshot, initialDayPhase = "day", memberFeatures
               body: selectedParticipant.product.description,
             }
           : undefined}
-        referenceDateLabel={snapshot.referenceDateLabel}
+        referenceDateLabel={referenceDateLabel}
         onClose={closeParticipant}
       />
     </div>
+  );
+}
+
+function FourthSeasonPreopenState() {
+  return (
+    <section className={styles.preopenState} aria-labelledby="fourth-season-preopen-title">
+      <div className={styles.preopenStateMark} aria-hidden="true">
+        <span />
+      </div>
+      <p className={styles.preopenStateEyebrow}>TWTT 4TH</p>
+      <h2 id="fourth-season-preopen-title">4기는 아직 시작 전이에요</h2>
+      <p>시즌이 시작되면 인증 기록과 크루 현황이 이곳에 표시됩니다.</p>
+    </section>
   );
 }
 

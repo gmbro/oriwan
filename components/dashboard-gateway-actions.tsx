@@ -88,12 +88,16 @@ export function DashboardGatewayActions() {
           </button>
         </>
       ) : (
-        <>
-          <KakaoLoginButton nextPath="/4th/dashboard#member-features" label="카카오로 시작하기" />
-          <Link href="/4th/dashboard" className="flex min-h-12 w-full items-center justify-center rounded-2xl bg-blue-600 px-5 text-sm font-black text-white shadow-lg shadow-blue-500/15 transition hover:bg-blue-700 focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-blue-300">
+        <div className="grid grid-cols-2 gap-2.5">
+          <KakaoLoginButton
+            nextPath="/4th/dashboard#member-features"
+            label="카카오로 시작하기"
+            className="min-h-14 px-2 text-xs leading-tight"
+          />
+          <Link href="/4th/dashboard" className="flex min-h-14 w-full items-center justify-center rounded-2xl bg-blue-600 px-2 text-center text-xs font-black leading-tight text-white shadow-lg shadow-blue-500/15 transition hover:bg-blue-700 focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-blue-300">
             로그인 없이 대시보드 보기
           </Link>
-        </>
+        </div>
       )}
       {error ? <p className="px-2 text-center text-xs font-bold text-red-600" role="alert">{error}</p> : null}
     </div>

@@ -1,17 +1,13 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import {
+  anonymousFourthViewer,
+  type FourthViewer,
+} from "@/lib/fourth-viewer-contract";
 
-export type FourthViewer = {
-  authenticated: boolean;
-  auth_available?: boolean;
-  provider: "kakao" | null;
-  display_name: string | null;
-  approved_participant: boolean;
-  verified_name?: boolean;
-  name_source?: "admin" | "kakao" | null;
-  connection_status?: string;
-};
+export type { FourthViewer } from "@/lib/fourth-viewer-contract";
 
 type FourthViewerContextValue = {
   viewer: FourthViewer | null;
@@ -22,21 +18,18 @@ type FourthViewerContextValue = {
   logout: () => Promise<void>;
 };
 
-const anonymousViewer: FourthViewer = {
-  authenticated: false,
-  provider: null,
-  display_name: null,
-  approved_participant: false,
-  verified_name: false,
-  name_source: null,
-  connection_status: "unlinked",
-};
-
 const FourthViewerContext = createContext<FourthViewerContextValue | null>(null);
 
-export function FourthViewerProvider({ children }: { children: React.ReactNode }) {
-  const [viewer, setViewer] = useState<FourthViewer | null>(null);
-  const [loading, setLoading] = useState(true);
+export function FourthViewerProvider({
+  children,
+  initialViewer,
+}: {
+  children: React.ReactNode;
+  initialViewer?: FourthViewer;
+}) {
+  const router = useRouter();
+  const [viewer, setViewer] = useState<FourthViewer | null>(initialViewer ?? null);
+  const [loading, setLoading] = useState(initialViewer === undefined);
   const [actionPending, setActionPending] = useState(false);
   const [error, setError] = useState("");
 
@@ -51,7 +44,9 @@ export function FourthViewerProvider({ children }: { children: React.ReactNode }
       setViewer(json);
       setError("");
     } catch {
-      setViewer(anonymousViewer);
+      // A transient viewer refresh failure must not replace a trusted
+      // server-rendered session with the public dummy preview.
+      setViewer((current) => current ?? anonymousFourthViewer);
       setError("로그인 상태를 확인하지 못했어요. 잠시 후 다시 시도해주세요.");
     } finally {
       setLoading(false);
@@ -73,13 +68,14 @@ export function FourthViewerProvider({ children }: { children: React.ReactNode }
         body: "{}",
       });
       if (!response.ok) throw new Error("logout_failed");
-      setViewer(anonymousViewer);
+      setViewer(anonymousFourthViewer);
+      router.replace("/4th");
     } catch {
       setError("로그아웃하지 못했어요. 잠시 후 다시 시도해주세요.");
     } finally {
       setActionPending(false);
     }
-  }, []);
+  }, [router]);
 
   const value = useMemo<FourthViewerContextValue>(() => ({
     viewer,

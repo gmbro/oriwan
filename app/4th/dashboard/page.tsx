@@ -1,8 +1,14 @@
 import type { Metadata } from "next";
+import { connection } from "next/server";
 import { Hello2027Poc } from "@/app/poc/hello-2027/hello-2027-poc";
 import { FourthSeasonOpeningNotice } from "@/components/fourth-season-opening-notice";
 import { FourthViewerProvider } from "@/components/fourth-viewer-provider";
-import { getHello2027DashboardSnapshot } from "@/lib/hello-2027-dashboard-data";
+import { getFourthViewer } from "@/lib/fourth-viewer-server";
+import {
+  getHello2027DashboardSnapshot,
+  makeEmptyHello2027DashboardSnapshot,
+} from "@/lib/hello-2027-dashboard-data";
+import { toKstIsoDate } from "@/lib/run-records";
 
 export const revalidate = 60;
 
@@ -14,12 +20,18 @@ export const metadata: Metadata = {
 };
 
 export default async function FourthSeasonDashboardPage() {
-  const snapshot = await getHello2027DashboardSnapshot();
+  await connection();
+  const initialViewer = await getFourthViewer();
+  const currentDateIso = toKstIsoDate();
+  const snapshot = initialViewer.authenticated
+    ? makeEmptyHello2027DashboardSnapshot(currentDateIso)
+    : await getHello2027DashboardSnapshot();
 
   return (
-    <FourthViewerProvider>
+    <FourthViewerProvider initialViewer={initialViewer}>
       <Hello2027Poc
         snapshot={snapshot}
+        currentDateIso={currentDateIso}
         memberFeatures
       />
       <FourthSeasonOpeningNotice />
