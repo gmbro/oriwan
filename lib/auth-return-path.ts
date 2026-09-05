@@ -1,5 +1,6 @@
-const AUTH_RETURN_PATHS = new Set(["/", "/4th", "/me"]);
+const AUTH_RETURN_PATHS = new Set(["/", "/4th", "/4th/dashboard", "/me"]);
 const UNSAFE_PATH_CHARACTERS = /[\\\u0000-\u001f\u007f]/;
+type AuthReturnFallback = "/" | "/4th" | "/4th/dashboard" | "/4th/dashboard#member-features" | "/me";
 
 /**
  * OAuth 복귀 위치는 제품에서 실제로 쓰는 내부 화면만 허용합니다.
@@ -7,7 +8,7 @@ const UNSAFE_PATH_CHARACTERS = /[\\\u0000-\u001f\u007f]/;
  */
 export function getSafeAuthReturnPath(
   value: string | null | undefined,
-  fallback: "/" | "/4th" | "/me" = "/4th",
+  fallback: AuthReturnFallback = "/4th",
 ) {
   if (!value || !value.startsWith("/") || value.startsWith("//") || UNSAFE_PATH_CHARACTERS.test(value)) {
     return fallback;
@@ -20,7 +21,7 @@ export function getSafeAuthReturnPath(
       return fallback;
     }
 
-    const allowedHash = target.hash === "" || (target.pathname === "/4th" && target.hash === "#member-features");
+    const allowedHash = target.hash === "" || (target.pathname === "/4th/dashboard" && target.hash === "#member-features");
     return allowedHash ? `${target.pathname}${target.hash}` : fallback;
   } catch {
     return fallback;
@@ -30,7 +31,7 @@ export function getSafeAuthReturnPath(
 export function getSafeAuthReturnUrl(
   value: string | null | undefined,
   origin: string,
-  fallback: "/" | "/4th" | "/me" = "/4th",
+  fallback: AuthReturnFallback = "/4th",
 ) {
   const expectedOrigin = new URL(origin).origin;
   const target = new URL(getSafeAuthReturnPath(value, fallback), expectedOrigin);

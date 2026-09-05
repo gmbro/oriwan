@@ -91,7 +91,7 @@ export default function MyPage() {
           </p>
           {message ? <p className="mt-4 rounded-2xl bg-slate-100 px-4 py-3 text-xs font-bold text-slate-600">{message}</p> : null}
           <div className="mt-6"><KakaoLoginButton nextPath="/me" /></div>
-          <Link href="/4th" className="mt-4 flex min-h-11 items-center justify-center text-xs font-black text-blue-600">4기 대시보드 보기</Link>
+          <Link href="/4th/dashboard" className="mt-4 flex min-h-11 items-center justify-center text-xs font-black text-blue-600">4기 대시보드 보기</Link>
         </div>
       </PageShell>
     );
@@ -126,8 +126,8 @@ export default function MyPage() {
         )}
 
         <div className="mt-5 grid grid-cols-2 gap-2">
-          <Link href="/4th#guestbook" className="flex min-h-12 items-center justify-center rounded-2xl bg-blue-600 px-3 text-sm font-black text-white">댓글로 이동</Link>
-          <Link href="/4th" className="flex min-h-12 items-center justify-center rounded-2xl bg-slate-100 px-3 text-sm font-black text-slate-700">4기 대시보드</Link>
+          <Link href="/4th/dashboard#guestbook" className="flex min-h-12 items-center justify-center rounded-2xl bg-blue-600 px-3 text-sm font-black text-white">댓글로 이동</Link>
+          <Link href="/4th/dashboard" className="flex min-h-12 items-center justify-center rounded-2xl bg-slate-100 px-3 text-sm font-black text-slate-700">4기 대시보드</Link>
         </div>
       </div>
     </PageShell>

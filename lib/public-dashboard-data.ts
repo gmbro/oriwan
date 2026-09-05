@@ -440,6 +440,7 @@ export function invalidatePublicDashboardCache() {
   revalidateTag(PUBLIC_DASHBOARD_CACHE_TAG, { expire: 0 });
   revalidatePath("/dashboard");
   revalidatePath("/4th");
+  revalidatePath("/4th/dashboard");
   revalidatePath("/api/public-dashboard");
   revalidatePath("/dashboard/report");
   revalidatePath("/dashboard/report/[participantId]", "page");

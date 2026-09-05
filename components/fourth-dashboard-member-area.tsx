@@ -41,6 +41,13 @@ export function FourthDashboardMemberArea() {
     };
   }, [modal, viewer?.authenticated]);
 
+  useEffect(() => {
+    if (!viewer?.authenticated || window.location.hash !== "#member-features") return;
+    window.requestAnimationFrame(() => {
+      document.getElementById("member-features")?.scrollIntoView({ block: "start" });
+    });
+  }, [viewer?.authenticated]);
+
   const openModal = (kind: Exclude<FeatureModal, null>, trigger: HTMLButtonElement) => {
     lastTriggerRef.current = trigger;
     setModal(kind);
@@ -82,7 +89,7 @@ export function FourthDashboardMemberArea() {
     <>
       <section
         id="member-features"
-        className="mx-auto mt-3 w-[calc(100%_-_var(--page-gutter)_*_2)] max-w-[1200px] rounded-[22px] bg-white p-2 shadow-[0_10px_30px_rgba(25,31,40,0.06)] ring-1 ring-slate-950/5 sm:mt-4 sm:rounded-[26px] sm:p-4"
+        className="mx-auto mt-3 w-[calc(100%_-_var(--page-gutter)_*_2)] max-w-[1200px] scroll-mt-20 rounded-[22px] bg-white p-2 shadow-[0_10px_30px_rgba(25,31,40,0.06)] ring-1 ring-slate-950/5 sm:mt-4 sm:rounded-[26px] sm:p-4"
         aria-labelledby="member-features-title"
       >
         <div className="mb-2.5 flex min-h-9 items-center justify-between gap-2 px-1 sm:mb-3">

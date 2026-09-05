@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { getSafeAuthReturnPath } from "@/lib/auth-return-path";
 import {
+  KAKAO_AUTH_RETURN_COOKIE,
+  KAKAO_AUTH_RETURN_TTL_SECONDS,
   KAKAO_AUTH_START_COOKIE,
   KAKAO_AUTH_START_TTL_SECONDS,
   kakaoAuthStartCookieOptions,
@@ -31,7 +33,7 @@ function configuredOrigin(request: NextRequest) {
 
 function backToEntry(request: NextRequest, error: string) {
   const origin = configuredOrigin(request) || request.nextUrl.origin;
-  const target = new URL("/", origin);
+  const target = new URL("/4th", origin);
   target.searchParams.set("error", error);
   return NextResponse.redirect(target, {
     headers: { "Cache-Control": "private, no-store, max-age=0", Vary: "Cookie" },
@@ -141,9 +143,11 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const nextPath = getSafeAuthReturnPath(request.nextUrl.searchParams.get("next"), "/");
+    const nextPath = getSafeAuthReturnPath(
+      request.nextUrl.searchParams.get("next"),
+      "/4th/dashboard#member-features",
+    );
     const callback = new URL("/api/auth/callback", siteOrigin);
-    callback.searchParams.set("next", nextPath);
 
     const supabase = await createClient({ requireCookieWrites: true });
     const { data, error } = await supabase.auth.signInWithOAuth({
@@ -177,6 +181,13 @@ export async function GET(request: NextRequest) {
     response.cookies.set(KAKAO_AUTH_START_COOKIE, "1", {
       ...kakaoAuthStartCookieOptions(),
       maxAge: KAKAO_AUTH_START_TTL_SECONDS,
+    });
+    // Supabase receives one exact, allowlisted callback URL. The app-only return
+    // destination stays in a short-lived HttpOnly cookie and is allowlisted again
+    // after the PKCE exchange, so query matching cannot send users to Site URL.
+    response.cookies.set(KAKAO_AUTH_RETURN_COOKIE, nextPath, {
+      ...kakaoAuthStartCookieOptions(),
+      maxAge: KAKAO_AUTH_RETURN_TTL_SECONDS,
     });
     return response;
   } catch (error) {

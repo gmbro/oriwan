@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ADMIN_EMAIL } from "@/lib/admin";
 
 export const metadata = {
   title: "이용약관 | TWTT 러닝보드",
@@ -9,7 +10,7 @@ export default function TermsPage() {
     <main className="min-h-screen overflow-x-hidden pb-20">
       <header className="sticky top-0 z-50 border-b border-oriwan-border bg-oriwan-bg/90 px-3 py-3.5 backdrop-blur-md sm:px-5">
         <div className="mx-auto flex max-w-lg items-center justify-between">
-          <Link href="/" className="text-oriwan-text-muted text-sm hover:text-oriwan-text transition-colors">← 돌아가기</Link>
+          <Link href="/4th" className="text-oriwan-text-muted text-sm hover:text-oriwan-text transition-colors">← 돌아가기</Link>
           <h1 className="gradient-text text-lg font-black">이용약관</h1>
           <div className="w-16" />
         </div>
@@ -55,9 +56,15 @@ export default function TermsPage() {
             <h2 className="mb-2 text-base font-bold text-oriwan-text">제4조 (카카오 로그인 이용)</h2>
             <p>
               카카오 로그인은 계정 연결 수단입니다. 개인 이용자가 로그인해 사용할 수 있는 기능은 오늘의 운세 확인,
-              Kakao 프로필 닉네임 또는 운영자 확인 표시명으로 댓글을 작성하는 기능과, 승인된 참가자가 당일 인증을
+              카카오 프로필 닉네임 또는 운영자 확인 표시명으로 댓글을 작성하는 기능과, 승인된 참가자가 당일 인증을
               완료했을 때 응원 상자를 여는 기능으로 제한됩니다.
               개인 이용자는 인증 등록·수정, OCR 실행, 크루 관리 또는 프로필 자기수정을 할 수 없습니다.
+            </p>
+            <p className="mt-2">
+              로그인에 필요한 필수 동의항목은 프로필 닉네임이며, 프로필 이미지는 선택 동의항목입니다. 프로필 이미지를
+              제공하지 않아도 로그인과 개인 기능을 이용할 수 있습니다. 서비스는 카카오계정 이메일을 동의항목으로
+              요청하거나 수집하지 않습니다. 필수 닉네임 제공에 동의하지 않으면 카카오 개인 기능은 이용할 수 없지만,
+              공개 대시보드는 로그인 없이 볼 수 있습니다.
             </p>
           </section>
 
@@ -65,7 +72,7 @@ export default function TermsPage() {
             <h2 className="mb-2 text-base font-bold text-oriwan-text">제5조 (표시명과 참가자 연결)</h2>
             <p>
               카카오 프로필 닉네임과 운영자가 크루 명단을 대조해 정한 표시명은 별도 본인확인 서비스가 인증한 법적 실명으로
-              보지 않습니다. 댓글은 Kakao 프로필 닉네임을 기본으로 사용하고 운영자 override가 있으면 그 이름을 사용합니다.
+              보지 않습니다. 댓글은 카카오 프로필 닉네임을 기본으로 사용하고 운영자 확인 표시명이 있으면 그 이름을 사용합니다.
               이름 유사성만으로 참가자와 자동 연결하지 않으며, 미승인·승인 해제 계정은 응원 상자를 이용할 수 없습니다.
             </p>
           </section>
@@ -115,7 +122,22 @@ export default function TermsPage() {
           </section>
 
           <section>
-            <h2 className="mb-2 text-base font-bold text-oriwan-text">제10조 (미확정 사항과 문의)</h2>
+            <h2 className="mb-2 text-base font-bold text-oriwan-text">제10조 (동의 철회와 계정 종료)</h2>
+            <p>
+              이용자는 카카오의 연결된 서비스 관리에서 선택 동의를 철회하거나 앱 연결을 해제할 수 있습니다. 선택 프로필
+              이미지 동의를 철회해도 다른 기능 이용에는 제한이 없습니다. 앱 연결 해제 또는 서비스 탈퇴 시 카카오 개인
+              기능은 종료됩니다. TWTT 로그아웃은 앱 연결 해제나 서비스 탈퇴를 뜻하지 않습니다.
+            </p>
+            <p className="mt-2">
+              서비스 계정과 개인정보의 열람·정정·삭제·처리정지 또는 탈퇴는
+              <a className="mx-1 font-bold text-blue-600 underline underline-offset-2" href={`mailto:${ADMIN_EMAIL}`}>{ADMIN_EMAIL}</a>
+              로 요청할 수 있습니다. 법령상 보존 의무나 별도 동의를 받은 시즌 기록이 있는 경우에는 해당 범위만 분리하거나
+              비식별 처리하고, 그 밖의 계정 연결 정보는 개인정보처리방침에 따라 처리합니다.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="mb-2 text-base font-bold text-oriwan-text">제11조 (미확정 사항과 문의)</h2>
             <p>
               개인정보와 운영 데이터의 세부 보관기간, Supabase 리전·백업 잔존기간, 삭제 요청 절차와 운영 문의처는 정식
               운영 전에 확정해 개인정보처리방침과 함께 고지합니다. 이 사전 공개 문구는 현재 구현과 운영 계획을 설명하며,
@@ -124,7 +146,7 @@ export default function TermsPage() {
           </section>
 
           <p className="border-t border-oriwan-border pt-4 text-xs text-oriwan-text-muted/60">
-            개정일: 2026년 9월 4일 · 운영: (주)아키랩
+            개정일: 2026년 9월 6일 · 운영: (주)아키랩
           </p>
         </div>
       </div>

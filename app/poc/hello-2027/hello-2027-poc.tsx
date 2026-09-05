@@ -166,7 +166,7 @@ export function Hello2027Poc({ snapshot, initialDayPhase = "day", memberFeatures
                     </button>
                   </>
                 ) : (
-                  <KakaoLoginButton nextPath="/4th" label="로그인" variant="compact" />
+                  <KakaoLoginButton nextPath="/4th/dashboard#member-features" label="로그인" variant="compact" />
                 )}
               </div>
             ) : null}

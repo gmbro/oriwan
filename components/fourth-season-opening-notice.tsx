@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { NextSeasonNoticeModal } from "@/components/next-season-notice-modal";
+import { useFourthViewer } from "@/components/fourth-viewer-provider";
 
 const DISMISS_STORAGE_KEY = "twtt:4th:preopen:2026-09:v2";
 
@@ -15,12 +16,17 @@ function seoulDateKey() {
 }
 
 export function FourthSeasonOpeningNotice() {
+  const { viewer, loading } = useFourthViewer();
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
+    if (loading) return;
+
     let active = true;
     queueMicrotask(() => {
       if (!active) return;
+      // 로그인 직후에는 개인 영역이 먼저 보여야 하므로 오픈 안내가 가리지 않습니다.
+      if (viewer?.authenticated && window.location.hash === "#member-features") return;
       const today = seoulDateKey();
       let dismissedToday = false;
       try {
@@ -40,7 +46,7 @@ export function FourthSeasonOpeningNotice() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [loading, viewer?.authenticated]);
 
   const close = useCallback(() => setOpen(false), []);
   const closeToday = useCallback(async () => {

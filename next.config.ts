@@ -28,7 +28,7 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   async redirects() {
     return [
-      { source: "/dashboard", destination: "/4th", permanent: false },
+      { source: "/dashboard", destination: "/4th/dashboard", permanent: false },
       { source: "/dashboard/report", destination: "/dashboard/report/3th", permanent: false },
     ];
   },

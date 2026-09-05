@@ -10,7 +10,7 @@ export default function PrivacyPage() {
     <main className="min-h-screen overflow-x-hidden pb-20">
       <header className="sticky top-0 z-50 border-b border-oriwan-border bg-oriwan-bg/90 px-3 py-3.5 backdrop-blur-md sm:px-5">
         <div className="mx-auto flex max-w-lg items-center justify-between">
-          <Link href="/" className="text-oriwan-text-muted text-sm hover:text-oriwan-text transition-colors">← 돌아가기</Link>
+          <Link href="/4th" className="text-oriwan-text-muted text-sm hover:text-oriwan-text transition-colors">← 돌아가기</Link>
           <h1 className="gradient-text text-base font-black sm:text-lg">개인정보처리방침</h1>
           <div className="w-16" />
         </div>
@@ -31,12 +31,17 @@ export default function PrivacyPage() {
           </section>
 
           <section>
-            <h2 className="mb-2 text-base font-bold text-oriwan-text">2. 처리 예정인 정보</h2>
+            <h2 className="mb-2 text-base font-bold text-oriwan-text">2. 처리하는 정보와 수집 방법</h2>
+            <p className="mb-2">
+              카카오 로그인 과정에서 카카오가 이용자의 동의를 받아 Supabase Auth에 전달한 정보만 처리합니다.
+            </p>
             <ul className="list-disc space-y-1 pl-5">
+              <li><strong>필수 카카오 정보:</strong> 프로필 닉네임</li>
+              <li><strong>선택 카카오 정보:</strong> 프로필 이미지·썸네일 URL</li>
+              <li><strong>수집하지 않는 카카오 정보:</strong> 카카오계정 이메일, 이름, 전화번호, 생년월일 등 현재 동의 화면에서 요청하지 않는 항목</li>
+              <li><strong>로그인 식별 정보:</strong> Supabase 사용자 식별자, Kakao provider 식별자, 인증 세션</li>
               <li><strong>관리자 정보:</strong> 관리자 이메일, 인증 및 관리 세션, 변경 이력</li>
-              <li><strong>카카오 로그인 정보:</strong> Supabase 사용자 식별자, Kakao provider 연결 정보, 인증 세션</li>
               <li><strong>계정 연결 정보:</strong> 운영자 확인 표시명, 승인 상태·시각, 연결된 시즌 참가자</li>
-              <li><strong>카카오 프로필 정보:</strong> 로그인 댓글 기본 표시와 운영자 계정 연결에 사용하는 프로필 닉네임</li>
               <li><strong>크루프로필:</strong> 운영자가 등록한 이름, 자기소개, 캐릭터, 공개 순서와 공개 동의 상태</li>
               <li><strong>러닝 인증 정보:</strong> 날짜, 거리, 시간, 페이스, 인증 상태와 운영 메모</li>
               <li><strong>인증 검수 정보:</strong> 운영자가 다루는 러닝 기록 이미지, OCR 추출문과 신뢰도</li>
@@ -71,9 +76,14 @@ export default function PrivacyPage() {
               SHA-256 actor key를 저장합니다. 사전 공개 기간에는 댓글을 작성할 수 없습니다.
             </p>
             <p className="mt-2">
-              개인 카카오 로그인 이용자는 Kakao가 제공한 프로필 닉네임으로 댓글을 작성합니다. 운영자가 크루 명단과
+              개인 카카오 로그인 이용자는 카카오가 제공한 프로필 닉네임으로 댓글을 작성합니다. 운영자가 크루 명단과
               대조해 표시명을 바꾸면 이후에는 변경된 이름을 사용합니다. 두 이름 모두 별도 본인확인 서비스가 확인한
               법적 실명을 뜻하지 않습니다.
+            </p>
+            <p className="mt-2">
+              프로필 닉네임 동의는 카카오 로그인에 필요합니다. 프로필 이미지는 선택 항목이며 제공을 거부하거나 나중에
+              동의를 철회해도 로그인과 개인 기능 이용에는 제한이 없습니다. 카카오계정 이메일은 요청하거나 수집하지
+              않습니다.
             </p>
             <p className="mt-2">
               개인 이용자에게는 인증 등록, OCR 실행, 크루 관리, 프로필 자기수정 권한을 제공하지 않습니다. 로그인만 하면
@@ -99,7 +109,7 @@ export default function PrivacyPage() {
           </section>
 
           <section>
-            <h2 className="mb-2 text-base font-bold text-oriwan-text">6. 보관·삭제와 처리 위치</h2>
+            <h2 className="mb-2 text-base font-bold text-oriwan-text">6. Supabase 보관·삭제와 처리 위치</h2>
             <p>
               교정운동 신청 정보는 접수일부터 최대 180일 보관합니다. 완료·취소·거절된 신청은 그 처리일부터 90일과
               기존 만료일 중 더 이른 날까지 보관한 뒤 자동 파기합니다. 이용자는 위 이메일로 더 이른 삭제를 요청할 수
@@ -107,15 +117,40 @@ export default function PrivacyPage() {
               환경에 연결되기 전에는 교정운동 신청 수집을 활성화하지 않습니다.
             </p>
             <p className="mt-2">
-              그 밖의 계정, 크루프로필, 인증, 댓글, 응원 상자, 관리자 감사 로그별 보관기간과 삭제 기준 및 삭제된 정보가
-              백업에 잔존하는 기간은 정식 운영 전 실제 설정을 확인해 이 방침에 반영합니다. 운영 데이터 저장 구조는
-              Supabase를 사용하도록 구현돼 있으며, 실제 프로젝트 리전, 데이터 처리 위치, 위탁·재위탁 세부 사항도
-              운영 활성화 전에 확인해 고지합니다.
+              로그인 식별자, 프로필 닉네임과 선택한 프로필 이미지는 계정 이용 기간 동안 Supabase Auth와 서비스 계정 연결
+              정보로 보관합니다. 탈퇴 또는 연결 해제를 확인하면 법령상 보존 의무가 있는 경우를 제외하고 운영 중인 Auth와
+              서비스 DB에서 삭제하거나 카카오 식별자와 분리하며, 기존 공개 댓글은 탈퇴 이용자로 비식별 처리합니다.
+            </p>
+            <p className="mt-2">
+              현재 카카오 로그인에서는 카카오계정 이메일을 수집하지 않습니다. 다만 과거 동의 범위로 이미 저장된 이메일은
+              설정 변경만으로 자동 삭제되지 않으므로 운영 전 점검하고, 별도 보관 근거가 없다면 계정 연결과 탈퇴 절차를
+              훼손하지 않는 방식으로 삭제합니다.
+            </p>
+            <p className="mt-2">
+              Supabase의 DB 백업 제공 여부와 보존기간은 실제 요금제 설정에 따라 달라집니다. 운영 활성화 전에 프로젝트
+              리전, 처리 위치, 위탁·재위탁 정보와 백업 보존기간을 확인해 고지합니다. 삭제 정보가 제한된 기간 백업에 남는
+              경우 접근을 제한하고 보존기간이 끝나면 삭제하며, 백업 복원 시 기존 삭제 요청을 다시 적용합니다. Supabase
+              Storage 객체는 DB 백업에 포함되지 않으므로 별도 삭제·복구 절차로 관리합니다.
             </p>
           </section>
 
           <section>
-            <h2 className="mb-2 text-base font-bold text-oriwan-text">7. 보호 조치</h2>
+            <h2 className="mb-2 text-base font-bold text-oriwan-text">7. 이용자의 권리와 동의 선택</h2>
+            <p>
+              이용자는 자신의 개인정보에 대해 열람, 정정, 삭제, 처리정지와 동의 철회를 요청할 수 있습니다. 요청은
+              <a className="mx-1 font-bold text-blue-600 underline underline-offset-2" href={`mailto:${ADMIN_EMAIL}`}>{ADMIN_EMAIL}</a>
+              로 접수하며, 필요한 경우 요청자 확인 후 법령상 예외를 제외하고 지체 없이 처리합니다.
+            </p>
+            <p className="mt-2">
+              카카오의 연결된 서비스 관리에서 선택 동의를 철회하거나 앱 연결을 해제할 수 있습니다. 선택 프로필 이미지
+              동의 철회는 다른 기능 이용에 불이익을 주지 않습니다. 필수 닉네임 동의를 거부하거나 앱 연결을 해제하면
+              카카오 개인 기능은 이용할 수 없지만 공개 대시보드는 로그인 없이 볼 수 있습니다. TWTT 로그아웃은 카카오 앱
+              연결 해제나 서비스 탈퇴와 다르므로, 계정 삭제를 원하면 위 연락처로 별도 요청해야 합니다.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="mb-2 text-base font-bold text-oriwan-text">8. 보호 조치</h2>
             <ul className="list-disc space-y-1 pl-5">
               <li>카카오·Supabase 비밀값은 배포 환경과 공급자 설정에만 저장하고 공개 코드나 브라우저에 노출하지 않습니다.</li>
               <li>관리자 기능은 이메일 인증번호와 서버 측 권한 검사를 거치도록 구성합니다.</li>
@@ -129,7 +164,7 @@ export default function PrivacyPage() {
           </section>
 
           <section>
-            <h2 className="mb-2 text-base font-bold text-oriwan-text">8. 안내</h2>
+            <h2 className="mb-2 text-base font-bold text-oriwan-text">9. 안내</h2>
             <p>
               이 문서는 현재 구현과 예정된 운영 구조를 설명하기 위한 사전 공개 방침입니다. 정식 운영 전 실제 설정과 적용
               가능한 의무를 별도로 검토하고, 미확정 항목을 확정한 최종 방침을 다시 고지합니다.
@@ -137,7 +172,7 @@ export default function PrivacyPage() {
           </section>
 
           <p className="border-t border-oriwan-border pt-4 text-xs text-oriwan-text-muted/60">
-            개정일: 2026년 9월 4일 · 운영: (주)아키랩
+            개정일: 2026년 9월 6일 · 운영: (주)아키랩
           </p>
         </div>
       </div>

@@ -69,19 +69,20 @@
 ### 로그인 흐름
 
 ```text
-/ 또는 /4th
-  → /api/auth/kakao?next=/4th
+/4th 또는 /4th/dashboard
+  → /api/auth/kakao?next=%2F4th%2Fdashboard%23member-features
+  → 검증된 복귀 경로를 짧은 수명의 HttpOnly 쿠키에 저장
   → 서버 supabase.auth.signInWithOAuth({ provider: "kakao" })
   → Supabase authorize 응답의 Kakao Location을 서버에서 fail-closed 검증
   → scope를 profile_nickname profile_image로 한정
   → Kakao 동의 화면
   → https://<project-ref>.supabase.co/auth/v1/callback
-  → https://xn--220bw61afob.kro.kr/api/auth/callback?next=/4th
+  → https://xn--220bw61afob.kro.kr/api/auth/callback
   → exchangeCodeForSession(code)
-  → /4th
+  → /4th/dashboard#member-features
 ```
 
-앱 callback은 `next`를 `/`, `/4th`, `/4th#member-features`, `/me` allowlist로 제한하고 제어문자·역슬래시·쿼리를 거부한다. URL 파싱 뒤에도 최종 origin을 `NEXT_PUBLIC_SITE_URL` 또는 `SITE_URL`의 운영 origin과 다시 비교한다. 인증 응답과 사용자별 API 응답은 `private, no-store`로 처리한다.
+Supabase에는 쿼리가 없는 고정 앱 callback URL만 전달한다. 앱 내부 복귀 위치는 `HttpOnly`, `SameSite=Lax`, 운영 환경 `Secure`, `/api/auth` 경로, 10분 만료 쿠키로 전달하고 callback에서 성공·실패와 관계없이 삭제한다. callback은 이 값도 `/`, `/4th`, `/4th/dashboard`, `/4th/dashboard#member-features`, `/me` allowlist로 다시 제한하고 제어문자·역슬래시·쿼리를 거부한다. URL 파싱 뒤에도 최종 origin을 `NEXT_PUBLIC_SITE_URL` 또는 `SITE_URL`의 운영 origin과 다시 비교한다. 인증 응답과 사용자별 API 응답은 `private, no-store`로 처리한다.
 
 현재 Supabase Kakao provider는 이메일 없는 사용자를 허용해도 Kakao authorize scope에 `account_email`을 포함할 수 있다. 이메일 동의항목을 사용하지 않는 Kakao 앱에서는 이 요청이 `KOE205`로 거부될 수 있어 `/api/auth/kakao`가 임시 호환 처리를 수행한다. 먼저 Supabase OAuth 시작 요청으로 DB-backed state와 앱 PKCE code verifier를 정상 생성하고, 반환된 Supabase authorize URL의 origin을 확인한 다음 해당 URL의 첫 redirect 응답만 `manual`로 가져온다. 이후 `Location`이 정확한 `https://kauth.kakao.com/oauth/authorize`인지, `response_type=code`인지, `state`와 `client_id`가 존재하는지, `redirect_uri`가 현재 Supabase origin의 `/auth/v1/callback`인지 검증한다. 검증을 모두 통과한 경우에만 다른 매개변수는 그대로 두고 `scope`를 정확히 `profile_nickname profile_image`로 교체한다.
 
@@ -225,7 +226,7 @@ Redirect Allow List - local development only
 http://localhost:3000/api/auth/callback
 ```
 
-production에는 미리보기 도메인 wildcard를 불필요하게 허용하지 않는다. Vercel Preview에서 로그인 검증이 꼭 필요하다면 해당 Preview URL을 임시로 정확히 등록하고 검증 후 제거한다.
+production에는 미리보기 도메인 wildcard를 불필요하게 허용하지 않는다. 앱은 위 고정 callback만 사용하고 실제 화면 복귀 경로는 서버의 짧은 수명 쿠키로 관리한다. Vercel Preview에서 로그인 검증이 꼭 필요하다면 해당 Preview URL을 임시로 정확히 등록하고 검증 후 제거한다.
 
 ### 5단계: Vercel 환경변수
 

@@ -1,6 +1,6 @@
 # TWTT 4기 서비스 운영정책
 
-- 기준일: 2026-09-05
+- 기준일: 2026-09-06
 - 적용 서비스: TWTT 3기 기록, TWTT 4기 공통 대시보드, 개인 카카오 로그인 기능, 운영 어드민
 - 운영 주체: (주)아키랩
 - 운영·개인정보·삭제 요청 연락처: `gmbro7942@gmail.com`
@@ -213,11 +213,20 @@ Supabase의 실제 자동 DB 백업 기간은 사용 요금제에 따라 다르�
 - Kakao Login과 Client Secret을 활성화한다.
 - Kakao Redirect URI에는 Supabase Dashboard에 표시되는 `https://<project-ref>.supabase.co/auth/v1/callback`을 정확히 등록한다.
 - Supabase Site URL은 `https://xn--220bw61afob.kro.kr`로 설정한다.
-- Supabase Redirect Allow List에는 `https://xn--220bw61afob.kro.kr/api/auth/callback`을 정확히 등록하고, 운영 환경에서 과도한 wildcard를 사용하지 않는다.
+- Supabase Redirect Allow List에는 쿼리가 없는 고정 주소 `https://xn--220bw61afob.kro.kr/api/auth/callback`을 정확히 등록하고, 운영 환경에서 과도한 wildcard를 사용하지 않는다. 앱 내부 복귀 위치는 10분 이내 만료되는 HttpOnly·SameSite=Lax·Secure 쿠키로 별도 전달하고 callback에서 재검증한 뒤 삭제한다.
 - 닉네임(`profile_nickname`)은 필수 동의, 프로필 이미지(`profile_image`)는 선택 동의로 요청한다. 카카오계정 이메일(`account_email`)은 요청하지 않으며 이미지 제공 거부는 로그인과 개인 기능을 막지 않는다.
 - Supabase Kakao provider의 `Allow users without an email`을 반드시 활성화한다. 사용자 계정과 운영 기능은 이메일이 아니라 Supabase auth user ID, Kakao provider identity와 운영자 승인 연결로 식별한다.
 - Kakao REST API key와 Client Secret은 Supabase provider 설정에 저장한다. 별도 Kakao API를 서버에서 직접 호출하지 않는 한 브라우저 또는 일반 공개 환경변수에 넣지 않는다.
 - Kakao 앱 Owner 계정은 강한 인증수단으로 보호하고 불필요한 팀원을 제거한다.
+
+### 동의 선택과 이용자 권리
+
+- 닉네임 필수 동의를 거부하면 카카오 개인 기능은 시작할 수 없지만 공개 대시보드는 로그인 없이 제공한다.
+- 프로필 이미지 선택 동의를 거부하거나 철회해도 로그인, 오늘의 운세, 댓글, 승인 참가자 기능을 제한하지 않는다.
+- 이용자는 공개된 운영 연락처로 열람, 정정, 삭제, 처리정지, 동의 철회와 탈퇴를 요청할 수 있다. 요청자 확인 후 법령상 예외를 제외하고 지체 없이 처리하고 결과를 안내한다.
+- 카카오의 연결된 서비스 관리에서 앱 연결을 해제한 경우와 TWTT에서 로그아웃한 경우를 구분한다. 로그아웃은 세션 종료일 뿐 계정 삭제가 아니며, 연결 해제·탈퇴는 Supabase Auth 계정과 서비스 연결 정보 삭제 절차로 이어져야 한다.
+- Supabase Auth 사용자를 삭제하면 refresh token과 세션은 제거되지만 이미 발급된 access token은 만료 전까지 유효할 수 있다. 민감 기능은 세션 레코드와 승인 상태를 다시 확인하고 access token 만료시간을 짧게 유지한다.
+- 삭제된 정보가 제한된 기간 백업에 남는 경우 접근을 제한하고, 백업 복원 시 삭제 처리 목록을 다시 적용한다. Supabase Storage 객체는 DB 백업에 포함되지 않으므로 별도의 삭제·복구 절차로 관리한다.
 
 ### 이메일 미요청 scope 호환 처리
 
