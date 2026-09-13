@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { broadcastDashboardRefresh } from "@/lib/dashboard-refresh";
 import { resolveHello2027ProfileImageUrl } from "@/lib/hello-2027-profile-image";
-import { MAX_PROFILE_INTRO_LENGTH } from "@/lib/hello-2027-profile-introduction-contract";
+import { MAX_PROFILE_INTRO_LENGTH, normalizeProfileIntroduction } from "@/lib/hello-2027-profile-introduction-contract";
 
 type ProfileIntroduction = {
   participant_id: string;
@@ -185,10 +185,7 @@ export function AdminProfileIntroductions({
 
   const save = async (item: ProfileIntroduction) => {
     const draft = drafts[item.participant_id] || toDraft(item);
-    const body = draft.body
-      .replace(/\r\n?/gu, "\n")
-      .replace(/[\t ]+/gu, " ")
-      .trim();
+    const body = normalizeProfileIntroduction(draft.body) ?? "";
 
     if (body.length > MAX_PROFILE_INTRO_LENGTH || (draft.active && !body)) {
       setFeedbackById((current) => ({
@@ -561,7 +558,7 @@ export function AdminProfileIntroductions({
                 />
                 <div className="mt-1 flex items-start justify-between gap-3 text-[11px] font-bold text-oriwan-text-muted">
                   <span>{draft.active && !draft.body.trim() ? "공개하려면 자기소개가 필요해요." : "불필요한 공백은 정리해 저장됩니다."}</span>
-                  <span className="shrink-0">{draft.body.length}/{MAX_PROFILE_INTRO_LENGTH}</span>
+                  <span className="shrink-0">{(normalizeProfileIntroduction(draft.body) ?? "").length}/{MAX_PROFILE_INTRO_LENGTH}</span>
                 </div>
 
                 {feedback ? (

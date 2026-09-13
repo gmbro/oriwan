@@ -1,5 +1,4 @@
 "use client";
-import { RunnerMovementContent } from "@/components/runner-movement-content";
 
 import { usePageScrollLock } from "@/lib/use-page-scroll-lock";
 import Image from "next/image";
@@ -312,7 +311,6 @@ export function Hello2027Poc({
             </section>
           ) : <FourthSeasonMemberEmptyState />}
 
-          <RunnerMovementContent />
           {viewerState?.viewer?.approved_participant && <Hello2027Guestbook
             initialThreads={snapshot.guestbook}
             externalViewer={memberFeatures ? viewerState?.viewer ?? null : undefined}

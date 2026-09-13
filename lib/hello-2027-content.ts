@@ -13,6 +13,7 @@ import {
 import { hydrateLegacyFourthSeasonBanner } from "@/lib/hello-2027-banner-presets";
 import { loadHello2027BannerClickUrls } from "@/lib/hello-2027-banner-storage";
 import {
+  normalizeProfileIntroduction,
   MAX_HELLO_2027_PROFILE_INTRODUCTIONS,
   MAX_PROFILE_INTRO_LENGTH,
   MAX_PROFILE_INTRO_NAME_LENGTH,
@@ -266,7 +267,8 @@ async function loadProfileIntroductions(supabase: SupabaseClient, adminUserId: s
   return rows.flatMap((row) => {
     const name = activeParticipantNames.get(row.participant_id);
     const title = "자기소개";
-    const body = normalizeContentText(row.body, MAX_PROFILE_INTRO_LENGTH);
+    const normalizedBody = normalizeProfileIntroduction(row.body);
+    const body = normalizedBody && normalizedBody.length <= MAX_PROFILE_INTRO_LENGTH ? normalizedBody : null;
     if (!name || !title || !body) return [];
     return [{
       participantId: row.participant_id,

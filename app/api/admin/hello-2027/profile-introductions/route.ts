@@ -1,3 +1,4 @@
+import { normalizeProfileIntroduction } from "@/lib/hello-2027-profile-introduction-contract";
 import { NextRequest, NextResponse } from "next/server";
 import { revalidateTag } from "next/cache";
 
@@ -139,12 +140,7 @@ export async function PUT(request: NextRequest) {
   const participantId = typeof body.participant_id === "string" ? body.participant_id : "";
   const title = PROFILE_INTRODUCTION_TITLE;
   const active = typeof body.active === "boolean" ? body.active : null;
-  const rawIntroduction = typeof body.body === "string" ? body.body.trim() : null;
-  const introduction = rawIntroduction
-    ? normalizeContentText(rawIntroduction, MAX_PROFILE_INTRO_LENGTH)
-    : rawIntroduction === ""
-      ? ""
-      : null;
+  const introduction = normalizeProfileIntroduction(body.body);
 
   if (!UUID_PATTERN.test(participantId)) {
     return json({ error: "자기소개를 저장할 크루를 다시 선택해주세요." }, 400);
@@ -152,7 +148,7 @@ export async function PUT(request: NextRequest) {
   if (active === null) {
     return json({ error: "자기소개 공개 상태를 다시 확인해주세요." }, 400);
   }
-  if (introduction === null || (active && !introduction)) {
+  if (introduction === null || introduction.length > MAX_PROFILE_INTRO_LENGTH || (active && !introduction)) {
     return json({ error: `공개할 자기소개는 1~${MAX_PROFILE_INTRO_LENGTH}자로 입력해주세요.` }, 400);
   }
 
