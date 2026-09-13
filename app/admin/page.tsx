@@ -8,6 +8,7 @@ import { AdminGiftRewards } from "@/components/admin-gift-rewards";
 import { AdminCorrectiveExercise } from "@/components/admin-corrective-exercise";
 import { RecordApprovalDialog } from "@/components/record-approval-dialog";
 import { visibleCertificationNotes } from "@/lib/certification-review";
+import { AdminSeasonSchedule } from "@/components/admin-season-schedule";
 import { AdminContentWorkspace } from "@/components/admin-content-workspace";
 import { AdminProfileIntroductions } from "@/components/admin-profile-introductions";
 import { IconCalendar, IconCheck, IconRun, IconSync, IconTrash, IconX } from "@/components/icons";
@@ -176,9 +177,10 @@ function MemberPicker({
 }
 
 type AdminModal = "participant" | "record" | "upload" | "participantRecords" | null;
-type AdminTab = "gifts" | "certifications" | "crew" | "corrective-exercise" | "encouragements" | "banners" | "comments";
+type AdminTab = "schedule" | "gifts" | "certifications" | "crew" | "corrective-exercise" | "encouragements" | "banners" | "comments";
 
 const ADMIN_TABS: ReadonlyArray<{ key: AdminTab; label: string; compactLabel: string }> = [
+  { key: "schedule", label: "일정", compactLabel: "일정" },
   { key: "certifications", label: "인증", compactLabel: "인증" },
   { key: "crew", label: "크루 프로필", compactLabel: "크루" },
   { key: "corrective-exercise", label: "교정운동", compactLabel: "교정운동" },
@@ -193,6 +195,7 @@ const PRELOADED_CONTENT_TABS = new Set<AdminTab>(["encouragements", "banners", "
 // Its record metadata remains intact so it can be restored without a data migration.
 const SHOW_RECOVERY_CERTIFICATION_DASHBOARD = false;
 const PRESERVED_WORKSPACE_TABS: ReadonlyArray<Exclude<AdminTab, "certifications">> = [
+  "schedule",
   "gifts",
   "crew",
   "corrective-exercise",
@@ -906,6 +909,7 @@ function AdminWorkspacePanel({
     );
   }
 
+  if (tab === "schedule") return <AdminSeasonSchedule />;
   if (tab === "gifts") return <AdminGiftRewards />;
   if (tab === "corrective-exercise") return <AdminCorrectiveExercise />;
 

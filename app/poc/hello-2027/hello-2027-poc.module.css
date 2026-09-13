@@ -1594,3 +1594,9 @@
   .memberPanel .recordGrid div { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px; }
   .memberPanel .recordGrid dd { margin: 0; }
 }
+
+/* Keep all member metrics within the same responsive card footprint. */
+.participantRate { min-width: 0; flex: 1; }
+.participantRate strong.cardMetric { font-size: clamp(14px, 1.65vw, 22px); line-height: 1.45; white-space: normal; overflow-wrap: anywhere; letter-spacing: -.04em; }
+.participantRate > small { font-size: 12px; color: #6b7684; }
+@media (max-width: 480px) { .participantRate strong.cardMetric { font-size: 15px; } .participantRate > small { font-size: 10px; } }

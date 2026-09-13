@@ -36,7 +36,7 @@ test("로그인 버튼은 대시보드로 복귀하고 명시적인 개인창 �
     assert.equal(getSafeAuthReturnPath(`/4th/dashboard${hash}`), `/4th/dashboard${hash}`);
     assert.equal(getSafeAuthReturnUrl(`/4th/dashboard${hash}`, "https://example.com").href, `https://example.com/4th/dashboard${hash}`);
   }
-  for (const file of ["components/dashboard-gateway-actions.tsx", "app/poc/hello-2027/hello-2027-poc.tsx"]) {
+  for (const file of ["components/dashboard-gateway-actions.tsx", "components/public-site-header.tsx"]) {
     assert.match(read(file), /nextPath="\/4th\/dashboard"/);
   }
   for (const file of ["app/4th/page.tsx", "app/api/auth/kakao/route.ts", "app/api/auth/callback/route.ts"]) assert.doesNotMatch(read(file), /\/4th\/dashboard#member-features/);

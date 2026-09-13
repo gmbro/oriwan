@@ -1,7 +1,7 @@
 import type { Hello2027Snapshot } from "./hello-2027-types";
 
-// Project only after reading shared data. Never send pending rows or a calendar
-// to spectators, including in hydration and periodic refresh responses.
+// Public calendars contain approved dates and numeric metrics only.
+// Never spread source rows: images, notes and pending records remain private.
 export function projectDashboardRecords(snapshot: Hello2027Snapshot, authenticated: boolean): Hello2027Snapshot {
   if (authenticated) return { ...snapshot, guestbook: [] };
   const today = snapshot.referenceDateIso || new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Seoul" });
@@ -18,7 +18,7 @@ export function projectDashboardRecords(snapshot: Hello2027Snapshot, authenticat
       profileImageUrl: p.profileImageUrl, timeMachineActive: p.timeMachineActive,
       completed: p.completed, seasonCompletionRate: p.seasonCompletionRate,
       distanceKm: null, durationMinutes: null,
-      certifiedDays: p.certifiedDays, recordHistory: [],
+      certifiedDays: p.certifiedDays, recordHistory: approved.map(r => ({recordDateIso:r.recordDateIso,monthDay:r.monthDay,weekday:r.weekday,distanceKm:r.distanceKm,durationMinutes:r.durationMinutes,status:"certified" as const})),
       totalDistanceKm: sum(approved, "distanceKm"), totalDurationMinutes: Math.round(sum(approved, "durationMinutes")),
       weeklyDistanceKm: sum(weekly, "distanceKm"), weeklyDurationMinutes: Math.round(sum(weekly, "durationMinutes")),
       product: { name: "자기소개", description: "" },

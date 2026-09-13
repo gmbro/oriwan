@@ -1,5 +1,9 @@
 "use client";
 
+import { projectDashboardRecords } from "@/lib/dashboard-record-visibility";
+import { PublicSiteHeader } from "@/components/public-site-header";
+import { SeasonSchedule } from "@/components/season-schedule";
+import { PublicSiteFooter } from "@/components/public-site-footer";
 import { usePageScrollLock } from "@/lib/use-page-scroll-lock";
 import Image from "next/image";
 import { MyActivityDialog, openMyActivity } from "@/components/my-activity-dialog";
@@ -132,10 +136,10 @@ export function Hello2027Poc({
     [liveSnapshot.participants, selectedParticipantId, canViewRecords],
   );
   const sortedParticipants = useMemo(() => {
-    const participants = [...liveSnapshot.participants];
+    const participants = [...(canViewRecords ? projectDashboardRecords(liveSnapshot, false).participants : liveSnapshot.participants)];
     if (crewSort === "completed") {
       return participants.sort((left, right) => (
-        right.seasonCompletionRate - left.seasonCompletionRate
+        right.certifiedDays - left.certifiedDays
         || left.fullName.localeCompare(right.fullName, "ko")
       ));
     }
@@ -144,7 +148,7 @@ export function Hello2027Poc({
       return participants.sort((a, b) => b[metric] - a[metric] || a.fullName.localeCompare(b.fullName, "ko"));
     }
     return participants.sort((left, right) => left.fullName.localeCompare(right.fullName, "ko"));
-  }, [crewSort, liveSnapshot.participants]);
+  }, [crewSort, liveSnapshot, canViewRecords]);
 
   useEffect(() => {
     const applySnapshot = (event: Event) => {
@@ -182,54 +186,7 @@ export function Hello2027Poc({
 
   return (
     <div id="page-top" className={styles.page}>
-      <header className={styles.siteHeader}>
-        <div className={styles.headerInner}>
-          <a className={styles.brand} href="#page-top" onClick={e => { e.preventDefault(); window.scrollTo({ top: 0, behavior: "smooth" }); }} aria-label="TWTT 4th Hello 2027 처음으로 이동">
-            <Image
-              className={styles.brandLogo}
-              src="/brand/twtt-logo.png"
-              alt=""
-              width={640}
-              height={310}
-              sizes="(max-width: 760px) 58px, 78px"
-            />
-          </a>
-
-          <div className={styles.headerMeta} aria-label="오늘 날짜와 시각, 계정">
-            <time className={styles.headerDateTime} dateTime={referenceDateIso} title={referenceDateLabel}>
-              <span style={{color:"#3182f6",fontWeight:800}}>TODAY</span>
-              <span>{referenceDateShort}</span>
-              <HeaderClock />
-            </time>
-            {memberFeatures ? (
-              <div className={styles.headerAccount} aria-label="개인 계정">
-                {viewerState?.loading ? (
-                  <span className={styles.headerAuthLoading} aria-label="로그인 상태 확인 중" />
-                ) : viewerState?.viewer?.authenticated ? (
-                  <>
-                    <button type="button" className={styles.headerAccountLink} aria-haspopup="dialog"
-                      onPointerEnter={() => void import("@/components/my-activity-content")}
-                      onFocus={() => void import("@/components/my-activity-content")}
-                      onClick={() => openMyActivity()}>
-                      내 정보
-                    </button>
-                    <button
-                      className={styles.headerLogoutButton}
-                      type="button"
-                      disabled={viewerState.actionPending}
-                      onClick={() => void viewerState.logout()}
-                    >
-                      {viewerState.actionPending ? "처리 중" : "로그아웃"}
-                    </button>
-                  </>
-                ) : (
-                  <KakaoLoginButton nextPath="/4th/dashboard" label="로그인" variant="compact" restart />
-                )}
-              </div>
-            ) : null}
-          </div>
-        </div>
-      </header>
+      <PublicSiteHeader memberFeatures={memberFeatures} />
 
       <main id="top" className={styles.main}>
         {viewerState?.viewer?.authenticated && !viewerState.viewer.approved_participant && <p role="status" className="mb-5 rounded-2xl bg-blue-50 p-4 text-sm font-bold text-blue-600">운영자 승인을 기다리고 있어요. 승인 후 멤버로 참여할 수 있어요.</p>}
@@ -275,10 +232,10 @@ export function Hello2027Poc({
                     aria-pressed={crewSort === "completed"}
                     onClick={() => setCrewSort("completed")}
                   >
-                    인증률
+                    인증일
                   </button>
-                  <button type="button" aria-pressed={crewSort === "distance"} onClick={() => setCrewSort("distance")}>거리</button>
-                  <button type="button" aria-pressed={crewSort === "duration"} onClick={() => setCrewSort("duration")}>시간</button>
+                  <button type="button" aria-pressed={crewSort === "distance"} onClick={() => setCrewSort("distance")}>거리순</button>
+                  <button type="button" aria-pressed={crewSort === "duration"} onClick={() => setCrewSort("duration")}>시간순</button>
                 </div>
               </div>
 
@@ -289,7 +246,7 @@ export function Hello2027Poc({
                       className={`${styles.participantCard} ${participant.completed ? styles.completedCard : styles.waitingCard}`}
                       type="button"
                       onClick={(event) => openParticipant(participant.id, event.currentTarget)}
-                      aria-label={!canViewRecords ? `${participant.fullName}님, 승인 누적 거리 ${participant.totalDistanceKm.toFixed(2)}km, 누적 시간 ${formatTotalDuration(participant.totalDurationMinutes)}. 공개 기록 보기` : `${participant.fullName}님, 오늘까지 인증률 ${participant.seasonCompletionRate}%, ${participant.completed ? "오늘 인증 완료" : "오늘 기록 없음"}. 상세 보기`}
+                      aria-label={`${participant.fullName}님, 인증 ${participant.certifiedDays}일. ${canViewRecords ? "상세" : "공개"} 기록 보기`}
                     >
                       {canViewRecords && participant.completed ? (
                         <span className={styles.completionBadge} aria-hidden="true">✓</span>
@@ -301,7 +258,8 @@ export function Hello2027Poc({
                         </span>
                       </span>
                       <span className={styles.participantRate}>
-                        {canViewRecords ? <><small>오늘까지 인증률</small><strong>{participant.seasonCompletionRate}%</strong></> : <><small>승인 누적 거리</small><strong>{formatDistanceKm(participant.totalDistanceKm)}</strong><small>{formatTotalDuration(participant.totalDurationMinutes)} · 인증 {participant.certifiedDays}일</small></>}
+                        <small>{crewSort === "completed" ? "총 인증일" : crewSort === "distance" ? "누적 거리" : "누적 시간"}</small>
+                        <strong className={styles.cardMetric}>{crewSort === "completed" ? <>{participant.certifiedDays}일</> : crewSort === "distance" ? formatDistanceKm(participant.totalDistanceKm) : formatTotalDuration(participant.totalDurationMinutes)}</strong>
                       </span>
                     </button>
                   </li>
@@ -317,7 +275,8 @@ export function Hello2027Poc({
             externalViewerLoading={memberFeatures ? viewerState?.loading ?? true : undefined}
           />}
         </>
-        <footer className="py-6 text-center"><a href="/support" className="inline-flex min-h-11 items-center rounded-full bg-white px-5 text-sm font-semibold text-slate-600">TWTT 응원하기</a></footer>
+        <SeasonSchedule today={seoulToday} />
+        <PublicSiteFooter />
       </main>
 
       {/* Keep the sheet outside the header's nowrap and mobile time rules. */}
@@ -509,7 +468,7 @@ export function ParticipantDialog({
           </dl>
 
           {!showDetailedRecords && <section className="mt-4 rounded-2xl bg-blue-50 p-4"><h3 className="font-bold text-blue-600">이번 주 승인 기록</h3><p className="mt-2">{formatDistanceKm(participant.weeklyDistanceKm ?? 0)} · {formatTotalDuration(participant.weeklyDurationMinutes ?? 0)}</p><p className="mt-2 text-sm text-slate-600">월요일부터 오늘까지의 기록입니다. 누적 기록은 시즌 준비 기간을 포함하고, 인증 일수는 공식 시즌 기준입니다.</p></section>}
-          {showDetailedRecords && <div className={styles.memberCalendar}><ParticipantRecordCalendar
+          {<div className={styles.memberCalendar}><ParticipantRecordCalendar
             key={participant.id}
             records={participant.recordHistory}
             certifiedDays={participant.certifiedDays}

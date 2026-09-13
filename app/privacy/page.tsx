@@ -10,7 +10,7 @@ export default function PrivacyPage() {
     <main className="min-h-screen overflow-x-hidden pb-20">
       <header className="sticky top-0 z-50 border-b border-oriwan-border bg-white/95 px-3 py-3.5 backdrop-blur-sm sm:px-5">
         <div className="mx-auto flex max-w-3xl items-center justify-between">
-          <Link href="/4th" className="text-oriwan-text-muted text-sm hover:text-oriwan-text transition-colors">← 돌아가기</Link>
+          <Link href="/4th/dashboard" className="text-oriwan-text-muted text-sm hover:text-oriwan-text transition-colors">← 돌아가기</Link>
           <h1 className="gradient-text text-base font-black sm:text-lg">개인정보처리방침</h1>
           <div className="w-16" />
         </div>

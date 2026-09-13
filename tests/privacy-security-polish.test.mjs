@@ -81,7 +81,7 @@ test("최신 UI 주석: 회전 간격·헤더·개인 기능 위치·간소화�
   const page = read("app/poc/hello-2027/hello-2027-poc.tsx");
   assert.match(page, /ENCOURAGEMENT_ROTATION_MS = 30_000/);
   assert.doesNotMatch(page.slice(page.indexOf("<header"), page.indexOf("</header>")), /styles\.seasonDday/);
-  assert.match(page, /<HeaderClock/); assert.doesNotMatch(page, /FourthDashboardMemberArea/);
+  assert.match(page, /<PublicSiteHeader/); assert.match(read("components/public-site-header.tsx"), /Asia\/Seoul/); assert.doesNotMatch(page, /FourthDashboardMemberArea/);
   const content = read("components/my-activity-content.tsx");
   assert.match(content, /hidden=\{section !== "home"\} className=\{styles.featureSection\}/);
   assert.doesNotMatch(content, /<h3>프로필<\/h3>/); assert.match(content, /className=\{styles.profileCard\}/);
