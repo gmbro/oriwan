@@ -58,11 +58,13 @@ export async function GET() {
     return response;
   }
 
-  return NextResponse.json(adminUserResponse({
+  const response = NextResponse.json(adminUserResponse({
     id: claims.sub,
     email: typeof claims.email === "string" ? claims.email : null,
     user_metadata: claims.user_metadata || {},
-  }));
+  }), { headers: PRIVATE_HEADERS });
+  setAdminSessionCookie(response, claims.sub);
+  return response;
 }
 
 export async function PUT(request: NextRequest) {
@@ -127,7 +129,7 @@ export async function POST(request: NextRequest) {
     if (!error && data.user && isAdminEmail(data.user.email)) {
       const response = NextResponse.json(adminUserResponse(data.user));
       if (!setAdminSessionCookie(response, data.user.id)) {
-        await supabase.auth.signOut();
+        await supabase.auth.signOut({ scope: "local" });
         return NextResponse.json({ error: "ADMIN_SESSION_SECRET 환경변수를 먼저 설정해주세요." }, { status: 503 });
       }
       return response;
@@ -137,7 +139,7 @@ export async function POST(request: NextRequest) {
     if (error?.status === 429) break;
   }
 
-  await supabase.auth.signOut();
+  await supabase.auth.signOut({ scope: "local" });
   const response = NextResponse.json({
     error: lastErrorMessage.includes("rate limit") || lastErrorMessage.includes("429")
       ? "요청이 잠시 몰렸어요. 1분 정도 뒤 새 인증번호로 다시 시도해주세요."
@@ -153,7 +155,7 @@ export async function DELETE(request: NextRequest) {
 
   const supabase = await getConfiguredAuthClient();
   if (!supabase) return authUnavailableResponse();
-  await supabase.auth.signOut();
+  await supabase.auth.signOut({ scope: "local" });
 
   const response = NextResponse.json({ ok: true });
   clearAdminSessionCookie(response);

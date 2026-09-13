@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
   if (guardResponse) return guardResponse;
 
   const supabase = await createClient();
-  const { error } = await supabase.auth.signOut();
+  const { error } = await supabase.auth.signOut({ scope: "local" });
   if (error) {
     logServerFailure("Logout", error);
     const response = NextResponse.json(

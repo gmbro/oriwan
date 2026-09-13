@@ -20,7 +20,7 @@ export type AdminSessionUser = {
 };
 
 const ADMIN_SESSION_COOKIE = "oriwan_admin_verified";
-const ADMIN_SESSION_MAX_AGE_SECONDS = 60 * 60 * 2;
+const ADMIN_SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 365;
 
 function getAdminSessionSecret() {
   const secret = process.env.ADMIN_SESSION_SECRET;
