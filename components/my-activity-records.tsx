@@ -24,9 +24,9 @@ export default function MyActivityRecords({ data }: { data: PersonalRecordsPaylo
       <div><dt>누적 거리</dt><dd>{history.reduce((sum, r) => sum + (r.distanceKm ?? 0), 0).toLocaleString("ko-KR", { maximumFractionDigits: 2 })}km</dd></div>
       <div><dt>누적 시간</dt><dd>{formatDuration(history.reduce((sum, r) => sum + (r.durationMinutes ?? 0), 0))}</dd></div>
     </dl>
-    <ParticipantRecordCalendar records={history} certifiedDays={official.certifiedDays} today={data.season.today} showLegend={false} showTotal={false} compact
-      privateImageRecordIds={Object.fromEntries(data.records.filter(record => record.hasPrivateImage).map(record => [record.date, record.id]))} />
-    <MyActivityRecordChart records={data.records} today={data.season.today} />
+    <ParticipantRecordCalendar records={history} certifiedDays={official.certifiedDays} today={data.season.today} showLegend={false} showTotal={false} compact>
+      <MyActivityRecordChart records={data.records} today={data.season.today} />
+    </ParticipantRecordCalendar>
   </>;
 }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useMemo, useState } from "react";
+import { type ReactNode, useId, useMemo, useState } from "react";
 import type { Hello2027ParticipantRecordEntry } from "@/lib/hello-2027-types";
 import { getRecordMonthDays, shiftRecordMonth } from "@/lib/participant-record-calendar";
 import styles from "./participant-record-calendar.module.css";
@@ -22,6 +22,7 @@ export function ParticipantRecordCalendar({
   showTotal = true,
   compact = false,
   privateImageRecordIds,
+  children,
 }: {
   records: readonly Hello2027ParticipantRecordEntry[];
   certifiedDays: number;
@@ -29,6 +30,7 @@ export function ParticipantRecordCalendar({
   showLegend?: boolean;
   showTotal?: boolean;
   compact?: boolean;
+  children?: ReactNode;
   /** Supplied only by My Activity, never by the public member profile. */
   privateImageRecordIds?: Readonly<Record<string, string>>;
 }) {
@@ -116,6 +118,7 @@ export function ParticipantRecordCalendar({
             <a className={styles.imageLink} href={`/api/me/records/image/${encodeURIComponent(privateImageRecordIds[selectedDate])}`} target="_blank" rel="noopener noreferrer">인증샷 보기 ↗</a>
           ) : null}
         </div>
+        {children}
       </div>
       {showTotal && <div className={styles.total}>
         <div><span>총 인증일</span></div>

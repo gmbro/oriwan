@@ -85,7 +85,7 @@ export default function MyActivityUpload({ today, onSubmitted, onViewRecords, pr
   return <>
     {stage !== "done" && <p className={styles.uploadGuidance}>운동 시작 시각이 오전 8시 이전(00:00~07:59)인 기록만 인증할 수 있어요. 업로드 시간은 관계없어요.</p>}
     {["choose", "uploading", "analyzing"].includes(stage) && <div className={styles.field}>운동한 날짜 (사진 선택 전 확인)<KoreanExerciseDate min="2026-08-13" max={today < "2026-12-31" ? today : "2026-12-31"} value={date} disabled={stage !== "choose"} onChange={setDate} /></div>}
-    {stage !== "done" && <p className={styles.muted}>업로드하는 날이 아닌 실제 운동한 날짜를 선택해주세요. 운동한 날짜마다 1건만 제출할 수 있어요. 운영자가 이미 등록한 날은 추가 제출할 수 없어요.</p>}
+    {stage !== "done" && <p className={styles.muted}>운동한 날짜마다 1건만 제출할 수 있어요. 등록 실패 시 문의주시면 운영자가 업로드해드려요</p>}
     {error && <p className={`${styles.feedback} ${styles.error}`} role="alert">{error}</p>}
     {stage === "done" ? <><div className={styles.feedback} role="status">{preview ? "미리보기 제출 완료 · 실제 저장 없음" : <><strong>인증이 완료되었습니다</strong><p>내 기록에 저장했어요. 현재 운영자 승인 대기 중이며, 공식 인증률과 공동 목표는 승인 후 반영돼요.</p><p>{formatKoreanExerciseDate(date)} · {distance}km · {minutes}분 {seconds}초</p></>}</div>{onViewRecords && <button className={styles.primary} onClick={onViewRecords}>내 기록에서 확인하기</button>}<button className={styles.primary} onClick={() => { setDraft(null); setStage("choose"); setImage(""); }}>다른 인증샷 올리기</button></> : <>
       {image && <p className={styles.muted} role="status">{draft ? "사진 저장 완료 · " + (stage === "confirm" || stage === "submitting" ? "인식값 확인 후 인증 제출을 눌러주세요." : "인증 조건 또는 인식값 확인 필요 · 기록 미제출") : "선택한 사진 미리보기 · 아직 기록 제출 전이에요."}</p>}
