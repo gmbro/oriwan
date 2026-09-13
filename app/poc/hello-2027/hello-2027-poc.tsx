@@ -268,6 +268,8 @@ export function Hello2027Poc({
             </section>
           ) : <FourthSeasonMemberEmptyState />}
 
+          <SeasonSchedule today={seoulToday} />
+
           {viewerState?.viewer?.approved_participant && <Hello2027Guestbook
             initialThreads={snapshot.guestbook}
             externalViewer={memberFeatures ? viewerState?.viewer ?? null : undefined}
@@ -275,7 +277,6 @@ export function Hello2027Poc({
             externalViewerLoading={memberFeatures ? viewerState?.loading ?? true : undefined}
           />}
         </>
-        <SeasonSchedule today={seoulToday} />
         <PublicSiteFooter />
       </main>
 
