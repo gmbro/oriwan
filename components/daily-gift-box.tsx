@@ -129,7 +129,7 @@ export function DailyGiftBox({ initialStatus = null, onStatusChange, preview = f
               <div className={styles.body} />
               <div className={styles.lid} />
             </div>
-            {status?.claim ? <p className={styles.message}><span className={styles.messageLabel}>오늘의 인증 보상</span>{status.claim.message}{status.claim.message.startsWith("🎁 ") && <span className={styles.prizeHelp}>당첨 내역이 저장됐어요. 운영자에게 보상 사용을 요청해주세요. 휴식권은 원하는 날짜를, 흑기사는 날짜와 복사할 멤버를 알려주세요.</span>}</p> : null}
+            {status?.claim ? <p className={styles.message}><span className={styles.messageLabel}>오늘의 인증 보상</span>{status.claim.message}{status.claim.message.startsWith("🎁 ") && <span className={styles.prizeHelp}>보관함에 담았어요. 내 정보의 보관함에서 받은 항목을 확인하고 사용을 요청해주세요.</span>}</p> : null}
           </div>
         )}
       </div>

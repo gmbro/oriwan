@@ -59,7 +59,7 @@ test("내 활동은 헤더 밖에 배치되어 모바일 날짜 숨김·nowrap �
 
 test("내 정보 첫 화면은 프로필·인증·기록·후원 네 칸과 하단 개인 기능을 제공한다", () => {
   const source = readFileSync(new URL("../components/my-activity-content.tsx", import.meta.url), "utf8");
-  for (const title of ["프로필", "인증", "기록", "후원"]) assert.ok(source.includes(`title: "${title}"`));
+  for (const title of ["프로필", "인증하기", "내 기록", "후원"]) assert.ok(source.includes(`title: "${title}"`));
   assert.match(source, /FourthDashboardMemberArea embedded/);
   assert.doesNotMatch(source, /나의 작성 내용과 개인 기능|오늘의 기록을 남겨보세요|사진과 표시 이름을 바꿔요|그래프와 인증 캘린더를 살펴봐요/);
   const css = readFileSync(new URL("../components/my-activity.module.css", import.meta.url), "utf8");

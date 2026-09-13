@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { TwttBrandMark } from "@/components/twtt-brand-mark";
+import { AdminMemberLocker } from "@/components/member-locker";
 import { AdminGiftRewards } from "@/components/admin-gift-rewards";
 import { AdminCorrectiveExercise } from "@/components/admin-corrective-exercise";
 import { RecordApprovalDialog } from "@/components/record-approval-dialog";
@@ -177,13 +178,14 @@ function MemberPicker({
 }
 
 type AdminModal = "participant" | "record" | "upload" | "participantRecords" | null;
-type AdminTab = "schedule" | "gifts" | "certifications" | "crew" | "corrective-exercise" | "encouragements" | "banners" | "comments";
+type AdminTab = "locker" | "schedule" | "gifts" | "certifications" | "crew" | "corrective-exercise" | "encouragements" | "banners" | "comments";
 
 const ADMIN_TABS: ReadonlyArray<{ key: AdminTab; label: string; compactLabel: string }> = [
   { key: "schedule", label: "일정", compactLabel: "일정" },
   { key: "certifications", label: "인증", compactLabel: "인증" },
   { key: "crew", label: "크루 프로필", compactLabel: "크루" },
   { key: "corrective-exercise", label: "교정운동", compactLabel: "교정운동" },
+  { key: "locker", label: "보관함", compactLabel: "보관함" },
   { key: "gifts", label: "응원상자", compactLabel: "응원상자" },
   { key: "encouragements", label: "응원글", compactLabel: "응원글" },
   { key: "banners", label: "배너", compactLabel: "배너" },
@@ -196,6 +198,7 @@ const PRELOADED_CONTENT_TABS = new Set<AdminTab>(["encouragements", "banners", "
 const SHOW_RECOVERY_CERTIFICATION_DASHBOARD = false;
 const PRESERVED_WORKSPACE_TABS: ReadonlyArray<Exclude<AdminTab, "certifications">> = [
   "schedule",
+  "locker",
   "gifts",
   "crew",
   "corrective-exercise",
@@ -910,6 +913,7 @@ function AdminWorkspacePanel({
   }
 
   if (tab === "schedule") return <AdminSeasonSchedule />;
+  if (tab === "locker") return <AdminMemberLocker />;
   if (tab === "gifts") return <AdminGiftRewards />;
   if (tab === "corrective-exercise") return <AdminCorrectiveExercise />;
 
