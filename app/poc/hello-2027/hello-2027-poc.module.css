@@ -727,7 +727,7 @@
   font-weight: 650;
 }
 
-.crewSort { position: relative; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); flex: none; width: min(268px, 100%); padding: 0 3px; }
+.crewSort { position: relative; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); flex: none; width: min(204px, 100%); padding: 0 3px; }
 /* A compact 32px visual control with a full 44px touch target. */
 .crewSort::before { content: ""; position: absolute; inset: 6px 0; border-radius: 10px; background: #e9ecef; }
 .crewSort button { position: relative; z-index: 0; min-width: 44px; min-height: 44px; padding: 0 6px; color: var(--text-tertiary); border: 0; border-radius: 8px; background: transparent; font: inherit; font-size: 0.68rem; font-weight: 700; white-space: nowrap; cursor: pointer; }

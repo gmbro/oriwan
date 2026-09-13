@@ -30,6 +30,9 @@ const ROUTE_STYLE = Object.fromEntries([
 ]) as CSSProperties;
 
 export function Hello2027CrewBanner({ completedToday, participantCount, dayPhase = "day", active = true, motionDisabled = false, showMotionControl = true, weatherPreview, seasonDday, crewGoalDistanceKm = 0 }: Hello2027CrewBannerProps) {
+  const goals = getCrewGoals(crewGoalDistanceKm);
+  const currentGoal = goals.find(goal => goal.state === "active");
+  const goalTitle = currentGoal ? `${["FIRST", "SECOND", "THIRD", "FOURTH"][currentGoal.step - 1]} COMMUNITY GOAL` : "ALL GOALS COMPLETED";
   const stats = getCrewBannerStats(completedToday, participantCount);
   const count = getCrewRunnerCount(completedToday, participantCount);
   // Retain already requested images so a lower count can fade out instead of
@@ -94,14 +97,16 @@ export function Hello2027CrewBanner({ completedToday, participantCount, dayPhase
         </div>
         <p className={styles.description}>{stats.description}</p>
       <section className={styles.goals} aria-label="4기 공동 거리 목표">
+        <h3 className={styles.goalTitle}>{goalTitle}</h3>
         <ol className={styles.goalList}>
-          {getCrewGoals(crewGoalDistanceKm).map(goal => (
+          {goals.map(goal => (
             <li key={goal.step} data-state={goal.state} aria-label={`${goal.step}번째 목표: ${goal.state === "locked" ? "이전 목표 달성 후 공개" : `다 같이 ${goal.targetKm.toLocaleString("ko-KR")}km, ${goal.state === "completed" ? "달성 완료" : "도전 중"}`}`}>
               <span className={styles.goalMark} aria-hidden="true">{goal.state === "completed" ? "✓" : goal.step}</span>
               <span>{goal.state === "locked" ? "???" : `${goal.targetKm.toLocaleString("ko-KR")}km`}</span>
             </li>
           ))}
         </ol>
+        <p className={styles.goalHint}>{currentGoal ? "달성하면 다음 목표가 열립니다" : "네 가지 공동 목표를 모두 달성했어요"}</p>
       </section>
         {seasonDday && <p className={styles.seasonCountdown} aria-label={`2026년 12월 31일 기준 ${seasonDday}`}><strong>{seasonDday}</strong></p>}
       </div>
