@@ -1,15 +1,27 @@
 'use client';
 import { useCallback,useEffect,useRef,useState } from 'react';
 import { LOCKER_LABELS,LOCKER_ACTIONS,type LockerSnapshot,type LockerAction,type LockerState } from '@/lib/member-locker';
+import {createLockerRequest,type LockerRequest} from '@/lib/locker-request';
+import {DASHBOARD_REFRESH_DOM_EVENT} from '@/lib/dashboard-refresh-contract';
 import styles from './member-locker.module.css';
 const date=(v:string)=>new Date(v).toLocaleString('ko-KR',{timeZone:'Asia/Seoul',dateStyle:'medium',timeStyle:'short'});
-export function MemberLocker({admin=false,participantId,preview}:{admin?:boolean;participantId?:string;preview?:LockerSnapshot}){
+export function MemberLocker({admin=false,participantId,preview,cache,active=true}:{admin?:boolean;participantId?:string;preview?:LockerSnapshot;cache?:LockerRequest;active?:boolean}){
  const url=admin?`/api/admin/hello-2027/locker?participant=${participantId}`:'/api/me/locker';
- const [data,setData]=useState<LockerSnapshot|null>(preview??null);const [error,setError]=useState('');const [message,setMessage]=useState('');const [busy,setBusy]=useState(false);
+ const [ownCache]=useState(()=>createLockerRequest(url));const requestCache=cache??ownCache;
+ const [data,setData]=useState<LockerSnapshot|null>(preview??requestCache.peek()??null);const [error,setError]=useState('');const [message,setMessage]=useState('');const [busy,setBusy]=useState(false);
  const [filter,setFilter]=useState<LockerState>('available');const [title,setTitle]=useState('');const [grantNote,setGrantNote]=useState('');const [notes,setNotes]=useState<Record<string,string>>({});
+ const loadGeneration=useRef(0);
  const operation=useRef<{signature:string;id:string}|null>(null);
- const load=useCallback(async()=>{if(preview)return;setError('');try{const r=await fetch(url,{cache:'no-store'});const j=await r.json();if(!r.ok)throw new Error(j.error);setData(j);}catch(e){setError(e instanceof Error?e.message:'불러오지 못했어요.');}},[url,preview]);
- useEffect(()=>{void load();},[load]);
+ const load=useCallback(async(force=false)=>{if(preview)return;if(force)requestCache.clear();setError('');const generation=++loadGeneration.current;try{const next=await requestCache.read();if(generation===loadGeneration.current)setData(next);}catch(e){if(generation===loadGeneration.current)setError(e instanceof Error?e.message:'불러오지 못했어요.');}},[requestCache,preview]);
+ useEffect(()=>{
+  if(!active||preview)return;
+  void load();
+  const refresh=()=>{if(document.visibilityState==='visible')void load();};
+  const changed=()=>{void load(true);};
+  const timer=setInterval(refresh,15_000);
+  window.addEventListener('focus',refresh);document.addEventListener('visibilitychange',refresh);window.addEventListener(DASHBOARD_REFRESH_DOM_EVENT,changed);
+  return()=>{clearInterval(timer);window.removeEventListener('focus',refresh);document.removeEventListener('visibilitychange',refresh);window.removeEventListener(DASHBOARD_REFRESH_DOM_EVENT,changed);};
+ },[load,active,preview]);
  async function mutate(action:LockerAction,itemId:string,note:string){
   if(preview){setMessage('미리보기에서는 실제 지급·요청을 하지 않아요.');return;}
   if(!data||busy)return;setBusy(true);setError('');setMessage('');
@@ -18,7 +30,7 @@ export function MemberLocker({admin=false,participantId,preview}:{admin?:boolean
   try{
    const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,itemId,title,note,revision:data.revision,operationId:operation.current.id})});const j=await r.json();
    if(!r.ok)throw new Error(j.error||'처리하지 못했어요.');
-   setData(j);operation.current=null;setNotes(n=>({...n,[itemId]:''}));if(action==='grant'){setTitle('');setGrantNote('');}
+   ++loadGeneration.current;requestCache.set(j);setData(j);operation.current=null;setNotes(n=>({...n,[itemId]:''}));if(action==='grant'){setTitle('');setGrantNote('');}
    setMessage(action==='request'?'사용 요청을 보냈어요. 운영자가 확인 후 처리해요.':action==='grant'?'보관함에 지급했어요.':'처리 내용을 저장했어요.');
    setFilter(action==='request'?'requested':action==='complete'?'used':'available');
   }catch(e){setError(e instanceof Error?e.message:'처리하지 못했어요.');}finally{setBusy(false);}
@@ -26,7 +38,7 @@ export function MemberLocker({admin=false,participantId,preview}:{admin?:boolean
  return <section className={styles.locker} aria-label={admin?'멤버 보관함':'내 보관함'}>
   <p className={styles.help}>인증박스에서 받은 상품과 운영자가 지급한 항목을 모았어요. 사용을 요청하면 운영자가 확인 후 처리해요.</p>
   {error&&<p role="alert" className={styles.error}>{error}</p>}{message&&<p role="status" className={styles.notice}>{message}</p>}
-  <button className={styles.refresh} disabled={busy} onClick={()=>void load()}>새로고침</button>
+  <button className={styles.refresh} disabled={busy} onClick={()=>void load(true)}>새로고침</button>
   {admin&&<details className={styles.grant}><summary>항목 직접 지급</summary><form onSubmit={e=>{e.preventDefault();void mutate('grant','',grantNote);}}>
    <label>항목 이름<input required maxLength={160} value={title} onChange={e=>setTitle(e.target.value)} placeholder="예: 크루 재능기부 1회권"/></label>
    <label>지급 사유 · 사용 방법<textarea required maxLength={1000} value={grantNote} onChange={e=>setGrantNote(e.target.value)} placeholder="제공 내용과 사용 방법을 적어주세요."/></label>
@@ -48,20 +60,27 @@ export function MemberLocker({admin=false,participantId,preview}:{admin?:boolean
   </>}
  </section>;
 }
-export function AdminMemberLocker(){
+export function AdminMemberLocker({active=true}:{active?:boolean}){
  const [members,setMembers]=useState<{id:string;name:string}[]>([]);const [id,setId]=useState('');const [error,setError]=useState('');
  const load=useCallback(async()=>{try{const r=await fetch('/api/admin/hello-2027/locker',{cache:'no-store'});const j=await r.json();if(!r.ok)throw new Error(j.error);setMembers(j.participants);setError('');}catch(e){setError(e instanceof Error?e.message:'멤버를 불러오지 못했어요.');}},[]);
  useEffect(()=>{void load();},[load]);
- return <section className={styles.admin}><h2>멤버 보관함</h2><p className={styles.help}>멤버별 보유 항목과 사용 요청을 확인하고 지급·완료·반려를 처리합니다.</p>{error&&<p role="alert">{error}<button onClick={()=>void load()}>다시 불러오기</button></p>}<label>멤버 선택<select value={id} onChange={e=>setId(e.target.value)}><option value="">멤버를 선택해주세요</option>{members.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}</select></label>{id&&<MemberLocker key={id} admin participantId={id}/>}</section>;
+ return <section className={styles.admin}><h2>멤버 보관함</h2><p className={styles.help}>멤버별 보유 항목과 사용 요청을 확인하고 지급·완료·반려를 처리합니다.</p>{error&&<p role="alert">{error}<button onClick={()=>void load()}>다시 불러오기</button></p>}<label>멤버 선택<select value={id} onChange={e=>setId(e.target.value)}><option value="">멤버를 선택해주세요</option>{members.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}</select></label>{id&&<MemberLocker key={id} admin participantId={id} active={active}/>}</section>;
 }
 
-export function LockerEntry({onOpen,active,disabled=false,preview=false}:{onOpen:()=>void;active:boolean;disabled?:boolean;preview?:boolean}){
- const [counts,setCounts]=useState<{available:number;requested:number}|null>(null);
+export function LockerEntry({onOpen,active,disabled=false,preview=false,cache}:{onOpen:()=>void;active:boolean;disabled?:boolean;preview?:boolean;cache:LockerRequest}){
+ const [data,setData]=useState<LockerSnapshot|undefined>(()=>cache.peek());
  useEffect(()=>{
-  if(!active||disabled||preview)return;
-  let alive=true;
-  fetch('/api/me/locker',{cache:'no-store'}).then(async r=>{if(!r.ok)throw new Error();return r.json();}).then((s:LockerSnapshot)=>{if(alive)setCounts({available:s.items.filter(i=>i.status==='available').length,requested:s.items.filter(i=>i.status==='requested').length});}).catch(()=>{if(alive)setCounts(null);});
-  return()=>{alive=false;};
- },[active,disabled,preview]);
- return <button type="button" className={styles.entry} disabled={disabled} onClick={onOpen}><span><strong>{counts?`사용 가능한 항목 ${counts.available}개`:'내 보관함'}</strong><small>{counts?.requested?`요청 중 ${counts.requested}개 · 받은 항목과 사용 내역`:'받은 항목 · 사용 요청 · 사용 내역'}</small></span><span aria-hidden="true">→</span></button>;
+  if(disabled||preview)return;
+  let alive=true;let generation=0;
+  const refresh=()=>{const current=++generation;void cache.read().then(s=>{if(alive&&generation===current)setData(s);}).catch(()=>undefined);};
+  // Warm once after mounting, even before opening the dialog. Opening reuses
+  // that request and snapshot instead of starting another private GET.
+  refresh();
+  const changed=()=>{cache.clear();if(active)refresh();};
+  window.addEventListener(DASHBOARD_REFRESH_DOM_EVENT,changed);
+  return()=>{alive=false;window.removeEventListener(DASHBOARD_REFRESH_DOM_EVENT,changed);};
+ },[active,disabled,preview,cache]);
+ const available=data?.items.filter(i=>i.status==='available').length;
+ const requested=data?.items.filter(i=>i.status==='requested').length;
+ return <button type="button" className={styles.entry} disabled={disabled} onPointerEnter={()=>{if(!preview&&!disabled)void cache.read().catch(()=>undefined);}} onFocus={()=>{if(!preview&&!disabled)void cache.read().catch(()=>undefined);}} onClick={onOpen}><span><strong>{available!==undefined?`사용 가능한 항목 ${available}개`:'내 보관함'}</strong><small>{requested?`요청 중 ${requested}개 · 받은 항목과 사용 내역`:'받은 항목 · 사용 요청 · 사용 내역'}</small></span><span aria-hidden="true">→</span></button>;
 }

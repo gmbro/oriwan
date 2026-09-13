@@ -4,7 +4,7 @@ import ts from 'typescript';
 import {readFileSync} from 'node:fs';
 const compile=(s)=>'data:text/javascript;base64,'+Buffer.from(ts.transpileModule(s,{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText).toString('base64');
 const source=readFileSync(new URL('../lib/member-locker.ts',import.meta.url),'utf8');
-const {lockerSnapshot,validateLockerAction}=await import(compile(source));
+const {lockerSnapshot,validateLockerAction,applyLockerEvent}=await import(compile(source));
 const prize={id:'claim',message:'🎁 크루 재능기부 1회권',claimed_at:'2026-09-23T01:00:00Z'};
 const event=(action,revision,extra={})=>({action,revision,itemId:'gift-claim',operationId:`op${revision}`,role:action==='request'?'member':'admin',actor:'user',at:'2026-09-24T01:00:00Z',note:'사용 희망일 9월 25일',...extra});
 test('existing prize claims automatically appear once, fortune text is excluded',()=>{
@@ -52,7 +52,7 @@ test('storage failures are surfaced rather than reported as successful use',asyn
 });
 const mutationSource=readFileSync(new URL('../lib/member-locker-route.ts',import.meta.url),'utf8');
 let routeSource=mutationSource.replace(/^import .*;\n/gm,'');
-routeSource=`const memberJson=(body,status=200)=>({body,status}); const readMemberJson=async request=>({body:request}); const readLocker=async()=>globalThis.lockerTestLoaded; const appendLockerEvent=async(_s,_d,event)=>{globalThis.lockerTestWrites.push(event);return true;}; const validateLockerAction=${validateLockerAction.toString()};\n`+routeSource;
+routeSource=`const after=()=>{}; const applyLockerEvent=${applyLockerEvent.toString()}; const memberJson=(body,status=200)=>({body,status}); const readMemberJson=async request=>({body:request}); const readLocker=async()=>globalThis.lockerTestLoaded; const appendLockerEvent=async(_s,_d,event)=>{globalThis.lockerTestWrites.push(event);return true;}; const validateLockerAction=${validateLockerAction.toString()};\n`+routeSource;
 const {mutateLocker}=await import(compile(routeSource));
 test('mutation uses server actor and rejects stale versions or attempts to reuse a completed item',async()=>{
  globalThis.lockerTestWrites=[];globalThis.lockerTestLoaded={events:[],snapshot:lockerSnapshot([prize],[]),store:{},directory:'private'};
@@ -67,4 +67,8 @@ test('retry of an ambiguously completed grant does not create a second item',asy
  const result=await mutateLocker({operationId:id,revision:0,action:'grant',title:'재능기부 1회권',note:'지급'},{},'owner','member','owner','admin');
  assert.equal(result.status,200);assert.equal(globalThis.lockerTestWrites.length,0);
  delete globalThis.lockerTestLoaded;delete globalThis.lockerTestWrites;
+});
+test('mutation result projection matches a fresh ledger read without an extra storage round trip',()=>{
+ let snapshot=lockerSnapshot([prize],[]);const events=[event('request',1),event('reject',2),event('request',3),event('complete',4),event('grant',5,{itemId:'manual',title:'커피 쿠폰'})];
+ for(let i=0;i<events.length;i++){snapshot=applyLockerEvent(snapshot,events[i]);assert.deepEqual(snapshot,lockerSnapshot([prize],events.slice(0,i+1)));}
 });

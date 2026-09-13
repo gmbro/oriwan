@@ -4,13 +4,19 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { privateUploadStore } from './member-upload-server';
 import { lockerSnapshot, type LockerEvent, type LockerClaim } from './member-locker';
 export function lockerDirectory(owner:string, participant:string) { return `locker/4th/${process.env.NODE_ENV==='development'?'local':'live'}/${owner}/${participant}`; }
+const eventCache=new Map<string,Promise<LockerEvent>>();
 export async function readLocker(service:SupabaseClient,owner:string,participant:string) {
- const store=await privateUploadStore(service); const directory=lockerDirectory(owner,participant);
- const claims:LockerClaim[]=[];
- for(let offset=0;;offset+=1000){
-  const r=await service.from('daily_gift_claims').select('id,message,claimed_at').eq('user_id',owner).eq('season_key','4th').eq('participant_id',participant).like('message','🎁 %').order('id').range(offset,offset+999);
-  if(r.error) throw r.error; claims.push(...r.data); if(r.data.length<1000) break;
- }
+ const directory=lockerDirectory(owner,participant);
+ const claimsRequest=(async()=>{
+  const claims:LockerClaim[]=[];
+  for(let offset=0;;offset+=1000){
+   const r=await service.from('daily_gift_claims').select('id,message,claimed_at').eq('user_id',owner).eq('season_key','4th').eq('participant_id',participant).like('message','🎁 %').order('id').range(offset,offset+999);
+   if(r.error) throw r.error; claims.push(...r.data); if(r.data.length<1000) break;
+  }
+  return claims;
+ })();
+ const historyRequest=(async()=>{
+ const store=await privateUploadStore(service);
  const events:LockerEvent[]=[];
  for(let offset=0;;offset+=1000){
   const listed=await store.list(directory,{limit:1000,offset,sortBy:{column:'name',order:'asc'}});
@@ -18,16 +24,29 @@ export async function readLocker(service:SupabaseClient,owner:string,participant
   const files=listed.data.filter(f=>/^\d{10}\.json$/.test(f.name));
   for(let start=0;start<files.length;start+=20){
    events.push(...await Promise.all(files.slice(start,start+20).map(async f=>{
-    const r=await store.download(`${directory}/${f.name}`); if(r.error) throw r.error;
-    const event=JSON.parse(await r.data.text()) as LockerEvent;
-    if(event.revision!==Number(f.name.slice(0,10))) throw new Error('Invalid locker revision');
-    return event;
+    const key=`${directory}/${f.name}`;
+    const cached=eventCache.get(key);
+    if(cached) return cached;
+    const request=(async()=>{
+     const r=await store.download(key); if(r.error) throw r.error;
+     const event=JSON.parse(await r.data.text()) as LockerEvent;
+     if(event.revision!==Number(f.name.slice(0,10))) throw new Error('Invalid locker revision');
+     return event;
+    })();
+    // These are immutable committed events, scoped by owner/member/environment.
+    if(eventCache.size>=500)eventCache.delete(eventCache.keys().next().value!);
+    eventCache.set(key,request);
+    void request.catch(()=>{if(eventCache.get(key)===request)eventCache.delete(key);});
+    return request;
    })));
   }
   if(listed.data.length<1000) break;
  }
  events.sort((a,b)=>a.revision-b.revision);
  if(events.some((e,i)=>e.revision!==i+1)) throw new Error('Incomplete locker history');
+ return {store,events};
+ })();
+ const [claims,{store,events}]=await Promise.all([claimsRequest,historyRequest]);
  return {store,directory,events,snapshot:lockerSnapshot(claims,events)};
 }
 // Commit a uniquely staged object with Storage's atomic move (destination must not

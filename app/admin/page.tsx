@@ -913,7 +913,7 @@ function AdminWorkspacePanel({
   }
 
   if (tab === "schedule") return <AdminSeasonSchedule />;
-  if (tab === "locker") return <AdminMemberLocker />;
+  if (tab === "locker") return <AdminMemberLocker active={active} />;
   if (tab === "gifts") return <AdminGiftRewards />;
   if (tab === "corrective-exercise") return <AdminCorrectiveExercise />;
 

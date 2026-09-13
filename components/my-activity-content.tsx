@@ -1,5 +1,6 @@
 "use client";
-import { LockerEntry } from "./member-locker";
+import { createLockerRequest } from "@/lib/locker-request";
+import { MemberLocker, LockerEntry } from "./member-locker";
 import { useSupportStatus } from "@/lib/use-support-status";
 import { OperatorSupport } from "./operator-support";
 import dynamic from "next/dynamic";
@@ -16,7 +17,6 @@ import styles from "./my-activity.module.css";
 
 function SectionLoading() { return <p className={styles.muted} role="status">내용을 준비하고 있어요.</p>; }
 // Isolate each chunk's loading state so the three menu buttons stay available.
-const Locker = dynamic(() => import("./member-locker").then(m => m.MemberLocker), { loading: SectionLoading });
 const Upload = dynamic(() => import("./my-activity-upload"), { loading: SectionLoading });
 const Fortune = dynamic(() => import("./daily-fortune").then(m => m.DailyFortune), { loading: SectionLoading });
 const Gift = dynamic(() => import("./daily-gift-box").then(m => m.DailyGiftBox), { loading: SectionLoading });
@@ -38,6 +38,7 @@ export default function MyActivityContent({ section, onSection, onFeature, name,
   featureSeed?: MyActivityFeatureSeed;
   onFeature: (section: "fortune" | "gift" | "corrective" | "time-machine", seed?: MyActivityFeatureSeed) => void;
 }) {
+  const [lockerCache]=useState(()=>createLockerRequest());
   const supportStatus = useSupportStatus(active);
   const viewer = useOptionalFourthViewer();
   const [data, setData] = useState<MyActivityData | null>(preview ?? null);
@@ -137,8 +138,8 @@ export default function MyActivityContent({ section, onSection, onFeature, name,
     {/* Keep an in-flight upload/draft alive when navigating or closing the sheet.
         The entire tree is destroyed on logout/account change by its owner key. */}
     {uploadVisited && <div hidden={section !== "upload"} className={styles.form}><UploadView onViewRecords={() => onSection("records")} today={data?.season.today ?? todayFallback} onSubmitted={() => { void load(true); if (!preview) void import("@/lib/dashboard-refresh").then(m => m.broadcastDashboardRefresh()).catch(() => undefined); }} preview={Boolean(preview)} /></div>}
-    {section === "locker" && !preview && <Locker />}
-    {section === "support" && <OperatorSupport />}
+    {section === "locker" && !preview && <MemberLocker cache={lockerCache} active={active}/>}
+    {section === "support" && <OperatorSupport status={supportStatus} />}
     {section === "records" && (data ? <Records data={data} /> : <p role="status">누적 기록을 불러오는 중이에요.</p>)}
     {section === "fortune" && !preview && <FortuneView defaultName={displayName} />}
     {section === "gift" && !preview && <GiftView initialStatus={featureSeed?.giftStatus} onStatusChange={featureSeed?.onGiftChange} />}
@@ -150,7 +151,7 @@ export default function MyActivityContent({ section, onSection, onFeature, name,
       <h3 className={styles.groupTitle}>도구</h3>
       <FourthDashboardMemberArea embedded preview={Boolean(preview)} onOpenActivity={onFeature} />
     </div>
-    {section === "home" && <section className={styles.lockerSection}><h3 className={styles.groupTitle}>보관함</h3><LockerEntry disabled={!connected} active={active && section === "home"} preview={Boolean(preview)} onOpen={()=>onSection("locker")}/></section>}
+    {section === "home" && <section className={styles.lockerSection}><h3 className={styles.groupTitle}>보관함</h3><LockerEntry cache={lockerCache} disabled={!connected} active={active && section === "home"} preview={Boolean(preview)} onOpen={()=>onSection("locker")}/></section>}
   </div>;
 }
 

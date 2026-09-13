@@ -29,3 +29,13 @@ export function validateLockerAction(snapshot:LockerSnapshot, role:'admin'|'memb
  if((action==='complete'||action==='reject')&&item.status!=='requested') return '요청 중인 항목만 처리할 수 있어요.';
  return null;
 }
+
+export function applyLockerEvent(snapshot:LockerSnapshot,event:LockerEvent):LockerSnapshot {
+ const items=snapshot.items.map(item=>({...item,history:[...item.history]}));
+ if(event.action==='grant')items.push({id:event.itemId,title:event.title!,receivedAt:event.at,source:'admin',status:'available',history:[]});
+ const item=items.find(i=>i.id===event.itemId);
+ if(!item)throw new Error('Missing locker item');
+ item.history.push(event);
+ item.status=event.action==='request'?'requested':event.action==='complete'?'used':'available';
+ return {revision:event.revision,items:items.sort((a,b)=>b.receivedAt.localeCompare(a.receivedAt))};
+}

@@ -519,7 +519,7 @@ export function Hello2027Guestbook({
             disabled={!canWrite || Boolean(pendingAction)}
             placeholder={commentsLocked
               ? commentsLoading ? "댓글을 불러오고 있어요." : "댓글 연결 상태를 확인해주세요."
-              : "기록 수정, 광고 배너 문의 및 오류 제보, 하고 싶은 말 모두 자유롭게 써주세요"}
+              : "자유롭게 하고 싶은 말을 써주세요"}
             onChange={(event) => {
               setDraft(event.target.value);
               if (validationMessage) setValidationMessage("");

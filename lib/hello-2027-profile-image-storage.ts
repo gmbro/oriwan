@@ -1,7 +1,6 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import sharp from "sharp";
 
 import { FOURTH_SEASON_KEY } from "@/lib/fourth-season-contract";
 
@@ -54,6 +53,7 @@ async function normalizeProfileImage(
   }
 
   try {
+    const { default: sharp } = await import("sharp");
     const decoder = sharp(bytes, {
       failOn: "warning",
       limitInputPixels: MAX_PROFILE_IMAGE_INPUT_PIXELS,

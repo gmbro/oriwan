@@ -33,7 +33,7 @@ export default function MyActivityRecordChart({ records, today }: { records: Per
       <div><span>{period === 'week' ? '선택한 주' : period === 'month' ? '선택한 월' : '시즌 전체'} {metric === 'distance' ? '달린 거리' : '운동 시간'}</span><strong aria-live="polite">{format(total)}<small>{unit}</small></strong></div>
       <div className={styles.chartTabs} role="group" aria-label="그래프 지표"><button type="button" aria-pressed={metric === 'distance'} onClick={() => setMetric('distance')}>거리</button><button type="button" aria-pressed={metric === 'minutes'} onClick={() => setMetric('minutes')}>시간</button></div>
     </div>
-    {beforeStart ? <div className={styles.chartEmpty}><strong>우리의 첫 기록을 기다려요</strong><p>9월 23일부터 쌓이는 운동 기록을<br/>이곳에서 함께 확인해요.</p></div> : <>
+    {beforeStart ? <div className={styles.chartEmpty}><strong>첫 기록을 기다립니다</strong><p>9월 23일 시작</p></div> : <>
       <svg viewBox={`0 0 ${chartWidth} 190`} className={styles.recordPlot} role="group" aria-labelledby={titleId}>
         <title id={titleId}>{period === 'total' ? '월별' : '일별'} {metric === 'distance' ? '거리' : '시간'} 그래프, 단위 {unit}. 막대를 선택하면 수치를 확인할 수 있어요.</title>
         {[0,0.5,1].map(ratio => <g key={ratio}><line x1={left} x2="310" y1={base-ratio*plotHeight} y2={base-ratio*plotHeight} stroke="#e5e8eb" strokeDasharray={ratio ? '3 4' : undefined}/><text x="27" y={base-ratio*plotHeight+3} textAnchor="end" fontSize="9" fill="#8b95a1">{format(ceiling*ratio)}</text></g>)}
@@ -45,6 +45,5 @@ export default function MyActivityRecordChart({ records, today }: { records: Per
       </svg>
       <p className={styles.chartSelection} aria-live="polite">{chosen ? `${chosen.label} · ${format(chosen[metric])}${unit}` : total===0 ? '이 기간에는 아직 운동 기록이 없어요.' : '막대를 눌러 기록을 확인해보세요.'}</p>
     </>}
-    <p className={styles.muted}>9월 23일~12월 31일 운동 기준 · 승인 대기 포함<br/>주간 기록은 9월 23일부터 7일씩 집계해요.</p>
   </section>;
 }

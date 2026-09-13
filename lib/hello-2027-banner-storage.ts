@@ -2,7 +2,6 @@ import "server-only";
 
 import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import sharp from "sharp";
 
 import {
   DEFAULT_HELLO_2027_BANNER_CLICK_URL,
@@ -122,6 +121,7 @@ export async function validateHello2027BannerImage(file: File): Promise<BannerIm
   }
 
   try {
+    const { default: sharp } = await import("sharp");
     const decoder = sharp(bytes, {
       failOn: "warning",
       limitInputPixels: MAX_BANNER_IMAGE_INPUT_PIXELS,
