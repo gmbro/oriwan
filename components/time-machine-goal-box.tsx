@@ -7,6 +7,7 @@ import {
   MAX_TIME_MACHINE_GOAL_TITLE_LENGTH,
   type TimeMachineGoalInput,
 } from "@/lib/time-machine-contract";
+import { ActivityIcon } from "./activity-icon";
 import styles from "./time-machine-goal-box.module.css";
 
 type TimeMachineGoal = {
@@ -217,7 +218,7 @@ export function TimeMachineGoalBox({
           <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">새해의 첫 순간, 내가 남긴 목표를 열어봤어요.</p>
         </div>
         <div className={styles.stage}>
-          <div className={`${styles.capsule} ${styles.unlocked}`} style={visualStyle} aria-hidden="true"><span className={styles.lock}>✨</span></div>
+          <div className={`${styles.capsule} ${styles.unlocked}`} style={visualStyle} aria-hidden="true"><span className={styles.lock}><ActivityIcon kind="fortune" /></span></div>
         </div>
         <div className="space-y-3 rounded-[24px] bg-blue-50 p-4 ring-1 ring-blue-100">
           <GoalText label="100일 목표" value={status.goal.title} strong />
@@ -238,7 +239,7 @@ export function TimeMachineGoalBox({
           <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">목표를 안전하게 보관 중이에요. 개봉 전에는 내용이 보이지 않아요.</p>
         </div>
         <div className={styles.stage}>
-          <div className={styles.capsule} style={visualStyle} aria-hidden="true"><span className={styles.lock}>🔒</span></div>
+          <div className={styles.capsule} style={visualStyle} aria-hidden="true"><span className={styles.lock}><ActivityIcon kind="lock" /></span></div>
         </div>
         <div className="rounded-[22px] bg-slate-50 px-4 py-4 text-center ring-1 ring-slate-200">
           <p className="text-sm font-black text-slate-900">2027년 1월 1일 00:00에 열려요</p>
@@ -270,7 +271,7 @@ export function TimeMachineGoalBox({
           onMouseDown={(event) => { if (event.target === event.currentTarget) closeConfirmation(); }}
         >
           <div className="w-full max-w-sm rounded-[26px] bg-white p-5 text-center shadow-2xl ring-1 ring-slate-950/5 sm:p-6">
-            <span className="mx-auto grid size-12 place-items-center rounded-full bg-blue-50 text-2xl" aria-hidden="true">⏳</span>
+            <span className="mx-auto grid size-12 place-items-center rounded-full bg-blue-50 text-2xl" aria-hidden="true"><ActivityIcon kind="time-machine" /></span>
             <h4 id="time-machine-confirm-title" className="mt-4 text-lg font-black leading-7 text-slate-950">2027년 1월 1일에 열립니다</h4>
             <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">발동 뒤에는 개봉 전까지 목표 내용을 다시 볼 수 없어요.</p>
             <div className="mt-5 grid grid-cols-2 gap-2">

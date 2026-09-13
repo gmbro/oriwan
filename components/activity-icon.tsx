@@ -1,5 +1,6 @@
-export function ActivityIcon({kind,size=24}:{kind:"time-machine"|"gift"|"fortune"|"corrective"|"heart"|"coffee"|"infrastructure";size?:number}){
+export function ActivityIcon({kind,size=24}:{kind:"time-machine"|"gift"|"fortune"|"corrective"|"heart"|"coffee"|"infrastructure"|"lock";size?:number}){
  const paths={
+  lock:<><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V6a4 4 0 0 1 8 0v4M12 14v3"/></>,
   'time-machine':<><path d="M7 3h10M7 21h10M8 3v4l4 5-4 5v4m8-18v4l-4 5 4 5v4"/><path d="M10 18h4"/></>,
   gift:<><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M5 12v9h14v-9M12 8v13"/><path d="M12 8H8a3 3 0 1 1 3-3l1 3Zm0 0h4a3 3 0 1 0-3-3l-1 3Z"/></>,
   fortune:<><path d="m12 3 2.4 6.6L21 12l-6.6 2.4L12 21l-2.4-6.6L3 12l6.6-2.4L12 3Z"/><path d="M20 3v4m-2-2h4"/></>,
