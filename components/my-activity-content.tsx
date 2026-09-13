@@ -1,4 +1,5 @@
 "use client";
+import { useSupportStatus } from "@/lib/use-support-status";
 import { OperatorSupport } from "./operator-support";
 import dynamic from "next/dynamic";
 import Image from "next/image";
@@ -35,6 +36,7 @@ export default function MyActivityContent({ section, onSection, onFeature, name,
   featureSeed?: MyActivityFeatureSeed;
   onFeature: (section: "fortune" | "gift" | "corrective" | "time-machine", seed?: MyActivityFeatureSeed) => void;
 }) {
+  const supportStatus = useSupportStatus(active);
   const viewer = useOptionalFourthViewer();
   const [data, setData] = useState<MyActivityData | null>(preview ?? null);
   const [error, setError] = useState("");
@@ -124,8 +126,9 @@ export default function MyActivityContent({ section, onSection, onFeature, name,
     {section === "home" && <div className={styles.identity}><Image unoptimized width={56} height={56} className={styles.avatar} src={avatar} alt="내 프로필" /><strong>{displayName}</strong></div>}
     {primarySection && <>
       <div className={styles.menuList} role="group" aria-label="내 정보 메뉴" data-compact={section !== "home"}>
-        {([{ key: "profile", title: "프로필", icon: <><circle cx="12" cy="8" r="4" /><path d="M4 22v-2a8 8 0 0 1 16 0v2" /></> }, { key: "upload", title: "인증샷", icon: <><rect x="3" y="3" width="18" height="18" rx="4" /><path d="M12 17V7m-4 4 4-4 4 4" /></> }, { key: "records", title: "기록", icon: <><path d="M4 20h17M6 16v-4m6 4V7m6 9V3" /></> }, { key: "support", title: "운영자 후원", icon: <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z" /> }] as const).map(item => <button type="button" className={styles.menu} key={item.key} aria-pressed={section === item.key} disabled={!connected} onClick={() => onSection(item.key)}><span className={styles.menuIcon}><svg viewBox="0 0 24 24" aria-hidden="true">{item.icon}</svg></span><strong>{item.title}</strong></button>)}
+        {([{ key: "profile", title: "프로필", icon: <><circle cx="12" cy="8" r="4" /><path d="M4 22v-2a8 8 0 0 1 16 0v2" /></> }, { key: "upload", title: "인증", icon: <><rect x="3" y="3" width="18" height="18" rx="4" /><path d="M12 17V7m-4 4 4-4 4 4" /></> }, { key: "records", title: "기록", icon: <><path d="M4 20h17M6 16v-4m6 4V7m6 9V3" /></> }, { key: "support", title: "후원", icon: <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z" /> }] as const).map(item => <button type="button" className={styles.menu} key={item.key} aria-pressed={section === item.key} disabled={!connected || (item.key === "support" && (supportStatus.locked || supportStatus.loading))} title={item.key === "support" && supportStatus.locked ? `다음 후원: ${new Date(supportStatus.nextAt!).toLocaleDateString("ko-KR",{timeZone:"Asia/Seoul"})}` : undefined} onClick={() => onSection(item.key)}><span className={styles.menuIcon}><svg viewBox="0 0 24 24" aria-hidden="true">{item.icon}</svg></span><strong>{item.title}</strong></button>)}
       </div>
+      {supportStatus.locked&&<p className={styles.muted}>다음 후원은 {new Date(supportStatus.nextAt!).toLocaleDateString("ko-KR",{timeZone:"Asia/Seoul"})}부터 가능해요.</p>}
     </>}
     {profileVisited && <div hidden={section !== "profile"} className={styles.form}><ProfileEditor name={displayName} avatar={avatar} onChanged={changed} preview={Boolean(preview)} /></div>}
     {/* Keep an in-flight upload/draft alive when navigating or closing the sheet.

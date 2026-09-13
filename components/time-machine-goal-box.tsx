@@ -235,7 +235,7 @@ export function TimeMachineGoalBox({
       <section className="space-y-4" aria-labelledby="time-machine-title">
         <div>
           <p className="text-xs font-bold text-blue-600">100일 목표 타임머신</p>
-          <h3 id="time-machine-title" className="mt-1 text-xl font-black tracking-[-0.03em] text-slate-950">100일 뒤의 나에게</h3>
+          <span id="time-machine-title" className="sr-only">타임머신</span>
           <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">목표를 안전하게 보관 중이에요. 개봉 전에는 내용이 보이지 않아요.</p>
         </div>
         <div className={styles.stage}>

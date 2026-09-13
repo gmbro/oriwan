@@ -81,8 +81,7 @@ export default function MyActivityUpload({ today, onSubmitted, preview = false }
     } catch (e) { if (alive.current) { setStage("confirm"); setError(e instanceof Error ? e.message : "제출하지 못했어요."); } }
   };
   return <>
-    {stage === "choose" && <p className={styles.muted}>캡쳐 사진을 업로드해주세요</p>}
-    {stage !== "done" && <p className={styles.muted}>오전 8시 이전에 운동을 시작했다는 시각이 보이도록 업로드해주세요</p>}
+    {stage !== "done" && <p className={styles.uploadGuidance}>오전 8시 이전에 운동을 시작했다는 시각이 보이도록 업로드해주세요</p>}
     {stage !== "done" && <p className={styles.muted}>운동한 날짜마다 1건만 제출할 수 있어요. 운영자가 이미 등록한 날은 추가 제출할 수 없어요.</p>}
     {error && <p className={`${styles.feedback} ${styles.error}`} role="alert">{error}</p>}
     {stage === "done" ? <><div className={styles.feedback} role="status">{preview ? "미리보기 제출 완료 · 실제 저장 없음" : <><strong>인증이 완료되었습니다</strong><p>내 기록에 저장했어요. 현재 운영자 승인 대기 중이며, 공식 인증률과 공동 목표는 승인 후 반영돼요.</p><p>{date} · {distance}km · {minutes}분 {seconds}초</p></>}</div><button className={styles.primary} onClick={() => { setDraft(null); setStage("choose"); setImage(""); }}>다른 인증샷 올리기</button></> : <>

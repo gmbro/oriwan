@@ -70,3 +70,5 @@
 .stats dt { min-height: 2.8em; color: #6b7684; font-size: 12px; font-weight: 500; line-height: 1.4; }
 .stats dd { font-size: 18px; font-weight: 700; line-height: 1.35; }
 @media (max-width: 360px) { .stats dd { font-size: 16px; } }
+
+.uploadGuidance { color:#3182f6; font-weight:700; line-height:1.7; word-break:keep-all; overflow-wrap:anywhere; }

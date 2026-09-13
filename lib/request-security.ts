@@ -58,6 +58,12 @@ function allowedOrigins(request: NextRequest) {
 
 function isAllowedOrigin(request: NextRequest, value: string) {
   const origin = normalizeOrigin(value);
+  if (process.env.NODE_ENV !== "production" && origin) {
+    const source = new URL(origin);
+    const target = new URL(request.url);
+    const loopback = new Set(["localhost", "127.0.0.1", "[::1]"]);
+    if (loopback.has(source.hostname) && loopback.has(target.hostname) && source.port === target.port && source.protocol === target.protocol) return true;
+  }
   return Boolean(origin && allowedOrigins(request).has(origin));
 }
 

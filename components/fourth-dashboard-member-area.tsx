@@ -255,13 +255,13 @@ export function FourthDashboardMemberArea({
   };
 
   const modalTitle = modal === "fortune"
-    ? "오늘의 운세"
+    ? "오늘 운세"
     : modal === "time-machine"
-      ? "100일 목표 타임머신"
+      ? "타임머신"
     : modal === "gift"
-      ? "오늘의 응원 상자"
+      ? "인증박스"
       : modal === "corrective"
-        ? "교정운동 문의"
+        ? "교정운동"
         : "개인 기능";
 
   if ((!preview && loading) || !authenticated) return null;
@@ -270,7 +270,7 @@ export function FourthDashboardMemberArea({
     {
       id: "time-machine" as const,
       icon: <ActivityIcon kind="time-machine" size={28}/>,
-      title: "100일 목표 타임머신",
+      title: "타임머신",
       description: connected
         ? "2027년 1월 1일에 열릴 목표를 보관해요"
         : "개인 멤버 연결 후 이용할 수 있어요",
@@ -283,7 +283,7 @@ export function FourthDashboardMemberArea({
     {
       id: "gift" as const,
       icon: <ActivityIcon kind="gift" size={28}/>,
-      title: "오늘의 응원 상자",
+      title: "인증박스",
       description: giftStatus?.claim
         ? "오늘 받은 응원을 다시 확인해보세요"
         : giftStatusLoading
@@ -297,7 +297,7 @@ export function FourthDashboardMemberArea({
     {
       id: "fortune" as const,
       icon: <ActivityIcon kind="fortune" size={28}/>,
-      title: "오늘의 운세",
+      title: "오늘 운세",
       description: "행복한 오늘의 운세를 확인해보세요",
       disabled: false,
       preload: preloadFortune,
@@ -305,7 +305,7 @@ export function FourthDashboardMemberArea({
     {
       id: "corrective" as const,
       icon: <ActivityIcon kind="corrective" size={28}/>,
-      title: "교정운동 문의",
+      title: "교정운동",
       description: "교정운동이 필요하거나 궁금한 내용을 문의하시면 확인 후에 답변해드립니다.",
       disabled: !connected,
       preload: () => {

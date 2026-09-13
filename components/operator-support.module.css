@@ -19,3 +19,5 @@
 .action { display:block; width:100%; padding:14px 12px; background:#3182f6; color:white; border-radius:14px; text-align:center; font-size:14px; font-weight:700; }
 @keyframes pulse { 50%{transform:scale(1.15)} }
 @media(prefers-reduced-motion:reduce){.cheered{animation:none}}
+.choices { border:0; padding:0; margin:0; min-width:0; }
+.choices:disabled { opacity:.6; }

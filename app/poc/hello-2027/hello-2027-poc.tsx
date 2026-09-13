@@ -182,10 +182,10 @@ export function Hello2027Poc({
 
 
   return (
-    <div className={styles.page}>
+    <div id="page-top" className={styles.page}>
       <header className={styles.siteHeader}>
         <div className={styles.headerInner}>
-          <a className={styles.brand} href="#top" aria-label="TWTT 4th Hello 2027 처음으로 이동">
+          <a className={styles.brand} href="#page-top" onClick={e => { e.preventDefault(); window.scrollTo({ top: 0, behavior: "smooth" }); }} aria-label="TWTT 4th Hello 2027 처음으로 이동">
             <Image
               className={styles.brandLogo}
               src="/brand/twtt-logo.png"
@@ -198,7 +198,7 @@ export function Hello2027Poc({
 
           <div className={styles.headerMeta} aria-label="오늘 날짜와 시각, 계정">
             <time className={styles.headerDateTime} dateTime={referenceDateIso} title={referenceDateLabel}>
-              <span>TODAY</span>
+              <span style={{color:"#3182f6",fontWeight:800}}>TODAY</span>
               <span>{referenceDateShort}</span>
               <HeaderClock />
             </time>
@@ -296,10 +296,10 @@ export function Hello2027Poc({
                       ) : null}
                       <span className={styles.participantIdentity}>
                         <span className={styles.characterWrap} aria-hidden="true">
-                          <ParticipantAvatar imageUrl={participant.profileImageUrl} />
+                          <span style={{position:"relative",display:"inline-flex"}}><ParticipantAvatar imageUrl={participant.profileImageUrl} />{participant.timeMachineActive && <span style={{position:"absolute",top:0,left:0}}><TimeMachineBadge /></span>}</span>
                         </span>
                         <span className={styles.participantNameRow}>
-                          <strong>{participant.fullName}<small>님</small></strong>{participant.timeMachineActive && <TimeMachineBadge />}
+                          <strong>{participant.fullName}<small>님</small></strong>
                         </span>
                       </span>
                       <span className={styles.participantRate}>
@@ -483,11 +483,11 @@ export function ParticipantDialog({
           <div className={styles.dialogProfile}>
             <div className={styles.profileImageEditor}>
               <div className={styles.dialogCharacter} aria-hidden="true">
-                <ParticipantAvatar imageUrl={participant.profileImageUrl} dialog />
+                <span style={{position:"relative",display:"inline-flex"}}><ParticipantAvatar imageUrl={participant.profileImageUrl} dialog />{participant.timeMachineActive && <span style={{position:"absolute",top:0,left:0}}><TimeMachineBadge /></span>}</span>
               </div>
             </div>
             <div>
-              <h2 id="participant-dialog-title" ref={titleRef} tabIndex={-1}>{participant.fullName}{participant.timeMachineActive && <TimeMachineBadge />}</h2>
+              <h2 id="participant-dialog-title" ref={titleRef} tabIndex={-1}>{participant.fullName}</h2>
             </div>
           </div>
 
