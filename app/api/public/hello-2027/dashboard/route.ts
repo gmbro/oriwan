@@ -1,3 +1,5 @@
+import { projectDashboardRecords } from "@/lib/dashboard-record-visibility";
+import { hasAuthenticatedFourthViewer } from "@/lib/fourth-viewer-server";
 import { NextRequest, NextResponse } from "next/server";
 
 import { getHello2027DashboardSnapshot } from "@/lib/hello-2027-dashboard-data";
@@ -6,6 +8,7 @@ import { guardReadRequest } from "@/lib/request-security";
 export const dynamic = "force-dynamic";
 
 const SNAPSHOT_HEADERS = {
+  Vary: "Cookie",
   "Cache-Control": "private, no-store, max-age=0, must-revalidate",
 };
 
@@ -18,6 +21,6 @@ export async function GET(request: NextRequest) {
   // Every dashboard can receive the same public refresh event. Reuse the
   // tagged projection so one event does not fan out into one full database
   // scan per browser; mutations expire the tag before broadcasting.
-  const snapshot = await getHello2027DashboardSnapshot();
-  return NextResponse.json(snapshot, { headers: SNAPSHOT_HEADERS });
+  const [snapshot, authenticated] = await Promise.all([getHello2027DashboardSnapshot(), hasAuthenticatedFourthViewer()]);
+  return NextResponse.json(projectDashboardRecords(snapshot, authenticated), { headers: SNAPSHOT_HEADERS });
 }

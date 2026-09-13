@@ -179,7 +179,6 @@ export function Hello2027BannerCarousel({ ads, dayPhase, completedToday, partici
                 <strong>{ad.title}</strong>
                 <p>{ad.description}</p>
               </div>
-              <p className={styles.bannerInquiry}>광고 문의는 개인 연락부탁드립니다.</p>
             </a>
           </article>
         ))}

@@ -119,6 +119,7 @@ export function Hello2027Poc({
   const lastTriggerRef = useRef<HTMLButtonElement | null>(null);
   const localContent = useLocalHello2027Content(snapshot.ads, snapshot.encouragements, memberFeatures);
   const viewerState = useOptionalFourthViewer();
+  const canViewRecords = !memberFeatures || Boolean(viewerState?.viewer?.authenticated);
   const dashboardDate = formatKoreanDate(seoulToday);
   const referenceDateIso = seoulToday;
   const referenceDateLabel = dashboardDate.label;
@@ -126,8 +127,8 @@ export function Hello2027Poc({
   const seasonDday = formatFourthSeasonDday(referenceDateIso) ?? "D-DAY";
 
   const selectedParticipant = useMemo(
-    () => liveSnapshot.participants.find((participant) => participant.id === selectedParticipantId) ?? null,
-    [liveSnapshot.participants, selectedParticipantId],
+    () => canViewRecords ? liveSnapshot.participants.find((participant) => participant.id === selectedParticipantId) ?? null : null,
+    [liveSnapshot.participants, selectedParticipantId, canViewRecords],
   );
   const sortedParticipants = useMemo(() => {
     const participants = [...liveSnapshot.participants];
@@ -174,6 +175,7 @@ export function Hello2027Poc({
   }, [selectedParticipant]);
 
   const openParticipant = (participantId: string, trigger: HTMLButtonElement) => {
+    if (!canViewRecords) { window.location.assign("/api/auth/kakao?next=%2F4th%2Fdashboard&restart=1"); return; }
     lastTriggerRef.current = trigger;
     setSelectedParticipantId(participantId);
   };
@@ -241,13 +243,6 @@ export function Hello2027Poc({
         <h1 className={styles.visuallyHidden}>{liveSnapshot.seasonName} {liveSnapshot.versionName}</h1>
 
         <>
-          {localContent.encouragements.length > 0 ? (
-            <MotivationBanner
-              encouragements={localContent.encouragements}
-              initialIndex={Math.max(liveSnapshot.dayNumber - 1, 0)}
-            />
-          ) : null}
-
           <Hello2027BannerCarousel
             crewGoalDistanceKm={liveSnapshot.crewGoalDistanceKm ?? 0}
             ads={localContent.ads}
@@ -301,9 +296,9 @@ export function Hello2027Poc({
                       className={`${styles.participantCard} ${participant.completed ? styles.completedCard : styles.waitingCard}`}
                       type="button"
                       onClick={(event) => openParticipant(participant.id, event.currentTarget)}
-                      aria-label={`${participant.fullName}님, 오늘까지 인증률 ${participant.seasonCompletionRate}%, ${participant.completed ? "오늘 인증 완료" : "오늘 기록 없음"}. 상세 보기`}
+                      aria-label={!canViewRecords ? `${participant.fullName}님 기록은 로그인 후 볼 수 있어요` : `${participant.fullName}님, 오늘까지 인증률 ${participant.seasonCompletionRate}%, ${participant.completed ? "오늘 인증 완료" : "오늘 기록 없음"}. 상세 보기`}
                     >
-                      {participant.completed ? (
+                      {canViewRecords && participant.completed ? (
                         <span className={styles.completionBadge} aria-hidden="true">✓</span>
                       ) : null}
                       <span className={styles.participantIdentity}>
@@ -315,8 +310,7 @@ export function Hello2027Poc({
                         </span>
                       </span>
                       <span className={styles.participantRate}>
-                        <small>오늘까지 인증률</small>
-                        <strong>{participant.seasonCompletionRate}%</strong>
+                        {canViewRecords ? <><small>오늘까지 인증률</small><strong>{participant.seasonCompletionRate}%</strong></> : <small>로그인 후 기록 보기</small>}
                       </span>
                     </button>
                   </li>

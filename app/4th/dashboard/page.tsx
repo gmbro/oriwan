@@ -1,3 +1,4 @@
+import { projectDashboardRecords } from "@/lib/dashboard-record-visibility";
 import type { Metadata } from "next";
 import { connection } from "next/server";
 import { Hello2027Poc } from "@/app/poc/hello-2027/hello-2027-poc";
@@ -34,7 +35,7 @@ export default async function FourthSeasonDashboardPage() {
     <FourthViewerProvider initialViewer={initialViewer}>
       <SeasonReportAutoRefresh intervalMs={60_000} />
       <Hello2027Poc
-        snapshot={snapshot}
+        snapshot={projectDashboardRecords(snapshot, initialViewer.authenticated)}
         currentDateIso={currentDateIso}
         memberFeatures
       />
