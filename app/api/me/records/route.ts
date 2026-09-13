@@ -1,6 +1,6 @@
 import { writeCertificationReview } from "@/lib/certification-review";
 import { after, NextRequest, NextResponse } from "next/server";
-import { MEMBER_EVIDENCE_ERROR, hasMemberUploadEvidence, MEMBER_UPLOAD_BUCKET, MEMBER_UPLOAD_DRAFT_PATTERN, ownsFreshDraft, validateMemberSubmission } from "@/lib/member-upload-contract";
+import { memberEvidenceIssues, hasMemberUploadEvidence, MEMBER_UPLOAD_BUCKET, MEMBER_UPLOAD_DRAFT_PATTERN, ownsFreshDraft, validateMemberSubmission } from "@/lib/member-upload-contract";
 import { ownedMember, privateUploadStore, readMemberJson, readUploadDraft, uploadPrefix } from "@/lib/member-upload-server";
 import { loadHello2027ProfileImageUrls } from "@/lib/hello-2027-profile-image-storage";
 import { invalidatePublicDashboardCache } from "@/lib/public-dashboard-data";
@@ -186,7 +186,7 @@ export async function POST(request: NextRequest) {
     const prefix = uploadPrefix(authUserId, body.draftId);
     const draft = await readUploadDraft(store, prefix);
     if (!draft || !ownsFreshDraft(draft, owned.participantId)) return privateJson({ error: "인증샷 확인 시간이 지났어요. 사진을 다시 선택해주세요." }, 410);
-    if (!hasMemberUploadEvidence(draft)) return privateJson({ error: MEMBER_EVIDENCE_ERROR }, 422);
+    if (!hasMemberUploadEvidence(draft)) return privateJson({ error: [...memberEvidenceIssues(draft), "운영자에게 문의해주세요."].join(" ") }, 422);
     const imagePath = `${MEMBER_UPLOAD_BUCKET}/${prefix}/image.webp`;
     // Never trust a submitted member id/status. Pending data must not increase
     // the public certification rate. The DB's unique date index arbitrates races.

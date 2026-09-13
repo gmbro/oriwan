@@ -133,7 +133,7 @@ export default function MyActivityContent({ section, onSection, onFeature, name,
     {profileVisited && <div hidden={section !== "profile"} className={styles.form}><ProfileEditor name={displayName} avatar={avatar} onChanged={changed} preview={Boolean(preview)} /></div>}
     {/* Keep an in-flight upload/draft alive when navigating or closing the sheet.
         The entire tree is destroyed on logout/account change by its owner key. */}
-    {uploadVisited && <div hidden={section !== "upload"} className={styles.form}><UploadView today={data?.season.today ?? todayFallback} onSubmitted={() => { void load(true); if (!preview) void import("@/lib/dashboard-refresh").then(m => m.broadcastDashboardRefresh()).catch(() => undefined); }} preview={Boolean(preview)} /></div>}
+    {uploadVisited && <div hidden={section !== "upload"} className={styles.form}><UploadView onViewRecords={() => onSection("records")} today={data?.season.today ?? todayFallback} onSubmitted={() => { void load(true); if (!preview) void import("@/lib/dashboard-refresh").then(m => m.broadcastDashboardRefresh()).catch(() => undefined); }} preview={Boolean(preview)} /></div>}
     {section === "support" && <OperatorSupport />}
     {section === "records" && (data ? <Records data={data} /> : <p role="status">누적 기록을 불러오는 중이에요.</p>)}
     {section === "fortune" && !preview && <FortuneView defaultName={displayName} />}

@@ -7,6 +7,7 @@ export type MemberUploadDraft = {
   id: string; participantId: string; createdAt: string;
   date: string | null; distanceKm: number | null; durationSeconds: number | null;
   activityDate?: string | null; activityTime?: string | null;
+  analysisError?: "configuration" | "timeout" | "response" | "service";
   confidence: number | null; rawText: string; model: string; warning: string | null;
 };
 
@@ -33,4 +34,14 @@ export function hasMemberUploadEvidence(draft: MemberUploadDraft) {
   return /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(draft.activityTime ?? "")
     && typeof draft.distanceKm === "number" && Number.isFinite(draft.distanceKm)
     && draft.distanceKm > 0 && draft.distanceKm <= 300;
+}
+
+export function memberEvidenceIssues(draft: MemberUploadDraft): string[] {
+  if (draft.analysisError) return [draft.warning || "인식 서비스 응답을 받지 못했어요. 잠시 후 다시 시도하거나 운영자에게 문의해주세요."];
+  const issues: string[] = [];
+  if (!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(draft.activityTime ?? ""))
+    issues.push("사진에서 운동 시작 시각을 읽지 못했어요. 시작 시각이 보이는 전체 캡처를 선택해주세요.");
+  if (typeof draft.distanceKm !== "number" || !Number.isFinite(draft.distanceKm) || draft.distanceKm <= 0 || draft.distanceKm > 300)
+    issues.push("사진에서 유효한 운동 거리를 읽지 못했어요. 거리와 km·m 단위가 보이는 캡처를 선택해주세요.");
+  return issues;
 }

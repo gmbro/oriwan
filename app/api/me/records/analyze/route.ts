@@ -45,16 +45,18 @@ export async function POST(request: NextRequest) {
     const id = `${today}/${createHash("sha256").update(bytes).digest("hex")}`;
     const prefix = uploadPrefix(authUserId, id);
     const cached = await readUploadDraft(store, prefix);
-    if (cached && cached.participantId === owned.participantId) return memberJson({ draft: cached });
+    if (cached && cached.participantId === owned.participantId && !cached.analysisError) return memberJson({ draft: cached });
     if (!await reserveOcrQuota(store, authUserId, today)) return memberJson({ error: "하루 최대 8장의 인증샷을 인식할 수 있어요. 이미 인식한 사진은 다시 선택할 수 있어요." }, 429);
     const imageResult = await store.upload(`${prefix}/image.webp`, bytes, { contentType: "image/webp", upsert: false });
     if (imageResult.error) {
-      if (/duplicate|already exists/i.test(imageResult.error.message)) return memberJson({ error: "같은 사진을 처리 중이에요. 잠시 후 다시 선택해주세요." }, 409);
-      throw imageResult.error;
+      if (/duplicate|already exists/i.test(imageResult.error.message) && !cached?.analysisError) return memberJson({ error: "같은 사진을 처리 중이에요. 잠시 후 다시 선택해주세요." }, 409);
+      if (!cached?.analysisError || !/duplicate|already exists/i.test(imageResult.error.message)) throw imageResult.error;
     }
     const draft: MemberUploadDraft = { id, participantId: owned.participantId, createdAt: uploadedAt, date: null, distanceKm: null, durationSeconds: null, confidence: null, rawText: "", model: GEMINI_OCR_MODEL, warning: null };
+    let analysisPhase: "configuration" | "service" | "response" = "configuration";
     try {
       if (!process.env.GEMINI_API_KEY) throw new Error("configuration");
+      analysisPhase = "service";
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY, httpOptions: { timeout: 20_000, retryOptions: { attempts: 1 } } });
       const response = await ai.models.generateContent({
         model: GEMINI_OCR_MODEL,
@@ -62,6 +64,7 @@ export async function POST(request: NextRequest) {
         config: getMemberGeminiOcrConfig(),
       });
       logGeminiOcrUsage(GEMINI_OCR_MODEL, response);
+      analysisPhase = "response";
       const extracted = parseJsonObject<ExtractedRunBase>(response.text || "");
       draft.date = /^\d{4}-\d{2}-\d{2}$/.test(extracted.record_date || "") ? extracted.record_date! : null;
       draft.activityDate = /^\d{4}-\d{2}-\d{2}$/.test(extracted.activity_date || "") ? extracted.activity_date! : null;
@@ -71,10 +74,18 @@ export async function POST(request: NextRequest) {
       draft.confidence = typeof extracted.confidence_score === "number" ? extracted.confidence_score : null;
       draft.rawText = String(extracted.raw_text || "").slice(0, 4000);
       if (!draft.activityDate || !draft.activityTime || !draft.date || !draft.distanceKm || !draft.durationSeconds || (draft.confidence ?? 0) < 0.8) draft.warning = "일부 값은 확인이 필요해요. 캡처본과 비교해 입력해주세요.";
-    } catch {
-      draft.warning = "자동 인식을 완료하지 못했어요. 하루 최대 8회 인식하며, 사진을 다시 확인하거나 운영자에게 문의해주세요.";
+    } catch (error) {
+      const timedOut = error instanceof Error && /timeout|timed out|abort/i.test(error.message);
+      draft.analysisError = timedOut ? "timeout" : analysisPhase;
+      draft.warning = draft.analysisError === "configuration"
+        ? "사진은 저장됐지만 인식 서비스 설정이 준비되지 않았어요. 운영자에게 문의해주세요."
+        : draft.analysisError === "timeout"
+          ? "사진은 저장됐지만 인식 서버의 응답 시간이 초과됐어요. 잠시 후 다시 시도해주세요."
+          : draft.analysisError === "response"
+            ? "사진은 저장됐지만 인식 결과를 해석하지 못했어요. 다른 캡처를 선택하거나 운영자에게 문의해주세요."
+            : "사진은 저장됐지만 인식 서비스에서 정상 응답을 받지 못했어요. 운영자에게 문의해주세요.";
     }
-    const saved = await store.upload(`${prefix}/draft.json`, JSON.stringify(draft), { contentType: "application/json", upsert: false });
+    const saved = await store.upload(`${prefix}/draft.json`, JSON.stringify(draft), { contentType: "application/json", upsert: Boolean(cached?.analysisError) });
     if (saved.error) throw saved.error;
     return memberJson({ draft }, 201);
   } catch {

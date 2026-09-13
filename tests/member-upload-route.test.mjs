@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import ts from "typescript";
-import { MEMBER_EVIDENCE_ERROR, hasMemberUploadEvidence, MEMBER_UPLOAD_BUCKET, MEMBER_UPLOAD_DRAFT_PATTERN, ownsFreshDraft, validateMemberSubmission } from "../lib/member-upload-contract.ts";
+import { memberEvidenceIssues, hasMemberUploadEvidence, MEMBER_UPLOAD_BUCKET, MEMBER_UPLOAD_DRAFT_PATTERN, ownsFreshDraft, validateMemberSubmission } from "../lib/member-upload-contract.ts";
 
 // Execute the actual POST body with injected auth/storage/DB ports. Tests never
 // contact production and deliberately send forged ownership/status fields.
@@ -27,7 +27,7 @@ function harness(overrides = {}) {
     toKstIsoDate: () => "2026-10-08", privateJson: json,
     privateUploadStore: async () => { calls.push({ storage: true }); return {}; },
     uploadPrefix: (owner, id) => `4th/${owner}/${id}`, readUploadDraft: async () => draft,
-    MEMBER_EVIDENCE_ERROR, hasMemberUploadEvidence, writeCertificationReview, ownsFreshDraft, MEMBER_UPLOAD_BUCKET, FOURTH_SEASON_KEY: "4th",
+    memberEvidenceIssues, hasMemberUploadEvidence, writeCertificationReview, ownsFreshDraft, MEMBER_UPLOAD_BUCKET, FOURTH_SEASON_KEY: "4th",
     calculatePaceSeconds: (distance, duration) => Math.round(duration / distance),
     invalidatePublicDashboardCache: () => calls.push({ invalidated: true }),
     after: () => {}, broadcastDashboardRefreshFromServer: () => {},
@@ -64,7 +64,7 @@ test("개인 제출은 수동 입력값이 있어도 서버 OCR의 시작 시각
   for (const draft of [{ activityTime: null }, { activityTime: "24:00" }, { distanceKm: null }, { distanceKm: 0 }]) {
     const h = harness({ draft });
     const result = await h.POST({});
-    assert.equal(result.status, 422); assert.equal(result.body.error, MEMBER_EVIDENCE_ERROR);
+    assert.equal(result.status, 422); assert.match(result.body.error, "activityTime" in draft ? /시작 시각/ : /운동 거리/);
     assert.ok(!h.calls.some(c => c.insert));
   }
 });
