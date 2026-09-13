@@ -88,6 +88,7 @@ export type Hello2027Snapshot = {
   daysUntil2027: number;
   completedToday: number;
   participantCount: number;
+  crewGoalDistanceKm?: number;
   officialTotals: { distanceKm: number; durationMinutes: number };
   rates: readonly Hello2027Rate[];
   ads: readonly Hello2027Ad[];

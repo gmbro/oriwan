@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { getCrewGoals } from "@/lib/crew-goals";
 import { useRef, useState, type CSSProperties } from "react";
 import { getCrewBannerPeriod, getCrewBannerStats, getCrewRunnerCount, HEALING_BANNER_IMAGE } from "@/lib/hello-2027-crew-banner";
 import { useHealingBannerMotion } from "./use-healing-banner-motion";
@@ -10,6 +11,7 @@ import { getHealingRoutePoint, healingRouteTransform, HEALING_RUNNERS, HEALING_R
 import styles from "./hello-2027-crew-banner.module.css";
 
 type Hello2027CrewBannerProps = {
+  crewGoalDistanceKm?: number;
   completedToday: number;
   participantCount: number;
   dayPhase?: string;
@@ -27,7 +29,7 @@ const ROUTE_STYLE = Object.fromEntries([
   ["--travel-duration", `${HEALING_TRAVEL_SECONDS}s`],
 ]) as CSSProperties;
 
-export function Hello2027CrewBanner({ completedToday, participantCount, dayPhase = "day", active = true, motionDisabled = false, showMotionControl = true, weatherPreview, seasonDday }: Hello2027CrewBannerProps) {
+export function Hello2027CrewBanner({ completedToday, participantCount, dayPhase = "day", active = true, motionDisabled = false, showMotionControl = true, weatherPreview, seasonDday, crewGoalDistanceKm = 0 }: Hello2027CrewBannerProps) {
   const stats = getCrewBannerStats(completedToday, participantCount);
   const count = getCrewRunnerCount(completedToday, participantCount);
   // Retain already requested images so a lower count can fade out instead of
@@ -94,6 +96,19 @@ export function Hello2027CrewBanner({ completedToday, participantCount, dayPhase
         <p className={styles.description}>{stats.description}</p>
         {seasonDday && <p className={styles.seasonCountdown} aria-label={`2026년 12월 31일 기준 ${seasonDday}`}><strong>{seasonDday}</strong></p>}
       </div>
+      <section className={styles.goals} aria-label="4기 공동 거리 목표">
+        <p className={styles.goalsHeading}>함께 달성하는 4개의 목표</p>
+        <p className={styles.goalsDistance}>공식 승인 러닝 {Math.max(0, Number.isFinite(crewGoalDistanceKm) ? crewGoalDistanceKm : 0).toLocaleString("ko-KR", { maximumFractionDigits: 2 })}km</p>
+        <ol className={styles.goalList}>
+          {getCrewGoals(crewGoalDistanceKm).map(goal => (
+            <li key={goal.step} data-state={goal.state} aria-label={`${goal.step}번째 목표: ${goal.state === "locked" ? "이전 목표 달성 후 공개" : `다 같이 ${goal.targetKm.toLocaleString("ko-KR")}km, ${goal.state === "completed" ? "달성 완료" : "도전 중"}`}`}>
+              <span className={styles.goalMark} aria-hidden="true">{goal.state === "completed" ? "✓" : goal.step}</span>
+              <span>{goal.state === "locked" ? "???" : `${goal.targetKm.toLocaleString("ko-KR")}km`}</span>
+              <small>{goal.state === "completed" ? "달성" : goal.state === "locked" ? "미공개" : "도전 중"}</small>
+            </li>
+          ))}
+        </ol>
+      </section>
       {stats.total > 0 && stats.completed === stats.total ? <div key="completed" className={styles.completionGlow} aria-hidden="true" /> : null}
       {showMotionControl ? (
         <button className={styles.motionToggle} type="button" aria-label={paused ? "배너 모션 재생" : "배너 모션 일시정지"} aria-pressed={paused} disabled={motion.restricted || motion.limited} tabIndex={active ? 0 : -1} onClick={() => setPaused(value => !value)} title={motion.restricted || motion.limited ? "기기 설정과 성능에 맞춰 정지 화면을 표시합니다" : undefined}>

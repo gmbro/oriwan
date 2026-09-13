@@ -14,6 +14,7 @@ type Hello2027BannerCarouselProps = {
   ads: readonly ResolvedHello2027Ad[];
   dayPhase: string;
   motionDisabled?: boolean;
+  crewGoalDistanceKm?: number;
   completedToday: number;
   participantCount: number;
   weatherPreview?: BannerWeatherCondition;
@@ -23,7 +24,7 @@ type Hello2027BannerCarouselProps = {
 const DEFAULT_SCENE = "/images/poc/hello-2027/hello-2027-riverside.webp";
 const AUTO_ADVANCE_MS = 14_000;
 
-export function Hello2027BannerCarousel({ ads, dayPhase, completedToday, participantCount, motionDisabled = false, weatherPreview, seasonDday }: Hello2027BannerCarouselProps) {
+export function Hello2027BannerCarousel({ ads, dayPhase, completedToday, participantCount, motionDisabled = false, weatherPreview, seasonDday, crewGoalDistanceKm = 0 }: Hello2027BannerCarouselProps) {
   const { rate: todayRate } = getCrewBannerStats(completedToday, participantCount);
   const trackRef = useRef<HTMLDivElement>(null);
   const scrollFrameRef = useRef<number | null>(null);
@@ -137,7 +138,7 @@ export function Hello2027BannerCarousel({ ads, dayPhase, completedToday, partici
           aria-hidden={visibleSlide !== 0}
           aria-label={`1 / ${slideCount}, 오늘의 인증률 ${todayRate}%`}
         >
-          <Hello2027CrewBanner completedToday={completedToday} participantCount={participantCount} dayPhase={dayPhase} active={visibleSlide === 0 && isDocumentVisible} motionDisabled={motionDisabled || isUserPaused} showMotionControl={false} weatherPreview={weatherPreview} seasonDday={seasonDday} />
+          <Hello2027CrewBanner crewGoalDistanceKm={crewGoalDistanceKm} completedToday={completedToday} participantCount={participantCount} dayPhase={dayPhase} active={visibleSlide === 0 && isDocumentVisible} motionDisabled={motionDisabled || isUserPaused} showMotionControl={false} weatherPreview={weatherPreview} seasonDday={seasonDday} />
         </article>
 
         {ads.map((ad, index) => (

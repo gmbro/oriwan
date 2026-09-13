@@ -248,6 +248,7 @@ export function Hello2027Poc({
           ) : null}
 
           <Hello2027BannerCarousel
+            crewGoalDistanceKm={liveSnapshot.crewGoalDistanceKm ?? 0}
             ads={localContent.ads}
             dayPhase={dayPhase}
             completedToday={liveSnapshot.completedToday}

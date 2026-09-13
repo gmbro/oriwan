@@ -20,7 +20,7 @@ import {
   type Hello2027MetricRecord,
 } from "@/lib/hello-2027-record-metrics";
 import type { Hello2027Participant, Hello2027Snapshot } from "@/lib/hello-2027-types";
-import { toKstIsoDate } from "@/lib/run-records";
+import { isRecoveryCertificationRecord, toKstIsoDate } from "@/lib/run-records";
 import { logServerFailure } from "@/lib/server-error-log";
 
 const MAX_LIVE_PARTICIPANTS = 100;
@@ -35,7 +35,7 @@ type ParticipantRow = {
   created_at: string | null;
 };
 
-type RecordRow = Hello2027MetricRecord;
+type RecordRow = Hello2027MetricRecord & { notes?: string | null; source_app?: string | null; raw_extracted_text?: string | null };
 
 function cleanText(value: unknown, maxLength: number) {
   if (typeof value !== "string" || CONTROL_CHARACTER_PATTERN.test(value)) return null;
@@ -158,7 +158,7 @@ async function fetchFourthRecords({
   while (true) {
     const { data, error } = await service
       .from("daily_run_records")
-      .select("participant_id, record_date, distance_km, duration_seconds, status, created_at")
+      .select("participant_id, record_date, distance_km, duration_seconds, status, created_at, notes, source_app, raw_extracted_text")
       .eq("user_id", adminUserId)
       .eq("season_key", FOURTH_SEASON_KEY)
       .in("status", ["certified", "needs_review"])
@@ -283,6 +283,8 @@ function buildLiveSnapshot({
     completedToday,
     participantCount: realParticipants.length,
     officialTotals: sumHello2027OfficialMetrics(recordsByParticipant),
+    crewGoalDistanceKm: Array.from(recordsByParticipant.values()).flat().reduce((total, record) =>
+      total + (isRecoveryCertificationRecord(record as RecordRow) ? 0 : cleanFiniteNumber(record.distance_km) ?? 0), 0),
     rates: [
       {
         key: "weekly",

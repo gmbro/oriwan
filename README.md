@@ -37,7 +37,7 @@ TWTT 크루의 시즌별 러닝 인증, 공개 현황, 개인 오늘의 운세·
 
 Node.js 24와 Git을 준비하고 [새 Mac 실행 안내](docs/new-mac-setup.md)를 따르세요. 비밀 환경변수와 운영 DB는 GitHub에 포함하지 않습니다.
 
-[4기 목표·구독·검색 노출 기획](docs/season4-growth-plan-2026-09-13.md)을 함께 보관합니다.
+[4기 목표·구독·검색 노출 최신 기획](docs/twtt-membership-and-homepage.md)을 함께 보관합니다.
 
 ## 개발과 검증
 

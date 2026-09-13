@@ -14,6 +14,7 @@ function subscribeClock(onChange: () => void) {
 const serverPeriod = () => "day";
 
 export function CrewBannerPreview({ note }: { note: ReactNode }) {
+  const [goalDistance, setGoalDistance] = useState(0);
   const [completed, setCompleted] = useState(17);
   const [width, setWidth] = useState(0);
   const [period, setPeriod] = useState("live");
@@ -65,6 +66,11 @@ export function CrewBannerPreview({ note }: { note: ReactNode }) {
               <option value={25}>100% · 전원 인증</option>
             </select>
           </label>
+          <label>공동 목표 예시
+            <select value={goalDistance} onChange={event => setGoalDistance(Number(event.target.value))}>
+              {[0, 1000, 2027, 5000, 10000].map(value => <option key={value} value={value}>{value.toLocaleString("ko-KR")}km</option>)}
+            </select>
+          </label>
           <label>화면 크기
             <select value={width} onChange={(event) => setWidth(Number(event.target.value))}>
               <option value={0}>현재 화면에 맞춤</option>
@@ -95,6 +101,7 @@ export function CrewBannerPreview({ note }: { note: ReactNode }) {
       </header>
       <div className={styles.frame} style={{ maxWidth: width || 1440 }}>
         <Hello2027BannerCarousel
+          crewGoalDistanceKm={goalDistance}
           ads={[]}
           dayPhase={period === "live" ? livePeriod : period}
           weatherPreview={weatherMode === "live" ? undefined : weatherMode}
