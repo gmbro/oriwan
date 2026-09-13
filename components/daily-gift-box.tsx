@@ -71,9 +71,10 @@ export function DailyGiftBox({ initialStatus = null, onStatusChange, preview = f
     setOpened(false);
     setMessage("");
 
+    const motionDelay = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 900;
     try {
       if (preview) {
-        await new Promise(resolve => window.setTimeout(resolve, 280));
+        await new Promise(resolve => window.setTimeout(resolve, motionDelay));
         const nextStatus = { ...status, claim: { id: "preview", record_date: status.record_date, message: "오늘도 나와의 약속을 지킨 당신, 충분히 잘하고 있어요.", claimed_at: new Date().toISOString() } };
         setStatus(nextStatus); setOpened(true); onStatusChange?.(nextStatus); return;
       }
@@ -84,7 +85,7 @@ export function DailyGiftBox({ initialStatus = null, onStatusChange, preview = f
           headers: { "Content-Type": "application/json" },
           body: "{}",
         }),
-        new Promise((resolve) => window.setTimeout(resolve, 280)),
+        new Promise((resolve) => window.setTimeout(resolve, motionDelay)),
       ]);
       const json = await readJson(response);
       if (!response.ok || !json.claim) {
@@ -109,7 +110,7 @@ export function DailyGiftBox({ initialStatus = null, onStatusChange, preview = f
       <div>
         <p className="text-xs font-bold text-blue-600">오늘 인증 보상</p>
         <h3 id="daily-gift-title" className="mt-1 text-xl font-black tracking-[-0.03em] text-slate-950">오늘의 응원 상자</h3>
-        <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
+        <p className={`${styles.copy} mt-2 text-sm font-semibold text-slate-600`}>
           {status?.claim
             ? "오늘의 상자를 열었어요. 내일 인증을 마치면 새 상자가 도착해요."
             : "오늘 인증을 완료한 기록을 확인했어요. 상자를 열어 응원을 받아보세요."}
@@ -122,10 +123,11 @@ export function DailyGiftBox({ initialStatus = null, onStatusChange, preview = f
         ) : (
           <div className={styles.visual}>
             <div className={styles.box} aria-hidden="true">
+              <div className={styles.sparkles} />
               <div className={styles.body} />
               <div className={styles.lid} />
             </div>
-            {status?.claim ? <p className={styles.message}>{status.claim.message}</p> : null}
+            {status?.claim ? <p className={styles.message}><span className={styles.messageLabel}>짜잔! 오늘의 응원이 도착했어요</span>{status.claim.message}</p> : null}
           </div>
         )}
       </div>
