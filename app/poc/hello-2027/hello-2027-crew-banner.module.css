@@ -71,7 +71,6 @@
 
 .wash { position: absolute; inset: 0; background: linear-gradient(90deg, rgb(247 249 251 / 95%), rgb(247 249 251 / 87%) 27%, rgb(247 249 251 / 28%) 49%, transparent 65%); pointer-events: none; }
 .content { position: absolute; top: 50%; left: 6%; width: 38%; max-width: 440px; transform: translateY(-50%); }
-.eyebrow { margin: 0 0 clamp(16px, 2cqi, 26px); color: #6b7684; font-size: clamp(10px, 1cqi, 12px); font-weight: 650; letter-spacing: .13em; }
 .title { margin: 0; font-size: clamp(18px, 2.1cqi, 26px); font-weight: 650; letter-spacing: -.045em; }
 .metric { display: flex; align-items: baseline; gap: 5px; margin: 8px 0 0; color: #1b64da; line-height: 1; }
 .metric strong { font-size: clamp(68px, 10cqi, 128px); font-weight: 750; letter-spacing: -.075em; }
@@ -95,7 +94,6 @@
   .scene { left: 100%; transform: translate(-100%, -50%); }
   .wash { background: linear-gradient(180deg, #f7f9fb 0%, #f7f9fb 45%, rgb(247 249 251 / 95%) 58%, rgb(247 249 251 / 12%) 76%, transparent 86%); }
   .content { top: 22px; left: 24px; width: calc(100% - 48px); max-width: none; transform: none; }
-  .eyebrow { margin-bottom: 12px; font-size: 9px; letter-spacing: .12em; }
   .title { font-size: 16px; }
   .metric { margin-top: 4px; }
   .metric strong { font-size: 62px; }
@@ -105,7 +103,6 @@
 }
 @container (max-width: 360px) {
   .content { top: 18px; left: 20px; width: calc(100% - 40px); }
-  .eyebrow { margin-bottom: 9px; }
   .metric strong { font-size: 54px; }
   .artwork { top: 38%; }
   .wash { background: linear-gradient(180deg, #f7f9fb 0%, #f7f9fb 50%, rgb(247 249 251 / 95%) 63%, rgb(247 249 251 / 12%) 80%, transparent 90%); }
@@ -113,35 +110,22 @@
 @media (prefers-reduced-motion: reduce) {
   .banner *, .banner *::before { animation: none !important; transition: none !important; }
 }
-
-.eyebrow { font-size: 12px; font-weight: 500; line-height: 1.5; }
 .title { font-size: clamp(18px, 2cqi, 24px); font-weight: 600; line-height: 1.4; }
 .description { font-size: clamp(13px, 1.3cqi, 16px); font-weight: 500; line-height: 1.5; }
 .seasonCountdown strong { font-size: 12px; font-weight: 600; line-height: 1.4; }
 
-.goals { position: absolute; right: 24px; top: 24px; width: 220px; padding: 14px; border: 1px solid rgb(255 255 255 / 85%); border-radius: 16px; background: rgb(247 249 251 / 94%); box-shadow: 0 4px 24px rgb(25 50 70 / 8%); }
-.goalsHeading { margin: 0; font-size: 13px; font-weight: 750; }
-.goalsDistance { margin: 5px 0 10px; color: #4e5968; font-size: 11px; }
-.goalList { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
-.goalList li { display: flex; align-items: center; gap: 8px; min-height: 28px; font-size: 13px; font-weight: 700; }
-.goalList small { margin-left: auto; color: #4e5968; font-size: 10px; font-weight: 500; }
-.goalMark { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: #e5e8eb; font-size: 11px; }
+.goals { margin-top: 8px; }
+.goalList { display: flex; flex-wrap: wrap; gap: 5px; margin: 0; padding: 0; list-style: none; }
+.goalList li { display: flex; align-items: center; gap: 4px; padding: 3px 5px; border-radius: 6px; background: rgb(255 255 255 / 65%); color: #4e5968; font-size: 10px; line-height: 1.4; font-weight: 600; white-space: nowrap; }
+.goalMark { display: grid; place-items: center; width: 14px; height: 14px; border-radius: 50%; background: #e5e8eb; font-size: 9px; }
 .goalList [data-state="completed"] { color: #176947; }
 .goalList [data-state="completed"] .goalMark { color: white; background: #23845b; }
 .goalList [data-state="active"] .goalMark { color: white; background: #3182f6; }
 .goalList [data-state="locked"] { color: #6b7684; }
 @container (max-width: 600px) {
-  .goals { top: auto; bottom: 12px; right: 16px; left: 16px; width: auto; padding: 10px 12px; border-radius: 12px; }
-  .goalsHeading { font-size: 11px; }
-  .goalsDistance { margin: 3px 0 6px; font-size: 10px; }
-  .goalList { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3px 14px; }
-  .goalList li { gap: 5px; min-height: 24px; font-size: 12px; }
-  .goalMark { width: 18px; height: 18px; font-size: 10px; }
-  .goalList small { font-size: 9px; }
   .content { top: 14px; }
-  .eyebrow { margin-bottom: 6px; }
   .metric strong { font-size: 46px; }
   .progress { margin-top: 6px; }
   .description { margin-top: 5px; }
-  .seasonCountdown { position: absolute; left: 160px; top: 22px; margin: 0; }
+  .seasonCountdown { position: absolute; left: 160px; top: 0; margin: 0; }
 }

@@ -27,7 +27,7 @@ type Hello2027PocProps = {
 };
 
 type DayPhase = "night" | "dawn" | "morning" | "day" | "sunset" | "evening";
-type CrewSort = "name" | "completed" | "distance" | "duration";
+type CrewSort = "completed" | "distance" | "duration";
 const ENCOURAGEMENT_ROTATION_MS = 18_000;
 
 function subscribeToClock(onStoreChange: () => void) {
@@ -106,7 +106,7 @@ export function Hello2027Poc({
 }: Hello2027PocProps) {
   const [liveSnapshot, setLiveSnapshot] = useState(snapshot);
   const [selectedParticipantId, setSelectedParticipantId] = useState<string | null>(null);
-  const [crewSort, setCrewSort] = useState<CrewSort>("name");
+  const [crewSort, setCrewSort] = useState<CrewSort>("completed");
   const clockSnapshot = useSyncExternalStore(
     subscribeToClock,
     getClockSnapshot,
@@ -283,20 +283,13 @@ export function Hello2027Poc({
                 <div className={styles.crewSort} role="group" aria-label="멤버 정렬 방식">
                   <button
                     type="button"
-                    aria-pressed={crewSort === "name"}
-                    onClick={() => setCrewSort("name")}
-                  >
-                    가나다순
-                  </button>
-                  <button
-                    type="button"
                     aria-pressed={crewSort === "completed"}
                     onClick={() => setCrewSort("completed")}
                   >
                     인증률
                   </button>
-                  <button type="button" aria-pressed={crewSort === "distance"} onClick={() => setCrewSort("distance")}>거리순</button>
-                  <button type="button" aria-pressed={crewSort === "duration"} onClick={() => setCrewSort("duration")}>시간순</button>
+                  <button type="button" aria-pressed={crewSort === "distance"} onClick={() => setCrewSort("distance")}>거리</button>
+                  <button type="button" aria-pressed={crewSort === "duration"} onClick={() => setCrewSort("duration")}>시간</button>
                 </div>
               </div>
 

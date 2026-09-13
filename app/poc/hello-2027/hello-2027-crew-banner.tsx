@@ -87,28 +87,25 @@ export function Hello2027CrewBanner({ completedToday, participantCount, dayPhase
       </div>
       <div className={styles.wash} aria-hidden="true" />
       <div className={styles.content}>
-        <p className={styles.eyebrow}>TWTT RUNNING CREW</p>
         <h2 className={styles.title}>오늘의 인증률</h2>
         <p className={styles.metric}><strong>{stats.rate}</strong><span>%</span></p>
         <div className={styles.progress} role="progressbar" aria-label="오늘의 크루 인증률" aria-valuemin={0} aria-valuemax={100} aria-valuenow={stats.rate} aria-valuetext={`${stats.rate}%, ${stats.description}`}>
           <span style={{ transform: `scaleX(${stats.rate / 100})` }} />
         </div>
         <p className={styles.description}>{stats.description}</p>
-        {seasonDday && <p className={styles.seasonCountdown} aria-label={`2026년 12월 31일 기준 ${seasonDday}`}><strong>{seasonDday}</strong></p>}
-      </div>
       <section className={styles.goals} aria-label="4기 공동 거리 목표">
-        <p className={styles.goalsHeading}>함께 달성하는 4개의 목표</p>
-        <p className={styles.goalsDistance}>공식 승인 러닝 {Math.max(0, Number.isFinite(crewGoalDistanceKm) ? crewGoalDistanceKm : 0).toLocaleString("ko-KR", { maximumFractionDigits: 2 })}km</p>
         <ol className={styles.goalList}>
           {getCrewGoals(crewGoalDistanceKm).map(goal => (
             <li key={goal.step} data-state={goal.state} aria-label={`${goal.step}번째 목표: ${goal.state === "locked" ? "이전 목표 달성 후 공개" : `다 같이 ${goal.targetKm.toLocaleString("ko-KR")}km, ${goal.state === "completed" ? "달성 완료" : "도전 중"}`}`}>
               <span className={styles.goalMark} aria-hidden="true">{goal.state === "completed" ? "✓" : goal.step}</span>
               <span>{goal.state === "locked" ? "???" : `${goal.targetKm.toLocaleString("ko-KR")}km`}</span>
-              <small>{goal.state === "completed" ? "달성" : goal.state === "locked" ? "미공개" : "도전 중"}</small>
             </li>
           ))}
         </ol>
       </section>
+        {seasonDday && <p className={styles.seasonCountdown} aria-label={`2026년 12월 31일 기준 ${seasonDday}`}><strong>{seasonDday}</strong></p>}
+      </div>
+
       {stats.total > 0 && stats.completed === stats.total ? <div key="completed" className={styles.completionGlow} aria-hidden="true" /> : null}
       {showMotionControl ? (
         <button className={styles.motionToggle} type="button" aria-label={paused ? "배너 모션 재생" : "배너 모션 일시정지"} aria-pressed={paused} disabled={motion.restricted || motion.limited} tabIndex={active ? 0 : -1} onClick={() => setPaused(value => !value)} title={motion.restricted || motion.limited ? "기기 설정과 성능에 맞춰 정지 화면을 표시합니다" : undefined}>
