@@ -78,7 +78,7 @@
 .progress { overflow: hidden; width: min(100%, 270px); height: 6px; margin-top: clamp(16px, 2cqi, 24px); border-radius: 99px; background: rgb(49 130 246 / 13%); }
 .progress > span { display: block; width: 100%; height: 100%; border-radius: inherit; background: #3182f6; transform-origin: left; transition: transform 350ms ease-out; }
 .description { margin: 12px 0 0; font-size: clamp(13px, 1.35cqi, 17px); font-weight: 600; line-height: 1.5; letter-spacing: -.03em; }
-.seasonCountdown { display: flex; align-items: center; gap: 8px; margin: 10px 0 0; font-size: 11px; color: #6b7684; font-variant-numeric: tabular-nums; }
+.seasonCountdown { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; font-size: 11px; color: #6b7684; font-variant-numeric: tabular-nums; }
 .seasonCountdown strong { border-radius: 7px; padding: 3px 7px; color: #1b64da; background: #e8f3ff; font-size: 12px; font-weight: 700; }
 .completionGlow { position: absolute; inset: 15% 8% 30% 62%; pointer-events: none; background: radial-gradient(circle at 20% 50%, #f2cb7c 0 2px, transparent 3px), radial-gradient(circle at 80% 15%, #f2cb7c 0 2px, transparent 3px), radial-gradient(circle at 65% 70%, #f2cb7c 0 2px, transparent 3px); animation: celebrate 2s ease-out both; }
 @keyframes celebrate { 0% { opacity: 0; transform: translateY(8px); } 35% { opacity: .7; } 100% { opacity: 0; transform: translateY(-12px); } }
@@ -116,18 +116,12 @@
 
 .goals { margin-top: 12px; width: fit-content; min-width: 160px; }
 .goalTitle { margin: 0 0 7px; color: #6b7684; font-size: 9px; line-height: 1.4; font-weight: 650; letter-spacing: .08em; }
-.goalList { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0; list-style: none; }
-.goalList li { display: flex; align-items: center; gap: 7px; color: #8b95a1; font-size: 11px; line-height: 16px; font-weight: 500; }
-.goalMark { display: grid; place-items: center; width: 15px; height: 15px; border-radius: 50%; background: #e9ecef; color: #6b7684; font-size: 9px; }
-.goalList [data-state="completed"] { color: #176947; }
-.goalList [data-state="completed"] .goalMark { color: white; background: #23845b; }
-.goalList [data-state="active"] { color: #1b64da; font-size: 13px; font-weight: 700; }
-.goalList [data-state="active"] .goalMark { color: white; background: #3182f6; }
+.goalValue { margin: 0; color: #1b64da; font-size: 15px; line-height: 1.5; font-weight: 700; }
+.goalValue[data-completed="true"] { color: #176947; }
 .goalHint { margin: 7px 0 0; color: #6b7684; font-size: 10px; line-height: 1.4; }
 @container (max-width: 600px) {
   .content { top: 14px; }
   .metric strong { font-size: 46px; }
   .progress { margin-top: 6px; }
   .description { margin-top: 5px; }
-  .seasonCountdown { position: absolute; left: 160px; top: 0; margin: 0; }
 }

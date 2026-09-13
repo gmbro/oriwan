@@ -90,6 +90,7 @@ export function Hello2027CrewBanner({ completedToday, participantCount, dayPhase
       </div>
       <div className={styles.wash} aria-hidden="true" />
       <div className={styles.content}>
+        {seasonDday && <p className={styles.seasonCountdown} aria-label={`2026년 12월 31일 기준 ${seasonDday}`}><strong>{seasonDday}</strong></p>}
         <h2 className={styles.title}>오늘의 인증률</h2>
         <p className={styles.metric}><strong>{stats.rate}</strong><span>%</span></p>
         <div className={styles.progress} role="progressbar" aria-label="오늘의 크루 인증률" aria-valuemin={0} aria-valuemax={100} aria-valuenow={stats.rate} aria-valuetext={`${stats.rate}%, ${stats.description}`}>
@@ -98,17 +99,12 @@ export function Hello2027CrewBanner({ completedToday, participantCount, dayPhase
         <p className={styles.description}>{stats.description}</p>
       <section className={styles.goals} aria-label="4기 공동 거리 목표">
         <h3 className={styles.goalTitle}>{goalTitle}</h3>
-        <ol className={styles.goalList}>
-          {goals.map(goal => (
-            <li key={goal.step} data-state={goal.state} aria-label={`${goal.step}번째 목표: ${goal.state === "locked" ? "이전 목표 달성 후 공개" : `다 같이 ${goal.targetKm.toLocaleString("ko-KR")}km, ${goal.state === "completed" ? "달성 완료" : "도전 중"}`}`}>
-              <span className={styles.goalMark} aria-hidden="true">{goal.state === "completed" ? "✓" : goal.step}</span>
-              <span>{goal.state === "locked" ? "???" : `${goal.targetKm.toLocaleString("ko-KR")}km`}</span>
-            </li>
-          ))}
-        </ol>
+        <p className={styles.goalValue} data-completed={!currentGoal}>
+          {!currentGoal && <span aria-label="달성 완료">✓ </span>}
+          {(currentGoal ?? goals[goals.length - 1]).targetKm.toLocaleString("ko-KR")}km
+        </p>
         <p className={styles.goalHint}>{currentGoal ? "달성하면 다음 목표가 열립니다" : "네 가지 공동 목표를 모두 달성했어요"}</p>
       </section>
-        {seasonDday && <p className={styles.seasonCountdown} aria-label={`2026년 12월 31일 기준 ${seasonDday}`}><strong>{seasonDday}</strong></p>}
       </div>
 
       {stats.total > 0 && stats.completed === stats.total ? <div key="completed" className={styles.completionGlow} aria-hidden="true" /> : null}
