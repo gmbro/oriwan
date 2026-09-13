@@ -1,5 +1,6 @@
 "use client";
 
+import { usePageScrollLock } from "@/lib/use-page-scroll-lock";
 import Image from "next/image";
 import { MyActivityDialog, openMyActivity } from "@/components/my-activity-dialog";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
@@ -161,18 +162,10 @@ export function Hello2027Poc({
     if (!dialog || !selectedParticipant || dialog.open) return;
 
     dialog.showModal();
-    window.requestAnimationFrame(() => dialogTitleRef.current?.focus());
+    window.requestAnimationFrame(() => dialogTitleRef.current?.focus({ preventScroll: true }));
   }, [selectedParticipant]);
 
-  useEffect(() => {
-    if (!selectedParticipant) return;
-
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = previousOverflow;
-    };
-  }, [selectedParticipant]);
+  usePageScrollLock(Boolean(selectedParticipant));
 
   const openParticipant = (participantId: string, trigger: HTMLButtonElement) => {
     if (!canViewRecords) { window.location.assign("/api/auth/kakao?next=%2F4th%2Fdashboard&restart=1"); return; }
@@ -184,7 +177,7 @@ export function Hello2027Poc({
     const dialog = dialogRef.current;
     if (dialog?.open) dialog.close();
     setSelectedParticipantId(null);
-    window.requestAnimationFrame(() => lastTriggerRef.current?.focus());
+    window.requestAnimationFrame(() => lastTriggerRef.current?.focus({ preventScroll: true }));
   };
 
 

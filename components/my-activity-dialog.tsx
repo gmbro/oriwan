@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { usePageScrollLock } from "@/lib/use-page-scroll-lock";
 import Content from "./my-activity-content";
 import type { MyActivityData, MyActivitySection } from "@/components/my-activity-content";
 import type { MyActivityFeatureSeed } from "@/lib/my-activity-feature-seed";
@@ -38,7 +39,7 @@ export function MyActivityDialog({ name, imageUrl, className, onChanged, preview
       trigger.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
       setOpened(true);
       if (!dialog.current?.open) dialog.current?.showModal();
-      requestAnimationFrame(() => heading.current?.focus());
+      requestAnimationFrame(() => heading.current?.focus({ preventScroll: true }));
     };
     const hash = () => { if (consumeActivityHash()) open(); };
     window.addEventListener("twtt:my-activity", open);
@@ -49,12 +50,7 @@ export function MyActivityDialog({ name, imageUrl, className, onChanged, preview
     if (consumeActivityHash() && navigation?.type !== "reload") open();
     return () => { window.removeEventListener("twtt:my-activity", open); window.removeEventListener("hashchange", hash); };
   }, []);
-  useEffect(() => {
-    if (!opened) return;
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => { document.body.style.overflow = previous; };
-  }, [opened]);
+  usePageScrollLock(opened);
   useEffect(() => {
     if (!opened) return;
     shell.current?.scrollTo({ top: 0 });
@@ -62,7 +58,7 @@ export function MyActivityDialog({ name, imageUrl, className, onChanged, preview
   }, [section, opened]);
   const close = () => {
     dialog.current?.close(); setOpened(false);
-    requestAnimationFrame(() => trigger.current?.focus());
+    requestAnimationFrame(() => trigger.current?.focus({ preventScroll: true }));
   };
   return <>
     {showTrigger && <button className={className} type="button" aria-haspopup="dialog" onPointerEnter={() => void import("./my-activity-content")} onFocus={() => void import("./my-activity-content")} onClick={() => openMyActivity()}>내 정보</button>}

@@ -25,7 +25,7 @@ function dialogHarness(hash = "", navigationType = "navigate") {
     requestAnimationFrame: fn => fn(),
     useEffect: fn => effects.push(fn), useLayoutEffect: fn => effects.push(fn), useState: value => [value, () => {}],
     useRef: () => ({ current: refIndex++ === 0 ? { open: false, showModal() { opened++; this.open = true; } } : null }),
-    styles: {}, Content: () => null,
+    styles: {}, Content: () => null, usePageScrollLock: () => {},
   });
   Dialog({ name: "테스트" }); const cleanup = effects[0]();
   return { listeners, replacements, location, history, cleanup, opened: () => opened };
