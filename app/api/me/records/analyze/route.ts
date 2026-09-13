@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { NextRequest } from "next/server";
 import { GoogleGenAI } from "@google/genai";
 import sharp from "sharp";
-import { buildRunImagePrompt, GEMINI_OCR_MODEL, getGeminiOcrConfig, logGeminiOcrUsage } from "@/lib/gemini";
+import { buildMemberRunImagePrompt, GEMINI_OCR_MODEL, getMemberGeminiOcrConfig, logGeminiOcrUsage } from "@/lib/gemini";
 import { MEMBER_UPLOAD_MAX_BYTES, type MemberUploadDraft } from "@/lib/member-upload-contract";
 import { memberJson, ownedMember, privateUploadStore, readUploadDraft, reserveOcrQuota, uploadPrefix } from "@/lib/member-upload-server";
 import { parseDistanceKm, parseDurationText, parseJsonObject, type ExtractedRunBase } from "@/lib/run-image-extraction";
@@ -55,11 +55,11 @@ export async function POST(request: NextRequest) {
     const draft: MemberUploadDraft = { id, participantId: owned.participantId, createdAt: uploadedAt, date: null, distanceKm: null, durationSeconds: null, confidence: null, rawText: "", model: GEMINI_OCR_MODEL, warning: null };
     try {
       if (!process.env.GEMINI_API_KEY) throw new Error("configuration");
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY, httpOptions: { timeout: 35_000, retryOptions: { attempts: 1 } } });
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY, httpOptions: { timeout: 20_000, retryOptions: { attempts: 1 } } });
       const response = await ai.models.generateContent({
         model: GEMINI_OCR_MODEL,
-        contents: [{ role: "user", parts: [{ text: buildRunImagePrompt({ challengeYear: "2026", includeParticipantName: false }) }, { inlineData: { mimeType: "image/webp", data: bytes.toString("base64") } }] }],
-        config: getGeminiOcrConfig(GEMINI_OCR_MODEL),
+        contents: [{ role: "user", parts: [{ text: buildMemberRunImagePrompt() }, { inlineData: { mimeType: "image/webp", data: bytes.toString("base64") } }] }],
+        config: getMemberGeminiOcrConfig(),
       });
       logGeminiOcrUsage(GEMINI_OCR_MODEL, response);
       const extracted = parseJsonObject<ExtractedRunBase>(response.text || "");

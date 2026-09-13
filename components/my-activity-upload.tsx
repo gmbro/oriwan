@@ -6,7 +6,7 @@ import styles from "./my-activity.module.css";
 
 async function reduceScreenshot(file: File) {
   if (!["image/jpeg", "image/png", "image/webp"].includes(file.type) || file.size > 20 * 1024 * 1024) throw new Error("20MB 이하의 JPG, PNG, WebP 사진을 선택해주세요.");
-  if (file.size <= MEMBER_UPLOAD_MAX_BYTES) return file;
+  if (file.size <= 700 * 1024) return file;
   const bitmap = await createImageBitmap(file);
   try {
     const scale = Math.min(1, 1800 / bitmap.width, 2400 / bitmap.height);
@@ -18,6 +18,7 @@ async function reduceScreenshot(file: File) {
     context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
     const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, "image/jpeg", .88));
     if (!blob || blob.size > MEMBER_UPLOAD_MAX_BYTES) throw new Error("사진 용량을 3MB 이하로 줄여 다시 선택해주세요.");
+    if (blob.size >= file.size && file.size <= MEMBER_UPLOAD_MAX_BYTES) return file;
     return new File([blob], "running-screenshot.jpg", { type: "image/jpeg" });
   } finally { bitmap.close(); }
 }
@@ -80,9 +81,9 @@ export default function MyActivityUpload({ today, onSubmitted, preview = false }
   };
   return <>
     {stage === "choose" && <p className={styles.muted}>캡쳐 사진을 업로드해주세요</p>}
-    {stage !== "done" && <p className={styles.muted}>운동한 날 한국시간 오전 8시 전에 올려주세요. 이후에 올린 사진은 같은 운동일의 오전 8시 이전 시각이 캡처에 보여야 해요. 모든 기록은 관리자 승인 후 인증돼요.</p>}
+    {stage !== "done" && <p className={styles.muted}>오전 8시 이전에 운동을 시작했다는 시각이 보이도록 업로드해주세요</p>}
     {error && <p className={`${styles.feedback} ${styles.error}`} role="alert">{error}</p>}
-    {stage === "done" ? <><div className={styles.feedback} role="status">{preview ? "미리보기 제출 완료 · 실제 저장 없음" : "확인 중이에요. 거리와 시간은 내 기록에서 바로 볼 수 있고, 공식 인증은 운영자 확인 후 반영돼요."}</div><button className={styles.primary} onClick={() => { setDraft(null); setStage("choose"); setImage(""); }}>다른 인증샷 올리기</button></> : <>
+    {stage === "done" ? <><div className={styles.feedback} role="status">{preview ? "미리보기 제출 완료 · 실제 저장 없음" : <><strong>인증이 완료되었습니다</strong><p>내 기록에 저장했어요. 현재 운영자 승인 대기 중이며, 공식 인증률과 공동 목표는 승인 후 반영돼요.</p><p>{date} · {distance}km · {minutes}분 {seconds}초</p></>}</div><button className={styles.primary} onClick={() => { setDraft(null); setStage("choose"); setImage(""); }}>다른 인증샷 올리기</button></> : <>
       {image && <Image unoptimized width={800} height={800} src={image} alt="내가 선택한 인증샷 미리보기" className={styles.preview} />}
       <input ref={input} type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={e => { void upload(e.target.files?.[0]); e.target.value = ""; }} />
       {stage === "choose" && <button className={styles.upload} type="button" aria-label="인증샷 업로드: 캡쳐 사진 선택" onClick={() => input.current?.click()}><span className={styles.uploadPlus} aria-hidden="true">＋</span></button>}

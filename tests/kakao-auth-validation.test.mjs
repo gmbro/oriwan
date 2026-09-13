@@ -57,9 +57,9 @@ test("PKCE 만료 오류만 재시도 안내로 분류하고 설명·토큰은 �
   });
 });
 
-test("로그인은 메인 화면으로 복귀하고 명시적인 댓글 앵커만 유지한다", () => {
-  assert.equal(getSafeAuthReturnPath("/4th/dashboard#member-features"), "/4th/dashboard");
-  assert.equal(getSafeAuthReturnPath("/4th/dashboard#my-activity"), "/4th/dashboard");
+test("로그인은 허용된 개인 화면과 댓글 앵커를 유지한다", () => {
+  assert.equal(getSafeAuthReturnPath("/4th/dashboard#member-features"), "/4th/dashboard#member-features");
+  assert.equal(getSafeAuthReturnPath("/4th/dashboard#my-activity"), "/4th/dashboard#my-activity");
   assert.equal(getSafeAuthReturnPath("/4th/dashboard#guestbook"), "/4th/dashboard#guestbook");
   assert.equal(getSafeAuthReturnPath("/4th/dashboard#unknown", "/4th"), "/4th");
   assert.equal(getSafeAuthReturnPath("//evil.example", "/4th"), "/4th");

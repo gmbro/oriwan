@@ -21,7 +21,7 @@ export function DashboardGatewayActions() {
         로그인 없이 대시보드 보기
       </Link>
       <KakaoLoginButton
-        nextPath="/4th/dashboard"
+        nextPath="/4th/dashboard#my-activity"
         label="카카오로 시작하기"
         restart
         className="h-14 px-4 text-sm leading-tight"

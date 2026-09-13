@@ -228,7 +228,7 @@ export function Hello2027Poc({
                     </button>
                   </>
                 ) : (
-                  <KakaoLoginButton nextPath="/4th/dashboard" label="로그인" variant="compact" />
+                  <KakaoLoginButton nextPath="/4th/dashboard#my-activity" label="로그인" variant="compact" restart />
                 )}
               </div>
             ) : null}

@@ -24,10 +24,6 @@ export function getSafeAuthReturnPath(
     const allowedHash = target.hash === ""
       || (target.pathname === "/4th/dashboard" && ["#member-features", "#my-activity", "#guestbook"].includes(target.hash));
     if (!allowedHash) return fallback;
-    // Old login links/cookies must no longer open My Info after OAuth.
-    if (target.pathname === "/4th/dashboard" && ["#member-features", "#my-activity"].includes(target.hash)) {
-      return target.pathname;
-    }
     return `${target.pathname}${target.hash}`;
   } catch {
     return fallback;

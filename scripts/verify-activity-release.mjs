@@ -9,7 +9,7 @@ const { randomUUID } = await import("node:crypto");
 const source = readFileSync(new URL("../lib/gemini.ts", import.meta.url), "utf8");
 const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText
   .replace('from "@google/genai"', `from ${JSON.stringify(import.meta.resolve("@google/genai"))}`);
-const { GEMINI_OCR_MODEL, getGeminiOcrConfig, buildRunImagePrompt, getGeminiErrorDebug } = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString("base64")}`);
+const { GEMINI_OCR_MODEL, getMemberGeminiOcrConfig, buildMemberRunImagePrompt, getGeminiErrorDebug } = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString("base64")}`);
 const { GoogleGenAI } = await import("@google/genai");
 const { NEXT_PUBLIC_SUPABASE_URL: url, NEXT_PUBLIC_SUPABASE_ANON_KEY: anonKey, SUPABASE_SERVICE_ROLE_KEY: serviceKey, GEMINI_API_KEY: apiKey } = process.env;
 if (!url || !anonKey || !serviceKey || !apiKey) throw new Error("Release gate: required server configuration is missing.");
@@ -40,12 +40,12 @@ try {
   const cleanup = await admin.storage.from(bucket).remove([path]);
   if (cleanup.error) throw new Error("Release gate: temporary permission-test cleanup failed.");
 }
-const image = await sharp(Buffer.from(`<svg width="800" height="700" xmlns="http://www.w3.org/2000/svg"><rect width="800" height="700" fill="white"/><g fill="#191f28" font-family="sans-serif"><text x="60" y="100" font-size="34">RUNNING ACTIVITY</text><text x="60" y="190" font-size="30">2026-09-08</text><text x="60" y="300" font-size="46">Distance 5.20 km</text><text x="60" y="410" font-size="46">Duration 32:10</text><text x="60" y="520" font-size="28">Average pace 6:11 /km</text></g></svg>`)).webp({ quality: 90 }).toBuffer();
+const image = await sharp(Buffer.from(`<svg width="800" height="700" xmlns="http://www.w3.org/2000/svg"><rect width="800" height="700" fill="white"/><g fill="#191f28" font-family="sans-serif"><text x="60" y="100" font-size="34">RUNNING ACTIVITY</text><text x="60" y="190" font-size="30">2026-09-08</text><text x="60" y="300" font-size="46">Distance 5.20 km</text><text x="60" y="410" font-size="46">Duration 32:10</text><text x="60" y="520" font-size="28">Average pace 6:11 /km</text><text x="60" y="610" font-size="30">Start 07:35 AM</text></g></svg>`)).webp({ quality: 90 }).toBuffer();
 try {
   const ai = new GoogleGenAI({ apiKey, httpOptions: { timeout: 35_000, retryOptions: { attempts: 1 } } });
-  const response = await ai.models.generateContent({ model: GEMINI_OCR_MODEL, config: getGeminiOcrConfig(GEMINI_OCR_MODEL), contents: [{ role: "user", parts: [{ text: buildRunImagePrompt({ challengeYear: "2026", includeParticipantName: false }) }, { inlineData: { mimeType: "image/webp", data: image.toString("base64") } }] }] });
+  const response = await ai.models.generateContent({ model: GEMINI_OCR_MODEL, config: getMemberGeminiOcrConfig(), contents: [{ role: "user", parts: [{ text: buildMemberRunImagePrompt() }, { inlineData: { mimeType: "image/webp", data: image.toString("base64") } }] }] });
   const value = JSON.parse(response.text || "{}");
-  if (value.record_date !== "2026-09-08" || Number(value.distance_km) !== 5.2 || Number(value.duration_seconds) !== 1930) {
+  if (value.activity_time !== "07:35" || value.activity_date !== "2026-09-08" || value.record_date !== "2026-09-08" || Number(value.distance_km) !== 5.2 || Number(value.duration_seconds) !== 1930) {
     console.info("Release gate: synthetic fixture mismatch", { date: value.record_date, distance: value.distance_km, seconds: value.duration_seconds });
     throw new Error("fixture_mismatch");
   }
