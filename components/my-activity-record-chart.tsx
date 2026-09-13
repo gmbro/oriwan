@@ -1,5 +1,5 @@
 "use client";
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import type { PersonalRunRecord } from '@/lib/personal-records';
 import { personalRecordChart, type RecordPeriod } from '@/lib/personal-record-chart';
 import styles from './my-activity.module.css';
@@ -7,29 +7,44 @@ import styles from './my-activity.module.css';
 export default function MyActivityRecordChart({ records, today }: { records: PersonalRunRecord[]; today: string }) {
   const [period, setPeriod] = useState<RecordPeriod>('week');
   const [metric, setMetric] = useState<'distance' | 'minutes'>('distance');
-  const { start, buckets } = personalRecordChart(records, today, period);
-  const maximum = Math.max(1, ...buckets.map(b => b[metric]));
+  const [offset, setOffset] = useState(0);
+  const [selected, setSelected] = useState<string | null>(null);
+  const titleId = useId();
+  const { start, end, buckets, beforeStart, canPrevious, canNext } = personalRecordChart(records, today, period, offset);
   const total = buckets.reduce((sum, b) => sum + b[metric], 0);
   const unit = metric === 'distance' ? 'km' : '분';
   const format = (value: number) => value.toLocaleString('ko-KR', { maximumFractionDigits: metric === 'distance' ? 2 : 0 });
+  const max = Math.max(1, ...buckets.map(b => b[metric]));
+  const step = Math.pow(10, Math.floor(Math.log10(max)));
+  const ceiling = Math.ceil(max / step) * step;
+  const chosen = buckets.find(b => b.date === selected);
+  const chartWidth = 320, left = 34, plotWidth = 276, base = 158, plotHeight = 122;
+  const slot = plotWidth / Math.max(1, buckets.length);
   return <section className={styles.chart} aria-label="운동 기록 그래프">
-    <h3>기록 그래프</h3>
     <div className={styles.chartTabs} role="group" aria-label="그래프 기간">
-      {([{ key: 'week', label: '주간 기록' }, { key: 'month', label: '월간 기록' }, { key: 'total', label: '총 기록' }] as const).map(item => <button type="button" key={item.key} aria-pressed={period === item.key} onClick={() => setPeriod(item.key)}>{item.label}</button>)}
+      {([{ key: 'week', label: '주간 기록' }, { key: 'month', label: '월간 기록' }, { key: 'total', label: '총 기록' }] as const).map(item => <button type="button" key={item.key} aria-pressed={period === item.key} onClick={() => {setPeriod(item.key); setOffset(0); setSelected(null);}}>{item.label}</button>)}
     </div>
-    <div className={styles.row}><div className={styles.chartTabs} role="group" aria-label="그래프 지표">
-      <button type="button" aria-pressed={metric === 'distance'} onClick={() => setMetric('distance')}>거리</button>
-      <button type="button" aria-pressed={metric === 'minutes'} onClick={() => setMetric('minutes')}>시간</button>
-    </div><strong aria-live="polite">{format(total)}{unit}</strong></div>
-    <p className={styles.muted}>{start.replaceAll('-', '.')} ~ {today.replaceAll('-', '.')} · {period === 'total' ? '월별 합계' : '일별 합계'}</p>
-    <div className={styles.chartScroll} tabIndex={0} role="region" aria-label="날짜별 기록. 좌우로 스크롤하여 확인하세요">
-      <div className={styles.chartBars}>
-        {buckets.map(bucket => <div className={styles.chartColumn} key={bucket.date}>
-          <span>{format(bucket[metric])}</span><div className={styles.chartTrack}><div style={{ height: `${bucket[metric] / maximum * 100}%` }} /></div><small>{bucket.label}</small>
-        </div>)}
-      </div>
+    <div className={styles.chartPeriod}>
+      <button type="button" disabled={!canPrevious} aria-label="이전 기록 기간" onClick={() => {setOffset(offset-1);setSelected(null);}}>‹</button>
+      <span>{beforeStart ? '2026년 9월 23일 시작' : `${start.slice(5).replace('-', '.')} – ${end.slice(5).replace('-', '.')}`}</span>
+      <button type="button" disabled={!canNext} aria-label="다음 기록 기간" onClick={() => {setOffset(offset+1);setSelected(null);}}>›</button>
     </div>
-    {total === 0 && <p className={styles.muted}>이 기간에 표시할 {metric === 'distance' ? '거리' : '시간'} 기록이 없어요.</p>}
-    <p className={styles.muted}>시작 전 운동과 승인 대기 기록을 포함해요. 총 인증일은 공식 기간에 승인된 기록만 반영해요.</p>
+    <div className={styles.chartSummary}>
+      <div><span>{period === 'week' ? '선택한 주' : period === 'month' ? '선택한 월' : '시즌 전체'} {metric === 'distance' ? '달린 거리' : '운동 시간'}</span><strong aria-live="polite">{format(total)}<small>{unit}</small></strong></div>
+      <div className={styles.chartTabs} role="group" aria-label="그래프 지표"><button type="button" aria-pressed={metric === 'distance'} onClick={() => setMetric('distance')}>거리</button><button type="button" aria-pressed={metric === 'minutes'} onClick={() => setMetric('minutes')}>시간</button></div>
+    </div>
+    {beforeStart ? <div className={styles.chartEmpty}><strong>우리의 첫 기록을 기다려요</strong><p>9월 23일부터 쌓이는 운동 기록을<br/>이곳에서 함께 확인해요.</p></div> : <>
+      <svg viewBox={`0 0 ${chartWidth} 190`} className={styles.recordPlot} role="group" aria-labelledby={titleId}>
+        <title id={titleId}>{period === 'total' ? '월별' : '일별'} {metric === 'distance' ? '거리' : '시간'} 그래프, 단위 {unit}. 막대를 선택하면 수치를 확인할 수 있어요.</title>
+        {[0,0.5,1].map(ratio => <g key={ratio}><line x1={left} x2="310" y1={base-ratio*plotHeight} y2={base-ratio*plotHeight} stroke="#e5e8eb" strokeDasharray={ratio ? '3 4' : undefined}/><text x="27" y={base-ratio*plotHeight+3} textAnchor="end" fontSize="9" fill="#8b95a1">{format(ceiling*ratio)}</text></g>)}
+        {buckets.map((b,i) => { const height=b[metric]/ceiling*plotHeight; const x=left+i*slot; return <g key={b.date} role="button" tabIndex={0} aria-label={`${b.label}, ${format(b[metric])}${unit}`} aria-pressed={selected===b.date} onClick={()=>setSelected(b.date)} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();setSelected(b.date);}}}>
+          <rect x={x+slot*.2} y={base-Math.max(height,2)} width={slot*.6} height={Math.max(height,2)} rx="3" fill={b[metric]===0?'#e5e8eb':selected===b.date?'#174bba':'#3182f6'}/>
+          <rect x={x} y="20" width={slot} height="160" fill="transparent"/>
+          {(buckets.length<=8 || i===0 || i===buckets.length-1 || i%5===0) && <text x={x+slot/2} y="177" textAnchor="middle" fontSize="9" fill="#6b7684">{b.label}</text>}
+        </g>;})}
+      </svg>
+      <p className={styles.chartSelection} aria-live="polite">{chosen ? `${chosen.label} · ${format(chosen[metric])}${unit}` : total===0 ? '이 기간에는 아직 운동 기록이 없어요.' : '막대를 눌러 기록을 확인해보세요.'}</p>
+    </>}
+    <p className={styles.muted}>9월 23일~12월 31일 운동 기준 · 승인 대기 포함<br/>주간 기록은 9월 23일부터 7일씩 집계해요.</p>
   </section>;
 }

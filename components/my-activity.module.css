@@ -90,3 +90,18 @@
 .chartTrack > div { width: 100%; background: #3182f6; border-radius: 5px 5px 0 0; }
 .stats dt { min-height: 1.4em; }
 .stats dd { margin-top: 5px; font-size: clamp(16px, 2vw, 20px); }
+
+.chartPeriod { display:flex; align-items:center; justify-content:space-between; color:#6b7684; font-size:12px; }
+.chartPeriod button { width:36px; height:36px; border:0; border-radius:12px; background:#f2f4f6; font-size:22px; color:#4e5968; cursor:pointer; }
+.chartSummary { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.chartSummary > div:first-child { display:grid; gap:5px; min-width:0; }
+.chartSummary span { font-size:12px; color:#6b7684; }
+.chartSummary strong { font-size:28px; letter-spacing:-.04em; font-variant-numeric:tabular-nums; line-height:1.3; }
+.chartSummary small { margin-left:4px; font-size:14px; font-weight:500; color:#6b7684; }
+.recordPlot { display:block; width:100%; height:auto; overflow:visible; }
+.recordPlot [role=button] { cursor:pointer; outline:none; }
+.recordPlot [role=button]:focus-visible rect:first-child { stroke:#174bba; stroke-width:2; }
+.chartSelection { margin:0; border-radius:12px; padding:12px; color:#1b64da; background:#f2f7ff; font-size:12px; text-align:center; }
+.chartEmpty { padding:28px 14px; border-radius:16px; background:linear-gradient(135deg,#f2f7ff,#f9fafb); text-align:center; }
+.chartEmpty strong { color:#4e5968; font-size:15px; }
+.chartEmpty p { color:#8b95a1; font-size:13px; line-height:1.7; margin:8px 0 0; }
