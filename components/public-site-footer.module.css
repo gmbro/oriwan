@@ -1,0 +1,31 @@
+.footer { width:100%; margin-top:64px; background:#f2f4f6; border-top:1px solid #e5e8eb; color:#6b7684; font-size:13px; line-height:1.7; }
+.inner { max-width:1152px; margin:0 auto; padding:52px 32px 28px; }
+.top { display:grid; grid-template-columns:minmax(0,1.6fr) minmax(0,1fr) minmax(0,1.3fr); gap:40px; }
+.brandLink { display:inline-flex; align-items:baseline; gap:10px; color:#333d4b; font-size:24px; font-weight:750; letter-spacing:-.05em; text-decoration:none; }
+.brandLink span { font-size:12px; font-weight:600; letter-spacing:.06em; color:#8b95a1; }
+.brand p { margin:8px 0 0; }
+.brand .description { margin-top:18px; color:#8b95a1; }
+.links { display:flex; flex-direction:column; align-items:flex-start; gap:4px; }
+.top h2 { color:#333d4b; font-size:13px; font-weight:650; margin:0 0 12px; line-height:1.7; }
+.links a { display:inline-flex; align-items:center; min-height:36px; color:#6b7684; text-decoration:none; }
+.contactLink { display:inline-flex; align-items:center; gap:8px; min-height:36px; color:#4e5968; font-weight:600; text-decoration:none; }
+.email { display:block; margin-top:2px; color:#8b95a1; overflow-wrap:anywhere; font-size:12px; }
+.contact p { margin:14px 0 0; color:#8b95a1; font-size:12px; }
+.bottom { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px; margin-top:40px; padding-top:20px; border-top:1px solid #e5e8eb; }
+.policies { display:flex; align-items:center; flex-wrap:wrap; gap:8px 24px; }
+.policies a { display:inline-flex; align-items:center; min-height:40px; color:#6b7684; text-decoration:none; font-size:12px; }
+.policies .privacy { color:#4e5968; font-weight:650; }
+.signature { color:#8b95a1; font-size:11px; }
+.footer a:hover { color:#191f28; text-decoration:underline; text-underline-offset:4px; }
+.footer a:focus-visible { outline:2px solid #3182f6; outline-offset:4px; border-radius:4px; }
+@media(max-width:640px) {
+ .footer { margin-top:40px; }
+ .inner { padding:36px 24px 24px; }
+ .top { grid-template-columns:1fr; gap:28px; }
+ .brand .description { margin-top:12px; }
+ .links { flex-direction:row; flex-wrap:wrap; column-gap:24px; }
+ .links h2 { width:100%; margin-bottom:2px; }
+ .links a,.contactLink { min-height:44px; }
+ .bottom { margin-top:28px; padding-top:16px; gap:8px; flex-direction:column; align-items:flex-start; }
+ .contact p { margin-top:10px; }
+}
