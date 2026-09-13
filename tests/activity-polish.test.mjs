@@ -106,7 +106,7 @@ test("멤버창은 인증일·거리·시간을 위에서 한 번만 보여주�
     }));
     assert.equal((html.match(/총 인증일/g) || []).length, 1);
     assert.match(html, /총 인증일[\s\S]*누적 거리[\s\S]*누적 시간/);
-    assert.doesNotMatch(html, /일째 인증 중|인증 기록|participant-dialog-description|자기소개|확인 중/);
+    assert.doesNotMatch(html, /일째 인증 중|인증 기록|participant-dialog-description|확인 중|이번 주 승인 기록/);
     assert.equal(calendarProps.showTotal, false);
     assert.equal(calendarProps.showLegend, false); assert.equal(calendarProps.compact, true);
   }

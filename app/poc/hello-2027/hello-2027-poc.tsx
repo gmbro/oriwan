@@ -467,7 +467,7 @@ export function ParticipantDialog({
             </div>
           </dl>
 
-          {!showDetailedRecords && <section className="mt-4 rounded-2xl bg-blue-50 p-4"><h3 className="font-bold text-blue-600">이번 주 승인 기록</h3><p className="mt-2">{formatDistanceKm(participant.weeklyDistanceKm ?? 0)} · {formatTotalDuration(participant.weeklyDurationMinutes ?? 0)}</p><p className="mt-2 text-sm text-slate-600">월요일부터 오늘까지의 기록입니다. 누적 기록은 시즌 준비 기간을 포함하고, 인증 일수는 공식 시즌 기준입니다.</p></section>}
+
           {<div className={styles.memberCalendar}><ParticipantRecordCalendar
             key={participant.id}
             records={participant.recordHistory}
@@ -477,7 +477,7 @@ export function ParticipantDialog({
             showLegend={false}
             compact
           /></div>}
-          {introduction?.body && <section className="mt-6 border-t border-slate-100 pt-6"><h3 className="text-lg font-bold">{introduction.title || "자기소개"}</h3><p className="mt-3 whitespace-pre-wrap break-words text-sm leading-7 text-slate-600">{introduction.body}</p></section>}
+          <section className="mt-5 rounded-2xl bg-blue-50 p-5"><h3 className="text-base font-bold text-blue-600">{introduction?.title || "자기소개"}</h3><p className="mt-3 whitespace-pre-wrap break-words text-sm leading-7 text-slate-600">{introduction?.body || "자기소개를 준비하고 있어요."}</p></section>
         </div>
       ) : null}
     </dialog>
