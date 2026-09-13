@@ -1,13 +1,27 @@
 import type { Hello2027Snapshot } from "./hello-2027-types";
 
-// Apply after reading the shared cache, never store a viewer-specific projection in it.
+// Project only after reading shared data. Never send pending rows or a calendar
+// to spectators, including in hydration and periodic refresh responses.
 export function projectDashboardRecords(snapshot: Hello2027Snapshot, authenticated: boolean): Hello2027Snapshot {
   if (authenticated) return { ...snapshot, guestbook: [] };
-  return { ...snapshot, guestbook: [], participants: snapshot.participants.map(p => ({
-    id: p.id, fullName: p.fullName, pictogramIndex: p.pictogramIndex,
-    profileImageUrl: p.profileImageUrl, timeMachineActive: p.timeMachineActive,
-    completed: false, seasonCompletionRate: 0, distanceKm: null, durationMinutes: null,
-    certifiedDays: 0, recordHistory: [], totalDistanceKm: 0, totalDurationMinutes: 0,
-    product: { name: p.product.name, description: p.product.description },
-  })) };
+  const today = snapshot.referenceDateIso || new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Seoul" });
+  const monday = new Date(`${today}T00:00:00Z`);
+  monday.setUTCDate(monday.getUTCDate() - (monday.getUTCDay() + 6) % 7);
+  const weekStart = monday.toISOString().slice(0, 10);
+  return { ...snapshot, guestbook: [], participants: snapshot.participants.map(p => {
+    const approved = p.recordHistory.filter(r => r.status === "certified" && r.recordDateIso <= today);
+    const weekly = approved.filter(r => r.recordDateIso >= weekStart);
+    const sum = (rows: typeof approved, key: "distanceKm" | "durationMinutes") =>
+      rows.reduce((total, r) => total + (Number.isFinite(r[key]) ? Math.max(0, r[key] ?? 0) : 0), 0);
+    return {
+      id: p.id, fullName: p.fullName, pictogramIndex: p.pictogramIndex,
+      profileImageUrl: p.profileImageUrl, timeMachineActive: p.timeMachineActive,
+      completed: p.completed, seasonCompletionRate: p.seasonCompletionRate,
+      distanceKm: null, durationMinutes: null,
+      certifiedDays: p.certifiedDays, recordHistory: [],
+      totalDistanceKm: sum(approved, "distanceKm"), totalDurationMinutes: Math.round(sum(approved, "durationMinutes")),
+      weeklyDistanceKm: sum(weekly, "distanceKm"), weeklyDurationMinutes: Math.round(sum(weekly, "durationMinutes")),
+      product: { name: "자기소개", description: "" },
+    };
+  }) };
 }

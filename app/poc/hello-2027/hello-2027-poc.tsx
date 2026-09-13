@@ -128,7 +128,7 @@ export function Hello2027Poc({
   const seasonDday = formatFourthSeasonDday(referenceDateIso) ?? "D-DAY";
 
   const selectedParticipant = useMemo(
-    () => canViewRecords ? liveSnapshot.participants.find((participant) => participant.id === selectedParticipantId) ?? null : null,
+    () => liveSnapshot.participants.find((participant) => participant.id === selectedParticipantId) ?? null,
     [liveSnapshot.participants, selectedParticipantId, canViewRecords],
   );
   const sortedParticipants = useMemo(() => {
@@ -168,7 +168,6 @@ export function Hello2027Poc({
   usePageScrollLock(Boolean(selectedParticipant));
 
   const openParticipant = (participantId: string, trigger: HTMLButtonElement) => {
-    if (!canViewRecords) { window.location.assign("/api/auth/kakao?next=%2F4th%2Fdashboard&restart=1"); return; }
     lastTriggerRef.current = trigger;
     setSelectedParticipantId(participantId);
   };
@@ -290,7 +289,7 @@ export function Hello2027Poc({
                       className={`${styles.participantCard} ${participant.completed ? styles.completedCard : styles.waitingCard}`}
                       type="button"
                       onClick={(event) => openParticipant(participant.id, event.currentTarget)}
-                      aria-label={!canViewRecords ? `${participant.fullName}님 기록은 로그인 후 볼 수 있어요` : `${participant.fullName}님, 오늘까지 인증률 ${participant.seasonCompletionRate}%, ${participant.completed ? "오늘 인증 완료" : "오늘 기록 없음"}. 상세 보기`}
+                      aria-label={!canViewRecords ? `${participant.fullName}님, 승인 누적 거리 ${participant.totalDistanceKm.toFixed(2)}km, 누적 시간 ${formatTotalDuration(participant.totalDurationMinutes)}. 공개 기록 보기` : `${participant.fullName}님, 오늘까지 인증률 ${participant.seasonCompletionRate}%, ${participant.completed ? "오늘 인증 완료" : "오늘 기록 없음"}. 상세 보기`}
                     >
                       {canViewRecords && participant.completed ? (
                         <span className={styles.completionBadge} aria-hidden="true">✓</span>
@@ -302,7 +301,7 @@ export function Hello2027Poc({
                         </span>
                       </span>
                       <span className={styles.participantRate}>
-                        {canViewRecords ? <><small>오늘까지 인증률</small><strong>{participant.seasonCompletionRate}%</strong></> : <small>로그인 후 기록 보기</small>}
+                        {canViewRecords ? <><small>오늘까지 인증률</small><strong>{participant.seasonCompletionRate}%</strong></> : <><small>승인 누적 거리</small><strong>{formatDistanceKm(participant.totalDistanceKm)}</strong><small>{formatTotalDuration(participant.totalDurationMinutes)} · 인증 {participant.certifiedDays}일</small></>}
                       </span>
                     </button>
                   </li>
@@ -336,6 +335,7 @@ export function Hello2027Poc({
       ) : null}
 
       <ParticipantDialog
+        showDetailedRecords={canViewRecords}
         dialogRef={dialogRef}
         titleRef={dialogTitleRef}
         introduction={selectedParticipant ? localContent.profileIntroductions[selectedParticipant.id] : undefined}
@@ -409,6 +409,7 @@ function MotivationBanner({ encouragements, initialIndex }: MotivationBannerProp
 }
 
 type ParticipantDialogProps = {
+  showDetailedRecords?: boolean;
   introduction?: {title:string;body:string};
   dialogRef: React.RefObject<HTMLDialogElement | null>;
   titleRef: React.RefObject<HTMLHeadingElement | null>;
@@ -456,6 +457,7 @@ function formatDistanceKm(value: number | null) {
 }
 
 export function ParticipantDialog({
+  showDetailedRecords = true,
   introduction,
   dialogRef,
   titleRef,
@@ -506,7 +508,8 @@ export function ParticipantDialog({
             </div>
           </dl>
 
-          <div className={styles.memberCalendar}><ParticipantRecordCalendar
+          {!showDetailedRecords && <section className="mt-4 rounded-2xl bg-blue-50 p-4"><h3 className="font-bold text-blue-600">이번 주 승인 기록</h3><p className="mt-2">{formatDistanceKm(participant.weeklyDistanceKm ?? 0)} · {formatTotalDuration(participant.weeklyDurationMinutes ?? 0)}</p><p className="mt-2 text-sm text-slate-600">월요일부터 오늘까지의 기록입니다. 누적 기록은 시즌 준비 기간을 포함하고, 인증 일수는 공식 시즌 기준입니다.</p></section>}
+          {showDetailedRecords && <div className={styles.memberCalendar}><ParticipantRecordCalendar
             key={participant.id}
             records={participant.recordHistory}
             certifiedDays={participant.certifiedDays}
@@ -514,7 +517,7 @@ export function ParticipantDialog({
             showTotal={false}
             showLegend={false}
             compact
-          /></div>
+          /></div>}
           {introduction?.body && <section className="mt-6 border-t border-slate-100 pt-6"><h3 className="text-lg font-bold">{introduction.title || "자기소개"}</h3><p className="mt-3 whitespace-pre-wrap break-words text-sm leading-7 text-slate-600">{introduction.body}</p></section>}
         </div>
       ) : null}

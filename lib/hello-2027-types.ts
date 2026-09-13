@@ -59,6 +59,8 @@ export type Hello2027ParticipantRecordEntry = {
 };
 
 export type Hello2027Participant = {
+  weeklyDistanceKm?: number;
+  weeklyDurationMinutes?: number;
   timeMachineActive?: boolean;
   id: string;
   fullName: string;

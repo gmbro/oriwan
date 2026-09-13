@@ -8,6 +8,7 @@ import {
   isSafeHello2027BannerClickUrl,
 } from "@/lib/hello-2027-banner-contract";
 import {
+  normalizeProfileIntroduction,
   MAX_HELLO_2027_PROFILE_INTRODUCTIONS,
   MAX_PROFILE_INTRO_LENGTH,
   MAX_PROFILE_INTRO_NAME_LENGTH,
@@ -128,7 +129,8 @@ function cleanPublishedContent(value: PublishedContent): LocalContent {
       const participantId = cleanText(item.participantId, 100);
       const name = cleanText(item.name, MAX_PROFILE_INTRO_NAME_LENGTH);
       const title = cleanText(item.title, MAX_PROFILE_INTRO_TITLE_LENGTH);
-      const body = cleanText(item.body, MAX_PROFILE_INTRO_LENGTH);
+      const normalizedBody = normalizeProfileIntroduction(item.body);
+      const body = normalizedBody && normalizedBody.length <= MAX_PROFILE_INTRO_LENGTH ? normalizedBody : null;
       if (!title || !body) return;
       const introduction = { title, body };
       if (participantId) profileIntroductions[participantId] = introduction;
