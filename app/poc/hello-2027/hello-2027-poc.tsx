@@ -326,6 +326,7 @@ export function Hello2027Poc({
             externalViewerLoading={memberFeatures ? viewerState?.loading ?? true : undefined}
           />
         </>
+        <footer className="py-6 text-center"><a href="/support" className="inline-flex min-h-11 items-center rounded-full bg-white px-5 text-sm font-semibold text-slate-600">TWTT 응원하기</a></footer>
       </main>
 
       {/* Keep the sheet outside the header's nowrap and mobile time rules. */}

@@ -1,0 +1,21 @@
+.support { display:grid; gap:20px; min-width:0; color:#191f28; }
+.support h2 { font-size:24px; font-weight:750; letter-spacing:-.04em; }
+.intro,.detail p { color:#6b7684; font-size:14px; line-height:1.8; word-break:keep-all; overflow-wrap:anywhere; }
+.choices { display:grid; gap:12px; }
+.choice { display:flex; align-items:center; gap:14px; width:100%; padding:18px 16px; border-radius:20px; background:#f7f8fa; text-align:left; }
+.choice:hover { background:#edf2f8; }
+.choice:focus-visible,.action:focus-visible { outline:3px solid #3182f6; outline-offset:3px; }
+.choice strong { display:block; font-size:15px; word-break:keep-all; }
+.choice small { display:block; margin-top:5px; color:#6b7684; font-size:12px; line-height:1.6; }
+.icon { display:grid; place-items:center; flex:0 0 42px; height:42px; color:#3182f6; background:#e8f3ff; border-radius:14px; }
+.cheered { color:#ec6687; animation:pulse 600ms ease; }
+.feedback { color:#3182f6; padding:8px 16px; font-size:14px; }
+.detail { display:grid; gap:12px; padding:18px; border:1px solid #e5e8eb; border-radius:20px; }
+.detail h3 { font-size:16px; font-weight:700; word-break:keep-all; }
+.detail small { font-size:12px; line-height:1.7; color:#6b7684; word-break:keep-all; }
+.detail dl { display:grid; gap:12px; }
+.detail dl div { display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px; font-size:14px; }
+.detail dt { color:#6b7684; }.detail dd { font-weight:650; }.account { user-select:all; overflow-wrap:anywhere; }
+.action { display:block; width:100%; padding:14px 12px; background:#3182f6; color:white; border-radius:14px; text-align:center; font-size:14px; font-weight:700; }
+@keyframes pulse { 50%{transform:scale(1.15)} }
+@media(prefers-reduced-motion:reduce){.cheered{animation:none}}

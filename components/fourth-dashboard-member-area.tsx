@@ -1,5 +1,6 @@
 "use client";
 
+import { ActivityIcon } from "./activity-icon";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -268,7 +269,7 @@ export function FourthDashboardMemberArea({
   const actions = [
     {
       id: "time-machine" as const,
-      icon: "⏳",
+      icon: <ActivityIcon kind="time-machine" size={28}/>,
       title: "100일 목표 타임머신",
       description: connected
         ? "2027년 1월 1일에 열릴 목표를 보관해요"
@@ -281,7 +282,7 @@ export function FourthDashboardMemberArea({
     },
     {
       id: "gift" as const,
-      icon: "🎁",
+      icon: <ActivityIcon kind="gift" size={28}/>,
       title: "오늘의 응원 상자",
       description: giftStatus?.claim
         ? "오늘 받은 응원을 다시 확인해보세요"
@@ -295,7 +296,7 @@ export function FourthDashboardMemberArea({
     },
     {
       id: "fortune" as const,
-      icon: "🙏",
+      icon: <ActivityIcon kind="fortune" size={28}/>,
       title: "오늘의 운세",
       description: "행복한 오늘의 운세를 확인해보세요",
       disabled: false,
@@ -303,7 +304,7 @@ export function FourthDashboardMemberArea({
     },
     {
       id: "corrective" as const,
-      icon: "🏃",
+      icon: <ActivityIcon kind="corrective" size={28}/>,
       title: "교정운동 문의",
       description: "교정운동이 필요하거나 궁금한 내용을 문의하시면 확인 후에 답변해드립니다.",
       disabled: !connected,
@@ -353,7 +354,7 @@ export function FourthDashboardMemberArea({
               onClick={(event) => openModal(action.id, event.currentTarget)}
               className="group flex min-h-[100px] min-w-0 touch-manipulation flex-col items-center justify-center gap-2 rounded-[18px] border border-slate-100 bg-slate-50 px-2 py-3 text-center hover:bg-slate-100 focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <span aria-hidden="true" className="block text-[28px] leading-none">{action.icon}</span>
+              <span aria-hidden="true" className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-blue-50 text-blue-600">{action.icon}</span>
               <strong className="block break-keep text-[13px] font-black leading-5 tracking-[-0.02em] text-slate-950 sm:text-[15px]">{action.title}</strong>
             </button>
           ))}

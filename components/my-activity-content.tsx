@@ -1,4 +1,5 @@
 "use client";
+import { OperatorSupport } from "./operator-support";
 import dynamic from "next/dynamic";
 import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -130,7 +131,7 @@ export default function MyActivityContent({ section, onSection, onFeature, name,
     {/* Keep an in-flight upload/draft alive when navigating or closing the sheet.
         The entire tree is destroyed on logout/account change by its owner key. */}
     {uploadVisited && <div hidden={section !== "upload"} className={styles.form}><UploadView today={data?.season.today ?? todayFallback} onSubmitted={() => { void load(true); if (!preview) void import("@/lib/dashboard-refresh").then(m => m.broadcastDashboardRefresh()).catch(() => undefined); }} preview={Boolean(preview)} /></div>}
-    {section === "support" && <section className={styles.profileCard} aria-labelledby="support-title"><h3 id="support-title">함께 이어가는 TWTT</h3><p className={styles.feedback}>후원은 자유롭게 선택할 수 있어요. 후원 여부는 인증 승인과 서비스 이용에 영향을 주지 않아요. 보내주신 응원은 서버 운영과 인증 관리, 커뮤니티 운영에 보탬이 됩니다.</p><p className={styles.muted}>후원 계좌와 방법을 준비하고 있어요. 현재 이 화면에서는 결제나 송금이 진행되지 않아요.</p><button type="button" className={styles.secondary} onClick={() => onSection("home")}>마음으로 응원하고 돌아가기</button></section>}
+    {section === "support" && <OperatorSupport />}
     {section === "records" && (data ? <Records data={data} /> : <p role="status">누적 기록을 불러오는 중이에요.</p>)}
     {section === "fortune" && !preview && <FortuneView defaultName={displayName} />}
     {section === "gift" && !preview && <GiftView initialStatus={featureSeed?.giftStatus} onStatusChange={featureSeed?.onGiftChange} />}

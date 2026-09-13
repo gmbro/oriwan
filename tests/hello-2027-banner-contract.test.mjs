@@ -45,7 +45,7 @@ test("배너 하단 넘김 영역 없이 화살표·스와이프·14초 전환·
 test("대시보드 날씨 푸터는 없애고 출처와 라이선스는 안내 페이지로 옮긴다", () => {
   const dashboard = readFileSync(new URL("../app/poc/hello-2027/hello-2027-poc.tsx", import.meta.url), "utf8");
   const terms = readFileSync(new URL("../app/terms/page.tsx", import.meta.url), "utf8");
-  assert.doesNotMatch(dashboard, /<footer|날씨 예보를 단순화한 배너 연출|MET Norway|CC BY/);
+  assert.doesNotMatch(dashboard, /날씨 예보를 단순화한 배너 연출|MET Norway|CC BY/);
   assert.match(terms, /id="weather-data"/);
   assert.match(terms, /MET Norway/);
   assert.match(terms, /https:\/\/creativecommons.org\/licenses\/by\/4.0\//);
