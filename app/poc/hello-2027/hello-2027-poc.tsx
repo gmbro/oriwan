@@ -295,9 +295,7 @@ export function Hello2027Poc({
                         <span className={styles.completionBadge} aria-hidden="true">✓</span>
                       ) : null}
                       <span className={styles.participantIdentity}>
-                        <span className={styles.characterWrap} aria-hidden="true">
-                          <span style={{position:"relative",display:"inline-flex"}}><ParticipantAvatar imageUrl={participant.profileImageUrl} />{participant.timeMachineActive && <span style={{position:"absolute",top:0,left:0}}><TimeMachineBadge /></span>}</span>
-                        </span>
+                        <span style={{position:"relative",display:"inline-flex"}}><span className={styles.characterWrap} aria-hidden="true"><ParticipantAvatar imageUrl={participant.profileImageUrl} /></span>{participant.timeMachineActive && <span style={{position:"absolute",top:0,left:0}}><TimeMachineBadge /></span>}</span>
                         <span className={styles.participantNameRow}>
                           <strong>{participant.fullName}<small>님</small></strong>
                         </span>
@@ -482,9 +480,7 @@ export function ParticipantDialog({
           </button>
           <div className={styles.dialogProfile}>
             <div className={styles.profileImageEditor}>
-              <div className={styles.dialogCharacter} aria-hidden="true">
-                <span style={{position:"relative",display:"inline-flex"}}><ParticipantAvatar imageUrl={participant.profileImageUrl} dialog />{participant.timeMachineActive && <span style={{position:"absolute",top:0,left:0}}><TimeMachineBadge /></span>}</span>
-              </div>
+              <div style={{position:"relative"}}><div className={styles.dialogCharacter} aria-hidden="true"><ParticipantAvatar imageUrl={participant.profileImageUrl} dialog /></div>{participant.timeMachineActive && <span style={{position:"absolute",top:0,left:0}}><TimeMachineBadge /></span>}</div>
             </div>
             <div>
               <h2 id="participant-dialog-title" ref={titleRef} tabIndex={-1}>{participant.fullName}</h2>
