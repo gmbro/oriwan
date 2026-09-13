@@ -5,7 +5,7 @@ import type { MyActivityData, MyActivitySection } from "@/components/my-activity
 import type { MyActivityFeatureSeed } from "@/lib/my-activity-feature-seed";
 import styles from "./my-activity.module.css";
 
-const titles: Record<MyActivitySection, string> = { home: "내 정보", profile: "내 정보", upload: "내 정보", records: "내 정보", fortune: "오늘의 운세", gift: "오늘의 응원 상자", corrective: "교정운동 문의", "time-machine": "100일 목표 타임머신" };
+const titles: Record<MyActivitySection, string> = { support: "운영자 후원", home: "내 정보", profile: "내 정보", upload: "내 정보", records: "내 정보", fortune: "오늘의 운세", gift: "오늘의 응원 상자", corrective: "교정운동 문의", "time-machine": "100일 목표 타임머신" };
 export function openMyActivity(section: MyActivitySection = "home", seed?: MyActivityFeatureSeed) { window.dispatchEvent(new CustomEvent("twtt:my-activity", { detail: { section, seed } })); }
 
 function consumeActivityHash() {

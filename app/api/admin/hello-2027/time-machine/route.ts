@@ -1,3 +1,6 @@
+import { after } from "next/server";
+import { invalidatePublicDashboardCache } from "@/lib/public-dashboard-data";
+import { broadcastDashboardRefreshFromServer } from "@/lib/dashboard-refresh-server";
 import { NextRequest, NextResponse } from "next/server";
 
 import { requireAdminDataAccess } from "@/lib/admin-data-access";
@@ -130,5 +133,7 @@ export async function DELETE(request: NextRequest) {
   }
   if (!data) return json({ error: "재설정할 목표 타임머신을 찾지 못했어요." }, 404);
 
+  invalidatePublicDashboardCache();
+  after(() => broadcastDashboardRefreshFromServer(service));
   return json({ reset: { goal_id: data.id, participant_id: data.participant_id } });
 }

@@ -31,13 +31,13 @@ function dialogHarness(hash = "", navigationType = "navigate") {
   return { listeners, replacements, location, history, cleanup, opened: () => opened };
 }
 
-test("로그인 버튼은 개인창으로 직접 복귀하고 허용한 앵커만 보존한다", () => {
+test("로그인 버튼은 대시보드로 복귀하고 명시적인 개인창 링크만 보존한다", () => {
   for (const hash of ["", "#my-activity", "#member-features"]) {
     assert.equal(getSafeAuthReturnPath(`/4th/dashboard${hash}`), `/4th/dashboard${hash}`);
     assert.equal(getSafeAuthReturnUrl(`/4th/dashboard${hash}`, "https://example.com").href, `https://example.com/4th/dashboard${hash}`);
   }
   for (const file of ["components/dashboard-gateway-actions.tsx", "app/poc/hello-2027/hello-2027-poc.tsx"]) {
-    assert.match(read(file), /nextPath="\/4th\/dashboard#my-activity"/);
+    assert.match(read(file), /nextPath="\/4th\/dashboard"/);
   }
   for (const file of ["app/4th/page.tsx", "app/api/auth/kakao/route.ts", "app/api/auth/callback/route.ts"]) assert.doesNotMatch(read(file), /\/4th\/dashboard#member-features/);
 });

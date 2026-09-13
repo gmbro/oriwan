@@ -14,6 +14,7 @@ import type {
 import styles from "./hello-2027-poc.module.css";
 import { DEFAULT_HELLO_2027_PROFILE_IMAGE_URL, resolveHello2027ProfileImageUrl } from "@/lib/hello-2027-profile-image";
 import { useLocalHello2027Content } from "./use-local-hello-2027-content";
+import { TimeMachineBadge } from "@/components/time-machine-badge";
 import { KakaoLoginButton } from "@/components/kakao-login-button";
 import { useOptionalFourthViewer } from "@/components/fourth-viewer-provider";
 import { formatFourthSeasonDday } from "@/lib/fourth-season-contract";
@@ -28,7 +29,7 @@ type Hello2027PocProps = {
 
 type DayPhase = "night" | "dawn" | "morning" | "day" | "sunset" | "evening";
 type CrewSort = "completed" | "distance" | "duration";
-const ENCOURAGEMENT_ROTATION_MS = 18_000;
+const ENCOURAGEMENT_ROTATION_MS = 30_000;
 
 function subscribeToClock(onStoreChange: () => void) {
   let timeoutId: number;
@@ -228,7 +229,7 @@ export function Hello2027Poc({
                     </button>
                   </>
                 ) : (
-                  <KakaoLoginButton nextPath="/4th/dashboard#my-activity" label="로그인" variant="compact" restart />
+                  <KakaoLoginButton nextPath="/4th/dashboard" label="로그인" variant="compact" restart />
                 )}
               </div>
             ) : null}
@@ -310,7 +311,7 @@ export function Hello2027Poc({
                           <ParticipantAvatar imageUrl={participant.profileImageUrl} />
                         </span>
                         <span className={styles.participantNameRow}>
-                          <strong>{participant.fullName}<small>님</small></strong>
+                          <strong>{participant.fullName}<small>님</small></strong>{participant.timeMachineActive && <TimeMachineBadge />}
                         </span>
                       </span>
                       <span className={styles.participantRate}>
@@ -498,7 +499,7 @@ export function ParticipantDialog({
               </div>
             </div>
             <div>
-              <h2 id="participant-dialog-title" ref={titleRef} tabIndex={-1}>{participant.fullName}</h2>
+              <h2 id="participant-dialog-title" ref={titleRef} tabIndex={-1}>{participant.fullName}{participant.timeMachineActive && <TimeMachineBadge />}</h2>
             </div>
           </div>
 

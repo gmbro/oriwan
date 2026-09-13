@@ -79,7 +79,7 @@ test("청크 JSON: Content-Length 없이도 실제 용량 제한, 배열·잘못
 });
 test("최신 UI 주석: 회전 간격·헤더·개인 기능 위치·간소화된 업로드", () => {
   const page = read("app/poc/hello-2027/hello-2027-poc.tsx");
-  assert.match(page, /ENCOURAGEMENT_ROTATION_MS = 18_000/);
+  assert.match(page, /ENCOURAGEMENT_ROTATION_MS = 30_000/);
   assert.doesNotMatch(page.slice(page.indexOf("<header"), page.indexOf("</header>")), /styles\.seasonDday/);
   assert.match(page, /<HeaderClock/); assert.doesNotMatch(page, /FourthDashboardMemberArea/);
   const content = read("components/my-activity-content.tsx");

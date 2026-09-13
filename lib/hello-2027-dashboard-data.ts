@@ -182,11 +182,13 @@ function buildLiveSnapshot({
   participants,
   records,
   profileImageUrls,
+  timeMachineIds = new Set<string>(),
   today,
 }: {
   participants: ParticipantRow[];
   records: RecordRow[];
   profileImageUrls: Readonly<Record<string, string>>;
+  timeMachineIds?: ReadonlySet<string>;
   today: string;
 }): Hello2027Snapshot {
   const participantIds = new Set(participants.map((participant) => participant.id));
@@ -230,6 +232,7 @@ function buildLiveSnapshot({
     return {
       id: participant.id,
       fullName: participant.name,
+      timeMachineActive: today < "2027-01-01" && timeMachineIds.has(participant.id),
       pictogramIndex: pictogramIndexForParticipant(participant.id),
       profileImageUrl: profileImageUrls[participant.id] || null,
       completed: Boolean(todayOfficialRecord),
@@ -329,10 +332,11 @@ async function loadHello2027DashboardSnapshot(): Promise<Hello2027Snapshot> {
     });
     const profileImageUrlsRequest = loadHello2027ProfileImageUrls(service);
 
-    const [participantsResult, recordsResult, profileImageUrls] = await Promise.all([
+    const [participantsResult, recordsResult, profileImageUrls, timeMachineResult] = await Promise.all([
       participantsRequest,
       recordsRequest,
       profileImageUrlsRequest,
+      service.from("time_machine_goals").select("participant_id").eq("user_id", adminUserId).eq("season_key", FOURTH_SEASON_KEY),
     ]);
     const { data, error } = participantsResult;
 
@@ -350,6 +354,7 @@ async function loadHello2027DashboardSnapshot(): Promise<Hello2027Snapshot> {
       participants,
       records: recordsResult.rows,
       profileImageUrls,
+      timeMachineIds: new Set<string>((timeMachineResult.data || []).map(row => row.participant_id)),
       today,
     });
   } catch (error) {
@@ -365,7 +370,7 @@ export function getFreshHello2027DashboardSnapshot() {
 
 export const getHello2027DashboardSnapshot = unstable_cache(
   loadHello2027DashboardSnapshot,
-  ["hello-2027-dashboard", FOURTH_SEASON_KEY, "v9-certified-empty-history"],
+  ["hello-2027-dashboard", FOURTH_SEASON_KEY, "v10-public-time-machine-state"],
   {
     revalidate: SNAPSHOT_REVALIDATE_SECONDS,
     tags: ["public-dashboard"],

@@ -25,7 +25,7 @@ type ReadyViews = {
   Corrective: typeof import("./corrective-exercise-application")["CorrectiveExerciseApplication"];
   TimeMachine: typeof import("./time-machine-goal-box")["TimeMachineGoalBox"];
 };
-export type MyActivitySection = "home" | "profile" | "upload" | "records" | "fortune" | "gift" | "corrective" | "time-machine";
+export type MyActivitySection = "home" | "profile" | "upload" | "records" | "support" | "fortune" | "gift" | "corrective" | "time-machine";
 export type MyActivityData = PersonalRecordsPayload & { profile: { display_name: string; profile_image_url: string | null; connection_status: string; matched_participant: { id: string; name: string } } };
 
 export default function MyActivityContent({ section, onSection, onFeature, name, imageUrl, onChanged, preview, active, featureSeed }: {
@@ -116,20 +116,21 @@ export default function MyActivityContent({ section, onSection, onFeature, name,
   const displayName = data?.profile.display_name || name;
   const avatar = (data ? data.profile.profile_image_url : imageUrl) || DEFAULT_HELLO_2027_PROFILE_IMAGE_URL;
   const connected = preview || viewer?.viewer?.approved_participant;
-  const primarySection = ["home", "profile", "upload", "records"].includes(section);
+  const primarySection = ["home", "profile", "upload", "records", "support"].includes(section);
   return <div className={styles.body}>
     {preview && <span className={styles.status}>예시 화면 · 실제 회원 정보 변경 없음</span>}
     {error && section === "records" && <div className={`${styles.feedback} ${styles.error}`} role="alert">{error} <button className={styles.secondary} onClick={() => void load(true)}>다시 확인</button></div>}
     {section === "home" && <div className={styles.identity}><Image unoptimized width={56} height={56} className={styles.avatar} src={avatar} alt="내 프로필" /><strong>{displayName}</strong></div>}
     {primarySection && <>
       <div className={styles.menuList} role="group" aria-label="내 정보 메뉴" data-compact={section !== "home"}>
-        {([{ key: "profile", title: "프로필", icon: <><circle cx="12" cy="8" r="4" /><path d="M4 22v-2a8 8 0 0 1 16 0v2" /></> }, { key: "upload", title: "인증샷", icon: <><rect x="3" y="3" width="18" height="18" rx="4" /><path d="M12 17V7m-4 4 4-4 4 4" /></> }, { key: "records", title: "기록", icon: <><path d="M4 20h17M6 16v-4m6 4V7m6 9V3" /></> }] as const).map(item => <button type="button" className={styles.menu} key={item.key} aria-pressed={section === item.key} disabled={!connected} onClick={() => onSection(item.key)}><span className={styles.menuIcon}><svg viewBox="0 0 24 24" aria-hidden="true">{item.icon}</svg></span><strong>{item.title}</strong></button>)}
+        {([{ key: "profile", title: "프로필", icon: <><circle cx="12" cy="8" r="4" /><path d="M4 22v-2a8 8 0 0 1 16 0v2" /></> }, { key: "upload", title: "인증샷", icon: <><rect x="3" y="3" width="18" height="18" rx="4" /><path d="M12 17V7m-4 4 4-4 4 4" /></> }, { key: "records", title: "기록", icon: <><path d="M4 20h17M6 16v-4m6 4V7m6 9V3" /></> }, { key: "support", title: "운영자 후원", icon: <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z" /> }] as const).map(item => <button type="button" className={styles.menu} key={item.key} aria-pressed={section === item.key} disabled={!connected} onClick={() => onSection(item.key)}><span className={styles.menuIcon}><svg viewBox="0 0 24 24" aria-hidden="true">{item.icon}</svg></span><strong>{item.title}</strong></button>)}
       </div>
     </>}
     {profileVisited && <div hidden={section !== "profile"} className={styles.form}><ProfileEditor name={displayName} avatar={avatar} onChanged={changed} preview={Boolean(preview)} /></div>}
     {/* Keep an in-flight upload/draft alive when navigating or closing the sheet.
         The entire tree is destroyed on logout/account change by its owner key. */}
     {uploadVisited && <div hidden={section !== "upload"} className={styles.form}><UploadView today={data?.season.today ?? todayFallback} onSubmitted={() => { void load(true); if (!preview) void import("@/lib/dashboard-refresh").then(m => m.broadcastDashboardRefresh()).catch(() => undefined); }} preview={Boolean(preview)} /></div>}
+    {section === "support" && <section className={styles.profileCard} aria-labelledby="support-title"><h3 id="support-title">함께 이어가는 TWTT</h3><p className={styles.muted}>보내주신 응원은 서버 운영과 인증 관리, 커뮤니티 운영에 보탬이 됩니다.</p><p className={styles.feedback}>후원은 자유롭게 선택할 수 있어요. 후원 여부는 인증 승인과 서비스 이용에 영향을 주지 않아요.</p><p className={styles.muted}>후원 계좌와 방법을 준비하고 있어요. 현재 이 화면에서는 결제나 송금이 진행되지 않아요.</p><button type="button" className={styles.secondary} onClick={() => onSection("home")}>마음으로 응원하고 돌아가기</button></section>}
     {section === "records" && (data ? <Records data={data} /> : <p role="status">누적 기록을 불러오는 중이에요.</p>)}
     {section === "fortune" && !preview && <FortuneView defaultName={displayName} />}
     {section === "gift" && !preview && <GiftView initialStatus={featureSeed?.giftStatus} onStatusChange={featureSeed?.onGiftChange} />}

@@ -19,6 +19,7 @@ export type GiftStatus = {
 };
 
 type DailyGiftBoxProps = {
+  preview?: boolean;
   initialStatus?: GiftStatus | null;
   onStatusChange?: (status: GiftStatus) => void;
 };
@@ -27,7 +28,7 @@ async function readJson(response: Response) {
   return response.json().catch(() => ({})) as Promise<Partial<GiftStatus> & { error?: string; claim?: GiftClaim }>;
 }
 
-export function DailyGiftBox({ initialStatus = null, onStatusChange }: DailyGiftBoxProps) {
+export function DailyGiftBox({ initialStatus = null, onStatusChange, preview = false }: DailyGiftBoxProps) {
   const [status, setStatus] = useState<GiftStatus | null>(initialStatus);
   const [loading, setLoading] = useState(!initialStatus);
   const [opening, setOpening] = useState(false);
@@ -35,7 +36,7 @@ export function DailyGiftBox({ initialStatus = null, onStatusChange }: DailyGift
   const [message, setMessage] = useState("");
 
   useEffect(() => {
-    if (initialStatus) return;
+    if (initialStatus || preview) return;
 
     const controller = new AbortController();
     void fetch("/api/me/gift-box", {
@@ -62,7 +63,7 @@ export function DailyGiftBox({ initialStatus = null, onStatusChange }: DailyGift
       });
 
     return () => controller.abort();
-  }, [initialStatus, onStatusChange]);
+  }, [initialStatus, onStatusChange, preview]);
 
   const openGift = async () => {
     if (!status?.eligible || status.claim || opening) return;
@@ -71,6 +72,11 @@ export function DailyGiftBox({ initialStatus = null, onStatusChange }: DailyGift
     setMessage("");
 
     try {
+      if (preview) {
+        await new Promise(resolve => window.setTimeout(resolve, 280));
+        const nextStatus = { ...status, claim: { id: "preview", record_date: status.record_date, message: "오늘도 나와의 약속을 지킨 당신, 충분히 잘하고 있어요.", claimed_at: new Date().toISOString() } };
+        setStatus(nextStatus); setOpened(true); onStatusChange?.(nextStatus); return;
+      }
       const [response] = await Promise.all([
         fetch("/api/me/gift-box", {
           method: "POST",

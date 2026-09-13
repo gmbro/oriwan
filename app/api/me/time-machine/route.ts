@@ -1,3 +1,6 @@
+import { after } from "next/server";
+import { invalidatePublicDashboardCache } from "@/lib/public-dashboard-data";
+import { broadcastDashboardRefreshFromServer } from "@/lib/dashboard-refresh-server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -171,6 +174,8 @@ export async function POST(request: NextRequest) {
       if (error.code === "23505") return json({ error: "이미 목표 타임머신을 발동했어요." }, 409);
       throw error;
     }
+  invalidatePublicDashboardCache();
+  after(() => broadcastDashboardRefreshFromServer(context.service));
     return json(serializeGoal(data as TimeMachineGoalRow), 201);
   } catch (error) {
     logServerFailure("Time machine goal create", error);
