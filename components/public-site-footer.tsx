@@ -4,6 +4,10 @@ import styles from "./public-site-footer.module.css";
 export function PublicSiteFooter() {
   return <footer className={styles.footer}>
     <div className={styles.inner}>
+      <nav aria-label="스내사 둘러보기" className={styles.navigation}>
+        <Link href="/about">소개<span aria-hidden="true">→</span></Link>
+        <Link href="/magazine">매거진<span aria-hidden="true">→</span></Link>
+      </nav>
       <div className={styles.top}>
         <div className={styles.contact}>
           <a href="mailto:gmbro7942@gmail.com" className={styles.contactLink}>아키랩<svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><path d="M5 15 15 5M5 5h10v10" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg></a>

@@ -27,7 +27,7 @@ export function SeasonSchedule({ today }: { today: string }) {
     setMonth(next); setSelected(today.startsWith(next) ? today : `${next}-01`);
   }
   return <section id="schedule" className={styles.crewSection} aria-labelledby="schedule-title">
-    <div className={styles.crewHeading}><div><h2 id="schedule-title">스내사 4기 일정</h2><p className="mt-2 text-sm text-slate-500">정기모임 및 번개 일정을 공유합니다</p></div></div>
+    <div className={styles.crewHeading}><div><h2 id="schedule-title">일정</h2><p className="mt-2 text-sm text-slate-500">정기모임 및 번개 일정을 공유합니다</p></div></div>
     <div className="rounded-3xl bg-white p-4 shadow-sm sm:p-6">
       <div className="mb-5 flex items-center justify-between"><button type="button" aria-label="이전 달" disabled={month === "2026-09"} onClick={()=>move(-1)} className="h-11 w-11 rounded-full bg-slate-50 disabled:opacity-25">‹</button><h3 className="text-lg font-bold">2026년 {Number(month.slice(5))}월</h3><button type="button" aria-label="다음 달" disabled={month === "2026-12"} onClick={()=>move(1)} className="h-11 w-11 rounded-full bg-slate-50 disabled:opacity-25">›</button></div>
       <div className="grid grid-cols-7 text-center text-xs text-slate-500">{["일","월","화","수","목","금","토"].map(day=><span key={day} className="pb-3">{day}</span>)}</div>
