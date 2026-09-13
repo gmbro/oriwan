@@ -46,7 +46,7 @@
 
 .eveningTint, .nightTint, .morningGlow { position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity 8s ease-in-out; }
 .eveningTint { background: linear-gradient(180deg, rgb(228 144 131 / 38%), rgb(255 200 131 / 24%) 52%, rgb(97 112 153 / 20%)); }
-.nightTint { background: linear-gradient(180deg, rgb(24 43 85 / 84%), rgb(39 64 99 / 73%) 55%, rgb(37 54 80 / 65%)); }
+.nightTint { background: linear-gradient(180deg, rgb(24 43 85 / 58%), rgb(39 64 99 / 45%) 55%, rgb(37 54 80 / 35%)); }
 .morningGlow { background: radial-gradient(ellipse at 72% 8%, rgb(255 228 175 / 36%), transparent 70%); }
 .banner[data-period="morning"] .morningGlow, .banner[data-period="evening"] .eveningTint, .banner[data-period="night"] .nightTint { opacity: 1; }
 /* Fixed to the artwork's open sky, left of the foreground tree canopy. */
@@ -101,9 +101,9 @@
 .banner[data-running="false"] :is(.runner, .runnerStrip, .cloudDrift, .waterShimmer, .completionGlow) { animation-play-state: paused; }
 
 @container (max-width: 600px) {
-  .artwork { top: 32%; }
+  .artwork { top: 0; }
   .scene { left: 100%; transform: translate(-100%, -50%); }
-  .wash { background: linear-gradient(180deg, #f7f9fb 0%, #f7f9fb 45%, rgb(247 249 251 / 95%) 58%, rgb(247 249 251 / 12%) 76%, transparent 86%); }
+  .wash { background: linear-gradient(180deg, rgb(247 249 251 / 78%) 0%, rgb(247 249 251 / 70%) 42%, rgb(247 249 251 / 28%) 76%, rgb(247 249 251 / 6%) 100%); }
   .content { top: 22px; left: 24px; width: calc(100% - 48px); max-width: none; transform: none; }
   .title { font-size: 16px; }
   .metric { margin-top: 4px; }
@@ -115,8 +115,8 @@
 @container (max-width: 360px) {
   .content { top: 18px; left: 20px; width: calc(100% - 40px); }
   .metric strong { font-size: 54px; }
-  .artwork { top: 38%; }
-  .wash { background: linear-gradient(180deg, #f7f9fb 0%, #f7f9fb 50%, rgb(247 249 251 / 95%) 63%, rgb(247 249 251 / 12%) 80%, transparent 90%); }
+  .artwork { top: 0; }
+  .wash { background: linear-gradient(180deg, rgb(247 249 251 / 82%) 0%, rgb(247 249 251 / 72%) 45%, rgb(247 249 251 / 32%) 78%, rgb(247 249 251 / 6%) 100%); }
 }
 @media (prefers-reduced-motion: reduce) {
   .banner *, .banner *::before { animation: none !important; transition: none !important; }
