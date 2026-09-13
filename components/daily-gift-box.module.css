@@ -6,13 +6,13 @@
 .lid { z-index: 2; top: 0; height: 34px; transform-origin: 50% 50%; border-radius: 12px 12px 8px 8px; }
 .body::after, .lid::after { position: absolute; left: calc(50% - 9px); width: 18px; height: 100%; content: ''; background: #fff; }
 .opening .box { animation: anticipation 420ms ease-in-out infinite; }
-.opened .lid { transform: translate(8px,-58px) rotate(12deg); animation: revealLid 650ms cubic-bezier(.2,.8,.2,1) both; }
-.opened .body { animation: celebrate 650ms ease both; }
+.opened .lid { transform: translate(8px,-58px) rotate(12deg); animation: revealLid 1500ms cubic-bezier(.2,.8,.2,1) both; }
+.opened .body { animation: celebrate 1500ms ease both; }
 .sparkles { position: absolute; inset: -65px -35px -10px; opacity: 0; pointer-events: none; background: radial-gradient(circle at 10% 48%,#ffcf45 0 3px,transparent 4px),radial-gradient(circle at 84% 22%,#ff8dbe 0 4px,transparent 5px),radial-gradient(circle at 92% 70%,#48c9ab 0 3px,transparent 4px),radial-gradient(circle at 30% 10%,#8f7bff 0 3px,transparent 4px); }
-.opened .sparkles { animation: sparkle 1100ms ease-out both; }
+.opened .sparkles { animation: sparkle 1000ms ease-out 1500ms both; }
 .message { box-sizing: border-box; position: relative; z-index: 3; width: 100%; max-width: 440px; min-width: 0; margin: 0; padding: 18px 16px; border: 1px solid #0f172a0f; border-radius: 18px; background: #fff; color: #191f28; font-size: clamp(14px,3.8vw,16px); font-weight: 700; line-height: 1.7; text-align: center; white-space: normal; word-break: keep-all; overflow-wrap: anywhere; box-shadow: 0 10px 24px #0f172a0c; }
 .messageLabel { display: block; margin-bottom: 8px; color: #3182f6; font-size: 13px; }
-.opened .message { animation: messageReveal 400ms ease-out 480ms both; }
+.opened .message { animation: messageReveal 400ms ease-out 1500ms both; }
 .copy { white-space: normal; word-break: keep-all; overflow-wrap: anywhere; line-height: 1.7; padding-right: 12px; }
 @keyframes anticipation { 0%,100% { transform: rotate(-4deg); } 25% { transform: translateY(-4px) rotate(5deg); } 50% { transform: rotate(-5deg) scale(1.03,.97); } 75% { transform: translateY(-2px) rotate(4deg); } }
 @keyframes revealLid { 0% { transform: none; } 55% { transform: translate(4px,-67px) rotate(8deg); } 100% { transform: translate(8px,-58px) rotate(12deg); } }
@@ -21,3 +21,9 @@
 @keyframes messageReveal { from { opacity: 0; transform: translateY(12px) scale(.96); } to { opacity: 1; transform: none; } }
 @media (max-width:360px) { .visual { padding-right: 12px; padding-left: 12px; } .message { padding: 14px 12px; } }
 @media (prefers-reduced-motion:reduce) { .opening .box,.opened .lid,.opened .body,.opened .message,.opened .sparkles { animation: none; } }
+
+.sparkles i { position:absolute; top:50%; left:50%; width:7px; height:12px; border-radius:2px; background:var(--color); opacity:0; }
+.opened .sparkles i { animation: firework 1000ms cubic-bezier(.1,.7,.2,1) 1500ms both; }
+@keyframes firework { 0% { opacity:0; transform:rotate(var(--angle)) translateY(0) scale(.3); } 15% { opacity:1; } 70% { opacity:1; } 100% { opacity:0; transform:rotate(var(--angle)) translateY(-100px) rotate(130deg) scale(.6); } }
+.prizeHelp { display:block; margin-top:12px; color:#6b7684; font-size:12px; font-weight:500; line-height:1.6; }
+@media (prefers-reduced-motion:reduce) { .opened .sparkles i { animation:none; } }

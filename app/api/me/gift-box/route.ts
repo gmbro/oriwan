@@ -1,3 +1,5 @@
+import { loadGiftRewards } from "@/lib/gift-rewards-server";
+import { selectGiftReward } from "@/lib/gift-rewards";
 import { randomInt } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
@@ -77,28 +79,6 @@ async function readClaim(context: GiftContext) {
     .maybeSingle();
 }
 
-async function pickManagedEncouragement(context: GiftContext) {
-  const { data, error } = await context.service
-    .from("hello_2027_encouragements")
-    .select("message")
-    .eq("user_id", context.adminUserId)
-    .eq("season_key", FOURTH_SEASON_KEY)
-    .eq("active", true)
-    .order("display_order", { ascending: true })
-    .order("created_at", { ascending: true })
-    .limit(56);
-  if (error) return { message: null, error };
-
-  const messages = (data || []).flatMap((row) => {
-    const message = typeof row.message === "string" ? row.message.normalize("NFC").trim() : "";
-    return message && message.length <= 120 ? [message] : [];
-  });
-  return {
-    message: messages.length > 0 ? messages[randomInt(messages.length)] : null,
-    error: null,
-  };
-}
-
 export async function GET(request: NextRequest) {
   const guardResponse = guardReadRequest(request, {
     requireSameOrigin: true,
@@ -171,18 +151,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ claim: existing.data, already_claimed: true });
     }
 
-    const encouragement = await pickManagedEncouragement(context);
-    if (encouragement.error) {
-      if (isMissingTableError(encouragement.error)) {
-        return NextResponse.json(missingSchemaResponse("운영 응원글 저장소가 아직 준비되지 않았어요."), { status: 503 });
-      }
-      throw encouragement.error;
-    }
-    if (!encouragement.message) {
-      return NextResponse.json({ error: "운영자가 오늘의 응원글을 준비하고 있어요." }, { status: 503 });
-    }
-
-    const message = encouragement.message;
+    const config = await loadGiftRewards(context.service, context.adminUserId);
+    const reward = selectGiftReward(config, randomInt(10000));
+    // Persist a self-contained prize label; later catalog edits never reroll claims.
+    const message = reward.kind === "prize" ? `🎁 ${reward.message}` : reward.message;
     const { data, error } = await context.service
       .from("daily_gift_claims")
       .insert({

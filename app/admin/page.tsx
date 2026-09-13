@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { TwttBrandMark } from "@/components/twtt-brand-mark";
+import { AdminGiftRewards } from "@/components/admin-gift-rewards";
 import { AdminCorrectiveExercise } from "@/components/admin-corrective-exercise";
 import { RecordApprovalDialog } from "@/components/record-approval-dialog";
 import { visibleCertificationNotes } from "@/lib/certification-review";
@@ -175,12 +176,13 @@ function MemberPicker({
 }
 
 type AdminModal = "participant" | "record" | "upload" | "participantRecords" | null;
-type AdminTab = "certifications" | "crew" | "corrective-exercise" | "encouragements" | "banners" | "comments";
+type AdminTab = "gifts" | "certifications" | "crew" | "corrective-exercise" | "encouragements" | "banners" | "comments";
 
 const ADMIN_TABS: ReadonlyArray<{ key: AdminTab; label: string; compactLabel: string }> = [
   { key: "certifications", label: "인증", compactLabel: "인증" },
   { key: "crew", label: "크루 프로필", compactLabel: "크루" },
   { key: "corrective-exercise", label: "교정운동", compactLabel: "교정운동" },
+  { key: "gifts", label: "응원상자", compactLabel: "응원상자" },
   { key: "encouragements", label: "응원글", compactLabel: "응원글" },
   { key: "banners", label: "배너", compactLabel: "배너" },
   { key: "comments", label: "댓글", compactLabel: "댓글" },
@@ -191,6 +193,7 @@ const PRELOADED_CONTENT_TABS = new Set<AdminTab>(["encouragements", "banners", "
 // Its record metadata remains intact so it can be restored without a data migration.
 const SHOW_RECOVERY_CERTIFICATION_DASHBOARD = false;
 const PRESERVED_WORKSPACE_TABS: ReadonlyArray<Exclude<AdminTab, "certifications">> = [
+  "gifts",
   "crew",
   "corrective-exercise",
   "encouragements",
@@ -900,6 +903,7 @@ function AdminWorkspacePanel({
     );
   }
 
+  if (tab === "gifts") return <AdminGiftRewards />;
   if (tab === "corrective-exercise") return <AdminCorrectiveExercise />;
 
   return <AdminContentWorkspace tab={tab} />;

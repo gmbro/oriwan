@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 
+import { DEFAULT_GIFT_REWARDS, selectGiftReward } from "@/lib/gift-rewards";
 import styles from "./daily-gift-box.module.css";
 
 export type GiftClaim = {
@@ -71,11 +72,13 @@ export function DailyGiftBox({ initialStatus = null, onStatusChange, preview = f
     setOpened(false);
     setMessage("");
 
-    const motionDelay = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 900;
+    const motionDelay = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 5000;
     try {
       if (preview) {
         await new Promise(resolve => window.setTimeout(resolve, motionDelay));
-        const nextStatus = { ...status, claim: { id: "preview", record_date: status.record_date, message: "오늘도 나와의 약속을 지킨 당신, 충분히 잘하고 있어요.", claimed_at: new Date().toISOString() } };
+        const ticket = crypto.getRandomValues(new Uint32Array(1))[0] % 10000;
+        const reward = selectGiftReward(DEFAULT_GIFT_REWARDS, ticket);
+        const nextStatus = { ...status, claim: { id: "preview", record_date: status.record_date, message: reward.kind === "prize" ? `🎁 ${reward.message}` : reward.message, claimed_at: new Date().toISOString() } };
         setStatus(nextStatus); setOpened(true); onStatusChange?.(nextStatus); return;
       }
       const [response] = await Promise.all([
@@ -108,7 +111,6 @@ export function DailyGiftBox({ initialStatus = null, onStatusChange, preview = f
   return (
     <section className="space-y-4" aria-labelledby="daily-gift-title">
       <div>
-        <p className="text-xs font-bold text-blue-600">오늘 인증 보상</p>
         <h3 id="daily-gift-title" className="mt-1 text-xl font-black tracking-[-0.03em] text-slate-950">오늘의 응원 상자</h3>
         <p className={`${styles.copy} mt-2 text-sm font-semibold text-slate-600`}>
           {status?.claim
@@ -123,11 +125,11 @@ export function DailyGiftBox({ initialStatus = null, onStatusChange, preview = f
         ) : (
           <div className={styles.visual}>
             <div className={styles.box} aria-hidden="true">
-              <div className={styles.sparkles} />
+              <div className={styles.sparkles}>{Array.from({length:16},(_,i)=><i key={i} style={{"--angle":`${i*22.5}deg`,"--color":["#ffce45","#ff78ad","#3182f6","#40c8a3"][i%4]} as React.CSSProperties} />)}</div>
               <div className={styles.body} />
               <div className={styles.lid} />
             </div>
-            {status?.claim ? <p className={styles.message}><span className={styles.messageLabel}>짜잔! 오늘의 응원이 도착했어요</span>{status.claim.message}</p> : null}
+            {status?.claim ? <p className={styles.message}><span className={styles.messageLabel}>오늘의 인증 보상</span>{status.claim.message}{status.claim.message.startsWith("🎁 ") && <span className={styles.prizeHelp}>당첨 내역이 저장됐어요. 운영자에게 쿠폰 전달을 요청해주세요.</span>}</p> : null}
           </div>
         )}
       </div>
