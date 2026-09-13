@@ -7,6 +7,6 @@ const js=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.ESNext
 const project=new Function(`${js}; return projectDashboardRecords;`)();
 test('anonymous projection drops detailed records without mutating shared authenticated data',()=>{
  const member={id:'a',fullName:'러너',product:{name:'소개',description:''},recordHistory:[{distanceKm:7}],completed:true,seasonCompletionRate:88,distanceKm:7,durationMinutes:42,certifiedDays:20,totalDistanceKm:140,totalDurationMinutes:840,privateFutureField:'secret'};
- const snapshot={participants:[member],completedToday:3};
- const projected=project(snapshot,false); assert.deepEqual(projected.participants[0].recordHistory,[]); assert.equal(projected.participants[0].distanceKm,null); assert.equal(projected.participants[0].totalDistanceKm,0); assert.equal('privateFutureField' in projected.participants[0],false);assert.equal(project(snapshot,true),snapshot);assert.equal(member.recordHistory.length,1);
+ const snapshot={participants:[member],completedToday:3,guestbook:[{body:"private comment"}]};
+ const projected=project(snapshot,false); assert.deepEqual(projected.participants[0].recordHistory,[]); assert.equal(projected.participants[0].distanceKm,null); assert.equal(projected.participants[0].totalDistanceKm,0); assert.equal('privateFutureField' in projected.participants[0],false);assert.deepEqual(project(snapshot,true).participants,snapshot.participants);assert.deepEqual(projected.guestbook,[]);assert.equal(snapshot.guestbook.length,1);assert.equal(member.recordHistory.length,1);
 });

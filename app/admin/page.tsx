@@ -824,11 +824,13 @@ function AdminActionButton({
 }
 
 type ParticipantLoginAccount = {
+  auth_user_id: string; participant_id: string; status: "pending" | "approved";
   display_name: string;
 };
 
 function ParticipantAccountManager({ active, refreshKey }: { active: boolean; refreshKey: string }) {
   const [accounts, setAccounts] = useState<ParticipantLoginAccount[]>([]);
+  const [approving,setApproving]=useState<string|null>(null);
   const [loadingAccounts, setLoadingAccounts] = useState(true);
   const [accountMessage, setAccountMessage] = useState("");
 
@@ -857,9 +859,10 @@ function ParticipantAccountManager({ active, refreshKey }: { active: boolean; re
     });
   }, [active, loadAccounts, refreshKey]);
 
+  const approve=async(account:ParticipantLoginAccount)=>{setApproving(account.auth_user_id);try{const r=await fetch("/api/admin/participant-accounts",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({...account,status:"approved"})});const data=await r.json();if(!r.ok)throw new Error(data.error||"승인하지 못했어요.");await loadAccounts();}catch(e){setAccountMessage(e instanceof Error?e.message:"승인하지 못했어요.");}finally{setApproving(null);}};
   return (
     <section className="mt-6 rounded-[24px] bg-slate-950 p-4 text-white sm:p-5" aria-labelledby="kakao-account-title">
-      <h3 id="kakao-account-title" className="text-lg font-black">카카오 계정 연동 여부</h3>
+      <h3 id="kakao-account-title" className="text-lg font-black">카카오 멤버 승인</h3>
       {accountMessage ? <p className="mt-4 rounded-2xl bg-white/10 px-3 py-2 text-xs font-bold" role="status">{accountMessage}</p> : null}
       <div className="mt-4 grid gap-2">
         {loadingAccounts ? <p className="rounded-2xl bg-white/8 px-4 py-6 text-center text-xs font-bold text-white/55">연동 계정을 불러오는 중…</p> : null}
@@ -867,7 +870,7 @@ function ParticipantAccountManager({ active, refreshKey }: { active: boolean; re
         {accounts.map((account, index) => (
           <article key={`${account.display_name}-${index}`} className="flex min-h-14 items-center justify-between gap-3 rounded-[20px] bg-white/8 px-4 py-3 ring-1 ring-white/10">
             <strong className="min-w-0 truncate text-sm">{account.display_name}</strong>
-            <span className="shrink-0 rounded-full bg-lime-300 px-2.5 py-1 text-[10px] font-black text-slate-950">연동됨</span>
+            {account.status === "pending" ? <button type="button" disabled={!!approving} onClick={()=>void approve(account)} className="shrink-0 rounded-full bg-blue-500 px-4 py-2 text-xs font-bold">{approving===account.auth_user_id?"처리 중…":"승인하기"}</button>:<span className="shrink-0 rounded-full bg-lime-300 px-2.5 py-1 text-[10px] font-black text-slate-950">승인됨</span>}
           </article>
         ))}
       </div>

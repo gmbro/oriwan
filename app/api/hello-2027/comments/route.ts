@@ -1,3 +1,4 @@
+import { hasApprovedFourthViewer } from "@/lib/fourth-viewer-server";
 import { after, NextRequest, NextResponse } from "next/server";
 import { broadcastDashboardRefreshFromServer } from "@/lib/dashboard-refresh-server";
 import { invalidatePublicDashboardCache } from "@/lib/public-dashboard-data";
@@ -50,6 +51,7 @@ export async function GET(request: NextRequest) {
     },
   });
   if (guardResponse) return guardResponse;
+  if (!await hasApprovedFourthViewer()) return NextResponse.json({error:"접근할 수 없습니다."},{status:403,headers:{"Cache-Control":"private, no-store",Vary:"Cookie"}});
 
   if (!HELLO_2027_COMMENTS_LIVE) {
     return publicJson({ threads: [], live: false, source: "preview" });
@@ -103,6 +105,7 @@ export async function POST(request: NextRequest) {
     },
   });
   if (guardResponse) return guardResponse;
+  if (!await hasApprovedFourthViewer()) return NextResponse.json({error:"접근할 수 없습니다."},{status:403,headers:{"Cache-Control":"private, no-store",Vary:"Cookie"}});
   if (!HELLO_2027_COMMENTS_LIVE) return commentsDisabledResponse();
 
   const parsedBody = await readHello2027JsonBody(request, 4 * 1024);
@@ -245,6 +248,7 @@ export async function PATCH(request: NextRequest) {
     rateLimit: { key: "hello-2027-comment-edit", limit: 10, windowMs: 60_000 },
   });
   if (guardResponse) return guardResponse;
+  if (!await hasApprovedFourthViewer()) return NextResponse.json({error:"접근할 수 없습니다."},{status:403,headers:{"Cache-Control":"private, no-store",Vary:"Cookie"}});
   if (!HELLO_2027_COMMENTS_LIVE) return commentsDisabledResponse();
   const parsed = await readHello2027JsonBody(request, 4 * 1024);
   if (!parsed.ok) return publicJson({ error: parsed.error }, parsed.status);
@@ -292,6 +296,7 @@ export async function DELETE(request: NextRequest) {
     },
   });
   if (guardResponse) return guardResponse;
+  if (!await hasApprovedFourthViewer()) return NextResponse.json({error:"접근할 수 없습니다."},{status:403,headers:{"Cache-Control":"private, no-store",Vary:"Cookie"}});
   if (!HELLO_2027_COMMENTS_LIVE) return commentsDisabledResponse();
 
   const parsedBody = await readHello2027JsonBody(request, 2 * 1024);

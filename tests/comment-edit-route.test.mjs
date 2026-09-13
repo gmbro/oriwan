@@ -22,6 +22,7 @@ function harness(options = {}) {
     },
   };
   const deps = {
+    hasApprovedFourthViewer: async () => options.approved !== false,
     guardMutationRequest: () => options.guard ?? null,
     HELLO_2027_COMMENTS_LIVE: true, HELLO_2027_COMMENTS_SEASON: "4th",
     commentsDisabledResponse: () => ({ status: 403 }),
@@ -57,4 +58,11 @@ test("타인의 댓글·오래된 수정 폼은 변경하지 않고 409를 반�
   for (const options of [{ owner: "someone-else" }, { version: "2026-09-08T01:00:00.000Z" }]) {
     const h = harness(options); assert.equal((await h.PATCH({})).status, 409); assert.deepEqual(h.calls, ["update"]);
   }
+});
+
+test('비로그인·승인 대기 사용자의 댓글 목록 요청은 저장소 조회 없이 차단한다',async()=>{
+ const getSource=source.slice(source.indexOf('export async function GET('),source.indexOf('export async function POST('));
+ const js=ts.transpileModule(getSource,{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText.replace('export async function GET','async function GET');
+ const GET=new Function('guardReadRequest','hasApprovedFourthViewer','NextResponse',`${js};return GET;`)(()=>null,async()=>false,{json:(body,init)=>({body,...init})});
+ const result=await GET({});assert.equal(result.status,403);assert.deepEqual(result.body,{error:'접근할 수 없습니다.'});
 });

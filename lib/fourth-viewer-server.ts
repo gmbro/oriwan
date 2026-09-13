@@ -13,7 +13,7 @@ import {
   markKakaoProfileImageImportPendingIfEligible,
 } from "@/lib/hello-2027-profile-image-storage";
 import { getKakaoDisplayName, getKakaoProfileImageUrl } from "@/lib/kakao-display-name";
-import { ensureParticipantAccount } from "@/lib/participant-account-server";
+import { ensureParticipantAccount, resolveParticipantAccount } from "@/lib/participant-account-server";
 import { invalidatePublicDashboardCache } from "@/lib/public-dashboard-data";
 import { logServerFailure } from "@/lib/server-error-log";
 import { createClient } from "@/lib/supabase/server";
@@ -124,4 +124,12 @@ export async function getFourthViewer(): Promise<FourthViewer> {
     name_source: approvedParticipant && displayName ? "admin" : displayName ? "kakao" : null,
     connection_status: connectionStatus,
   };
+}
+
+export async function hasApprovedFourthViewer() {
+ if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) return false;
+ try { const claims=await getVerifiedKakaoClaims(); const service=getServiceClient();
+ if(!claims?.sub || !service)return false;
+ return (await resolveParticipantAccount(service,claims.sub)).status === "approved";
+ } catch {return false;}
 }

@@ -35,11 +35,11 @@ export async function GET(request: NextRequest) {
     const { data: connections, error: connectionError } = await service
       .from("participant_accounts")
       .select(`
-        display_name_override,
+        auth_user_id, participant_id, status, display_name_override,
         participant:participants!inner(name, user_id, season_key, active)
       `)
       .eq("season_key", FOURTH_SEASON_KEY)
-      .eq("status", "approved")
+      .in("status", ["pending", "approved"])
       .eq("participant.user_id", adminUser.id)
       .eq("participant.season_key", FOURTH_SEASON_KEY)
       .eq("participant.active", true);
@@ -59,6 +59,7 @@ export async function GET(request: NextRequest) {
         ? connection.participant[0]
         : connection.participant;
       return {
+        auth_user_id: connection.auth_user_id, participant_id: connection.participant_id, status: connection.status,
         display_name: connection.display_name_override?.trim()
           || participant?.name?.trim()
           || "카카오 이름 미제공",

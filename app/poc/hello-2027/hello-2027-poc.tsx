@@ -1,4 +1,5 @@
 "use client";
+import { RunnerMovementContent } from "@/components/runner-movement-content";
 
 import { usePageScrollLock } from "@/lib/use-page-scroll-lock";
 import Image from "next/image";
@@ -120,7 +121,7 @@ export function Hello2027Poc({
   const lastTriggerRef = useRef<HTMLButtonElement | null>(null);
   const localContent = useLocalHello2027Content(snapshot.ads, snapshot.encouragements, memberFeatures);
   const viewerState = useOptionalFourthViewer();
-  const canViewRecords = !memberFeatures || Boolean(viewerState?.viewer?.authenticated);
+  const canViewRecords = !memberFeatures || Boolean(viewerState?.viewer?.approved_participant);
   const dashboardDate = formatKoreanDate(seoulToday);
   const referenceDateIso = seoulToday;
   const referenceDateLabel = dashboardDate.label;
@@ -233,6 +234,7 @@ export function Hello2027Poc({
       </header>
 
       <main id="top" className={styles.main}>
+        {viewerState?.viewer?.authenticated && !viewerState.viewer.approved_participant && <p role="status" className="mb-5 rounded-2xl bg-blue-50 p-4 text-sm font-bold text-blue-600">운영자 승인을 기다리고 있어요. 승인 후 멤버로 참여할 수 있어요.</p>}
         <h1 className={styles.visuallyHidden}>{liveSnapshot.seasonName} {liveSnapshot.versionName}</h1>
 
         <>
@@ -310,12 +312,13 @@ export function Hello2027Poc({
             </section>
           ) : <FourthSeasonMemberEmptyState />}
 
-          <Hello2027Guestbook
+          <RunnerMovementContent />
+          {viewerState?.viewer?.approved_participant && <Hello2027Guestbook
             initialThreads={snapshot.guestbook}
             externalViewer={memberFeatures ? viewerState?.viewer ?? null : undefined}
             externalViewerManaged={memberFeatures}
             externalViewerLoading={memberFeatures ? viewerState?.loading ?? true : undefined}
-          />
+          />}
         </>
         <footer className="py-6 text-center"><a href="/support" className="inline-flex min-h-11 items-center rounded-full bg-white px-5 text-sm font-semibold text-slate-600">TWTT 응원하기</a></footer>
       </main>
@@ -337,6 +340,7 @@ export function Hello2027Poc({
       <ParticipantDialog
         dialogRef={dialogRef}
         titleRef={dialogTitleRef}
+        introduction={selectedParticipant ? localContent.profileIntroductions[selectedParticipant.id] : undefined}
         participant={selectedParticipant}
         today={referenceDateIso}
         onClose={closeParticipant}
@@ -407,6 +411,7 @@ function MotivationBanner({ encouragements, initialIndex }: MotivationBannerProp
 }
 
 type ParticipantDialogProps = {
+  introduction?: {title:string;body:string};
   dialogRef: React.RefObject<HTMLDialogElement | null>;
   titleRef: React.RefObject<HTMLHeadingElement | null>;
   participant: Hello2027Participant | null;
@@ -453,6 +458,7 @@ function formatDistanceKm(value: number | null) {
 }
 
 export function ParticipantDialog({
+  introduction,
   dialogRef,
   titleRef,
   participant,
@@ -511,6 +517,7 @@ export function ParticipantDialog({
             showLegend={false}
             compact
           /></div>
+          {introduction?.body && <section className="mt-6 border-t border-slate-100 pt-6"><h3 className="text-lg font-bold">{introduction.title || "자기소개"}</h3><p className="mt-3 whitespace-pre-wrap break-words text-sm leading-7 text-slate-600">{introduction.body}</p></section>}
         </div>
       ) : null}
     </dialog>

@@ -1,3 +1,4 @@
+import { hasApprovedFourthViewer } from "@/lib/fourth-viewer-server";
 import { NextRequest, NextResponse } from "next/server";
 
 import {
@@ -39,6 +40,7 @@ export async function POST(request: NextRequest) {
     },
   });
   if (guardResponse) return guardResponse;
+  if (!await hasApprovedFourthViewer()) return NextResponse.json({error:"접근할 수 없습니다."},{status:403,headers:{"Cache-Control":"private, no-store",Vary:"Cookie"}});
   if (!HELLO_2027_COMMENTS_LIVE) {
     return reactionJson({ error: "댓글 기능을 잠시 점검하고 있어요." }, 403);
   }

@@ -71,7 +71,7 @@ function isUniqueViolation(error: unknown) {
 
 const CONNECTION_MESSAGES: Record<ParticipantAccountConnectionStatus, string> = {
   approved: "4기 개인 계정이 연결됐어요.",
-  pending: "개인 계정을 연결하고 있어요. 잠시 후 다시 확인해주세요.",
+  pending: "운영자 승인을 기다리고 있어요. 승인 후 멤버로 참여할 수 있어요.",
   revoked: "계정 연결이 중지됐어요. 관리자에게 문의해주세요.",
   unlinked: "개인 계정 연결을 준비하고 있어요.",
   invalid: "개인 계정 연결을 확인할 수 없어요. 관리자에게 문의해주세요.",
@@ -261,153 +261,24 @@ export async function ensureParticipantAccount(
   kakaoDisplayName: string | null,
 ): Promise<ParticipantAccountResolution> {
   const current = await resolveParticipantAccount(service, authUserId);
-  if (current.status === "approved") {
-    return promoteApprovedLegacyHiddenParticipant(service, authUserId, current);
-  }
-
-  if (
-    current.status === "revoked"
-    || current.status === "invalid"
-    || current.status === "setup_required"
-    || current.status === "admin_missing"
-  ) {
-    return current;
-  }
-
-  const adminUserId = current.adminUserId;
-  if (!adminUserId) return current;
-
-  // resolveParticipantAccount already proved that an unlinked account has no
-  // row. Only pending accounts need their draft linkage loaded for enrollment.
-  const { data: existingAccount, error: existingAccountError } = current.status === "pending"
-    ? await service
-      .from("participant_accounts")
-      .select("participant_id, status, display_name_override")
-      .eq("auth_user_id", authUserId)
-      .eq("season_key", FOURTH_SEASON_KEY)
-      .maybeSingle()
-    : { data: null, error: null };
-  if (existingAccountError) throw existingAccountError;
-  if (existingAccount?.status === "revoked") {
-    return unresolved("revoked", adminUserId);
-  }
-
-  const displayName = normalizeAutomaticFourthParticipantName(
-    existingAccount?.display_name_override || kakaoDisplayName,
-  );
-  let participantId = existingAccount?.participant_id || null;
-  let automaticParticipantId: string | null = null;
-  let newlyEnrolled = false;
-
-  if (participantId) {
-    const { data: linkedParticipant, error: linkedParticipantError } = await service
-      .from("participants")
-      .select("id")
-      .eq("id", participantId)
-      .eq("user_id", adminUserId)
-      .eq("season_key", FOURTH_SEASON_KEY)
-      .eq("active", true)
-      .maybeSingle();
-    if (linkedParticipantError) throw linkedParticipantError;
-    if (!linkedParticipant) participantId = null;
-  }
-
-  if (!participantId) {
-    participantId = getAutomaticFourthParticipantId(authUserId, FOURTH_SEASON_KEY);
-    automaticParticipantId = participantId;
-    const { data: enrolledParticipant, error: participantError } = await service
-      .from("participants")
-      .upsert({
-        id: participantId,
-        user_id: adminUserId,
-        season_key: FOURTH_SEASON_KEY,
-        name: displayName,
-        active: true,
-        // Keep the row private until its participant_accounts row is confirmed
-        // approved. A failed or revoked account write must never expose an orphan.
-        display_order: LEGACY_HIDDEN_AUTO_ENROLLED_FOURTH_PARTICIPANT_ORDER,
-      }, { onConflict: "id" })
-      .select("id")
-      .single();
-    if (participantError) throw participantError;
-    if (!enrolledParticipant) throw new Error("automatic_participant_not_created");
-    // The deterministic id makes simultaneous first-logins converge on one
-    // hidden row and recovers an inactive orphan from an interrupted request.
-  }
-
-  const now = new Date().toISOString();
-  const accountPayload = {
-    participant_id: participantId,
-    auth_user_id: authUserId,
-    status: "approved",
-    approved_at: now,
-    approved_by: adminUserId,
-    display_name_override: displayName,
-    season_key: FOURTH_SEASON_KEY,
-    updated_at: now,
-  };
-
-  if (existingAccount) {
-    // Never overwrite an operator revoke that races with this login request.
-    // PostgREST applies the status predicate in the same UPDATE statement.
-    const { data: updatedAccount, error: accountError } = await service
-      .from("participant_accounts")
-      .update(accountPayload)
-      .eq("auth_user_id", authUserId)
-      .eq("season_key", FOURTH_SEASON_KEY)
-      .neq("status", "revoked")
-      .select("auth_user_id")
-      .maybeSingle();
-    if (accountError) throw accountError;
-    if (!updatedAccount) {
-      if (automaticParticipantId) {
-        const { error: cleanupError } = await service
-          .from("participants")
-          .update({ active: false })
-          .eq("id", automaticParticipantId)
-          .eq("user_id", adminUserId)
-          .eq("season_key", FOURTH_SEASON_KEY)
-          .eq("display_order", LEGACY_HIDDEN_AUTO_ENROLLED_FOURTH_PARTICIPANT_ORDER);
-        if (cleanupError) throw cleanupError;
-      }
-      return resolveParticipantAccount(service, authUserId);
-    }
-  } else {
-    // A concurrent first login can win the unique key. In that case, resolve the
-    // winning row instead of using an upsert that could revive a revoked account.
-    const { error: accountError } = await service
-      .from("participant_accounts")
-      .insert(accountPayload);
-    if (accountError && !isUniqueViolation(accountError)) throw accountError;
-
-    // Only the unique participant_accounts INSERT winner may import Kakao's
-    // image. Existing and legacy-recovered account rows take the update/approved
-    // paths above and therefore never receive this flag.
-    newlyEnrolled = !accountError && Boolean(automaticParticipantId);
-
-    if (accountError && automaticParticipantId) {
-      const winningResolution = await resolveParticipantAccount(service, authUserId);
-      if (winningResolution.participant?.id !== automaticParticipantId) {
-        // A concurrently-created account row won with a different participant
-        // (or was revoked). Do not leak the losing deterministic draft into the
-        // public crew list.
-        const { error: cleanupError } = await service
-          .from("participants")
-          .update({ active: false })
-          .eq("id", automaticParticipantId)
-          .eq("user_id", adminUserId)
-          .eq("season_key", FOURTH_SEASON_KEY);
-        if (cleanupError) throw cleanupError;
-      }
-      return promoteApprovedLegacyHiddenParticipant(service, authUserId, winningResolution);
-    }
-  }
-
-  const resolved = await resolveParticipantAccount(service, authUserId);
-  const promoted = await promoteApprovedLegacyHiddenParticipant(service, authUserId, resolved);
-  return newlyEnrolled && promoted.status === "approved"
-    ? { ...promoted, newlyEnrolled: true }
-    : promoted;
+  if (current.status === "approved") return promoteApprovedLegacyHiddenParticipant(service, authUserId, current);
+  if (current.status !== "unlinked" || !current.adminUserId) return current;
+  const participantId = getAutomaticFourthParticipantId(authUserId, FOURTH_SEASON_KEY);
+  const displayName = normalizeAutomaticFourthParticipantName(kakaoDisplayName);
+  // A pending draft stays outside the public crew and all official denominators.
+  const {error: participantError}=await service.from("participants").upsert({
+    id:participantId,user_id:current.adminUserId,season_key:FOURTH_SEASON_KEY,
+    name:displayName,active:true,display_order:LEGACY_HIDDEN_AUTO_ENROLLED_FOURTH_PARTICIPANT_ORDER,
+  },{onConflict:"id"}).select("id").single();
+  if(participantError)throw participantError;
+  const {error}=await service.from("participant_accounts").insert({
+    participant_id:participantId,auth_user_id:authUserId,status:"pending",
+    approved_at:null,approved_by:null,display_name_override:displayName,
+    season_key:FOURTH_SEASON_KEY,updated_at:new Date().toISOString(),
+  });
+  // Unique insert: repeated logins must never overwrite approval or revocation.
+  if(error && !isUniqueViolation(error))throw error;
+  return promoteApprovedLegacyHiddenParticipant(service,authUserId,await resolveParticipantAccount(service,authUserId));
 }
 
 export function participantAccountMutationError(resolution: ParticipantAccountResolution) {
