@@ -31,7 +31,7 @@ export function ownsFreshDraft(draft: MemberUploadDraft, participantId: string, 
 
 export const MEMBER_EVIDENCE_ERROR = "운동 시작 시간과 거리를 확인할 수 없어요, 운영자에게 문의주세요";
 export function hasMemberUploadEvidence(draft: MemberUploadDraft) {
-  return /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(draft.activityTime ?? "")
+  return /^0[0-7]:[0-5]\d$/.test(draft.activityTime ?? "")
     && typeof draft.distanceKm === "number" && Number.isFinite(draft.distanceKm)
     && draft.distanceKm > 0 && draft.distanceKm <= 300;
 }
@@ -41,6 +41,8 @@ export function memberEvidenceIssues(draft: MemberUploadDraft): string[] {
   const issues: string[] = [];
   if (!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(draft.activityTime ?? ""))
     issues.push("사진에서 운동 시작 시각을 읽지 못했어요. 시작 시각이 보이는 전체 캡처를 선택해주세요.");
+  if (/^(?:0[89]|1\d|2[0-3]):[0-5]\d$/.test(draft.activityTime ?? ""))
+    issues.push(`사진에서 읽은 운동 시작 시각은 ${draft.activityTime}예요. 오전 8시 이전(00:00~07:59)에 시작한 운동만 인증할 수 있어요. 업로드 시각이 아닌 실제 운동 시작 시각 기준이에요.`);
   if (typeof draft.distanceKm !== "number" || !Number.isFinite(draft.distanceKm) || draft.distanceKm <= 0 || draft.distanceKm > 300)
     issues.push("사진에서 유효한 운동 거리를 읽지 못했어요. 거리와 km·m 단위가 보이는 캡처를 선택해주세요.");
   return issues;
