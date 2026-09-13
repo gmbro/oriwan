@@ -1,0 +1,81 @@
+.stage {
+  min-height: 178px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at 50% 20%, rgba(96, 165, 250, 0.38), transparent 43%),
+    linear-gradient(145deg, #10203f, #07111f 72%);
+}
+
+.capsule {
+  position: relative;
+  width: 122px;
+  height: 94px;
+  animation: rattle var(--time-machine-duration, 3.8s) ease-in-out infinite;
+  transform-origin: 50% 88%;
+  will-change: transform;
+}
+
+.capsule::before,
+.capsule::after {
+  content: "";
+  position: absolute;
+  left: 9px;
+  width: 104px;
+  border-radius: 15px;
+}
+
+.capsule::before {
+  top: 27px;
+  height: 63px;
+  background: linear-gradient(135deg, #2563eb, #1d4ed8 65%, #0f3c98);
+  box-shadow: inset 0 0 0 2px rgba(191, 219, 254, 0.52), 0 18px 28px rgba(0, 0, 0, 0.28);
+}
+
+.capsule::after {
+  top: 15px;
+  height: 27px;
+  background: linear-gradient(135deg, #f9c64b, #f4a904 62%, #d97706);
+  box-shadow: inset 0 0 0 2px rgba(255, 247, 199, 0.68);
+}
+
+.lock {
+  position: absolute;
+  z-index: 1;
+  left: 50%;
+  top: 39px;
+  display: grid;
+  width: 38px;
+  height: 35px;
+  translate: -50% 0;
+  place-items: center;
+  border-radius: 11px;
+  background: #f8fafc;
+  color: #1e3a8a;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.22);
+  font-size: 18px;
+}
+
+.unlocked {
+  animation: none;
+}
+
+.unlocked::after {
+  rotate: -9deg;
+  translate: -4px -24px;
+}
+
+@keyframes rattle {
+  0%, 100% { transform: translateX(0) rotate(0); }
+  15% { transform: translateX(calc(var(--time-machine-amplitude, 2px) * -1)) rotate(-1deg); }
+  30% { transform: translateX(var(--time-machine-amplitude, 2px)) rotate(1deg); }
+  47% { transform: translateX(calc(var(--time-machine-amplitude, 2px) * -0.55)) rotate(-0.65deg); }
+  63% { transform: translateX(calc(var(--time-machine-amplitude, 2px) * 0.7)) rotate(0.65deg); }
+  78% { transform: translateX(calc(var(--time-machine-amplitude, 2px) * -0.3)) rotate(-0.25deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .capsule { animation: none; }
+}

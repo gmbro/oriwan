@@ -1,22 +1,23 @@
 "use client";
 
 import Image from "next/image";
+import { MyActivityDialog, openMyActivity } from "@/components/my-activity-dialog";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
 import { Hello2027BannerCarousel } from "./hello-2027-banner-carousel";
 import { Hello2027Guestbook } from "./hello-2027-guestbook";
+import { ParticipantRecordCalendar } from "./participant-record-calendar";
 import type {
   Hello2027Participant,
-  Hello2027ProfileIntroduction,
   Hello2027Snapshot,
 } from "@/lib/hello-2027-types";
 import styles from "./hello-2027-poc.module.css";
-import { TwttRunnerPictogram } from "./twtt-runner-pictogram";
+import { DEFAULT_HELLO_2027_PROFILE_IMAGE_URL, resolveHello2027ProfileImageUrl } from "@/lib/hello-2027-profile-image";
 import { useLocalHello2027Content } from "./use-local-hello-2027-content";
-import { FourthDashboardMemberArea } from "@/components/fourth-dashboard-member-area";
 import { KakaoLoginButton } from "@/components/kakao-login-button";
 import { useOptionalFourthViewer } from "@/components/fourth-viewer-provider";
-import { FOURTH_SEASON_START_DATE } from "@/lib/fourth-season-contract";
+import { formatFourthSeasonDday } from "@/lib/fourth-season-contract";
+import { DASHBOARD_SNAPSHOT_DOM_EVENT } from "@/lib/dashboard-refresh-contract";
 
 type Hello2027PocProps = {
   snapshot: Hello2027Snapshot;
@@ -26,18 +27,37 @@ type Hello2027PocProps = {
 };
 
 type DayPhase = "night" | "dawn" | "morning" | "day" | "sunset" | "evening";
-type CrewSort = "name" | "completed";
-const ENCOURAGEMENT_ROTATION_MS = 8_000;
+type CrewSort = "name" | "completed" | "distance" | "duration";
+const ENCOURAGEMENT_ROTATION_MS = 18_000;
 
 function subscribeToClock(onStoreChange: () => void) {
-  const intervalId = window.setInterval(onStoreChange, 60_000);
-  window.addEventListener("focus", onStoreChange);
-  document.addEventListener("visibilitychange", onStoreChange);
-  return () => {
-    window.clearInterval(intervalId);
-    window.removeEventListener("focus", onStoreChange);
-    document.removeEventListener("visibilitychange", onStoreChange);
+  let timeoutId: number;
+  const tick = () => {
+    window.clearTimeout(timeoutId);
+    if (document.hidden) return;
+    onStoreChange();
+    timeoutId = window.setTimeout(tick, 60_000 - Date.now() % 60_000 + 20);
   };
+  tick();
+  window.addEventListener("focus", tick);
+  document.addEventListener("visibilitychange", tick);
+  return () => {
+    window.clearTimeout(timeoutId);
+    window.removeEventListener("focus", tick);
+    document.removeEventListener("visibilitychange", tick);
+  };
+}
+
+function getSeoulTimeSnapshot() {
+  const now = new Date();
+  return `${String((now.getUTCHours() + 9) % 24).padStart(2, "0")}:${String(now.getUTCMinutes()).padStart(2, "0")}`;
+}
+
+function HeaderClock() {
+  // Only this small label rerenders each minute. The server and first client
+  // render share the same placeholder, avoiding timezone/hydration mismatches.
+  const time = useSyncExternalStore(subscribeToClock, getSeoulTimeSnapshot, () => "--:--");
+  return <span className={styles.liveTime} aria-label={`서울 현재 시각 ${time}`}>{time}</span>;
 }
 
 function getDayPhase(date: Date): DayPhase {
@@ -51,10 +71,6 @@ function getDayPhase(date: Date): DayPhase {
   return "evening";
 }
 
-function getDayPhaseSnapshot() {
-  return getDayPhase(new Date());
-}
-
 function getSeoulDateIso(date = new Date()) {
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone: "Asia/Seoul",
@@ -66,8 +82,9 @@ function getSeoulDateIso(date = new Date()) {
   return `${value.year}-${value.month}-${value.day}`;
 }
 
-function getSeoulDateSnapshot() {
-  return getSeoulDateIso();
+function getClockSnapshot() {
+  const now = new Date();
+  return `${getDayPhase(now)}|${getSeoulDateIso(now)}`;
 }
 
 function formatKoreanDate(value: string) {
@@ -77,7 +94,7 @@ function formatKoreanDate(value: string) {
   ];
   return {
     label: `${year}. ${month}. ${day}. ${weekday}요일`,
-    short: `${month}.${day} ${weekday}`,
+    short: `${month}.${day}(${weekday})`,
   };
 }
 
@@ -87,18 +104,15 @@ export function Hello2027Poc({
   currentDateIso,
   memberFeatures = false,
 }: Hello2027PocProps) {
+  const [liveSnapshot, setLiveSnapshot] = useState(snapshot);
   const [selectedParticipantId, setSelectedParticipantId] = useState<string | null>(null);
   const [crewSort, setCrewSort] = useState<CrewSort>("name");
-  const dayPhase = useSyncExternalStore(
+  const clockSnapshot = useSyncExternalStore(
     subscribeToClock,
-    getDayPhaseSnapshot,
-    () => initialDayPhase,
+    getClockSnapshot,
+    () => `${initialDayPhase}|${currentDateIso ?? snapshot.referenceDateIso ?? "2026-09-06"}`,
   );
-  const seoulToday = useSyncExternalStore(
-    subscribeToClock,
-    getSeoulDateSnapshot,
-    () => currentDateIso ?? snapshot.referenceDateIso ?? "2026-09-06",
-  );
+  const [dayPhase, seoulToday] = clockSnapshot.split("|") as [DayPhase, string];
   const dialogRef = useRef<HTMLDialogElement>(null);
   const dialogTitleRef = useRef<HTMLHeadingElement>(null);
   const lastTriggerRef = useRef<HTMLButtonElement | null>(null);
@@ -108,33 +122,37 @@ export function Hello2027Poc({
   const referenceDateIso = seoulToday;
   const referenceDateLabel = dashboardDate.label;
   const referenceDateShort = dashboardDate.short;
-  const seasonStarted = referenceDateIso >= FOURTH_SEASON_START_DATE;
+  const seasonDday = formatFourthSeasonDday(referenceDateIso) ?? "D-DAY";
 
   const selectedParticipant = useMemo(
-    () => snapshot.participants.find((participant) => participant.id === selectedParticipantId) ?? null,
-    [selectedParticipantId, snapshot.participants],
+    () => liveSnapshot.participants.find((participant) => participant.id === selectedParticipantId) ?? null,
+    [liveSnapshot.participants, selectedParticipantId],
   );
-  const todayRate = snapshot.participantCount > 0
-    ? Math.round((snapshot.completedToday / snapshot.participantCount) * 100)
-    : 0;
   const sortedParticipants = useMemo(() => {
-    const participants = [...snapshot.participants];
+    const participants = [...liveSnapshot.participants];
     if (crewSort === "completed") {
       return participants.sort((left, right) => (
-        Number(right.completed) - Number(left.completed)
+        right.seasonCompletionRate - left.seasonCompletionRate
         || left.fullName.localeCompare(right.fullName, "ko")
       ));
     }
+    if (crewSort === "distance" || crewSort === "duration") {
+      const metric = crewSort === "distance" ? "totalDistanceKm" : "totalDurationMinutes";
+      return participants.sort((a, b) => b[metric] - a[metric] || a.fullName.localeCompare(b.fullName, "ko"));
+    }
     return participants.sort((left, right) => left.fullName.localeCompare(right.fullName, "ko"));
-  }, [crewSort, snapshot.participants]);
-  const dayPhaseClass: Record<DayPhase, string> = {
-    night: styles.phaseNight,
-    dawn: styles.phaseDawn,
-    morning: styles.phaseMorning,
-    day: styles.phaseDay,
-    sunset: styles.phaseSunset,
-    evening: styles.phaseEvening,
-  };
+  }, [crewSort, liveSnapshot.participants]);
+
+  useEffect(() => {
+    const applySnapshot = (event: Event) => {
+      if (!(event instanceof CustomEvent)) return;
+      const nextSnapshot = event.detail as Hello2027Snapshot | null;
+      if (!nextSnapshot || !Array.isArray(nextSnapshot.participants) || !Array.isArray(nextSnapshot.rates)) return;
+      setLiveSnapshot(nextSnapshot);
+    };
+    window.addEventListener(DASHBOARD_SNAPSHOT_DOM_EVENT, applySnapshot);
+    return () => window.removeEventListener(DASHBOARD_SNAPSHOT_DOM_EVENT, applySnapshot);
+  }, []);
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -166,6 +184,7 @@ export function Hello2027Poc({
     window.requestAnimationFrame(() => lastTriggerRef.current?.focus());
   };
 
+
   return (
     <div className={styles.page}>
       <header className={styles.siteHeader}>
@@ -177,28 +196,28 @@ export function Hello2027Poc({
               alt=""
               width={640}
               height={310}
-              preload
               sizes="(max-width: 760px) 58px, 78px"
             />
           </a>
 
-          <div className={styles.headerMeta} aria-label="오늘과 시즌 진행 정보">
-            <time dateTime={referenceDateIso}>
-              <small>TODAY</small>
-              <span className={styles.longDate}>{referenceDateLabel}</span>
-              <span className={styles.shortDate}>{referenceDateShort}</span>
+          <div className={styles.headerMeta} aria-label="오늘 날짜와 시각, 계정">
+            <time className={styles.headerDateTime} dateTime={referenceDateIso} title={referenceDateLabel}>
+              <span>TODAY</span>
+              <span>{referenceDateShort}</span>
+              <HeaderClock />
             </time>
-            <span className={styles.metaDivider} aria-hidden="true">·</span>
-            <strong>{seasonStarted ? `D-${snapshot.daysUntil2027}` : "9.23 시작"}</strong>
             {memberFeatures ? (
               <div className={styles.headerAccount} aria-label="개인 계정">
                 {viewerState?.loading ? (
                   <span className={styles.headerAuthLoading} aria-label="로그인 상태 확인 중" />
                 ) : viewerState?.viewer?.authenticated ? (
                   <>
-                    <a className={styles.headerAccountLink} href="/me">
-                      {viewerState.viewer.display_name || "내 정보"}
-                    </a>
+                    <button type="button" className={styles.headerAccountLink} aria-haspopup="dialog"
+                      onPointerEnter={() => void import("@/components/my-activity-content")}
+                      onFocus={() => void import("@/components/my-activity-content")}
+                      onClick={() => openMyActivity()}>
+                      내 정보
+                    </button>
                     <button
                       className={styles.headerLogoutButton}
                       type="button"
@@ -209,7 +228,7 @@ export function Hello2027Poc({
                     </button>
                   </>
                 ) : (
-                  <KakaoLoginButton nextPath="/4th/dashboard#member-features" label="로그인" variant="compact" />
+                  <KakaoLoginButton nextPath="/4th/dashboard" label="로그인" variant="compact" />
                 )}
               </div>
             ) : null}
@@ -218,61 +237,65 @@ export function Hello2027Poc({
       </header>
 
       <main id="top" className={styles.main}>
-        <h1 className={styles.visuallyHidden}>{snapshot.seasonName} {snapshot.versionName}</h1>
+        <h1 className={styles.visuallyHidden}>{liveSnapshot.seasonName} {liveSnapshot.versionName}</h1>
 
         <>
           {localContent.encouragements.length > 0 ? (
             <MotivationBanner
               encouragements={localContent.encouragements}
-              initialIndex={Math.max(snapshot.dayNumber - 1, 0)}
+              initialIndex={Math.max(liveSnapshot.dayNumber - 1, 0)}
             />
           ) : null}
 
           <Hello2027BannerCarousel
             ads={localContent.ads}
-            dayPhaseClass={dayPhaseClass[dayPhase]}
-            todayRate={todayRate}
+            dayPhase={dayPhase}
+            completedToday={liveSnapshot.completedToday}
+            participantCount={liveSnapshot.participantCount}
+            seasonDday={memberFeatures ? seasonDday : undefined}
           />
 
           <section className={styles.summarySection} aria-label="시즌 인증 요약">
             <div className={styles.summaryGrid}>
               <article className={styles.summaryCard}>
-                <span>{snapshot.totalDays}일 중</span>
-                <strong>{snapshot.dayNumber}일</strong>
+                <span>{liveSnapshot.totalDays}일 중</span>
+                <strong>{liveSnapshot.dayNumber}일</strong>
               </article>
-              {snapshot.rates.map((rate) => (
-                <article className={styles.summaryCard} key={rate.key}>
-                  <span>{rate.label} 인증률</span>
-                  <strong>{rate.value}%</strong>
-                </article>
-              ))}
+              <article className={styles.summaryCard}>
+                <span>총 누적거리</span>
+                <strong className={styles.summaryTotal}>{(liveSnapshot.officialTotals?.distanceKm ?? 0).toLocaleString("ko-KR", { maximumFractionDigits: 2 })}km</strong>
+              </article>
+              <article className={styles.summaryCard}>
+                <span>총 누적 시간</span>
+                <strong className={styles.summaryTotal}>{formatTotalDuration(liveSnapshot.officialTotals?.durationMinutes ?? 0)}</strong>
+              </article>
             </div>
           </section>
-
-          {memberFeatures ? <FourthDashboardMemberArea /> : null}
 
           {sortedParticipants.length > 0 ? (
             <section id="crew" className={styles.crewSection} aria-labelledby="crew-title">
               <div className={styles.crewHeading}>
                 <div>
-                  <span className={styles.crewCount}>{snapshot.participantCount}명</span>
-                  <h2 id="crew-title">CREW</h2>
+                  <h2 id="crew-title">멤버</h2>
+                  <span className={styles.crewCount}>{liveSnapshot.participantCount}명</span>
                 </div>
-                <div className={styles.crewSort} role="group" aria-label="크루 정렬 방식">
+                <div className={styles.crewSort} role="group" aria-label="멤버 정렬 방식">
                   <button
                     type="button"
                     aria-pressed={crewSort === "name"}
                     onClick={() => setCrewSort("name")}
                   >
-                    이름순
+                    가나다순
                   </button>
                   <button
                     type="button"
                     aria-pressed={crewSort === "completed"}
                     onClick={() => setCrewSort("completed")}
                   >
-                    인증완료순
+                    인증률
                   </button>
+                  <button type="button" aria-pressed={crewSort === "distance"} onClick={() => setCrewSort("distance")}>거리순</button>
+                  <button type="button" aria-pressed={crewSort === "duration"} onClick={() => setCrewSort("duration")}>시간순</button>
                 </div>
               </div>
 
@@ -290,23 +313,7 @@ export function Hello2027Poc({
                       ) : null}
                       <span className={styles.participantIdentity}>
                         <span className={styles.characterWrap} aria-hidden="true">
-                          {localContent.avatarUrls[participant.id] ? (
-                            <Image
-                              src={localContent.avatarUrls[participant.id]}
-                              alt=""
-                              fill
-                              unoptimized
-                              sizes="96px"
-                            />
-                          ) : (
-                            <TwttRunnerPictogram
-                              variant={participant.pictogramIndex}
-                              name={participant.fullName}
-                              completed={participant.completed}
-                              pose="stand"
-                              portrait
-                            />
-                          )}
+                          <ParticipantAvatar imageUrl={participant.profileImageUrl} />
                         </span>
                         <span className={styles.participantNameRow}>
                           <strong>{participant.fullName}<small>님</small></strong>
@@ -321,9 +328,7 @@ export function Hello2027Poc({
                 ))}
               </ul>
             </section>
-          ) : (
-            <FourthSeasonPreopenState seasonStarted={seasonStarted} />
-          )}
+          ) : <FourthSeasonMemberEmptyState />}
 
           <Hello2027Guestbook
             initialThreads={snapshot.guestbook}
@@ -334,41 +339,42 @@ export function Hello2027Poc({
         </>
       </main>
 
+      {/* Keep the sheet outside the header's nowrap and mobile time rules. */}
+      {memberFeatures && viewerState?.viewer?.authenticated ? (
+                    <MyActivityDialog
+                      key={viewerState.viewer.participant_id ?? "unlinked"}
+                      showTrigger={false}
+                      name={viewerState.viewer.display_name || "멤버"}
+                      imageUrl={liveSnapshot.participants.find(p => p.id === viewerState.viewer?.participant_id)?.profileImageUrl}
+                      onChanged={patch => {
+                        const id = viewerState.viewer?.participant_id;
+                        setLiveSnapshot(current => ({ ...current, participants: current.participants.map(p => p.id === id ? { ...p, ...(patch.displayName === undefined ? {} : { fullName: patch.displayName }), ...(patch.profileImageUrl === undefined ? {} : { profileImageUrl: patch.profileImageUrl }) } : p) }));
+                      }}
+                    />
+      ) : null}
+
       <ParticipantDialog
         dialogRef={dialogRef}
         titleRef={dialogTitleRef}
         participant={selectedParticipant}
-        avatarUrl={selectedParticipant ? localContent.avatarUrls[selectedParticipant.id] : undefined}
-        introduction={selectedParticipant
-          ? localContent.profileIntroductions[selectedParticipant.id]
-            ?? localContent.profileIntroductions[`name:${selectedParticipant.fullName.replace(/\s+/g, "")}`]
-            ?? {
-              title: selectedParticipant.product.name,
-              body: selectedParticipant.product.description,
-            }
-          : undefined}
-        referenceDateLabel={referenceDateLabel}
+        today={referenceDateIso}
         onClose={closeParticipant}
       />
     </div>
   );
 }
 
-function FourthSeasonPreopenState({ seasonStarted }: { seasonStarted: boolean }) {
+function FourthSeasonMemberEmptyState() {
   return (
-    <section className={styles.preopenState} aria-labelledby="fourth-season-preopen-title">
-      <div className={styles.preopenStateMark} aria-hidden="true">
-        <span />
+    <section id="crew" className={styles.crewSection} aria-labelledby="crew-title">
+      <div className={styles.crewHeading}>
+        <div>
+          <h2 id="crew-title">멤버</h2>
+        </div>
       </div>
-      <p className={styles.preopenStateEyebrow}>{seasonStarted ? "TWTT 4TH" : "STARTS SEP 23"}</p>
-      <h2 id="fourth-season-preopen-title">
-        {seasonStarted ? "공개할 크루 데이터를 준비하고 있어요" : "공식 100일은 9월 23일에 시작해요"}
-      </h2>
-      <p>
-        {seasonStarted
-          ? "실제 크루와 인증 기록이 연결되면 이곳에 바로 표시됩니다."
-          : "그전에 남긴 준비 러닝은 공식 인증률에 더하지 않고, 로그인한 본인의 개인 기록에서만 보여드려요."}
-      </p>
+      <div className={styles.memberEmptyState}>
+        <p>현재 4기 멤버 확정 전이며, 9월 중순 공개됩니다.</p>
+      </div>
     </section>
   );
 }
@@ -412,7 +418,7 @@ function MotivationBanner({ encouragements, initialIndex }: MotivationBannerProp
   return (
     <section className={styles.motivationBanner} aria-labelledby="motivation-title">
       <div className={styles.motivationHeader}>
-        <span id="motivation-title">오늘의 응원글</span>
+        <span id="motivation-title">내던지는 명언 50선</span>
       </div>
       <p key={`${visibleQuoteIndex}-${encouragement}`}>{encouragement}</p>
     </section>
@@ -423,27 +429,61 @@ type ParticipantDialogProps = {
   dialogRef: React.RefObject<HTMLDialogElement | null>;
   titleRef: React.RefObject<HTMLHeadingElement | null>;
   participant: Hello2027Participant | null;
-  avatarUrl?: string;
-  introduction?: Hello2027ProfileIntroduction;
-  referenceDateLabel: string;
+  today: string;
   onClose: () => void;
 };
 
-function ParticipantDialog({
+function ParticipantAvatar({
+  imageUrl,
+  dialog = false,
+}: {
+  imageUrl?: string | null;
+  dialog?: boolean;
+}) {
+  const [failedImageUrl, setFailedImageUrl] = useState<string | null>(null);
+  const resolvedImageUrl = resolveHello2027ProfileImageUrl(imageUrl);
+  const visibleImageUrl = failedImageUrl === resolvedImageUrl
+    ? DEFAULT_HELLO_2027_PROFILE_IMAGE_URL
+    : resolvedImageUrl;
+
+  return (
+    <Image
+      src={visibleImageUrl}
+      alt=""
+      fill
+      unoptimized={visibleImageUrl !== DEFAULT_HELLO_2027_PROFILE_IMAGE_URL}
+      sizes={dialog ? "132px" : "96px"}
+      onError={() => setFailedImageUrl(resolvedImageUrl)}
+    />
+  );
+}
+
+function formatTotalDuration(minutes: number) {
+  const safeMinutes = Math.max(0, Math.round(minutes));
+  if (safeMinutes < 60) return `${safeMinutes}분`;
+  const hours = Math.floor(safeMinutes / 60);
+  const remainder = safeMinutes % 60;
+  return remainder ? `${hours}시간 ${remainder}분` : `${hours}시간`;
+}
+
+function formatDistanceKm(value: number | null) {
+  if (value === null) return "거리 미입력";
+  return <>{value.toLocaleString("ko-KR", { maximumFractionDigits: 2 })}<small>km</small></>;
+}
+
+export function ParticipantDialog({
   dialogRef,
   titleRef,
   participant,
-  avatarUrl,
-  introduction,
-  referenceDateLabel,
+  today,
   onClose,
 }: ParticipantDialogProps) {
+
   return (
     <dialog
       ref={dialogRef}
-      className={styles.dialog}
+      className={`${styles.dialog} ${styles.memberDialog}`}
       aria-labelledby="participant-dialog-title"
-      aria-describedby="participant-dialog-description"
       onCancel={(event) => {
         event.preventDefault();
         onClose();
@@ -453,59 +493,45 @@ function ParticipantDialog({
       }}
     >
       {participant ? (
-        <div className={styles.dialogPanel}>
+        <div className={`${styles.dialogPanel} ${styles.memberPanel}`}>
           <button className={styles.dialogClose} type="button" onClick={onClose} aria-label="상세창 닫기">
             ×
           </button>
           <div className={styles.dialogProfile}>
-            <div className={styles.dialogCharacter} aria-hidden="true">
-              {avatarUrl ? (
-                <Image src={avatarUrl} alt="" fill unoptimized sizes="132px" />
-              ) : (
-                <TwttRunnerPictogram
-                  variant={participant.pictogramIndex}
-                  name={participant.fullName}
-                  completed={participant.completed}
-                  pose="stand"
-                  size="dialog"
-                  portrait
-                />
-              )}
+            <div className={styles.profileImageEditor}>
+              <div className={styles.dialogCharacter} aria-hidden="true">
+                <ParticipantAvatar imageUrl={participant.profileImageUrl} dialog />
+              </div>
             </div>
             <div>
-              <p className={styles.dialogKicker}>{participant.completed ? "오늘 아침 인증 완료" : "오늘의 기록"}</p>
               <h2 id="participant-dialog-title" ref={titleRef} tabIndex={-1}>{participant.fullName}</h2>
-              <p id="participant-dialog-description" className={styles.dialogDate}>{referenceDateLabel}</p>
             </div>
           </div>
 
-          {participant.completed ? (
-            <dl className={styles.recordGrid}>
-              <div>
-                <dt>거리</dt>
-                <dd>{participant.distanceKm?.toFixed(2)}km</dd>
-              </div>
-              <div>
-                <dt>운동시간</dt>
-                <dd>{participant.durationMinutes}분</dd>
-              </div>
-              <div>
-                <dt>오늘까지 인증률</dt>
-                <dd>{participant.seasonCompletionRate}%</dd>
-              </div>
-            </dl>
-          ) : (
-            <div className={styles.emptyRecord}>
-              <strong>오늘은 아직 기록이 없어요.</strong>
-              <p>빈칸도 같은 풍경 안에 편안하게 머뭅니다.</p>
+          <dl className={styles.recordGrid}>
+            <div>
+              <dt>총 인증일</dt>
+              <dd>{participant.certifiedDays}일</dd>
             </div>
-          )}
+            <div>
+              <dt>누적 거리</dt>
+              <dd>{formatDistanceKm(participant.totalDistanceKm)}</dd>
+            </div>
+            <div>
+              <dt>누적 시간</dt>
+              <dd>{formatTotalDuration(participant.totalDurationMinutes)}</dd>
+            </div>
+          </dl>
 
-          <section className={styles.introductionCard} aria-labelledby="participant-introduction-title">
-            <span>크루 소개 · {participant.fullName}</span>
-            <strong id="participant-introduction-title">{introduction?.title ?? "자기소개를 준비 중이에요"}</strong>
-            <p>{introduction?.body ?? "곧 이 크루의 이야기를 만나볼 수 있어요."}</p>
-          </section>
+          <div className={styles.memberCalendar}><ParticipantRecordCalendar
+            key={participant.id}
+            records={participant.recordHistory}
+            certifiedDays={participant.certifiedDays}
+            today={today}
+            showTotal={false}
+            showLegend={false}
+            compact
+          /></div>
         </div>
       ) : null}
     </dialog>

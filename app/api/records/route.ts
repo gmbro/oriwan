@@ -1,9 +1,10 @@
+import { writeCertificationReview } from "@/lib/certification-review";
 import { NextRequest, NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireAdminDataAccess } from "@/lib/admin-data-access";
 import { calculatePaceSeconds } from "@/lib/run-records";
 import { isMissingTableError, missingSchemaResponse } from "@/lib/supabase-errors";
-import { guardMutationRequest } from "@/lib/request-security";
+import { guardMutationRequest, readLimitedJson } from "@/lib/request-security";
 import { invalidatePublicDashboardCache } from "@/lib/public-dashboard-data";
 import {
   FOURTH_PERSONAL_RECORD_DATE_ERROR,
@@ -119,7 +120,9 @@ export async function POST(request: NextRequest) {
   if (!access.ok) return access.response;
   const { user, service: supabase } = access;
 
-  const body = await request.json().catch(() => ({}));
+  const parsedBody = await readLimitedJson(request, 256 * 1024);
+  if (!parsedBody.ok) return parsedBody.response;
+  const body = parsedBody.value;
   const participantId = typeof body.participant_id === "string" ? body.participant_id : null;
   const recordDate = typeof body.record_date === "string" ? body.record_date : null;
   const distanceKm = sanitizeNumber(body.distance_km);
@@ -154,13 +157,14 @@ export async function POST(request: NextRequest) {
   }
 
   const statusProvided = Object.hasOwn(body, "status");
-  const status = statusProvided ? sanitizeStatus(body.status) : "certified";
+  const status = statusProvided ? sanitizeStatus(body.status) : "needs_review";
   if (!status) {
     return NextResponse.json({ error: "기록 상태값을 다시 확인해주세요." }, { status: 400 });
   }
+  if (status === "certified") return NextResponse.json({ error: "먼저 검수 대기로 저장하고 인증샷 확인 후 승인해주세요." }, { status: 400 });
   const { data, error } = await supabase
     .from("daily_run_records")
-    .upsert(
+    .insert(
       {
         user_id: user.id,
         season_key: FOURTH_SEASON_KEY,
@@ -174,14 +178,14 @@ export async function POST(request: NextRequest) {
         confidence_score: sanitizeNumber(body.confidence_score),
         image_url: body.image_url || null,
         raw_extracted_text: body.raw_extracted_text || null,
-        notes: body.notes || null,
-      },
-      { onConflict: "season_key,user_id,participant_id,record_date" }
+        notes: writeCertificationReview(typeof body.notes === "string" ? body.notes : null, { version: 1, uploadedAt: null }),
+      }
     )
     .select("id")
     .single();
 
   if (error) {
+    if (error.code === "23505") return NextResponse.json({ error: "같은 날짜의 기록이 있어요. 날짜별 기록에서 수정해주세요." }, { status: 409 });
     logServerFailure("Record save", error);
     if (isMissingTableError(error)) {
       return NextResponse.json(missingSchemaResponse("러닝 기록 테이블이 아직 준비되지 않았어요."), { status: 503 });

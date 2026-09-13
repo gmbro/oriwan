@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  filterAdminCommentsAfterHardDelete,
+  removeAdminCommentFromView,
+} from "@/lib/admin-comment-view";
+import { ConfirmationDialog } from "@/components/confirmation-dialog";
+import { broadcastDashboardRefresh } from "@/lib/dashboard-refresh";
 
 type ContentTab = "encouragements" | "banners" | "comments";
 type NoticeTone = "success" | "error" | "info";
@@ -28,6 +34,7 @@ type Banner = {
   description: string;
   alt_text: string;
   image_url: string;
+  click_url: string;
   mobile_focus: BannerFocus;
   display_order: number;
   active: boolean;
@@ -35,7 +42,7 @@ type Banner = {
   updated_at?: string | null;
 };
 
-type CommentStatus = "visible" | "hidden" | "deleted";
+type CommentStatus = "visible" | "hidden";
 
 type AdminComment = {
   id: string;
@@ -62,6 +69,7 @@ type BannerDraft = {
   description: string;
   alt_text: string;
   image_url: string;
+  click_url: string;
   mobile_focus: BannerFocus;
   display_order: string;
   active: boolean;
@@ -79,10 +87,14 @@ const EMPTY_BANNER: BannerDraft = {
   description: "",
   alt_text: "",
   image_url: "",
+  click_url: "",
   mobile_focus: "center",
   display_order: "",
   active: true,
 };
+
+const BANNER_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
+const MAX_BANNER_IMAGE_BYTES = 4 * 1024 * 1024;
 
 const ADMIN_DATE_TIME_FORMATTER = new Intl.DateTimeFormat("ko-KR", {
   dateStyle: "medium",
@@ -95,16 +107,21 @@ function parseJson<T>(response: Response): Promise<T> {
 }
 
 async function apiRequest<T>(input: RequestInfo | URL, init?: RequestInit) {
+  const hasFormDataBody = typeof FormData !== "undefined" && init?.body instanceof FormData;
   const response = await fetch(input, {
     cache: "no-store",
     ...init,
-    headers: init?.body
+    headers: init?.body && !hasFormDataBody
       ? { "Content-Type": "application/json", ...init.headers }
       : init?.headers,
   });
   const json = await parseJson<T & { error?: string }>(response);
   if (!response.ok) {
     throw new Error(json.error || "요청을 처리하지 못했어요. 잠시 후 다시 시도해주세요.");
+  }
+  const method = (init?.method || "GET").toUpperCase();
+  if (method !== "GET" && !String(input).includes("/banner-image")) {
+    void broadcastDashboardRefresh();
   }
   return json;
 }
@@ -155,6 +172,23 @@ function isSupportedImageLocation(value: string) {
   } catch {
     return false;
   }
+}
+
+function isSupportedClickUrl(value: string) {
+  const normalized = value.trim();
+  if (!normalized || normalized.length > 2_048 || /[\u0000-\u0020\u007f-\u009f\\\u200b-\u200f\u202a-\u202e\u2060\u2066-\u2069\ufeff]/u.test(normalized)) {
+    return false;
+  }
+  try {
+    const url = new URL(normalized);
+    return url.protocol === "https:" && !url.username && !url.password;
+  } catch {
+    return false;
+  }
+}
+
+function formatBannerImageSize(bytes: number) {
+  return `${(bytes / 1024 / 1024).toFixed(bytes >= 1024 * 1024 ? 1 : 2)}MB`;
 }
 
 function NoticeBar({ notice }: { notice: Notice | null }) {
@@ -492,7 +526,7 @@ function EncouragementManager() {
         eyebrow="Encouragements"
         titleId="encouragement-admin-title"
         title="응원글"
-        description="매일 바뀌는 오늘의 응원글을 등록하고 공개 순서를 정해요. 최대 56개까지 보관할 수 있습니다."
+        description="오늘의 응원 선물로 지급할 문구를 등록해요. 공개 문구 중 하나가 랜덤으로 지급되며 최대 56개까지 보관할 수 있습니다."
         countLabel={`${items.length}/56개`}
         actionLabel={showCreate ? "작성 중" : "응원글 추가"}
         actionDisabled={showCreate || items.length >= 56}
@@ -507,6 +541,11 @@ function EncouragementManager() {
         {showCreate ? (
           <EncouragementForm mode="create" initial={EMPTY_ENCOURAGEMENT} submitting={busyId === "create"} onCancel={() => setShowCreate(false)} onSubmit={(draft) => save(draft)} />
         ) : null}
+        <details className="rounded-2xl bg-blue-50 p-4 text-sm leading-6 text-slate-700">
+          <summary className="cursor-pointer font-bold">응원 선물 등록·운영 안내</summary>
+          <p className="mt-2">응원글 추가 → 120자 이내 문구 입력 → 공개 설정 → 저장 순서로 등록하세요. 공개한 문구는 인증을 마친 멤버의 응원 상자에 랜덤으로 지급됩니다. 표시 순서는 당첨 확률에 영향을 주지 않아요.</p>
+          <p className="mt-2">이미 받은 문구는 수정하거나 비공개로 바꿔도 유지돼요. 쿠폰·실물·교정운동 이용권은 현재 지급 대상이 아닙니다. 확장 시 선물명·이미지·수량·기간·수령 방법과 지급 내역을 별도로 관리할 예정이에요.</p>
+        </details>
         {loading ? <LoadingState label="응원글을 불러오는 중…" /> : null}
         {!loading && !items.length && !showCreate ? <EmptyState title="등록된 응원글이 없어요" description="첫 응원글을 등록하면 4기 대시보드에서 순서대로 보여줄 수 있어요." /> : null}
         {!loading ? items.map((item, index) => (
@@ -558,7 +597,87 @@ function BannerForm({
   onSubmit: (draft: BannerDraft) => Promise<void>;
 }) {
   const [draft, setDraft] = useState(initial);
-  const imagePreviewAllowed = isSupportedImageLocation(draft.image_url);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadNotice, setUploadNotice] = useState<Notice | null>(null);
+  const [localPreviewUrl, setLocalPreviewUrl] = useState("");
+  const [selectedImage, setSelectedImage] = useState<{ name: string; size: number } | null>(null);
+  const [uploadedImageUrl, setUploadedImageUrl] = useState("");
+  const previewSource = localPreviewUrl || draft.image_url;
+  const imagePreviewAllowed = Boolean(localPreviewUrl) || isSupportedImageLocation(draft.image_url);
+
+  useEffect(() => () => {
+    if (localPreviewUrl) URL.revokeObjectURL(localPreviewUrl);
+  }, [localPreviewUrl]);
+
+  const removeUploadedImage = async (imageUrl: string) => {
+    try {
+      await apiRequest("/api/admin/hello-2027/banner-image", {
+        method: "DELETE",
+        body: JSON.stringify({ imageUrl }),
+        keepalive: true,
+      });
+    } catch {
+      // Cancelling the form should never be blocked by a best-effort cleanup request.
+    }
+  };
+
+  const handleImageUrlChange = (imageUrl: string) => {
+    if (uploadedImageUrl && imageUrl !== uploadedImageUrl) {
+      void removeUploadedImage(uploadedImageUrl);
+      setUploadedImageUrl("");
+    }
+    setLocalPreviewUrl("");
+    setSelectedImage(null);
+    setUploadNotice(null);
+    setDraft((current) => ({ ...current, image_url: imageUrl }));
+  };
+
+  const uploadLocalImage = async (file: File) => {
+    if (!BANNER_IMAGE_TYPES.some((type) => type === file.type)) {
+      setUploadNotice({ tone: "error", message: "JPG, PNG, WebP 이미지 파일만 올릴 수 있어요." });
+      return;
+    }
+    if (file.size <= 0 || file.size > MAX_BANNER_IMAGE_BYTES) {
+      setUploadNotice({ tone: "error", message: "이미지는 한 장당 최대 4MB까지 올릴 수 있어요." });
+      return;
+    }
+
+    const nextPreviewUrl = URL.createObjectURL(file);
+    setLocalPreviewUrl(nextPreviewUrl);
+    setSelectedImage({ name: file.name, size: file.size });
+    setUploadNotice({ tone: "info", message: "이미지를 안전하게 업로드하고 있어요." });
+    setUploadingImage(true);
+
+    const formData = new FormData();
+    formData.append("file", file);
+    try {
+      const json = await apiRequest<{ imageUrl?: string }>("/api/admin/hello-2027/banner-image", {
+        method: "POST",
+        body: formData,
+      });
+      if (!json.imageUrl || !isSupportedImageLocation(json.imageUrl)) {
+        throw new Error("업로드된 이미지 주소를 확인하지 못했어요.");
+      }
+      const previousUploadedImageUrl = uploadedImageUrl;
+      setUploadedImageUrl(json.imageUrl);
+      setDraft((current) => ({ ...current, image_url: json.imageUrl || "" }));
+      setUploadNotice({ tone: "success", message: "이미지 업로드가 완료됐어요. 아래 미리보기를 확인해주세요." });
+      if (previousUploadedImageUrl && previousUploadedImageUrl !== json.imageUrl) {
+        void removeUploadedImage(previousUploadedImageUrl);
+      }
+    } catch (error) {
+      setLocalPreviewUrl("");
+      setSelectedImage(null);
+      setUploadNotice({ tone: "error", message: error instanceof Error ? error.message : "이미지를 업로드하지 못했어요." });
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  const cancelForm = () => {
+    if (uploadedImageUrl) void removeUploadedImage(uploadedImageUrl);
+    onCancel();
+  };
 
   return (
     <form
@@ -586,15 +705,46 @@ function BannerForm({
         설명
         <textarea required maxLength={100} rows={2} value={draft.description} onChange={(event) => setDraft((current) => ({ ...current, description: event.target.value }))} placeholder="배너에 함께 보일 한 줄 설명" className="mt-1.5 w-full resize-y rounded-xl border border-blue-100 bg-white px-3 py-3 text-sm font-bold leading-5 text-oriwan-text outline-none focus:border-blue-500" />
       </label>
+      <label className="mt-3 block text-xs font-black text-oriwan-text-muted">
+        배너 클릭 URL
+        <input required type="url" inputMode="url" maxLength={2_048} value={draft.click_url} onChange={(event) => setDraft((current) => ({ ...current, click_url: event.target.value }))} placeholder="https://www.example.com/" className="mt-1.5 min-h-11 w-full rounded-xl border border-blue-100 bg-white px-3 text-sm font-bold text-oriwan-text outline-none focus:border-blue-500" />
+        <span className="mt-1.5 block text-[11px] font-semibold leading-5 text-oriwan-text-muted">배너를 클릭했을 때 새 창으로 이동할 HTTPS 주소예요.</span>
+      </label>
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <label className="text-xs font-black text-oriwan-text-muted">
-          이미지 URL
-          <input required type="text" inputMode="url" value={draft.image_url} onChange={(event) => setDraft((current) => ({ ...current, image_url: event.target.value }))} placeholder="/banners/image.webp 또는 Supabase URL" className="mt-1.5 min-h-11 w-full rounded-xl border border-blue-100 bg-white px-3 text-sm font-bold text-oriwan-text outline-none focus:border-blue-500" />
+          이미지 URL 직접 입력
+          <input required type="text" inputMode="url" value={draft.image_url} onChange={(event) => handleImageUrlChange(event.target.value)} placeholder="/banners/image.webp 또는 Supabase URL" className="mt-1.5 min-h-11 w-full rounded-xl border border-blue-100 bg-white px-3 text-sm font-bold text-oriwan-text outline-none focus:border-blue-500" />
         </label>
         <label className="text-xs font-black text-oriwan-text-muted">
           이미지 대체 설명
           <input required maxLength={80} value={draft.alt_text} onChange={(event) => setDraft((current) => ({ ...current, alt_text: event.target.value }))} placeholder="이미지 내용을 구체적으로 설명" className="mt-1.5 min-h-11 w-full rounded-xl border border-blue-100 bg-white px-3 text-sm font-bold text-oriwan-text outline-none focus:border-blue-500" />
         </label>
+      </div>
+      <div className="mt-3 rounded-2xl border-2 border-dashed border-blue-200 bg-white/75 p-3 sm:p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-xs font-black text-oriwan-text">내 컴퓨터에서 이미지 업로드</p>
+            <p className="mt-1 text-[11px] font-semibold leading-5 text-oriwan-text-muted">JPG, PNG, WebP · 최대 4MB · 권장 가로형 비율 1915:821</p>
+            {selectedImage ? (
+              <p className="mt-1 max-w-xl truncate text-[11px] font-black text-blue-700">{selectedImage.name} · {formatBannerImageSize(selectedImage.size)}</p>
+            ) : null}
+          </div>
+          <label className={`inline-flex min-h-11 shrink-0 cursor-pointer items-center justify-center rounded-xl px-4 text-xs font-black transition focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-blue-600 ${uploadingImage ? "cursor-wait bg-slate-200 text-slate-500" : "bg-slate-950 text-white hover:bg-slate-800"}`}>
+            {uploadingImage ? "업로드 중…" : draft.image_url ? "다른 이미지 선택" : "이미지 선택"}
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              disabled={uploadingImage || submitting}
+              className="sr-only"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) void uploadLocalImage(file);
+                event.target.value = "";
+              }}
+            />
+          </label>
+        </div>
+        {uploadNotice ? <div className="mt-3"><NoticeBar notice={uploadNotice} /></div> : null}
       </div>
       <div className="mt-3 grid gap-3 sm:grid-cols-3">
         <label className="text-xs font-black text-oriwan-text-muted">
@@ -614,9 +764,9 @@ function BannerForm({
           바로 공개하기
         </label>
       </div>
-      {draft.image_url && imagePreviewAllowed ? (
+      {previewSource && imagePreviewAllowed ? (
         <div className="mt-4 overflow-hidden rounded-2xl bg-slate-900 ring-1 ring-slate-950/10">
-          <div role="img" aria-label={draft.alt_text || "배너 이미지 미리보기"} className="h-32 bg-cover bg-center sm:h-40" style={{ backgroundImage: `url(${JSON.stringify(draft.image_url)})`, backgroundPosition: draft.mobile_focus }} />
+          <div role="img" aria-label={draft.alt_text || "배너 이미지 미리보기"} className="h-32 bg-cover bg-center sm:h-40" style={{ backgroundImage: `url(${JSON.stringify(previewSource)})`, backgroundPosition: draft.mobile_focus }} />
           <p className="bg-slate-950/90 px-3 py-2 text-[11px] font-bold text-white/80">모바일 초점 미리보기 · {draft.mobile_focus === "left" ? "왼쪽" : draft.mobile_focus === "right" ? "오른쪽" : "가운데"}</p>
         </div>
       ) : draft.image_url ? (
@@ -625,8 +775,8 @@ function BannerForm({
         </p>
       ) : null}
       <div className="mt-4 grid grid-cols-2 gap-2 sm:flex sm:justify-end">
-        <button type="button" onClick={onCancel} disabled={submitting} className="min-h-11 rounded-xl bg-white px-4 text-xs font-black text-oriwan-text-muted ring-1 ring-slate-200 disabled:opacity-50">취소</button>
-        <button type="submit" disabled={submitting || !draft.owner_name.trim() || !draft.title.trim() || !draft.description.trim() || !draft.alt_text.trim() || !draft.image_url.trim()} className="min-h-11 rounded-xl bg-blue-600 px-5 text-xs font-black text-white disabled:opacity-45">{submitting ? "저장 중…" : "저장"}</button>
+        <button type="button" onClick={cancelForm} disabled={submitting || uploadingImage} className="min-h-11 rounded-xl bg-white px-4 text-xs font-black text-oriwan-text-muted ring-1 ring-slate-200 disabled:opacity-50">취소</button>
+        <button type="submit" disabled={submitting || uploadingImage || !draft.owner_name.trim() || !draft.title.trim() || !draft.description.trim() || !draft.alt_text.trim() || !draft.image_url.trim() || !draft.click_url.trim()} className="min-h-11 rounded-xl bg-blue-600 px-5 text-xs font-black text-white disabled:opacity-45">{submitting ? "저장 중…" : uploadingImage ? "이미지 업로드 중…" : "저장"}</button>
       </div>
     </form>
   );
@@ -665,6 +815,7 @@ function BannerManager() {
       description: draft.description.trim(),
       alt_text: draft.alt_text.trim(),
       image_url: draft.image_url.trim(),
+      click_url: draft.click_url.trim(),
       mobile_focus: draft.mobile_focus,
       active: draft.active,
       display_order: normalizeOrder(
@@ -672,8 +823,8 @@ function BannerManager() {
         id ? items.find((item) => item.id === id)?.display_order ?? 0 : items.length,
       ),
     };
-    if (Object.values(fields).some((value) => typeof value === "string" && !value) || !isSupportedImageLocation(fields.image_url)) {
-      setNotice({ tone: "error", message: "모든 문구와 사이트 내부 경로 또는 Supabase 공개 이미지 URL을 확인해주세요." });
+    if (Object.values(fields).some((value) => typeof value === "string" && !value) || !isSupportedImageLocation(fields.image_url) || !isSupportedClickUrl(fields.click_url)) {
+      setNotice({ tone: "error", message: "모든 문구, HTTPS 배너 클릭 URL, 사이트 내부 경로 또는 Supabase 공개 이미지 URL을 확인해주세요." });
       return;
     }
     const busyKey = id || "create";
@@ -767,7 +918,7 @@ function BannerManager() {
         {items.length >= 10 ? <NoticeBar notice={{ tone: "info", message: "배너 10개가 모두 등록되어 있어요. 새 배너를 추가하려면 기존 배너를 정리해주세요." }} /> : null}
         {showCreate ? <BannerForm mode="create" initial={EMPTY_BANNER} submitting={busyId === "create"} onCancel={() => setShowCreate(false)} onSubmit={(draft) => save(draft)} /> : null}
         {loading ? <LoadingState label="배너를 불러오는 중…" /> : null}
-        {!loading && !items.length && !showCreate ? <EmptyState title="등록된 광고 배너가 없어요" description="첫 광고 배너를 등록하면 5초 간격 캐러셀에 순서대로 노출할 수 있어요." /> : null}
+        {!loading && !items.length && !showCreate ? <EmptyState title="등록된 광고 배너가 없어요" description="첫 광고 배너를 등록하면 7초 간격 캐러셀에 순서대로 노출할 수 있어요." /> : null}
         {!loading ? items.map((item, index) => (
           editingId === item.id ? (
             <BannerForm
@@ -779,6 +930,7 @@ function BannerManager() {
                 description: item.description,
                 alt_text: item.alt_text,
                 image_url: item.image_url,
+                click_url: item.click_url || "",
                 mobile_focus: item.mobile_focus || "center",
                 display_order: String(item.display_order),
                 active: item.active,
@@ -801,6 +953,7 @@ function BannerManager() {
                     <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-blue-50 text-[11px] font-black text-blue-700">{index + 1}</span>
                   </div>
                   <p className="mt-3 line-clamp-2 text-[11px] font-bold leading-5 text-oriwan-text-muted">대체 설명: {item.alt_text}</p>
+                  <p className="mt-1 truncate text-[11px] font-bold text-blue-700">연결 URL · {item.click_url || "미설정"}</p>
                   <p className="mt-1 text-[11px] font-bold text-oriwan-text-muted">모바일 초점 · {item.mobile_focus === "left" ? "왼쪽" : item.mobile_focus === "right" ? "오른쪽" : "가운데"}</p>
                 </div>
               </div>
@@ -824,21 +977,27 @@ const COMMENT_FILTERS: ReadonlyArray<{ key: "all" | CommentStatus; label: string
   { key: "all", label: "전체" },
   { key: "visible", label: "공개" },
   { key: "hidden", label: "숨김" },
-  { key: "deleted", label: "삭제" },
 ];
 
 function CommentManager() {
+  const [deleteTarget, setDeleteTarget] = useState<AdminComment | null>(null);
   const [comments, setComments] = useState<AdminComment[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | CommentStatus>("all");
   const [busyId, setBusyId] = useState("");
   const [notice, setNotice] = useState<Notice | null>(null);
+  const hardDeletedCommentIdsRef = useRef<Set<string>>(new Set());
+  const hardDeletedThreadIdsRef = useRef<Set<string>>(new Set());
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const json = await apiRequest<{ comments?: AdminComment[] }>("/api/admin/hello-2027/comments");
-      setComments(json.comments || []);
+      setComments(filterAdminCommentsAfterHardDelete(
+        json.comments || [],
+        hardDeletedCommentIdsRef.current,
+        hardDeletedThreadIdsRef.current,
+      ));
     } catch (error) {
       setNotice({ tone: "error", message: error instanceof Error ? error.message : "댓글을 불러오지 못했어요." });
     } finally {
@@ -856,7 +1015,6 @@ function CommentManager() {
     all: comments.length,
     visible: comments.filter((comment) => comment.status === "visible").length,
     hidden: comments.filter((comment) => comment.status === "hidden").length,
-    deleted: comments.filter((comment) => comment.status === "deleted").length,
   }), [comments]);
 
   const filteredComments = useMemo(() => (
@@ -880,16 +1038,30 @@ function CommentManager() {
   };
 
   const deleteComment = async (comment: AdminComment) => {
-    if (!window.confirm("이 댓글을 비식별 삭제할까요? 작성자와 본문은 공개 화면에서 복구할 수 없게 처리됩니다.")) return;
+    if (busyId) return;
+    const previousComments = comments;
+    const deletesWholeThread = comment.parent_id === null;
+
+    hardDeletedCommentIdsRef.current.add(comment.id);
+    if (deletesWholeThread) hardDeletedThreadIdsRef.current.add(comment.id);
+    setComments((current) => removeAdminCommentFromView(current, comment.id));
     setBusyId(comment.id);
     try {
       await apiRequest("/api/admin/hello-2027/comments", {
         method: "DELETE",
         body: JSON.stringify({ id: comment.id }),
       });
-      setNotice({ tone: "success", message: "댓글을 비식별 삭제했어요." });
-      await load();
+      setDeleteTarget(null);
+      setNotice({
+        tone: "success",
+        message: deletesWholeThread && comment.replies_count > 0
+          ? "댓글과 연결된 답글을 완전히 삭제했어요."
+          : "댓글을 완전히 삭제했어요.",
+      });
     } catch (error) {
+      hardDeletedCommentIdsRef.current.delete(comment.id);
+      if (deletesWholeThread) hardDeletedThreadIdsRef.current.delete(comment.id);
+      setComments(previousComments);
       setNotice({ tone: "error", message: error instanceof Error ? error.message : "댓글을 삭제하지 못했어요." });
     } finally {
       setBusyId("");
@@ -898,7 +1070,7 @@ function CommentManager() {
 
   return (
     <section className="card mobile-page-card overflow-hidden p-4 sm:p-6" aria-labelledby="comment-admin-title">
-      <WorkspaceHeader eyebrow="Comment moderation" titleId="comment-admin-title" title="댓글" description="익명과 카카오 댓글을 함께 확인하고 공개, 숨김, 비식별 삭제 상태를 관리해요." countLabel={`${comments.length}개`} />
+      <WorkspaceHeader eyebrow="Comment moderation" titleId="comment-admin-title" title="댓글" description="익명과 카카오 댓글을 함께 확인하고 공개/숨김 상태와 삭제를 관리해요." countLabel={`${comments.length}개`} />
       <div className="mt-5 space-y-3">
         <NoticeBar notice={notice} />
         <div className="overflow-x-auto rounded-2xl bg-oriwan-surface-light p-1.5" role="group" aria-label="댓글 상태 필터">
@@ -919,45 +1091,48 @@ function CommentManager() {
         {loading ? <LoadingState label="댓글을 불러오는 중…" /> : null}
         {!loading && !filteredComments.length ? <EmptyState title="이 상태의 댓글이 없어요" description="새 댓글이나 상태 변경이 생기면 이곳에 바로 표시됩니다." /> : null}
         {!loading ? filteredComments.map((comment) => {
-          const statusLabel = comment.status === "visible" ? "공개" : comment.status === "hidden" ? "숨김" : "비식별 삭제";
-          const statusClass = comment.status === "visible" ? "bg-lime-50 text-lime-800" : comment.status === "hidden" ? "bg-amber-50 text-amber-800" : "bg-slate-100 text-slate-500";
+          const statusLabel = comment.status === "visible" ? "공개" : "숨김";
+          const statusClass = comment.status === "visible" ? "bg-lime-50 text-lime-800" : "bg-amber-50 text-amber-800";
           return (
-            <article key={comment.id} className={`rounded-[22px] p-4 ring-1 ring-slate-950/5 sm:p-5 ${comment.status === "deleted" ? "bg-slate-50" : "bg-white"}`}>
+            <article key={comment.id} className="rounded-[22px] p-4 ring-1 ring-slate-950/5 sm:p-5 bg-white">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <strong className="truncate text-sm font-black text-oriwan-text">{comment.status === "deleted" ? "삭제된 작성자" : comment.author_name}</strong>
+                    <strong className="truncate text-sm font-black text-oriwan-text">{comment.author_name}</strong>
                     <span className={`rounded-full px-2 py-1 text-[11px] font-black ${statusClass}`}>{statusLabel}</span>
                     {comment.parent_id ? <span className="rounded-full bg-blue-50 px-2 py-1 text-[11px] font-black text-blue-700">답글</span> : null}
                   </div>
                 </div>
                 <time className="shrink-0 text-right text-[11px] font-bold leading-5 text-oriwan-text-muted" dateTime={comment.created_at}>{formatAdminTimestamp(comment.created_at)}</time>
               </div>
-              <p className={`mt-3 whitespace-pre-wrap break-words text-sm font-semibold leading-6 ${comment.status === "deleted" ? "text-oriwan-text-muted" : "text-oriwan-text"}`}>
-                {comment.status === "deleted" ? "비식별 삭제된 댓글입니다." : comment.body}
+              <p className="mt-3 whitespace-pre-wrap break-words text-sm font-semibold leading-6 text-oriwan-text">
+                {comment.body}
               </p>
               <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-3">
                 <div className="flex flex-wrap gap-1.5 text-[11px] font-black text-oriwan-text-muted">
                   <span className="rounded-full bg-oriwan-surface-light px-2.5 py-1.5">반응 {comment.reactions_count || 0}</span>
                   <span className="rounded-full bg-oriwan-surface-light px-2.5 py-1.5">답글 {comment.replies_count || 0}</span>
                 </div>
-                {comment.status !== "deleted" ? (
-                  <div className="flex flex-wrap gap-1.5">
-                    {comment.status === "visible" ? (
-                      <button type="button" disabled={Boolean(busyId)} onClick={() => void updateStatus(comment, "hidden")} className="min-h-11 rounded-xl bg-amber-50 px-3 text-[11px] font-black text-amber-800 disabled:opacity-40">숨기기</button>
-                    ) : (
-                      <button type="button" disabled={Boolean(busyId)} onClick={() => void updateStatus(comment, "visible")} className="min-h-11 rounded-xl bg-blue-50 px-3 text-[11px] font-black text-blue-700 disabled:opacity-40">복구·공개</button>
-                    )}
-                    <button type="button" disabled={Boolean(busyId)} onClick={() => void deleteComment(comment)} className="min-h-11 rounded-xl bg-rose-50 px-3 text-[11px] font-black text-rose-700 disabled:opacity-40">비식별 삭제</button>
-                  </div>
-                ) : (
-                  <span className="text-[11px] font-bold text-oriwan-text-muted">개인정보와 본문을 복구하지 않습니다.</span>
-                )}
+                <div className="flex flex-wrap gap-1.5">
+                  {comment.status === "visible" ? (
+                    <button type="button" disabled={Boolean(busyId)} onClick={() => void updateStatus(comment, "hidden")} className="min-h-11 rounded-xl bg-amber-50 px-3 text-[11px] font-black text-amber-800 disabled:opacity-40">숨기기</button>
+                  ) : (
+                    <button type="button" disabled={Boolean(busyId)} onClick={() => void updateStatus(comment, "visible")} className="min-h-11 rounded-xl bg-blue-50 px-3 text-[11px] font-black text-blue-700 disabled:opacity-40">복구·공개</button>
+                  )}
+                  <button type="button" disabled={Boolean(busyId)} onClick={() => setDeleteTarget(comment)} className="min-h-11 rounded-xl bg-rose-50 px-3 text-[11px] font-black text-rose-700 disabled:opacity-40">삭제</button>
+                </div>
               </div>
             </article>
           );
         }) : null}
       </div>
+      {deleteTarget && <ConfirmationDialog
+        title={`${deleteTarget.parent_id ? "답글" : "댓글"}을 삭제할까요?`}
+        description={!deleteTarget.parent_id && deleteTarget.replies_count > 0 ? "연결된 답글도 함께 삭제돼요. 삭제한 내용은 복구할 수 없어요." : "삭제한 내용은 복구할 수 없어요."}
+        busy={Boolean(busyId)} onCancel={() => setDeleteTarget(null)} onConfirm={() => void deleteComment(deleteTarget)}
+      >
+        {notice?.tone === "error" && <p role="alert">{notice.message}</p>}
+      </ConfirmationDialog>}
     </section>
   );
 }

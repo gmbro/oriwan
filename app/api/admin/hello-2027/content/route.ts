@@ -1,8 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 
 import { requireAdminDataAccess } from "@/lib/admin-data-access";
 import {
+  DEFAULT_HELLO_2027_BANNER_CLICK_URL,
+  isSafeHello2027BannerClickUrl,
+} from "@/lib/hello-2027-banner-contract";
+import { hydrateLegacyFourthSeasonBanner } from "@/lib/hello-2027-banner-presets";
+import {
+  loadHello2027BannerClickUrls,
+  removeUnusedHello2027BannerImage,
+  setHello2027BannerClickUrl,
+} from "@/lib/hello-2027-banner-storage";
+import {
   HELLO_2027_SEASON_KEY,
+  HELLO_2027_CONTENT_CACHE_TAG,
   isHello2027ContentType,
   isHello2027MobileFocus,
   isSafeHello2027ImageUrl,
@@ -16,7 +28,7 @@ import {
   normalizeContentText,
   type Hello2027ContentType,
 } from "@/lib/hello-2027-content";
-import { guardMutationRequest, guardReadRequest } from "@/lib/request-security";
+import { guardMutationRequest, guardReadRequest, readLimitedJson } from "@/lib/request-security";
 import { isMissingTableError, missingSchemaResponse } from "@/lib/supabase-errors";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -27,9 +39,13 @@ const PRIVATE_HEADERS = {
 };
 
 type JsonBody = Record<string, unknown>;
-type BodyReadResult =
-  | { ok: true; body: JsonBody }
-  | { ok: false; response: NextResponse };
+type ContentValidation =
+  | { error: string }
+  | { patch: Record<string, string | number | boolean>; clickUrl?: string };
+type SavedBanner = {
+  id: string;
+  [key: string]: unknown;
+};
 
 function json(payload: object, init?: { status?: number }) {
   return NextResponse.json(payload, {
@@ -67,27 +83,10 @@ function databaseError(type: Hello2027ContentType, action: string, error: unknow
   return json({ error: `콘텐츠를 ${actionLabel} 못했어요.` }, { status: 500 });
 }
 
-async function readBody(request: NextRequest, maxBytes: number): Promise<BodyReadResult> {
-  let rawBody: string;
-  try {
-    rawBody = await request.text();
-  } catch {
-    return { ok: false, response: json({ error: "요청 내용을 확인해주세요." }, { status: 400 }) };
-  }
-
-  if (Buffer.byteLength(rawBody, "utf8") > maxBytes) {
-    return { ok: false, response: json({ error: "요청 용량이 너무 커요. 내용을 줄여 다시 시도해주세요." }, { status: 413 }) };
-  }
-
-  try {
-    const value: unknown = JSON.parse(rawBody);
-    if (!value || typeof value !== "object" || Array.isArray(value)) {
-      return { ok: false, response: json({ error: "요청 내용을 확인해주세요." }, { status: 400 }) };
-    }
-    return { ok: true, body: value as JsonBody };
-  } catch {
-    return { ok: false, response: json({ error: "요청 내용을 확인해주세요." }, { status: 400 }) };
-  }
+async function readBody(request: NextRequest, maxBytes: number) {
+  const parsed = await readLimitedJson(request, maxBytes);
+  if (!parsed.ok) return parsed;
+  return { ok: true as const, body: parsed.value };
 }
 
 function readDisplayOrder(value: unknown, fallback?: number) {
@@ -110,7 +109,7 @@ function getContentTypeError() {
   return json({ error: "콘텐츠 종류는 encouragement 또는 banner로 지정해주세요." }, { status: 400 });
 }
 
-function validateEncouragement(body: JsonBody, partial: boolean) {
+function validateEncouragement(body: JsonBody, partial: boolean): ContentValidation {
   const patch: Record<string, string | number | boolean> = {};
 
   if (!partial || Object.hasOwn(body, "message")) {
@@ -133,8 +132,9 @@ function validateEncouragement(body: JsonBody, partial: boolean) {
   return { patch };
 }
 
-function validateBanner(body: JsonBody, partial: boolean) {
+function validateBanner(body: JsonBody, partial: boolean): ContentValidation {
   const patch: Record<string, string | number | boolean> = {};
+  let clickUrl: string | undefined;
   const textFields = [
     ["owner_name", MAX_BANNER_OWNER_LENGTH, "광고주"],
     ["title", MAX_BANNER_TITLE_LENGTH, "제목"],
@@ -155,6 +155,15 @@ function validateBanner(body: JsonBody, partial: boolean) {
     }
     patch.image_url = body.image_url.trim();
   }
+  if (!partial || Object.hasOwn(body, "click_url")) {
+    const value = body.click_url === undefined && !partial
+      ? DEFAULT_HELLO_2027_BANNER_CLICK_URL
+      : body.click_url;
+    if (!isSafeHello2027BannerClickUrl(value)) {
+      return { error: "배너 클릭 주소는 https://로 시작하는 올바른 URL을 입력해주세요." };
+    }
+    clickUrl = value.trim();
+  }
   if (!partial || Object.hasOwn(body, "mobile_focus")) {
     const focus = body.mobile_focus === undefined && !partial ? "center" : body.mobile_focus;
     if (!isHello2027MobileFocus(focus)) {
@@ -173,8 +182,8 @@ function validateBanner(body: JsonBody, partial: boolean) {
     patch.active = active;
   }
 
-  if (partial && Object.keys(patch).length === 0) return { error: "수정할 배너 정보가 없어요." };
-  return { patch };
+  if (partial && Object.keys(patch).length === 0 && !clickUrl) return { error: "수정할 배너 정보가 없어요." };
+  return { patch, ...(clickUrl ? { clickUrl } : {}) };
 }
 
 function validateContent(type: Hello2027ContentType, body: JsonBody, partial: boolean) {
@@ -206,7 +215,31 @@ export async function GET(request: NextRequest) {
     .limit(maxItemsFor(typeValue));
 
   if (error) return databaseError(typeValue, "read", error);
-  return json({ items: data || [] });
+  const clickUrls = typeValue === "banner"
+    ? await loadHello2027BannerClickUrls(
+      service,
+      user.id,
+      (data || []).map((item) => (item as unknown as { id: string }).id),
+    )
+    : {} as Record<string, string>;
+  const items = typeValue === "banner"
+    ? (data || []).map((item) => {
+      const hydrated = hydrateLegacyFourthSeasonBanner(item as unknown as {
+        id: string;
+        owner_name: string;
+        title: string;
+        description: string;
+        alt_text: string;
+        image_url: string;
+        mobile_focus: "left" | "center" | "right";
+      });
+      return {
+        ...hydrated,
+        click_url: clickUrls[hydrated.id] || DEFAULT_HELLO_2027_BANNER_CLICK_URL,
+      };
+    })
+    : data || [];
+  return json({ items });
 }
 
 export async function POST(request: NextRequest) {
@@ -254,6 +287,33 @@ export async function POST(request: NextRequest) {
   if (error?.code === "23505") return json({ error: "같은 응원글이 이미 등록되어 있어요." }, { status: 409 });
   if (error?.code === "23514") return json({ error: "등록 가능한 콘텐츠 수를 초과했어요." }, { status: 409 });
   if (error) return databaseError(type, "create", error);
+
+  if (type === "banner") {
+    const banner = data as unknown as SavedBanner;
+    const clickUrl = validation.clickUrl || DEFAULT_HELLO_2027_BANNER_CLICK_URL;
+    if (clickUrl !== DEFAULT_HELLO_2027_BANNER_CLICK_URL) {
+      try {
+        await setHello2027BannerClickUrl(service, user.id, banner.id, clickUrl);
+      } catch {
+        console.error("Banner creation was rolled back because its click URL could not be saved.");
+        await service
+          .from(table)
+          .delete()
+          .eq("id", banner.id)
+          .eq("user_id", user.id)
+          .eq("season_key", HELLO_2027_SEASON_KEY);
+        const uploadedImageUrl = validation.patch.image_url;
+        if (typeof uploadedImageUrl === "string") {
+          await removeUnusedHello2027BannerImage(service, user.id, uploadedImageUrl);
+        }
+        return json({ error: "배너 이동 주소를 저장하지 못했어요. 잠시 후 다시 시도해주세요." }, { status: 500 });
+      }
+    }
+    revalidateTag(HELLO_2027_CONTENT_CACHE_TAG, { expire: 0 });
+    return json({ item: { ...banner, click_url: clickUrl } }, { status: 201 });
+  }
+
+  revalidateTag(HELLO_2027_CONTENT_CACHE_TAG, { expire: 0 });
   return json({ item: data }, { status: 201 });
 }
 
@@ -279,6 +339,36 @@ export async function PATCH(request: NextRequest) {
   const validation = validateContent(type, body, true);
   if ("error" in validation) return json({ error: validation.error }, { status: 400 });
 
+  let previousImageUrl: string | null = null;
+  let previousClickUrl = DEFAULT_HELLO_2027_BANNER_CLICK_URL;
+  if (type === "banner") {
+    const { data: previousBanner, error: previousBannerError } = await service
+      .from("hello_2027_banners")
+      .select("image_url")
+      .eq("id", body.id)
+      .eq("user_id", user.id)
+      .eq("season_key", HELLO_2027_SEASON_KEY)
+      .maybeSingle();
+    if (previousBannerError) return databaseError(type, "update", previousBannerError);
+    if (!previousBanner) return json({ error: "수정할 콘텐츠를 찾지 못했어요." }, { status: 404 });
+    previousImageUrl = typeof previousBanner?.image_url === "string" ? previousBanner.image_url : null;
+    if (validation.clickUrl) {
+      try {
+        const previousClickUrls = await loadHello2027BannerClickUrls(
+          service,
+          user.id,
+          [body.id],
+          { throwOnError: true },
+        );
+        previousClickUrl = previousClickUrls[body.id] || DEFAULT_HELLO_2027_BANNER_CLICK_URL;
+        await setHello2027BannerClickUrl(service, user.id, body.id, validation.clickUrl);
+      } catch {
+        console.error("Banner click URL could not be saved before updating its fields.");
+        return json({ error: "배너 이동 주소를 저장하지 못했어요. 잠시 후 다시 시도해주세요." }, { status: 500 });
+      }
+    }
+  }
+
   const { data, error } = await service
     .from(tableFor(type))
     .update({ ...validation.patch, updated_at: new Date().toISOString() })
@@ -288,9 +378,42 @@ export async function PATCH(request: NextRequest) {
     .select(selectFor(type))
     .maybeSingle();
 
-  if (error?.code === "23505") return json({ error: "같은 응원글이 이미 등록되어 있어요." }, { status: 409 });
-  if (error) return databaseError(type, "update", error);
-  if (!data) return json({ error: "수정할 콘텐츠를 찾지 못했어요." }, { status: 404 });
+  if (error || !data) {
+    if (type === "banner" && validation.clickUrl) {
+      try {
+        await setHello2027BannerClickUrl(service, user.id, body.id, previousClickUrl);
+      } catch {
+        console.error("Banner click URL rollback failed after its field update failed.");
+      }
+    }
+    if (error?.code === "23505") return json({ error: "같은 응원글이 이미 등록되어 있어요." }, { status: 409 });
+    if (error) return databaseError(type, "update", error);
+    return json({ error: "수정할 콘텐츠를 찾지 못했어요." }, { status: 404 });
+  }
+
+  if (type === "banner") {
+    const banner = data as unknown as SavedBanner;
+    const changedClickUrl = validation.clickUrl;
+    if (
+      Object.hasOwn(validation.patch, "image_url")
+      && previousImageUrl
+      && previousImageUrl !== validation.patch.image_url
+    ) {
+      await removeUnusedHello2027BannerImage(service, user.id, previousImageUrl);
+    }
+    const clickUrls = changedClickUrl
+      ? { [body.id]: changedClickUrl }
+      : await loadHello2027BannerClickUrls(service, user.id, [body.id]);
+    revalidateTag(HELLO_2027_CONTENT_CACHE_TAG, { expire: 0 });
+    return json({
+      item: {
+        ...banner,
+        click_url: clickUrls[body.id] || DEFAULT_HELLO_2027_BANNER_CLICK_URL,
+      },
+    });
+  }
+
+  revalidateTag(HELLO_2027_CONTENT_CACHE_TAG, { expire: 0 });
   return json({ item: data });
 }
 
@@ -315,10 +438,23 @@ export async function DELETE(request: NextRequest) {
     .eq("id", id)
     .eq("user_id", user.id)
     .eq("season_key", HELLO_2027_SEASON_KEY)
-    .select("id")
+    .select(typeValue === "banner" ? "id, image_url" : "id")
     .maybeSingle();
 
   if (error) return databaseError(typeValue, "delete", error);
   if (!data) return json({ error: "삭제할 콘텐츠를 찾지 못했어요." }, { status: 404 });
+  if (typeValue === "banner") {
+    try {
+      await setHello2027BannerClickUrl(service, user.id, id, null);
+    } catch {
+      // A stale id in the private link map is never exposed because public
+      // banners are still sourced from the database. A later edit can retry it.
+      console.error("Deleted banner click URL cleanup failed.");
+    }
+    if ("image_url" in data) {
+      await removeUnusedHello2027BannerImage(service, user.id, data.image_url);
+    }
+  }
+  revalidateTag(HELLO_2027_CONTENT_CACHE_TAG, { expire: 0 });
   return json({ ok: true });
 }

@@ -5,9 +5,11 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { TwttBrandMark } from "@/components/twtt-brand-mark";
 import { AdminCorrectiveExercise } from "@/components/admin-corrective-exercise";
+import { RecordApprovalDialog } from "@/components/record-approval-dialog";
+import { visibleCertificationNotes } from "@/lib/certification-review";
 import { AdminContentWorkspace } from "@/components/admin-content-workspace";
 import { AdminProfileIntroductions } from "@/components/admin-profile-introductions";
-import { IconCalendar, IconCheck, IconRun, IconSync, IconTarget, IconTrash, IconX } from "@/components/icons";
+import { IconCalendar, IconCheck, IconRun, IconSync, IconTrash, IconX } from "@/components/icons";
 import { buildMemberPictogramMap, MemberPictogram } from "@/components/member-pictogram";
 import {
   FOURTH_PERSONAL_RECORD_START_DATE,
@@ -16,9 +18,10 @@ import {
   FOURTH_SEASON_START_DATE as ACTUAL_CERTIFICATION_START_DATE,
   clampToFourthPersonalRecordWindow,
 } from "@/lib/fourth-season-contract";
-import { broadcastDashboardRefresh } from "@/lib/dashboard-refresh";
+import { broadcastDashboardRefresh, preconnectDashboardRefresh } from "@/lib/dashboard-refresh";
 import { imageFileToOptimizedDataUrl } from "@/lib/image-client";
 import { PARTICIPANT_RANK_SORT_OPTIONS, type ParticipantRankSortMode, sortParticipantRanks } from "@/lib/participant-ranking";
+import { isPublicFourthParticipantOrder } from "@/lib/fourth-participant-visibility";
 import {
   RECOVERY_CERTIFICATION_DISTANCE_KM,
   RECOVERY_CERTIFICATION_DURATION_SECONDS,
@@ -42,7 +45,7 @@ type Participant = {
   name: string;
   nickname: string | null;
   active: boolean;
-  display_order: number;
+  display_order: number | null;
 };
 
 type RecordStatus = "certified" | "needs_review" | "missing" | "rejected";
@@ -176,11 +179,23 @@ type AdminTab = "certifications" | "crew" | "corrective-exercise" | "encourageme
 
 const ADMIN_TABS: ReadonlyArray<{ key: AdminTab; label: string; compactLabel: string }> = [
   { key: "certifications", label: "인증", compactLabel: "인증" },
-  { key: "crew", label: "크루프로필", compactLabel: "크루" },
+  { key: "crew", label: "크루 프로필", compactLabel: "크루" },
   { key: "corrective-exercise", label: "교정운동", compactLabel: "교정운동" },
   { key: "encouragements", label: "응원글", compactLabel: "응원글" },
   { key: "banners", label: "배너", compactLabel: "배너" },
   { key: "comments", label: "댓글", compactLabel: "댓글" },
+];
+
+const PRELOADED_CONTENT_TABS = new Set<AdminTab>(["encouragements", "banners", "comments"]);
+// The recovery analytics panel is intentionally kept out of the certification tab.
+// Its record metadata remains intact so it can be restored without a data migration.
+const SHOW_RECOVERY_CERTIFICATION_DASHBOARD = false;
+const PRESERVED_WORKSPACE_TABS: ReadonlyArray<Exclude<AdminTab, "certifications">> = [
+  "crew",
+  "corrective-exercise",
+  "encouragements",
+  "banners",
+  "comments",
 ];
 
 function isAdminTab(value: string | null): value is AdminTab {
@@ -224,15 +239,15 @@ function statusClass(status: AnalysisStatus) {
 }
 
 function gaugeColorClass(certifiedDays: number) {
-  if (certifiedDays <= 10) return "bg-rose-400";
-  if (certifiedDays <= 50) return "bg-amber-300";
-  return "bg-lime-300";
+  if (certifiedDays <= 10) return "bg-blue-500";
+  if (certifiedDays <= 50) return "bg-blue-500";
+  return "bg-emerald-500";
 }
 
 function gaugeTextClass(certifiedDays: number) {
-  if (certifiedDays <= 10) return "text-rose-600";
-  if (certifiedDays <= 50) return "text-amber-700";
-  return "text-lime-700";
+  if (certifiedDays <= 10) return "text-blue-600";
+  if (certifiedDays <= 50) return "text-blue-600";
+  return "text-emerald-600";
 }
 
 function getImageFiles(fileList: FileList | File[]) {
@@ -333,7 +348,7 @@ function nextRecordNotesForStatus(status: RecordStatus, record: {
 }
 
 function splitRecordNotes(notes: string | null | undefined) {
-  return (notes || "")
+  return visibleCertificationNotes(notes)
     .split(" / ")
     .map((note) => note.trim())
     .filter(Boolean);
@@ -786,18 +801,18 @@ function AdminActionButton({
     <button
       type="button"
       onClick={onClick}
-      className={`group flex min-h-[74px] items-center justify-between gap-3 rounded-[22px] px-4 py-3 text-left transition hover:-translate-y-0.5 ${
+      className={`group flex min-h-[76px] items-center justify-between gap-3 rounded-[20px] px-4 py-3.5 text-left shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md active:translate-y-0 ${
         isPrimary
-          ? "bg-lime-300 text-slate-950 shadow-lg shadow-lime-300/20"
-          : "bg-white/10 text-white ring-1 ring-white/10 hover:bg-white/[0.14]"
+          ? "bg-blue-600 text-white shadow-blue-600/15 hover:bg-blue-700"
+          : "bg-white text-slate-900 ring-1 ring-slate-200 hover:bg-slate-50 hover:ring-blue-200"
       }`}
     >
       <span className="min-w-0">
-        <span className={`block text-[11px] font-black ${isPrimary ? "text-slate-950/60" : "text-white/50"}`}>{meta}</span>
+        <span className={`block text-[11px] font-bold ${isPrimary ? "text-blue-100" : "text-slate-500"}`}>{meta}</span>
         <span className="mt-1 block text-sm font-black leading-tight">{title}</span>
       </span>
       <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl transition group-hover:scale-105 ${
-        isPrimary ? "bg-slate-950 text-lime-200" : "bg-white text-slate-950"
+        isPrimary ? "bg-white/15 text-white ring-1 ring-white/20" : "bg-blue-50 text-blue-600 ring-1 ring-blue-100"
       }`}>
         {icon}
       </span>
@@ -806,22 +821,12 @@ function AdminActionButton({
 }
 
 type ParticipantLoginAccount = {
-  auth_user_id: string;
   display_name: string;
-  email: string;
-  created_at: string;
-  participant_id: string | null;
-  status: "unlinked" | "pending" | "approved" | "revoked";
-  approved_at: string | null;
-  display_name_override: string;
 };
 
-function ParticipantAccountManager({ participants }: { participants: Participant[] }) {
+function ParticipantAccountManager({ active, refreshKey }: { active: boolean; refreshKey: string }) {
   const [accounts, setAccounts] = useState<ParticipantLoginAccount[]>([]);
-  const [selections, setSelections] = useState<Record<string, string>>({});
-  const [realNames, setRealNames] = useState<Record<string, string>>({});
   const [loadingAccounts, setLoadingAccounts] = useState(true);
-  const [savingAccountId, setSavingAccountId] = useState("");
   const [accountMessage, setAccountMessage] = useState("");
 
   const loadAccounts = useCallback(async () => {
@@ -834,119 +839,32 @@ function ParticipantAccountManager({ participants }: { participants: Participant
       }
       const nextAccounts = (json.accounts || []) as ParticipantLoginAccount[];
       setAccounts(nextAccounts);
-      setSelections((current) => Object.fromEntries(nextAccounts.map((account) => [
-        account.auth_user_id,
-        current[account.auth_user_id] || account.participant_id || "",
-      ])));
-      setRealNames((current) => Object.fromEntries(nextAccounts.map((account) => {
-        const participantName = participants.find((participant) => participant.id === account.participant_id)?.name || "";
-        return [account.auth_user_id, current[account.auth_user_id] || account.display_name_override || participantName];
-      })));
       setAccountMessage("");
     } catch {
       setAccountMessage("카카오 계정 목록을 불러오지 못했어요.");
     } finally {
       setLoadingAccounts(false);
     }
-  }, [participants]);
+  }, []);
 
   useEffect(() => {
+    if (!active) return;
     queueMicrotask(() => {
       void loadAccounts();
     });
-  }, [loadAccounts]);
-
-  const updateAccount = async (account: ParticipantLoginAccount, status: "approved" | "revoked") => {
-    const participantId = status === "revoked"
-      ? account.participant_id || ""
-      : selections[account.auth_user_id] || account.participant_id || "";
-    if (!participantId) {
-      setAccountMessage("연결할 크루를 먼저 선택해주세요.");
-      return;
-    }
-    setSavingAccountId(account.auth_user_id);
-    setAccountMessage("");
-    try {
-      const response = await fetch("/api/admin/participant-accounts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          auth_user_id: account.auth_user_id,
-          participant_id: participantId,
-          status,
-          display_name_override: realNames[account.auth_user_id] || "",
-        }),
-      });
-      const json = await response.json();
-      if (!response.ok) {
-        setAccountMessage(json.error || "카카오 계정 연결을 저장하지 못했어요.");
-        return;
-      }
-      setAccountMessage(status === "approved" ? "카카오 계정을 크루와 연결했어요." : "카카오 계정 연결을 해제했어요.");
-      await loadAccounts();
-    } catch {
-      setAccountMessage("카카오 계정 연결을 저장하지 못했어요.");
-    } finally {
-      setSavingAccountId("");
-    }
-  };
+  }, [active, loadAccounts, refreshKey]);
 
   return (
     <section className="mt-6 rounded-[24px] bg-slate-950 p-4 text-white sm:p-5" aria-labelledby="kakao-account-title">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-[10px] font-black uppercase text-[#FEE500]">Kakao account approval</p>
-          <h3 id="kakao-account-title" className="mt-1 text-lg font-black">카카오 계정 연결</h3>
-          <p className="mt-1 text-xs font-semibold leading-5 text-white/55">같은 이름만으로 자동 연결하지 않고, 로그인 계정과 실제 크루를 직접 확인해 승인합니다.</p>
-        </div>
-        <span className="w-fit rounded-full bg-white/10 px-3 py-1 text-[10px] font-black text-white/70">{accounts.length}개 계정</span>
-      </div>
-
+      <h3 id="kakao-account-title" className="text-lg font-black">카카오 계정 연동 여부</h3>
       {accountMessage ? <p className="mt-4 rounded-2xl bg-white/10 px-3 py-2 text-xs font-bold" role="status">{accountMessage}</p> : null}
       <div className="mt-4 grid gap-2">
-        {loadingAccounts ? <p className="rounded-2xl bg-white/8 px-4 py-6 text-center text-xs font-bold text-white/55">로그인 계정을 불러오는 중…</p> : null}
-        {!loadingAccounts && !accounts.length ? <p className="rounded-2xl bg-white/8 px-4 py-6 text-center text-xs font-bold text-white/55">아직 카카오로 로그인한 계정이 없습니다.</p> : null}
-        {accounts.map((account) => (
-          <article key={account.auth_user_id} className="grid gap-3 rounded-[20px] bg-white/8 p-3 ring-1 ring-white/10 xl:grid-cols-[minmax(0,1fr)_minmax(11rem,0.75fr)_minmax(11rem,0.75fr)_auto] xl:items-end">
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <strong className="truncate text-sm">{account.display_name}</strong>
-                <span className={`rounded-full px-2 py-0.5 text-[9px] font-black ${account.status === "approved" ? "bg-lime-300 text-slate-950" : account.status === "revoked" ? "bg-rose-400/20 text-rose-200" : "bg-white/10 text-white/60"}`}>
-                  {account.status === "approved" ? "연결 완료" : account.status === "revoked" ? "연결 해제" : "미연결"}
-                </span>
-              </div>
-              <p className="mt-1 truncate text-[10px] font-semibold text-white/45">{account.email || account.auth_user_id}</p>
-            </div>
-            <label className="text-[10px] font-black text-white/50">
-              연결할 크루
-              <select
-                value={selections[account.auth_user_id] || ""}
-                onChange={(event) => {
-                  const participantId = event.target.value;
-                  const participantName = participants.find((participant) => participant.id === participantId)?.name || "";
-                  setSelections((current) => ({ ...current, [account.auth_user_id]: participantId }));
-                  setRealNames((current) => ({ ...current, [account.auth_user_id]: participantName || current[account.auth_user_id] || "" }));
-                }}
-                className="mt-1 min-h-11 w-full rounded-xl border border-white/10 bg-white px-3 text-sm font-black text-slate-950"
-              >
-                <option value="">크루 선택</option>
-                {participants.map((participant) => <option key={participant.id} value={participant.id}>{participant.name}</option>)}
-              </select>
-            </label>
-            <label className="text-[10px] font-black text-white/50">
-              댓글에 표시할 이름
-              <input
-                value={realNames[account.auth_user_id] || ""}
-                maxLength={40}
-                onChange={(event) => setRealNames((current) => ({ ...current, [account.auth_user_id]: event.target.value }))}
-                placeholder="운영자 확인 이름"
-                className="mt-1 min-h-11 w-full rounded-xl border border-white/10 bg-white px-3 text-sm font-black text-slate-950"
-              />
-            </label>
-            <div className="grid grid-cols-2 gap-2 lg:flex">
-              <button type="button" onClick={() => void updateAccount(account, "approved")} disabled={savingAccountId === account.auth_user_id} className="min-h-11 rounded-xl bg-[#FEE500] px-4 text-xs font-black text-[#191919] disabled:opacity-50">승인 연결</button>
-              <button type="button" onClick={() => void updateAccount(account, "revoked")} disabled={savingAccountId === account.auth_user_id || account.status !== "approved"} className="min-h-11 rounded-xl bg-white/10 px-4 text-xs font-black text-white disabled:opacity-30">연결 해제</button>
-            </div>
+        {loadingAccounts ? <p className="rounded-2xl bg-white/8 px-4 py-6 text-center text-xs font-bold text-white/55">연동 계정을 불러오는 중…</p> : null}
+        {!loadingAccounts && !accounts.length ? <p className="rounded-2xl bg-white/8 px-4 py-6 text-center text-xs font-bold text-white/55">연동한 카카오 계정이 없습니다.</p> : null}
+        {accounts.map((account, index) => (
+          <article key={`${account.display_name}-${index}`} className="flex min-h-14 items-center justify-between gap-3 rounded-[20px] bg-white/8 px-4 py-3 ring-1 ring-white/10">
+            <strong className="min-w-0 truncate text-sm">{account.display_name}</strong>
+            <span className="shrink-0 rounded-full bg-lime-300 px-2.5 py-1 text-[10px] font-black text-slate-950">연동됨</span>
           </article>
         ))}
       </div>
@@ -956,11 +874,13 @@ function ParticipantAccountManager({ participants }: { participants: Participant
 
 function AdminWorkspacePanel({
   tab,
-  participants,
+  active,
+  participantRefreshKey,
   onOpenCrew,
 }: {
   tab: Exclude<AdminTab, "certifications">;
-  participants: Participant[];
+  active: boolean;
+  participantRefreshKey: string;
   onOpenCrew: () => void;
 }) {
   if (tab === "crew") {
@@ -969,28 +889,13 @@ function AdminWorkspacePanel({
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-[11px] font-black uppercase text-blue-600">Crew profile</p>
-            <h2 id="crew-admin-title" className="mt-1 text-2xl font-black text-oriwan-text">크루프로필</h2>
-            <p className="mt-2 text-sm font-semibold leading-6 text-oriwan-text-muted">크루 기본 정보와 4기 공개 자기소개를 관리합니다. 카카오 계정은 이름 자동 매칭 없이 운영자가 확인한 뒤 승인해야 해요.</p>
+            <h2 id="crew-admin-title" className="mt-1 text-2xl font-black text-oriwan-text">크루 프로필</h2>
+            <p className="mt-2 text-sm font-semibold leading-6 text-oriwan-text-muted">멤버 기본 정보와 4기 공개 자기소개, 목표 타임머신을 관리합니다.</p>
           </div>
-          <button type="button" onClick={onOpenCrew} className="btn-primary min-h-12 shrink-0 px-5 text-sm">크루 등록·수정</button>
+          <button type="button" onClick={onOpenCrew} className="btn-primary min-h-12 shrink-0 px-5 text-sm">멤버 관리</button>
         </div>
-        <AdminProfileIntroductions />
-        <div className="mt-6">
-          <p className="text-[11px] font-black uppercase text-slate-500">Legacy internal note</p>
-          <h3 className="mt-1 text-lg font-black text-oriwan-text">기존 내부 메모</h3>
-          <p className="mt-1 break-keep text-xs font-semibold leading-5 text-oriwan-text-muted">기존 참가자 정보와 함께 보관하는 운영 메모입니다. 4기 대시보드에 공개되는 소개의 원본은 위 ‘4기 공개 자기소개’입니다.</p>
-        </div>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {participants.map((participant) => (
-            <button key={participant.id} type="button" onClick={onOpenCrew} className="rounded-[22px] bg-oriwan-surface-light p-4 text-left ring-1 ring-slate-950/5 transition hover:bg-white hover:shadow-lg">
-              <p className="text-base font-black text-oriwan-text">{participant.name}</p>
-              <p className="mt-1 text-[11px] font-black text-slate-500">기존 내부 메모</p>
-              <p className="mt-1 line-clamp-2 min-h-10 text-xs font-semibold leading-5 text-oriwan-text-muted">{participant.nickname || "저장된 내부 메모가 없습니다."}</p>
-            </button>
-          ))}
-          {!participants.length ? <p className="rounded-[22px] bg-oriwan-surface-light p-6 text-sm font-bold text-oriwan-text-muted">등록된 크루가 없습니다.</p> : null}
-        </div>
-        <ParticipantAccountManager participants={participants} />
+        <AdminProfileIntroductions active={active} refreshKey={participantRefreshKey} />
+        <ParticipantAccountManager active={active} refreshKey={participantRefreshKey} />
       </section>
     );
   }
@@ -1003,6 +908,8 @@ function AdminWorkspacePanel({
 export default function AdminPage() {
   const router = useRouter();
   const loadInFlightRef = useRef(false);
+  const loadQueuedRef = useRef(false);
+  const participantSaveInFlightRef = useRef(false);
   const [mounted, setMounted] = useState(false);
   const [authReady, setAuthReady] = useState(false);
   const [authorized, setAuthorized] = useState(false);
@@ -1018,6 +925,7 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [newName, setNewName] = useState("");
   const [newNickname, setNewNickname] = useState("");
+  const [savingParticipant, setSavingParticipant] = useState(false);
   const [targetDate, setTargetDate] = useState(initialUploadDate);
   const [files, setFiles] = useState<File[]>([]);
   const [uploadParticipantId, setUploadParticipantId] = useState("");
@@ -1033,6 +941,7 @@ export default function AdminPage() {
   const [manualDate, setManualDate] = useState(initialRecordDate);
   const [manualDistance, setManualDistance] = useState("");
   const [manualDuration, setManualDuration] = useState("");
+  const [approvalRecord, setApprovalRecord] = useState<RunRecord | null>(null);
   const [selectedRecordsParticipantId, setSelectedRecordsParticipantId] = useState("");
   const [recordDrafts, setRecordDrafts] = useState<Record<string, { distance: string; duration: string }>>({});
   const [liveStatus, setLiveStatus] = useState<"polling" | "syncing">("polling");
@@ -1042,47 +951,64 @@ export default function AdminPage() {
   const [deletingRecordId, setDeletingRecordId] = useState("");
   const [participantSortMode, setParticipantSortMode] = useState<ParticipantRankSortMode>("certification");
   const [activeTab, setActiveTab] = useState<AdminTab>(getInitialAdminTab);
+  const [visitedTabs, setVisitedTabs] = useState<ReadonlySet<AdminTab>>(
+    () => new Set([getInitialAdminTab()]),
+  );
+
+  const loadDataOnce = useCallback(async () => {
+    const [participantsRes, recordsRes] = await Promise.all([
+      fetch("/api/participants", { cache: "no-store" }),
+      fetch(`/api/records?from=${rangeStart}&to=${effectiveToday}`, { cache: "no-store" }),
+    ]);
+
+    const participantsJson = await participantsRes.json();
+    const recordsJson = await recordsRes.json();
+    if ([participantsRes.status, recordsRes.status].some((status) => status === 401 || status === 403)) {
+      setAuthorized(false);
+      setParticipants([]);
+      setRecords([]);
+      setAuthMessage("관리자 이메일 인증이 필요해요.");
+      setSetupMessage("");
+      return;
+    }
+    if (participantsJson.setup_required || recordsJson.setup_required) {
+      setSetupMessage("데이터 저장소 연결이 아직 준비되지 않았어요. Supabase SQL Editor에서 docs/supabase-schema.sql을 먼저 실행해주세요.");
+    } else {
+      setSetupMessage("");
+    }
+    if (!participantsRes.ok && !participantsJson.setup_required) throw new Error(participantsJson.error || "멤버 목록을 불러오지 못했어요.");
+    if (!recordsRes.ok && !recordsJson.setup_required) throw new Error(recordsJson.error || "러닝 기록을 불러오지 못했어요.");
+    const nextParticipants = participantsJson.participants || [];
+    const nextRecords = recordsJson.records || [];
+
+    setParticipants(nextParticipants);
+    setRecords(nextRecords);
+    setManualParticipantId((current) => current || nextParticipants[0]?.id || "");
+  }, []);
 
   const loadData = useCallback(async (showLoading = true) => {
-    if (loadInFlightRef.current) return;
+    if (loadInFlightRef.current) {
+      // A save can overlap the periodic refresh. Queue one fresh pass so an
+      // older response can never postpone the just-saved member until polling.
+      loadQueuedRef.current = true;
+      return;
+    }
     loadInFlightRef.current = true;
     if (showLoading) setLoading(true);
     try {
-      const [participantsRes, recordsRes] = await Promise.all([
-        fetch("/api/participants", { cache: "no-store" }),
-        fetch(`/api/records?from=${rangeStart}&to=${effectiveToday}`, { cache: "no-store" }),
-      ]);
-
-      const participantsJson = await participantsRes.json();
-      const recordsJson = await recordsRes.json();
-      if ([participantsRes.status, recordsRes.status].some((status) => status === 401 || status === 403)) {
-        setAuthorized(false);
-        setParticipants([]);
-        setRecords([]);
-        setAuthMessage("관리자 이메일 인증이 필요해요.");
-        setSetupMessage("");
-        return;
-      }
-      if (participantsJson.setup_required || recordsJson.setup_required) {
-        setSetupMessage("데이터 저장소 연결이 아직 준비되지 않았어요. Supabase SQL Editor에서 docs/supabase-schema.sql을 먼저 실행해주세요.");
-      } else {
-        setSetupMessage("");
-      }
-      if (!participantsRes.ok && !participantsJson.setup_required) throw new Error(participantsJson.error || "멤버 목록을 불러오지 못했어요.");
-      if (!recordsRes.ok && !recordsJson.setup_required) throw new Error(recordsJson.error || "러닝 기록을 불러오지 못했어요.");
-      const nextParticipants = participantsJson.participants || [];
-      const nextRecords = recordsJson.records || [];
-
-      setParticipants(nextParticipants);
-      setRecords(nextRecords);
-      setManualParticipantId((current) => current || nextParticipants[0]?.id || "");
-    } catch (err) {
-      setSetupMessage(err instanceof Error ? err.message : "데이터를 불러오지 못했어요. 잠시 후 다시 확인해주세요.");
+      do {
+        loadQueuedRef.current = false;
+        try {
+          await loadDataOnce();
+        } catch (err) {
+          setSetupMessage(err instanceof Error ? err.message : "데이터를 불러오지 못했어요. 잠시 후 다시 확인해주세요.");
+        }
+      } while (loadQueuedRef.current);
     } finally {
       loadInFlightRef.current = false;
       if (showLoading) setLoading(false);
     }
-  }, []);
+  }, [loadDataOnce]);
 
   const refreshAfterMutation = useCallback(async (showLoading = true) => {
     void broadcastDashboardRefresh();
@@ -1107,8 +1033,9 @@ export default function AdminPage() {
       setAuthorized(true);
       setUserName(json.user?.name || "운영자");
       setUserAvatar(json.user?.avatar || "");
-      await loadData();
+      preconnectDashboardRefresh();
       setAuthReady(true);
+      void loadData();
     };
     queueMicrotask(() => {
       if (!cancelled) setMounted(true);
@@ -1120,11 +1047,18 @@ export default function AdminPage() {
   }, [loadData]);
 
   const selectAdminTab = useCallback((tab: AdminTab) => {
+    setVisitedTabs((current) => {
+      if (current.has(activeTab) && current.has(tab)) return current;
+      const next = new Set(current);
+      next.add(activeTab);
+      next.add(tab);
+      return next;
+    });
     setActiveTab(tab);
     const url = new URL(window.location.href);
     url.searchParams.set("tab", tab);
     window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
-  }, []);
+  }, [activeTab]);
 
   useEffect(() => {
     if (!mounted || !authorized) return;
@@ -1142,7 +1076,16 @@ export default function AdminPage() {
   }, [authorized, loadData, mounted]);
 
   const participantPictogramById = useMemo(() => buildMemberPictogramMap(participants), [participants]);
-  const certificationParticipants = participants;
+  const participantRefreshKey = useMemo(
+    () => participants.map((participant) => `${participant.id}:${participant.name}:${participant.active}`).join("|"),
+    [participants],
+  );
+  // Kakao login and operator-created members both enter the public 4th crew.
+  // Legacy private rows become public only after the approved account logs in and is upgraded.
+  const certificationParticipants = useMemo(
+    () => participants.filter((participant) => isPublicFourthParticipantOrder(participant.display_order)),
+    [participants]
+  );
   const certificationParticipantIds = useMemo(
     () => new Set(certificationParticipants.map((participant) => participant.id)),
     [certificationParticipants]
@@ -1268,6 +1211,8 @@ export default function AdminPage() {
   }, [certificationParticipantIds, participants, records]);
 
   const recoveryCertificationSummary = useMemo(() => {
+    if (!SHOW_RECOVERY_CERTIFICATION_DASHBOARD) return null;
+
     const participantById = new Map(participants.map((participant) => [participant.id, participant]));
     const affectedParticipantIds = new Set<string>();
     const participantsByDate = new Map<string, Map<string, { id: string; name: string; displayOrder: number }>>();
@@ -1474,6 +1419,7 @@ export default function AdminPage() {
   const startEditParticipant = useCallback((participant: Participant) => {
     setEditingParticipantId(participant.id);
     setNewName(participant.name);
+    // Keep the hidden legacy value in the PATCH payload so a name-only edit never erases it.
     setNewNickname(participant.nickname || "");
   }, []);
 
@@ -1503,24 +1449,33 @@ export default function AdminPage() {
   }, []);
 
   const saveParticipant = useCallback(async () => {
-    if (!newName.trim()) return;
-    if (!editingParticipantId) {
-      await addParticipant();
-      return;
-    }
+    if (!newName.trim() || participantSaveInFlightRef.current) return;
+    participantSaveInFlightRef.current = true;
+    setSavingParticipant(true);
+    try {
+      if (!editingParticipantId) {
+        await addParticipant();
+        return;
+      }
 
-    const res = await fetch(`/api/participants/${editingParticipantId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: newName, nickname: newNickname }),
-    });
+      const res = await fetch(`/api/participants/${editingParticipantId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newName, nickname: newNickname }),
+      });
 
-    if (res.ok) {
-      resetParticipantForm();
-      await refreshAfterMutation();
-    } else {
-      const json = await res.json().catch(() => ({}));
-      alert(typeof json.error === "string" ? json.error : "멤버 정보를 수정하지 못했어요.");
+      if (res.ok) {
+        resetParticipantForm();
+        await refreshAfterMutation();
+      } else {
+        const json = await res.json().catch(() => ({}));
+        alert(typeof json.error === "string" ? json.error : "멤버 정보를 수정하지 못했어요.");
+      }
+    } catch {
+      alert("멤버 정보를 저장하지 못했어요. 잠시 후 다시 시도해주세요.");
+    } finally {
+      participantSaveInFlightRef.current = false;
+      setSavingParticipant(false);
     }
   }, [addParticipant, editingParticipantId, newName, newNickname, refreshAfterMutation, resetParticipantForm]);
 
@@ -1666,7 +1621,7 @@ export default function AdminPage() {
       const certified = results.filter((result) => result.status === "certified").length;
       const duplicate = results.filter((result) => result.duplicate || result.status === "duplicate").length;
       const review = results.length - certified - duplicate;
-      setAnalysisMessage(`${results.length}장 정리 완료 · 인증 반영 ${certified}건 · 이미 인증 ${duplicate}건 · 보류 ${review}건`);
+      setAnalysisMessage(`${results.length}장 정리 완료 · 이미 인증 ${duplicate}건 · 검수 대기 ${review}건 · 날짜별 기록에서 승인해주세요.`);
       await refreshAfterMutation();
     } catch (err) {
       setAnalysisMessage(err instanceof Error ? err.message : "이미지를 읽지 못했어요. 흐린 이미지는 직접 입력으로 가볍게 보완해주세요.");
@@ -1754,7 +1709,7 @@ export default function AdminPage() {
 
     const durationSeconds = parseDurationToSeconds(result.edit_duration || "");
     const hasMetric = Boolean((result.edit_distance || "").trim() || durationSeconds);
-    const nextStatus: RecordStatus = result.participant_id && result.record_date && hasMetric ? "certified" : "missing";
+    const nextStatus: RecordStatus = result.participant_id && result.record_date && hasMetric ? "needs_review" : "missing";
     const nextNotes = nextRecordNotesForStatus(nextStatus, result);
     const resultKey = getAnalysisResultKey(result, resultIndex);
     setUpdatingAnalysisKey(resultKey);
@@ -1786,7 +1741,7 @@ export default function AdminPage() {
             }
           : item
       )));
-      setAnalysisMessage(nextStatus === "certified" ? "거리와 시간을 저장했어요." : "보류 상태로 저장했어요. 멤버, 거리, 시간을 확인해주세요.");
+      setAnalysisMessage("검수 대기로 저장했어요. 멤버의 날짜별 기록에서 인증샷을 확인한 뒤 승인해주세요.");
       await refreshAfterMutation(false);
     } catch (err) {
       setAnalysisMessage(err instanceof Error ? err.message : "기록을 수정하지 못했어요.");
@@ -1828,7 +1783,7 @@ export default function AdminPage() {
     };
     const durationSeconds = parseDurationToSeconds(draft.duration);
     const hasMetric = Boolean(draft.distance.trim() || durationSeconds);
-    const nextStatus: RecordStatus = record.participant_id && record.record_date && hasMetric ? "certified" : "missing";
+    const nextStatus: RecordStatus = record.participant_id && record.record_date && hasMetric ? (record.status === "certified" ? "certified" : "needs_review") : "missing";
     const nextNotes = nextRecordNotesForStatus(nextStatus, record);
     setUpdatingRecordId(record.id);
 
@@ -1872,7 +1827,7 @@ export default function AdminPage() {
     }
 
     const hasMetric = Boolean(nextDistance.trim() || durationSeconds);
-    const nextStatus: RecordStatus = record.participant_id && record.record_date && hasMetric ? "certified" : "missing";
+    const nextStatus: RecordStatus = record.participant_id && record.record_date && hasMetric ? (record.status === "certified" ? "certified" : "needs_review") : "missing";
     const nextNotes = nextRecoveryRecordNotes(record.notes, recoveryEnabled);
     const nextSourceApp = nextRecoverySourceApp(record.source_app, recoveryEnabled);
     const parsedDistance = nextDistance.trim() ? Number(nextDistance) : null;
@@ -1958,7 +1913,7 @@ export default function AdminPage() {
         record_date: manualDate,
         distance_km: manualDistance,
         duration_seconds: duration,
-        status: manualDistance || duration ? "certified" : "needs_review",
+        status: "needs_review",
         notes: !manualDistance || !duration ? "거리 또는 시간은 나중에 보완 가능" : null,
       }),
     });
@@ -2007,6 +1962,7 @@ export default function AdminPage() {
       setAuthorized(true);
       setUserName(json.user?.name || "운영자");
       setUserAvatar(json.user?.avatar || "");
+      preconnectDashboardRefresh();
       await loadData();
     }
     setVerifyingCode(false);
@@ -2099,7 +2055,7 @@ export default function AdminPage() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl space-y-4 px-3 py-3 pb-10 sm:px-4 sm:py-5">
+      <main className={`mx-auto space-y-4 px-3 py-3 pb-10 sm:px-4 sm:py-5 ${activeTab === "crew" ? "max-w-none 2xl:px-8" : "max-w-7xl"}`}>
         <nav
           className="sticky top-[61px] z-40 -mx-1 rounded-[20px] bg-white/94 p-1.5 shadow-lg shadow-slate-950/5 ring-1 ring-slate-950/5 backdrop-blur-xl sm:top-[69px]"
           role="tablist"
@@ -2110,6 +2066,7 @@ export default function AdminPage() {
             {ADMIN_TABS.map((tab) => (
               <button
                 key={tab.key}
+                id={`admin-tab-${tab.key}`}
                 type="button"
                 role="tab"
                 aria-selected={activeTab === tab.key}
@@ -2143,64 +2100,71 @@ export default function AdminPage() {
         </nav>
 
         {activeTab === "certifications" ? (
-          <div id="admin-panel-certifications" role="tabpanel" className="space-y-4">
-        <section className="relative overflow-hidden rounded-[28px] bg-[#101522] p-4 text-white shadow-2xl shadow-slate-950/15 ring-1 ring-white/10 sm:p-5 lg:p-6">
-          <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-lime-300/50 to-transparent" />
-          <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,26rem)] lg:items-stretch">
+          <div id="admin-panel-certifications" role="tabpanel" aria-labelledby="admin-tab-certifications" className="space-y-4">
+        <section
+          className="card mobile-page-card overflow-hidden p-4 sm:p-5 lg:p-6"
+          aria-labelledby="admin-certification-overview-title"
+        >
+          <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <div className="flex items-start justify-between gap-3">
+              <p className="text-[11px] font-black uppercase text-blue-600">Certification</p>
+              <h2 id="admin-certification-overview-title" className="mt-1 text-2xl font-black leading-tight text-slate-950 sm:text-3xl">
+                오늘 인증 현황
+              </h2>
+              <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
+                인증 진행 상태와 검수할 기록을 한눈에 확인하세요.
+              </p>
+            </div>
+            <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-slate-100 px-3 py-2 text-[11px] font-black text-slate-600 ring-1 ring-slate-200">
+              <IconCalendar size={14} aria-hidden="true" />
+              {effectiveToday.slice(5).replace("-", ".")}
+            </span>
+          </div>
+
+          <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1fr)_20rem] xl:items-start">
+            <div className="min-w-0 space-y-3">
+              <div className="grid gap-3 rounded-[24px] bg-blue-50 p-4 ring-1 ring-blue-100 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:p-5">
                 <div className="min-w-0">
-                  <p className="text-[11px] font-black uppercase text-lime-200/70">Admin Console</p>
-                  <h2 className="mt-1 text-2xl font-black leading-tight text-white sm:text-3xl">오늘 운영 현황</h2>
-                </div>
-                <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5 text-[11px] font-black text-white/70 ring-1 ring-white/10">
-                  <IconCalendar size={14} />
-                  {effectiveToday.slice(5).replace("-", ".")}
-                </span>
-              </div>
-
-              <div className="mt-5 grid grid-cols-[minmax(0,1fr)_auto] items-end gap-4 rounded-[26px] bg-white/[0.07] p-4 ring-1 ring-white/10 sm:p-5">
-                <div className="min-w-0">
-                  <p className="text-xs font-black text-white/45">
-                    {isOfficialCertificationToday ? "오늘 인증" : "공식 인증 시작 전"}
+                  <p className="text-xs font-black text-blue-700">
+                    {isOfficialCertificationToday ? "오늘 인증률" : "공식 인증 시작 전"}
                   </p>
-                  <p className="mt-1 text-[clamp(3rem,14vw,5rem)] font-black leading-none text-lime-200">{adminStats.todayRate}%</p>
-                  <p className="mt-2 text-xs font-semibold text-white/55">
-                    {isOfficialCertificationToday
-                      ? `${adminStats.todayCertifiedCount}/${certificationParticipants.length}명 인증 완료`
-                      : "9월 23일부터 공식 인증률을 계산해요"}
-                  </p>
+                  <div className="mt-1 flex flex-wrap items-end gap-x-3 gap-y-1">
+                    <p className="text-[clamp(3rem,14vw,5rem)] font-black leading-none text-blue-600">{adminStats.todayRate}%</p>
+                    <p className="pb-1 text-xs font-semibold text-slate-500 sm:pb-2">
+                      {isOfficialCertificationToday
+                        ? `${adminStats.todayCertifiedCount}/${certificationParticipants.length}명 인증 완료`
+                        : "9월 23일부터 공식 인증률을 계산해요"}
+                    </p>
+                  </div>
                 </div>
-                <div className="grid gap-2 text-right">
-                  <span className="rounded-2xl bg-white/10 px-3 py-2 ring-1 ring-white/10">
-                    <span className="block text-[10px] font-black text-white/40">검수 대기</span>
-                    <span className="text-lg font-black text-white">{adminStats.reviewCount}</span>
-                  </span>
-                </div>
-              </div>
-
-              <div className="mt-3 grid grid-cols-2 gap-2">
-                <div className="rounded-2xl bg-white/[0.08] px-3 py-3 ring-1 ring-white/10">
-                  <p className="text-[10px] font-black text-white/40">누적 거리</p>
-                  <p className="mt-1 text-base font-black text-white">{adminStats.totalDistanceKm.toFixed(1)}km</p>
-                </div>
-                <div className="rounded-2xl bg-white/[0.08] px-3 py-3 ring-1 ring-white/10">
-                  <p className="text-[10px] font-black text-white/40">누적 시간</p>
-                  <p className="mt-1 text-base font-black text-white">{secondsToTime(adminStats.totalDurationSeconds)}</p>
+                <div className="flex min-w-[7.5rem] items-center justify-between gap-3 rounded-2xl bg-white px-4 py-3 shadow-sm ring-1 ring-blue-100 sm:block sm:text-right">
+                  <span className="block text-[10px] font-black text-slate-500">검수 대기</span>
+                  <span className="text-2xl font-black text-slate-950">{adminStats.reviewCount}</span>
                 </div>
               </div>
 
-              <div className="mt-3 grid gap-2 lg:grid-cols-2">
-                <div className="rounded-2xl bg-white/[0.08] p-3 ring-1 ring-white/10">
+              <div className="grid grid-cols-2 gap-2.5">
+                <div className="rounded-[20px] bg-slate-50 px-4 py-3.5 ring-1 ring-slate-200">
+                  <p className="text-[10px] font-black text-slate-500">누적 거리</p>
+                  <p className="mt-1 text-lg font-black text-slate-950">{adminStats.totalDistanceKm.toFixed(1)}km</p>
+                </div>
+                <div className="rounded-[20px] bg-slate-50 px-4 py-3.5 ring-1 ring-slate-200">
+                  <p className="text-[10px] font-black text-slate-500">누적 시간</p>
+                  <p className="mt-1 text-lg font-black text-slate-950">{secondsToTime(adminStats.totalDurationSeconds)}</p>
+                </div>
+              </div>
+
+              <div className="grid gap-2.5 lg:grid-cols-2">
+                <div className="rounded-[20px] bg-slate-50 p-3.5 ring-1 ring-slate-200">
                   <div className="flex items-center justify-between gap-2">
-                    <p className="text-[10px] font-black text-white/40">
+                    <p className="text-[11px] font-black text-slate-600">
                       {isOfficialCertificationToday ? "오늘 미인증" : "공식 인증 대상"}
                     </p>
-                    <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-black text-white ring-1 ring-white/10">
-                      {todayMissingParticipants.length}
+                    <span className="rounded-full bg-white px-2.5 py-1 text-[10px] font-black text-slate-700 ring-1 ring-slate-200">
+                      {todayMissingParticipants.length}명
                     </span>
                   </div>
-                  <div className="mt-2 max-h-36 overflow-y-auto pr-1">
+                  <div className="mt-2.5 max-h-36 overflow-y-auto pr-1">
                     {todayMissingParticipants.length ? (
                       <div className="grid gap-1.5">
                         {todayMissingParticipants.map((participant) => (
@@ -2208,29 +2172,29 @@ export default function AdminPage() {
                             key={participant.id}
                             type="button"
                             onClick={() => openManualRecordForDate(effectiveToday, participant.id)}
-                            className="flex min-h-10 w-full items-center justify-between gap-2 rounded-xl bg-white/[0.08] px-3 py-2 text-left ring-1 ring-white/10 transition hover:bg-white/[0.13]"
+                            className="flex min-h-11 w-full items-center justify-between gap-2 rounded-xl bg-white px-3 py-2 text-left shadow-sm ring-1 ring-slate-200 transition hover:ring-blue-300"
                           >
-                            <span className="min-w-0 truncate text-sm font-black text-white">{participant.name}</span>
-                            <span className="shrink-0 text-[10px] font-black text-lime-200">{formatAdminDate(effectiveToday)}</span>
+                            <span className="min-w-0 truncate text-sm font-black text-slate-900">{participant.name}</span>
+                            <span className="shrink-0 text-[10px] font-black text-blue-600">{formatAdminDate(effectiveToday)}</span>
                           </button>
                         ))}
                       </div>
                     ) : (
-                      <p className="rounded-xl bg-lime-300/15 px-3 py-3 text-center text-xs font-black text-lime-200 ring-1 ring-lime-300/20">
-                        {isOfficialCertificationToday ? "모두 완료" : "시작 전 · 준비 기록은 개인 전용"}
+                      <p className="rounded-xl bg-white px-3 py-3 text-center text-xs font-bold text-slate-500 ring-1 ring-slate-200">
+                        {isOfficialCertificationToday ? "모두 인증했어요" : "시작 전 · 준비 기록은 공식 집계 제외"}
                       </p>
                     )}
                   </div>
                 </div>
 
-                <div className="rounded-2xl bg-white/[0.08] p-3 ring-1 ring-white/10">
+                <div className="rounded-[20px] bg-slate-50 p-3.5 ring-1 ring-slate-200">
                   <div className="flex items-center justify-between gap-2">
-                    <p className="text-[10px] font-black text-white/40">검수 대기 상세</p>
-                    <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-black text-white ring-1 ring-white/10">
-                      {reviewRecords.length}
+                    <p className="text-[11px] font-black text-slate-600">검수 대기 상세</p>
+                    <span className="rounded-full bg-white px-2.5 py-1 text-[10px] font-black text-slate-700 ring-1 ring-slate-200">
+                      {reviewRecords.length}건
                     </span>
                   </div>
-                  <div className="mt-2 max-h-36 overflow-y-auto pr-1">
+                  <div className="mt-2.5 max-h-36 overflow-y-auto pr-1">
                     {reviewRecords.length ? (
                       <div className="grid gap-1.5">
                         {reviewRecords.map(({ record, participantName }) => (
@@ -2240,20 +2204,20 @@ export default function AdminPage() {
                             onClick={() => {
                               if (record.participant_id) openParticipantRecords(record.participant_id);
                             }}
-                            className={`flex min-h-10 w-full items-center justify-between gap-2 rounded-xl bg-white/[0.08] px-3 py-2 text-left ring-1 ring-white/10 transition ${
-                              record.participant_id ? "hover:bg-white/[0.13]" : "cursor-default"
+                            className={`flex min-h-11 w-full items-center justify-between gap-2 rounded-xl bg-white px-3 py-2 text-left shadow-sm ring-1 ring-slate-200 transition ${
+                              record.participant_id ? "hover:ring-blue-300" : "cursor-default"
                             }`}
                           >
                             <span className="min-w-0">
-                              <span className="block truncate text-sm font-black text-white">{participantName}</span>
-                              <span className="mt-0.5 block truncate text-[10px] font-semibold text-white/45">
+                              <span className="block truncate text-sm font-black text-slate-900">{participantName}</span>
+                              <span className="mt-0.5 block truncate text-[10px] font-semibold text-slate-500">
                                 {record.notes || "확인 필요"}
                               </span>
                             </span>
                             <span className="shrink-0 text-right">
-                              <span className="block text-[10px] font-black text-lime-200">{formatAdminDate(record.record_date)}</span>
+                              <span className="block text-[10px] font-black text-blue-600">{formatAdminDate(record.record_date)}</span>
                               {record.created_at && (
-                                <span className="mt-0.5 block text-[10px] font-semibold text-white/45">
+                                <span className="mt-0.5 block text-[10px] font-semibold text-slate-500">
                                   등록 {formatKstTime(record.created_at)}
                                 </span>
                               )}
@@ -2262,8 +2226,8 @@ export default function AdminPage() {
                         ))}
                       </div>
                     ) : (
-                      <p className="rounded-xl bg-lime-300/15 px-3 py-3 text-center text-xs font-black text-lime-200 ring-1 ring-lime-300/20">
-                        대기 없음
+                      <p className="rounded-xl bg-white px-3 py-3 text-center text-xs font-bold text-slate-500 ring-1 ring-slate-200">
+                        대기 중인 기록이 없어요
                       </p>
                     )}
                   </div>
@@ -2271,30 +2235,27 @@ export default function AdminPage() {
               </div>
             </div>
 
-            <div className="grid gap-2.5">
-              <AdminActionButton
-                title="이미지 올리기"
-                meta="OCR"
-                icon={<IconRun size={18} />}
-                variant="primary"
-                onClick={() => openUploadForDate(initialUploadDate)}
-              />
-              <AdminActionButton
-                title="멤버 관리"
-                meta={`${participants.length}명`}
-                icon={<IconTarget size={18} />}
-                onClick={() => {
-                  resetParticipantForm();
-                  setAdminModal("participant");
-                }}
-              />
-              <AdminActionButton
-                title="직접 입력"
-                meta={isOfficialCertificationToday ? "기록 추가" : "준비 기록 추가"}
-                icon={<IconCheck size={18} />}
-                onClick={() => openManualRecordForDate(effectiveToday)}
-              />
-            </div>
+            <aside className="rounded-[24px] bg-slate-50 p-3 ring-1 ring-slate-200" aria-label="인증 빠른 작업">
+              <div className="px-1 pb-3 pt-1">
+                <p className="text-sm font-black text-slate-950">빠른 작업</p>
+                <p className="mt-0.5 text-[11px] font-semibold text-slate-500">이미지로 인식하거나 직접 기록을 추가하세요.</p>
+              </div>
+              <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-1">
+                <AdminActionButton
+                  title="이미지 올리기"
+                  meta="OCR로 기록 인식"
+                  icon={<IconRun size={18} />}
+                  variant="primary"
+                  onClick={() => openUploadForDate(initialUploadDate)}
+                />
+                <AdminActionButton
+                  title="직접 입력"
+                  meta={isOfficialCertificationToday ? "기록 직접 추가" : "준비 기록 추가"}
+                  icon={<IconCheck size={18} />}
+                  onClick={() => openManualRecordForDate(effectiveToday)}
+                />
+              </div>
+            </aside>
           </div>
         </section>
 
@@ -2307,28 +2268,29 @@ export default function AdminPage() {
           </section>
         )}
 
-        <section className="card mobile-page-card overflow-hidden p-0">
-          <div className="border-b border-slate-950/5 px-4 pb-4 pt-4 sm:px-5 sm:pt-5">
+        <section className="card mobile-page-card overflow-hidden p-0" aria-labelledby="participant-certification-gauge-title">
+          <div className="border-b border-slate-200 px-4 pb-4 pt-4 sm:px-5 sm:pt-5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0">
-                <p className="text-[11px] font-black uppercase text-oriwan-text-muted">Crew Gauge</p>
-                <h2 className="mt-1 text-xl font-black leading-tight text-oriwan-text">스내사 크루별 인증게이지</h2>
+                <p className="text-[11px] font-black uppercase text-blue-600">Crew Progress</p>
+                <h2 id="participant-certification-gauge-title" className="mt-1 text-xl font-black leading-tight text-oriwan-text">멤버별 인증 현황</h2>
+                <p className="mt-1 text-xs font-semibold text-slate-500">인증률과 누적 기록을 기준으로 멤버 현황을 확인하세요.</p>
               </div>
-              <span className="inline-flex w-fit shrink-0 rounded-full bg-lime-300 px-3 py-1.5 text-[11px] font-black text-slate-950 shadow-sm shadow-lime-300/30">
+              <span className="inline-flex w-fit shrink-0 rounded-full bg-blue-50 px-3 py-1.5 text-[11px] font-black text-blue-700 ring-1 ring-blue-100">
                 {isInitialAdminLoading ? "멤버 불러오는 중" : `인증 대상 ${certificationParticipants.length}명`}
               </span>
             </div>
-            <div className="mt-4 flex overflow-x-auto rounded-full bg-oriwan-surface-light p-1 ring-1 ring-slate-950/5">
+            <div className="mt-4 flex overflow-x-auto rounded-2xl bg-slate-100 p-1 ring-1 ring-slate-200" aria-label="멤버 정렬 기준">
               {PARTICIPANT_RANK_SORT_OPTIONS.map((option) => (
                 <button
                   key={option.key}
                   type="button"
                   onClick={() => setParticipantSortMode(option.key)}
                   aria-pressed={participantSortMode === option.key}
-                  className={`min-w-[72px] flex-1 rounded-full px-3 py-2 text-[11px] font-black transition ${
+                  className={`min-h-9 min-w-[72px] flex-1 rounded-xl px-3 py-2 text-[11px] font-black transition ${
                     participantSortMode === option.key
-                      ? "bg-slate-950 text-lime-200 shadow-sm"
-                      : "text-oriwan-text-muted hover:text-oriwan-text"
+                      ? "bg-white text-blue-700 shadow-sm ring-1 ring-slate-200"
+                      : "text-slate-500 hover:bg-white/60 hover:text-slate-900"
                   }`}
                 >
                   {option.label}
@@ -2339,7 +2301,7 @@ export default function AdminPage() {
           <div className="p-3 sm:p-5">
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
               {isInitialAdminLoading && Array.from({ length: 6 }, (_, index) => (
-                <div key={`admin-loading-${index}`} className="rounded-[22px] bg-white px-3.5 py-3.5 ring-1 ring-slate-950/5">
+                <div key={`admin-loading-${index}`} className="rounded-[20px] bg-white px-3.5 py-3.5 ring-1 ring-slate-200">
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex min-w-0 items-center gap-3">
                       <span className="h-10 w-10 shrink-0 animate-pulse rounded-2xl bg-oriwan-surface-light" />
@@ -2358,7 +2320,7 @@ export default function AdminPage() {
                   key={row.participant.id}
                   type="button"
                   onClick={() => openParticipantRecords(row.participant.id)}
-                  className={`relative overflow-hidden rounded-[22px] bg-white px-3.5 py-3.5 text-left ring-1 ring-slate-950/5 transition hover:-translate-y-0.5 hover:ring-lime-300 hover:shadow-lg hover:shadow-slate-950/5 ${
+                  className={`relative overflow-hidden rounded-[20px] bg-white px-3.5 py-3.5 text-left ring-1 ring-slate-200 transition duration-200 hover:-translate-y-0.5 hover:ring-blue-300 hover:shadow-lg hover:shadow-blue-950/5 ${
                     row.rate >= 100 ? "gauge-complete-card" : "dashboard-gauge-card"
                   }`}
                 >
@@ -2366,7 +2328,7 @@ export default function AdminPage() {
                     <div className="flex min-w-0 flex-1 items-center gap-3">
                       <span className="relative shrink-0">
                         <MemberPictogram index={row.pictogramIndex} participantName={row.participant.name} className="!h-11 !w-11" />
-                        <span className="absolute -left-1 -top-1 rounded-full bg-slate-950 px-1.5 py-0.5 text-[9px] font-black leading-none text-lime-200 ring-2 ring-white">
+                        <span className="absolute -left-1 -top-1 rounded-full bg-blue-600 px-1.5 py-0.5 text-[9px] font-black leading-none text-white ring-2 ring-white">
                           {index + 1}
                         </span>
                       </span>
@@ -2388,7 +2350,7 @@ export default function AdminPage() {
                       {row.rate}%
                     </p>
                   </div>
-                  <div className="mt-3 h-2 overflow-hidden rounded-full bg-oriwan-surface-light">
+                  <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100 ring-1 ring-slate-200/70">
                     <div
                       className={`gauge-fill-flow h-full rounded-full transition-all duration-1000 ease-out ${gaugeColorClass(row.certifiedDays)}`}
                       style={{ width: `${Math.max(row.rate, row.certifiedDays ? 3 : 0)}%` }}
@@ -2405,11 +2367,12 @@ export default function AdminPage() {
           </div>
         </section>
 
+        {SHOW_RECOVERY_CERTIFICATION_DASHBOARD && recoveryCertificationSummary ? (
         <section className="card mobile-page-card overflow-hidden p-0" aria-labelledby="recovery-certification-title">
           <div className="border-b border-slate-950/5 px-4 py-4 sm:px-5 sm:py-5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
               <div className="min-w-0">
-                <p className="text-[11px] font-black uppercase text-oriwan-text-muted">Recovery Intelligence</p>
+                <p className="text-[11px] font-black uppercase text-blue-600">Recovery Intelligence</p>
                 <h2 id="recovery-certification-title" className="mt-1 text-xl font-black leading-tight text-oriwan-text">
                   리커버리 신호 대시보드
                 </h2>
@@ -2417,7 +2380,7 @@ export default function AdminPage() {
                   누적·최근 7일·신규·반복·연속 신호를 나눠 현재 회복 부담과 변화 방향을 한눈에 보여줍니다.
                 </p>
               </div>
-              <span className="inline-flex w-fit shrink-0 rounded-full bg-slate-950 px-3 py-1.5 text-[11px] font-black text-lime-200">
+              <span className="inline-flex w-fit shrink-0 rounded-full bg-blue-50 px-3 py-1.5 text-[11px] font-black text-blue-700 ring-1 ring-blue-100">
                 {formatAdminFullDate(effectiveToday)} 기준
               </span>
             </div>
@@ -2525,15 +2488,15 @@ export default function AdminPage() {
                   />
                 </div>
 
-                <div className="mt-3 rounded-[22px] bg-slate-950 px-4 py-4 text-white sm:px-5">
+                <div className="mt-3 rounded-[22px] bg-blue-50 px-4 py-4 ring-1 ring-blue-100 sm:px-5">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                      <p className="text-[10px] font-black uppercase tracking-[0.12em] text-white/45">Recovery Signal Guide</p>
-                      <p className="mt-1 text-sm font-black leading-6 text-white">
+                      <p className="text-[10px] font-black uppercase tracking-[0.12em] text-blue-600">Recovery Signal Guide</p>
+                      <p className="mt-1 text-sm font-black leading-6 text-slate-900">
                         누적 규모는 상단에서, 최근 증가·신규·반복·연속 신호는 하단 3개 지표와 추이선에서 함께 확인하세요.
                       </p>
                     </div>
-                    <span className="w-fit shrink-0 rounded-full bg-white/10 px-3 py-1.5 text-[10px] font-black text-lime-200 ring-1 ring-white/10">
+                    <span className="w-fit shrink-0 rounded-full bg-white px-3 py-1.5 text-[10px] font-black text-blue-700 ring-1 ring-blue-100">
                       전체 대상 {certificationParticipants.length}명
                     </span>
                   </div>
@@ -2555,7 +2518,7 @@ export default function AdminPage() {
 
                 {recoveryCertificationSummary.rows.length ? (
                   <div className="mt-3 overflow-hidden rounded-[22px] bg-white ring-1 ring-slate-950/5">
-                    <div className="hidden grid-cols-[9rem_4rem_minmax(0,1fr)] gap-3 bg-slate-950 px-4 py-2.5 text-[10px] font-black text-white/55 sm:grid">
+                    <div className="hidden grid-cols-[9rem_4rem_minmax(0,1fr)] gap-3 bg-slate-50 px-4 py-2.5 text-[10px] font-black text-slate-500 sm:grid">
                       <span>인증 일자</span>
                       <span>인원</span>
                       <span>사용자</span>
@@ -2578,10 +2541,10 @@ export default function AdminPage() {
                                 key={participant.id}
                                 type="button"
                                 onClick={() => openParticipantRecords(participant.id)}
-                                className="inline-flex min-h-8 items-center gap-1.5 rounded-full bg-oriwan-surface-light px-2.5 py-1 text-xs font-black text-oriwan-text ring-1 ring-slate-950/5 transition hover:bg-slate-950 hover:text-lime-200"
+                                className="inline-flex min-h-8 items-center gap-1.5 rounded-full bg-oriwan-surface-light px-2.5 py-1 text-xs font-black text-oriwan-text ring-1 ring-slate-950/5 transition hover:bg-blue-600 hover:text-white"
                                 aria-label={`${participant.name} 인증 기록 보기`}
                               >
-                                <span className="h-1.5 w-1.5 rounded-full bg-lime-400" aria-hidden="true" />
+                                <span className="h-1.5 w-1.5 rounded-full bg-blue-500" aria-hidden="true" />
                                 {participant.name}
                               </button>
                             ))}
@@ -2597,61 +2560,61 @@ export default function AdminPage() {
                   </div>
                 )}
 
-                <div className="mt-5 rounded-[24px] bg-slate-950 px-4 py-5 text-white sm:px-5 sm:py-6">
+                <div className="mt-5 rounded-[24px] bg-slate-50 px-4 py-5 ring-1 ring-slate-200 sm:px-5 sm:py-6">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
                     <div>
-                      <p className="text-[10px] font-black uppercase text-lime-200/60">Recovery Action Plan</p>
-                      <h3 className="mt-1 text-lg font-black">운영 솔루션</h3>
-                      <p className="mt-1 max-w-2xl text-[11px] font-bold leading-5 text-white/55">
+                      <p className="text-[10px] font-black uppercase text-blue-600">Recovery Action Plan</p>
+                      <h3 className="mt-1 text-lg font-black text-slate-950">운영 솔루션</h3>
+                      <p className="mt-1 max-w-2xl text-[11px] font-bold leading-5 text-slate-500">
                         현재 리커버리 신호를 오늘 확인, 반복 대상 관리, 안전한 복귀 안내 순서로 실행하세요.
                       </p>
                     </div>
-                    <span className="w-fit shrink-0 rounded-full bg-white/10 px-3 py-1.5 text-[10px] font-black text-lime-200 ring-1 ring-white/10">
+                    <span className="w-fit shrink-0 rounded-full bg-white px-3 py-1.5 text-[10px] font-black text-blue-700 ring-1 ring-blue-100">
                       최근 7일 {formatAdminDate(recoveryCertificationSummary.recentWindowStart)}–{formatAdminDate(recoveryCertificationSummary.recoveryEndDate)}
                     </span>
                   </div>
 
                   <div className="mt-4 grid gap-2 lg:grid-cols-3">
-                    <div className="rounded-[20px] bg-white/10 px-4 py-4 ring-1 ring-white/10">
+                    <div className="rounded-[20px] bg-white px-4 py-4 shadow-sm ring-1 ring-slate-200">
                       <div className="flex items-center justify-between gap-3">
-                        <p className="text-xs font-black text-white">1. 오늘 즉시 확인</p>
-                        <span className="rounded-full bg-rose-400/20 px-2 py-1 text-[10px] font-black text-rose-200">
+                        <p className="text-xs font-black text-slate-900">1. 오늘 즉시 확인</p>
+                        <span className="rounded-full bg-rose-50 px-2 py-1 text-[10px] font-black text-rose-600 ring-1 ring-rose-100">
                           {recoveryCertificationSummary.todayParticipants.length}명
                         </span>
                       </div>
-                      <p className="mt-2 break-keep text-[11px] font-semibold leading-5 text-white/65">
+                      <p className="mt-2 break-keep text-[11px] font-semibold leading-5 text-slate-600">
                         {recoveryCertificationSummary.todayParticipants.length
                           ? `${recoveryCertificationSummary.todayParticipants.map((participant) => participant.name).join(", ")}님의 통증·보행 불편 여부를 확인하고 오늘은 러닝보다 회복 상태 기록을 우선 안내하세요.`
                           : "오늘 리커버리 인증자는 없습니다. 기존 영향 대상의 컨디션 변화를 정기적으로 확인하세요."}
                       </p>
                     </div>
 
-                    <div className="rounded-[20px] bg-white/10 px-4 py-4 ring-1 ring-white/10">
+                    <div className="rounded-[20px] bg-white px-4 py-4 shadow-sm ring-1 ring-slate-200">
                       <div className="flex items-center justify-between gap-3">
-                        <p className="text-xs font-black text-white">2. 반복·연속 신호 관리</p>
-                        <span className="rounded-full bg-amber-400/20 px-2 py-1 text-[10px] font-black text-amber-200">
+                        <p className="text-xs font-black text-slate-900">2. 반복·연속 신호 관리</p>
+                        <span className="rounded-full bg-amber-50 px-2 py-1 text-[10px] font-black text-amber-700 ring-1 ring-amber-100">
                           {recoveryCertificationSummary.repeatRecoveryParticipants.length}명
                         </span>
                       </div>
-                      <p className="mt-2 break-keep text-[11px] font-semibold leading-5 text-white/65">
+                      <p className="mt-2 break-keep text-[11px] font-semibold leading-5 text-slate-600">
                         {recoveryCertificationSummary.repeatRecoveryParticipants.length
                           ? `전체 기간 3회 이상: ${recoveryCertificationSummary.repeatRecoveryParticipants.map((participant) => `${participant.name} ${participant.count}회`).join(", ")}.${recoveryCertificationSummary.consecutiveRecoveryParticipants.length ? ` 3일 이상 연속: ${recoveryCertificationSummary.consecutiveRecoveryParticipants.map((participant) => `${participant.name} ${participant.maxConsecutive}일`).join(", ")}.` : ""} 개별 컨디션과 러닝 재개 일정을 분리해 관리하세요.`
                           : "전체 기간 3회 이상 반복된 리커버리 신호는 없습니다. 새 신호가 생기는지만 관찰하세요."}
                       </p>
                     </div>
 
-                    <div className="rounded-[20px] bg-white/10 px-4 py-4 ring-1 ring-white/10">
+                    <div className="rounded-[20px] bg-white px-4 py-4 shadow-sm ring-1 ring-slate-200">
                       <div className="flex items-center justify-between gap-3">
-                        <p className="text-xs font-black text-white">3. 안전한 복귀 안내</p>
-                        <span className="rounded-full bg-lime-300/20 px-2 py-1 text-[10px] font-black text-lime-200">공통</span>
+                        <p className="text-xs font-black text-slate-900">3. 안전한 복귀 안내</p>
+                        <span className="rounded-full bg-blue-50 px-2 py-1 text-[10px] font-black text-blue-700 ring-1 ring-blue-100">공통</span>
                       </div>
-                      <p className="mt-2 break-keep text-[11px] font-semibold leading-5 text-white/65">
+                      <p className="mt-2 break-keep text-[11px] font-semibold leading-5 text-slate-600">
                         통증이 있으면 러닝을 중단하고, 증상이 지속되거나 붓기·보행 불편이 있으면 의료진 상담을 안내하세요. 복귀는 통증이 가라앉고 기능이 회복된 뒤 단계적으로 진행합니다.
                       </p>
                     </div>
                   </div>
 
-                  <p className="mt-3 text-[10px] font-bold leading-4 text-white/40">
+                  <p className="mt-3 text-[10px] font-bold leading-4 text-slate-400">
                     운영 참고용 리커버리 신호이며 의학적 진단을 대신하지 않습니다.
                   </p>
                 </div>
@@ -2659,19 +2622,33 @@ export default function AdminPage() {
             )}
           </div>
         </section>
+        ) : null}
           </div>
-        ) : (
-          <div id={`admin-panel-${activeTab}`} role="tabpanel">
-            <AdminWorkspacePanel
-              tab={activeTab}
-              participants={participants}
-              onOpenCrew={() => {
-                resetParticipantForm();
-                setAdminModal("participant");
-              }}
-            />
-          </div>
-        )}
+        ) : null}
+
+        {PRESERVED_WORKSPACE_TABS.map((tab) => {
+          const shouldMount = PRELOADED_CONTENT_TABS.has(tab) || visitedTabs.has(tab) || activeTab === tab;
+          if (!shouldMount) return null;
+          return (
+            <div
+              key={tab}
+              id={`admin-panel-${tab}`}
+              role="tabpanel"
+              aria-labelledby={`admin-tab-${tab}`}
+              hidden={activeTab !== tab}
+            >
+              <AdminWorkspacePanel
+                tab={tab}
+                active={activeTab === tab}
+                participantRefreshKey={participantRefreshKey}
+                onOpenCrew={() => {
+                  resetParticipantForm();
+                  setAdminModal("participant");
+                }}
+              />
+            </div>
+          );
+        })}
 
         {adminModal === "upload" && (
           <div
@@ -2888,7 +2865,8 @@ export default function AdminPage() {
                             {isDuplicate ? "저장 안 함" : isUpdatingResult ? "저장 중" : "수정 저장"}
                           </button>
                         </div>
-                        {result.notes && <p className="mt-2 text-[11px] font-semibold leading-5 text-oriwan-text-muted">{result.notes}</p>}
+                        {result.id && result.participant_id && !isDuplicate && <button type="button" disabled={isUpdatingResult} onClick={() => openParticipantRecords(result.participant_id!)} className="mt-2 min-h-11 w-full rounded-xl bg-blue-50 px-4 py-3 text-sm font-bold text-blue-700 disabled:opacity-40">날짜별 기록에서 검수하기</button>}
+                        {formatVisibleRecordNotes(result.notes) && <p className="mt-2 text-[11px] font-semibold leading-5 text-oriwan-text-muted">{formatVisibleRecordNotes(result.notes)}</p>}
                       </div>
                     );
                   })}
@@ -2897,6 +2875,13 @@ export default function AdminPage() {
             </div>
           </div>
         )}
+
+        {approvalRecord && <RecordApprovalDialog key={approvalRecord.id} record={approvalRecord} onCancel={() => setApprovalRecord(null)} onApprove={async approval => {
+          const response = await fetch(`/api/records/${approvalRecord.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "certified", approval }) });
+          const payload = await response.json().catch(() => ({}));
+          if (!response.ok) throw new Error(payload.error || "승인하지 못했어요.");
+          await refreshAfterMutation(false);
+        }} />}
 
         {adminModal === "participantRecords" && selectedRecordsParticipant && (
           <div
@@ -2971,6 +2956,9 @@ export default function AdminPage() {
                         </span>
                       </div>
                       <div className="grid gap-2">
+                        {record.image_url ? (
+                          <a href={`/api/me/records/image/${record.id}`} target="_blank" rel="noopener noreferrer" className="rounded-xl bg-blue-50 px-3 py-3 text-sm font-semibold text-blue-700">인증샷 보기 ↗</a>
+                        ) : null}
                         <div className="grid gap-2 sm:grid-cols-2">
                           <input
                             value={draft.distance}
@@ -2986,6 +2974,10 @@ export default function AdminPage() {
                             className="w-full rounded-xl border border-oriwan-border bg-white px-3 py-2.5 text-sm font-black text-oriwan-text outline-none focus:border-oriwan-primary"
                           />
                         </div>
+                        {record.status !== "certified" && <button type="button" className="min-h-11 rounded-xl bg-blue-600 px-4 py-3 text-sm font-bold text-white disabled:opacity-40"
+                          disabled={isSaving || isDeleting || draft.distance !== formatDistanceInput(record.distance_km) || draft.duration !== formatDurationInput(record.duration_seconds)}
+                          onClick={() => setApprovalRecord(record)}>인증샷 확인 후 승인</button>}
+                        {record.status !== "certified" && <p className="text-xs text-slate-500">수정한 값은 먼저 저장해주세요. 오전 8시 이후 업로드는 캡처의 날짜·시각 확인이 필요해요.</p>}
                         <div className="grid grid-cols-[5.25rem_minmax(0,1fr)_minmax(0,1fr)] gap-2 sm:flex sm:justify-end">
                           <button
                             type="button"
@@ -3047,7 +3039,7 @@ export default function AdminPage() {
               <div className="mb-4 flex items-start justify-between gap-3">
                 <div>
                   <h2 className="text-xl font-black leading-tight text-oriwan-text">멤버 관리</h2>
-                  <p className="mt-1 text-xs text-oriwan-text-muted">기본 이름과 기존 내부 메모를 추가하거나 수정해요. 공개 소개는 크루 탭의 별도 영역에서 관리합니다.</p>
+                  <p className="mt-1 text-xs text-oriwan-text-muted">기본 이름을 관리해요. 공개 소개는 크루 탭의 별도 영역에서 관리합니다.</p>
                 </div>
                 <button
                   type="button"
@@ -3067,26 +3059,15 @@ export default function AdminPage() {
                 <div className="grid gap-2">
                   <label className="text-xs font-black text-oriwan-text-muted">
                     이름
-                    <input value={newName} maxLength={40} onChange={(e) => setNewName(e.target.value)} placeholder="이름" className="mt-1.5 min-h-11 w-full rounded-xl border border-oriwan-border px-3 py-2.5 text-base" />
-                  </label>
-                  <label className="text-xs font-black text-oriwan-text-muted">
-                    기존 내부 메모
-                    <textarea
-                      value={newNickname}
-                      maxLength={320}
-                      onChange={(e) => setNewNickname(e.target.value)}
-                      placeholder="운영 참고용 내부 메모"
-                      rows={4}
-                      className="mt-1.5 w-full resize-none rounded-xl border border-oriwan-border px-3 py-2.5 text-base leading-6"
-                    />
+                    <input value={newName} maxLength={40} disabled={savingParticipant} onChange={(e) => setNewName(e.target.value)} placeholder="이름" className="mt-1.5 min-h-11 w-full rounded-xl border border-oriwan-border px-3 py-2.5 text-base disabled:opacity-60" />
                   </label>
                 </div>
                 <div className="mt-3 flex gap-2">
-                  <button type="button" onClick={saveParticipant} className="btn-primary flex-1 py-3 text-sm">
-                    {editingParticipant ? "수정 저장" : "멤버 추가"}
+                  <button type="button" onClick={saveParticipant} disabled={savingParticipant || !newName.trim()} className="btn-primary flex-1 py-3 text-sm disabled:cursor-not-allowed disabled:opacity-50">
+                    {savingParticipant ? "저장 중…" : editingParticipant ? "수정 저장" : "멤버 추가"}
                   </button>
                   {editingParticipant && (
-                    <button type="button" onClick={resetParticipantForm} className="rounded-2xl bg-white px-4 py-3 text-sm font-black text-oriwan-text">
+                    <button type="button" onClick={resetParticipantForm} disabled={savingParticipant} className="rounded-2xl bg-white px-4 py-3 text-sm font-black text-oriwan-text disabled:opacity-50">
                       새 이름 입력
                     </button>
                   )}
@@ -3100,11 +3081,6 @@ export default function AdminPage() {
                       <MemberPictogram index={participantPictogramById.get(participant.id)} participantName={participant.name} />
                       <div className="min-w-0">
                         <p className="truncate text-sm font-black text-oriwan-text">{participant.name}</p>
-                        {participant.nickname && (
-                          <p className="mt-1 line-clamp-2 whitespace-pre-line text-xs font-semibold leading-5 text-oriwan-text-muted">
-                            {participant.nickname}
-                          </p>
-                        )}
                       </div>
                     </div>
                     <div className="grid shrink-0 grid-cols-2 gap-1.5 sm:flex">
@@ -3132,7 +3108,7 @@ export default function AdminPage() {
               <div className="mb-4 flex items-start justify-between gap-3">
                 <div>
                   <h2 className="text-xl font-black leading-tight text-oriwan-text">기록 직접 입력</h2>
-                  <p className="mt-1 text-xs text-oriwan-text-muted">멤버, 날짜, 거리 또는 시간만 있어도 인증으로 저장돼요.</p>
+                  <p className="mt-1 text-xs text-oriwan-text-muted">검수 대기로 저장돼요. 인증샷을 올리고 관리자가 승인해야 인증돼요.</p>
                 </div>
                 <button
                   type="button"
@@ -3153,7 +3129,7 @@ export default function AdminPage() {
                 9월 23일 전 기록은 준비 러닝으로 저장해 개인 기록에만 보여요. 공식 100일 인증에는 포함되지 않습니다.
               </p>
               <button type="button" onClick={saveManualRecord} className="btn-primary mt-4 w-full py-3 text-sm">
-                기록 저장하기
+                검수 대기로 저장하기
               </button>
             </div>
           </div>

@@ -1,3 +1,4 @@
+import { writeCertificationReview } from "@/lib/certification-review";
 import { NextRequest, NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { GoogleGenAI } from "@google/genai";
@@ -42,7 +43,7 @@ import {
   resolveOcrConcurrency,
   validImage,
 } from "@/lib/run-image-extraction";
-import { guardMutationRequest } from "@/lib/request-security";
+import { guardMutationRequest, readLimitedJson } from "@/lib/request-security";
 import { invalidatePublicDashboardCache } from "@/lib/public-dashboard-data";
 import { isMissingTableError, missingSchemaResponse } from "@/lib/supabase-errors";
 import { logServerFailure } from "@/lib/server-error-log";
@@ -90,20 +91,18 @@ function decideStatus(input: {
   recordDate?: string | null;
   distanceKm?: number | null;
   durationSeconds?: number | null;
-  dateWasFallback: boolean;
-  allowFallbackDate: boolean;
 }) {
   const hasMetric = Boolean((input.distanceKm && input.distanceKm > 0) || (input.durationSeconds && input.durationSeconds > 0));
   if (!input.participantId || !input.recordDate) return "needs_review";
   if (!hasMetric) return "missing";
-  if (input.dateWasFallback && !input.allowFallbackDate) return "needs_review";
-  return "certified";
+  // OCR prepares a draft. Only the separate administrator review can certify it.
+  return "needs_review";
 }
 
 async function analyzeImage(image: UploadedImage, knownNames: string[], targetDate?: string | null) {
   if (!process.env.GEMINI_API_KEY) throw new Error("Missing GEMINI_API_KEY");
   const { mimeType, base64 } = parseDataUrl(image.dataUrl);
-  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY, httpOptions: { timeout: 35_000, retryOptions: { attempts: 1 } } });
   const prompt = buildRunImagePrompt({
     challengeYear: FOURTH_SEASON_START_DATE.slice(0, 4),
     targetDate,
@@ -280,7 +279,10 @@ export async function POST(request: NextRequest) {
   const { user, service: supabase } = access;
 
   try {
-    const body = await request.json();
+    const parsedBody = await readLimitedJson(request, MAX_BODY_BYTES);
+    if (!parsedBody.ok) return parsedBody.response;
+    const uploadedAt = new Date().toISOString();
+    const body = parsedBody.value;
     const targetDate = normalizeRecordDate(body.targetDate, FOURTH_SEASON_START_DATE.slice(0, 4));
     const fallbackParticipantId = typeof body.fallbackParticipantId === "string" ? body.fallbackParticipantId : null;
     const rawImages = Array.isArray(body.images) ? body.images : [];
@@ -483,15 +485,13 @@ export async function POST(request: NextRequest) {
       }
 
       const paceSeconds = calculatePaceSeconds(distanceKm, durationSeconds);
-      const status = decideStatus({
+      const status = getGeminiOcrFallbackReasons(analyzed.extracted, { requireParticipantName: true, requireRecordDate: true }).length ? "needs_review" : decideStatus({
         participantId: participant?.id,
         recordDate,
         distanceKm,
         durationSeconds,
-        dateWasFallback,
-        allowFallbackDate: Boolean(targetDate),
       });
-      if (status !== "certified") needsReviewCount += 1;
+      needsReviewCount += 1;
 
       const filePath = await uploadImageToStorage({
         supabase,
@@ -516,7 +516,7 @@ export async function POST(request: NextRequest) {
         confidence_score: extracted.confidence_score ?? null,
         image_url: filePath,
         raw_extracted_text: extracted.raw_text || null,
-        notes: [
+        notes: writeCertificationReview([
           isRecoveryCertification ? RECOVERY_CERTIFICATION_NOTE : null,
           extracted.notes,
           usedFallbackParticipant ? fallbackParticipantNote : null,
@@ -525,13 +525,14 @@ export async function POST(request: NextRequest) {
           !durationSeconds ? "시간은 나중에 보완할 수 있어요." : null,
           !participant ? "멤버 매칭을 한 번 확인해주세요." : null,
           !filePath ? "이미지 파일 저장은 건너뛰고 추출 기록만 저장했어요." : null,
-        ].filter(Boolean).join(" / ") || null,
+        ].filter(Boolean).join(" / "), { version: 1, uploadedAt, ocrDate: extracted.activity_date ?? null, ocrTime: extracted.activity_time ?? null }),
       };
 
       const { data: record, error: recordError } = existingRecord?.id
         ? await supabase
           .from("daily_run_records")
           .update(recordPayload)
+          .neq("status", "certified")
           .eq("id", existingRecord.id)
           .eq("user_id", user.id)
           .eq("season_key", FOURTH_SEASON_KEY)

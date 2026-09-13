@@ -1,0 +1,20 @@
+# Local design originals, QA output and working metadata are not deploy assets.
+output/
+.next-local/
+.next/
+.git/
+.codex/
+.agents/
+tests/
+docs/
+*.tsbuildinfo
+
+node_modules/
+node_modules*/
+.next*/
+TWTT-workspace/
+.env*
+*.icloud-backup/
+
+.next*
+node_modules*

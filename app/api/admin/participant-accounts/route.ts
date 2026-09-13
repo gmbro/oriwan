@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminDataAccess } from "@/lib/admin-data-access";
 import { normalizeContentText } from "@/lib/hello-2027-content";
-import { guardMutationRequest, guardReadRequest } from "@/lib/request-security";
+import { guardMutationRequest, guardReadRequest, readLimitedJson } from "@/lib/request-security";
 import { isMissingTableError, missingSchemaResponse } from "@/lib/supabase-errors";
-import { getKakaoDisplayName } from "@/lib/kakao-display-name";
+import {
+  AUTO_ENROLLED_FOURTH_PARTICIPANT_ORDER,
+  LEGACY_HIDDEN_AUTO_ENROLLED_FOURTH_PARTICIPANT_ORDER,
+} from "@/lib/fourth-participant-visibility";
 import { FOURTH_SEASON_KEY } from "@/lib/participant-account-server";
+import { invalidatePublicDashboardCache } from "@/lib/public-dashboard-data";
 import { logServerFailure } from "@/lib/server-error-log";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -25,49 +29,44 @@ export async function GET(request: NextRequest) {
 
   const access = await requireAdminDataAccess();
   if (!access.ok) return access.response;
-  const { service } = access;
+  const { user: adminUser, service } = access;
 
   try {
-    const users = [];
-    for (let page = 1; page <= 10; page += 1) {
-      const { data, error } = await service.auth.admin.listUsers({ page, perPage: 100 });
-      if (error) throw error;
-      users.push(...data.users);
-      if (data.users.length < 100) break;
-    }
-
-    const kakaoUsers = users.filter((user) => userProviders(user).has("kakao"));
-    const authUserIds = kakaoUsers.map((user) => user.id);
-    const { data: connections, error: connectionError } = authUserIds.length
-      ? await service
-        .from("participant_accounts")
-        .select("auth_user_id, participant_id, status, approved_at, display_name_override, season_key")
-        .in("auth_user_id", authUserIds)
-        .eq("season_key", FOURTH_SEASON_KEY)
-      : { data: [], error: null };
+    const { data: connections, error: connectionError } = await service
+      .from("participant_accounts")
+      .select(`
+        display_name_override,
+        participant:participants!inner(name, user_id, season_key, active)
+      `)
+      .eq("season_key", FOURTH_SEASON_KEY)
+      .eq("status", "approved")
+      .eq("participant.user_id", adminUser.id)
+      .eq("participant.season_key", FOURTH_SEASON_KEY)
+      .eq("participant.active", true);
 
     if (connectionError) {
       if (isMissingTableError(connectionError)) {
-        return NextResponse.json(missingSchemaResponse("카카오 계정 승인 테이블이 아직 준비되지 않았어요."), { status: 503 });
+        return NextResponse.json(missingSchemaResponse("카카오 계정 연결 테이블이 아직 준비되지 않았어요."), { status: 503 });
       }
       throw connectionError;
     }
 
-    const connectionByUser = new Map((connections || []).map((row) => [row.auth_user_id, row]));
+    // The write path already verifies Kakao and stores the approved display
+    // name. Reading the crew tab should therefore be one joined DB request,
+    // rather than one Auth Admin network call per linked member.
+    const accounts = (connections || []).map((connection) => {
+      const participant = Array.isArray(connection.participant)
+        ? connection.participant[0]
+        : connection.participant;
+      return {
+        display_name: connection.display_name_override?.trim()
+          || participant?.name?.trim()
+          || "카카오 이름 미제공",
+      };
+    });
+
     return NextResponse.json({
-      accounts: kakaoUsers.map((user) => {
-        const connection = connectionByUser.get(user.id);
-        return {
-          auth_user_id: user.id,
-          display_name: getKakaoDisplayName(user) || "카카오 이름 미제공",
-          email: user.email || "",
-          created_at: user.created_at,
-          participant_id: connection?.participant_id || null,
-          status: connection?.status || "unlinked",
-          approved_at: connection?.approved_at || null,
-          display_name_override: connection?.display_name_override || "",
-        };
-      }),
+      accounts,
     }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     logServerFailure("Admin participant account list", error);
@@ -83,7 +82,9 @@ export async function POST(request: NextRequest) {
   if (!access.ok) return access.response;
   const { user: adminUser, service } = access;
 
-  const body = await request.json().catch(() => ({}));
+  const parsedBody = await readLimitedJson(request, 8 * 1024);
+  if (!parsedBody.ok) return parsedBody.response;
+  const body = parsedBody.value;
   const authUserId = typeof body.auth_user_id === "string" ? body.auth_user_id : "";
   const participantId = typeof body.participant_id === "string" ? body.participant_id : "";
   const status = body.status === "approved" || body.status === "revoked"
@@ -102,7 +103,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "댓글에 표시할 이름은 2~40자의 일반 텍스트로 입력해주세요." }, { status: 400 });
   }
   if (!status) {
-    return NextResponse.json({ error: "계정 연결 상태는 승인 또는 해제로 선택해주세요." }, { status: 400 });
+    return NextResponse.json({ error: "계정 연결 상태를 다시 선택해주세요." }, { status: 400 });
   }
   if (!UUID_PATTERN.test(authUserId) || !UUID_PATTERN.test(participantId)) {
     return NextResponse.json({ error: "연결할 카카오 계정과 크루를 다시 선택해주세요." }, { status: 400 });
@@ -151,10 +152,31 @@ export async function POST(request: NextRequest) {
     }
     if (error) {
       if (isMissingTableError(error)) {
-        return NextResponse.json(missingSchemaResponse("카카오 계정 승인 테이블이 아직 준비되지 않았어요."), { status: 503 });
+        return NextResponse.json(missingSchemaResponse("카카오 계정 연결 테이블이 아직 준비되지 않았어요."), { status: 503 });
       }
       throw error;
     }
+
+    // Older automatic enrollments used random participant IDs, so visibility
+    // cannot be inferred from the current deterministic ID alone. The reserved
+    // -1/10000 orders identify only automatic hidden/public rows; operator-
+    // curated display orders are intentionally left untouched.
+    const currentVisibilityOrder = status === "approved"
+      ? LEGACY_HIDDEN_AUTO_ENROLLED_FOURTH_PARTICIPANT_ORDER
+      : AUTO_ENROLLED_FOURTH_PARTICIPANT_ORDER;
+    const nextVisibilityOrder = status === "approved"
+      ? AUTO_ENROLLED_FOURTH_PARTICIPANT_ORDER
+      : LEGACY_HIDDEN_AUTO_ENROLLED_FOURTH_PARTICIPANT_ORDER;
+    const { error: participantVisibilityError } = await service
+      .from("participants")
+      .update({ display_order: nextVisibilityOrder })
+      .eq("id", participantId)
+      .eq("user_id", adminUser.id)
+      .eq("season_key", FOURTH_SEASON_KEY)
+      .eq("active", true)
+      .eq("display_order", currentVisibilityOrder);
+    if (participantVisibilityError) throw participantVisibilityError;
+    invalidatePublicDashboardCache();
 
     return NextResponse.json({ account: data });
   } catch (error) {

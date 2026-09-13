@@ -1,6 +1,11 @@
-import { NextRequest, NextResponse } from "next/server";
+import { writeCertificationReview } from "@/lib/certification-review";
+import { after, NextRequest, NextResponse } from "next/server";
+import { MEMBER_UPLOAD_BUCKET, MEMBER_UPLOAD_DRAFT_PATTERN, ownsFreshDraft, validateMemberSubmission } from "@/lib/member-upload-contract";
+import { ownedMember, privateUploadStore, readMemberJson, readUploadDraft, uploadPrefix } from "@/lib/member-upload-server";
+import { loadHello2027ProfileImageUrls } from "@/lib/hello-2027-profile-image-storage";
+import { invalidatePublicDashboardCache } from "@/lib/public-dashboard-data";
+import { broadcastDashboardRefreshFromServer } from "@/lib/dashboard-refresh-server";
 
-import { getServiceClient } from "@/lib/admin-data";
 import {
   FOURTH_PERSONAL_RECORD_START_DATE,
   FOURTH_SEASON_END_DATE,
@@ -11,8 +16,8 @@ import {
   type PersonalRunRecordInput,
   type PersonalRunRecordStatus,
 } from "@/lib/personal-records";
-import { resolveParticipantAccount } from "@/lib/participant-account-server";
-import { guardReadRequest } from "@/lib/request-security";
+import { resolvePersonalMemberContext } from "@/lib/personal-member-context";
+import { guardMutationRequest, guardReadRequest } from "@/lib/request-security";
 import {
   calculatePaceSeconds,
   getCertificationCreditMetrics,
@@ -20,7 +25,6 @@ import {
   toKstIsoDate,
 } from "@/lib/run-records";
 import { logServerFailure } from "@/lib/server-error-log";
-import { createClient } from "@/lib/supabase/server";
 import { isMissingTableError, missingSchemaResponse } from "@/lib/supabase-errors";
 
 export const dynamic = "force-dynamic";
@@ -46,18 +50,11 @@ type PersonalRecordRow = {
   raw_extracted_text: string | null;
   status: string | null;
   notes: string | null;
+  image_url: string | null;
 };
 
 function privateJson(payload: unknown, status = 200) {
   return NextResponse.json(payload, { status, headers: PRIVATE_HEADERS });
-}
-
-function hasKakaoIdentity(user: {
-  app_metadata?: Record<string, unknown>;
-  identities?: Array<{ provider?: string }>;
-}) {
-  return user.app_metadata?.provider === "kakao"
-    || Boolean(user.identities?.some((identity) => identity.provider === "kakao"));
 }
 
 function cleanNumber(value: unknown) {
@@ -89,6 +86,7 @@ function toPersonalRecord(row: PersonalRecordRow): PersonalRunRecordInput | null
         ? calculatePaceSeconds(distanceKm, durationSeconds)
         : Math.round(storedPace),
     isRecovery,
+    hasPrivateImage: Boolean(row.image_url?.startsWith("member-run-uploads/4th/") || row.image_url?.startsWith("run-records/4th/")),
   };
 }
 
@@ -98,21 +96,19 @@ export async function GET(request: NextRequest) {
   });
   if (guardResponse) return guardResponse;
 
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-    return privateJson({ error: "카카오 로그인 서버 설정이 아직 준비되지 않았어요." }, 503);
-  }
-
-  const supabase = await createClient();
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError || !user || !hasKakaoIdentity(user)) {
-    return privateJson({ error: "카카오 로그인이 필요해요." }, 401);
-  }
-
-  const service = getServiceClient();
-  if (!service) return privateJson({ error: "운영 서버 연결이 아직 준비되지 않았어요." }, 503);
-
   try {
-    const connection = await resolveParticipantAccount(service, user.id);
+    const context = await resolvePersonalMemberContext();
+    if (!context.ok) {
+      if (context.reason === "configuration_unavailable") {
+        return privateJson({ error: "카카오 로그인 서버 설정이 아직 준비되지 않았어요." }, 503);
+      }
+      if (context.reason === "unauthenticated") {
+        return privateJson({ error: "카카오 로그인이 필요해요." }, 401);
+      }
+      return privateJson({ error: "운영 서버 연결이 아직 준비되지 않았어요." }, 503);
+    }
+
+    const { authUserId, displayName: kakaoDisplayName, service, connection } = context;
     if (connection.status !== "approved" || !connection.adminUserId || !connection.participant) {
       return privateJson({
         error: connection.message,
@@ -120,9 +116,9 @@ export async function GET(request: NextRequest) {
       }, connection.status === "setup_required" || connection.status === "admin_missing" ? 503 : 403);
     }
 
-    const { data, error } = await service
+    const recordsRequest = service
       .from("daily_run_records")
-      .select("id, record_date, distance_km, duration_seconds, pace_seconds_per_km, source_app, raw_extracted_text, status, notes")
+      .select("id, record_date, distance_km, duration_seconds, pace_seconds_per_km, source_app, raw_extracted_text, status, notes, image_url")
       .eq("user_id", connection.adminUserId)
       .eq("season_key", FOURTH_SEASON_KEY)
       .eq("participant_id", connection.participant.id)
@@ -130,6 +126,11 @@ export async function GET(request: NextRequest) {
       .lte("record_date", FOURTH_SEASON_END_DATE)
       .order("record_date", { ascending: false })
       .limit(500);
+
+    const [{ data, error }, profileImages] = await Promise.all([
+      recordsRequest,
+      loadHello2027ProfileImageUrls(service, [connection.participant.id]),
+    ]);
 
     if (error) {
       if (isMissingTableError(error)) {
@@ -142,16 +143,69 @@ export async function GET(request: NextRequest) {
       .map(toPersonalRecord)
       .filter((record): record is PersonalRunRecordInput => Boolean(record));
     const payload = buildPersonalRecordsPayload(records, toKstIsoDate());
+    const usesKakaoName = !connection.displayName;
 
-    return privateJson(payload);
+    // The personal page needs both profile and record data. Returning the
+    // already-resolved profile here avoids a second auth + account lookup on
+    // every login while keeping the existing record payload backward compatible.
+    return privateJson({
+      ...payload,
+      profile: {
+        user: { id: authUserId },
+        display_name: usesKakaoName ? kakaoDisplayName || connection.displayName : connection.displayName,
+        profile_image_url: profileImages[connection.participant.id] ?? null,
+        name_source: usesKakaoName ? "kakao" : connection.displayName ? "admin" : null,
+        matched_participant: {
+          id: connection.participant.id,
+          name: connection.participant.name,
+        },
+        connection_status: connection.status,
+        connection_message: connection.message,
+      },
+    });
   } catch (error) {
     logServerFailure("Personal fourth records", error);
     return privateJson({ error: "개인 기록을 불러오지 못했어요. 잠시 후 다시 시도해주세요." }, 500);
   }
 }
 
-export async function POST() {
-  return privateJson({
-    error: "인증 기록은 운영자가 어드민에서 등록하고 검수합니다.",
-  }, 403);
+export async function POST(request: NextRequest) {
+  const guard = guardMutationRequest(request, { maxBodyBytes: 4096, rateLimit: { key: "own-run-submit", limit: 20, windowMs: 60_000 } });
+  if (guard) return guard;
+  const owned = await ownedMember();
+  if ("response" in owned) return owned.response;
+  const parsed = await readMemberJson(request);
+  if ("response" in parsed) return parsed.response;
+  const { body } = parsed;
+  if (typeof body.draftId !== "string" || !MEMBER_UPLOAD_DRAFT_PATTERN.test(body.draftId)) return privateJson({ error: "인증샷을 먼저 선택해주세요." }, 400);
+  const values = validateMemberSubmission(body, toKstIsoDate());
+  if (!values.ok) return privateJson({ error: values.error }, 400);
+  try {
+    const { service, authUserId } = owned.context;
+    const store = await privateUploadStore(service);
+    const prefix = uploadPrefix(authUserId, body.draftId);
+    const draft = await readUploadDraft(store, prefix);
+    if (!draft || !ownsFreshDraft(draft, owned.participantId)) return privateJson({ error: "인증샷 확인 시간이 지났어요. 사진을 다시 선택해주세요." }, 410);
+    const imagePath = `${MEMBER_UPLOAD_BUCKET}/${prefix}/image.webp`;
+    // Never trust a submitted member id/status. Pending data must not increase
+    // the public certification rate. The DB's unique date index arbitrates races.
+    const { data, error } = await service.from("daily_run_records").insert({
+      user_id: owned.adminUserId, season_key: FOURTH_SEASON_KEY, participant_id: owned.participantId,
+      record_date: values.date, distance_km: values.distanceKm, duration_seconds: values.durationSeconds,
+      pace_seconds_per_km: calculatePaceSeconds(values.distanceKm, values.durationSeconds),
+      source_app: "member-upload", status: "needs_review", confidence_score: draft.confidence,
+      image_url: imagePath, raw_extracted_text: draft.rawText,
+      notes: writeCertificationReview(`개인 직접 제출 · 운영자 검수 필요\nOCR 원본: ${JSON.stringify({ date: draft.date, distanceKm: draft.distanceKm, durationSeconds: draft.durationSeconds, model: draft.model })}\n사용자 확인값: ${JSON.stringify(values)}`, { version: 1, uploadedAt: draft.createdAt, ocrDate: draft.activityDate ?? null, ocrTime: draft.activityTime ?? null }),
+    }).select("id, status").single();
+    if (error?.code === "23505") {
+      const { data: existing } = await service.from("daily_run_records").select("id, status, image_url")
+        .eq("user_id", owned.adminUserId).eq("season_key", FOURTH_SEASON_KEY).eq("participant_id", owned.participantId).eq("record_date", values.date).maybeSingle();
+      if (existing?.image_url === imagePath) return privateJson({ record: { id: existing.id, status: existing.status }, duplicate: true });
+      return privateJson({ error: "이미 해당 날짜의 기록이 있어요. 누적 활동에서 확인하고 수정이 필요하면 운영자에게 알려주세요." }, 409);
+    }
+    if (error) throw error;
+    invalidatePublicDashboardCache();
+    after(() => broadcastDashboardRefreshFromServer(service));
+    return privateJson({ record: data }, 201);
+  } catch { return privateJson({ error: "기록을 제출하지 못했어요. 입력값은 유지되며 다시 제출할 수 있어요." }, 503); }
 }

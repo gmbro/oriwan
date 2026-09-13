@@ -1,56 +1,250 @@
 "use client";
 
-import Link from "next/link";
 import dynamic from "next/dynamic";
-import { useEffect, useRef, useState } from "react";
-import { useFourthViewer } from "@/components/fourth-viewer-provider";
+import { useCallback, useEffect, useRef, useState } from "react";
+
+import type { GiftStatus } from "@/components/daily-gift-box";
+import type { CorrectiveExerciseResponse } from "@/components/corrective-exercise-application";
+import type { TimeMachineStatus } from "@/components/time-machine-goal-box";
+import { useOptionalFourthViewer } from "@/components/fourth-viewer-provider";
+import { DASHBOARD_REFRESH_DOM_EVENT } from "@/lib/dashboard-refresh-contract";
+import { createWarmRequest } from "@/lib/warm-request";
+import type { MyActivityFeatureSeed } from "@/lib/my-activity-feature-seed";
 
 const DailyFortune = dynamic(() => import("@/components/daily-fortune").then((module) => module.DailyFortune), {
-  loading: () => <div className="h-44 animate-pulse rounded-[24px] bg-slate-100" aria-label="오늘의 운세를 불러오는 중" />,
+  loading: () => <div className="h-72 animate-pulse rounded-[24px] bg-slate-100" aria-label="오늘의 운세를 불러오는 중" />,
 });
 const DailyGiftBox = dynamic(() => import("@/components/daily-gift-box").then((module) => module.DailyGiftBox), {
-  loading: () => <div className="h-56 animate-pulse rounded-[24px] bg-slate-100" aria-label="응원 상자를 불러오는 중" />,
+  loading: () => <div className="h-72 animate-pulse rounded-[24px] bg-slate-100" aria-label="응원 상자를 불러오는 중" />,
 });
 const CorrectiveExerciseApplication = dynamic(
   () => import("@/components/corrective-exercise-application").then((module) => module.CorrectiveExerciseApplication),
-  { loading: () => <div className="h-72 animate-pulse rounded-[24px] bg-slate-100" aria-label="교정운동 신청을 불러오는 중" /> },
+  { loading: () => <div className="h-72 animate-pulse rounded-[24px] bg-slate-100" aria-label="교정운동 문의를 불러오는 중" /> },
+);
+const TimeMachineGoalBox = dynamic(
+  () => import("@/components/time-machine-goal-box").then((module) => module.TimeMachineGoalBox),
+  { loading: () => <div className="h-72 animate-pulse rounded-[24px] bg-slate-100" aria-label="목표 타임머신을 불러오는 중" /> },
 );
 
-type FeatureModal = "fortune" | "gift" | "corrective" | "approval" | null;
+const preloadFortune = () => void import("@/components/daily-fortune").catch(() => undefined);
+const preloadGiftBox = () => void import("@/components/daily-gift-box").catch(() => undefined);
+const preloadCorrectiveExercise = () => void import("@/components/corrective-exercise-application").catch(() => undefined);
+const preloadTimeMachine = () => void import("@/components/time-machine-goal-box").catch(() => undefined);
 
-export function FourthDashboardMemberArea() {
-  const { viewer, loading, actionPending, error, logout } = useFourthViewer();
+type FeatureModal = "fortune" | "gift" | "corrective" | "time-machine" | null;
+
+type GiftStatusResponse = Partial<GiftStatus> & { error?: string };
+
+async function requestPersonalFeature<ResponsePayload>(
+  path: string,
+  isValid: (payload: Partial<ResponsePayload> & { error?: string }) => boolean,
+  fallbackMessage: string,
+) {
+  const response = await fetch(path, {
+    cache: "no-store",
+    credentials: "same-origin",
+  });
+  const payload = await response.json().catch(() => ({})) as Partial<ResponsePayload> & { error?: string };
+  if (!response.ok || !isValid(payload)) throw new Error(payload.error || fallbackMessage);
+  return payload as ResponsePayload;
+}
+
+export function FourthDashboardMemberArea({
+  displayName,
+  embedded = false,
+  preview = false,
+  onOpenActivity,
+}: {
+  displayName?: string;
+  embedded?: boolean;
+  preview?: boolean;
+  onOpenActivity?: (section: "fortune" | "gift" | "corrective" | "time-machine", seed?: MyActivityFeatureSeed) => void;
+} = {}) {
+  const viewerState = useOptionalFourthViewer();
+  const viewer = viewerState?.viewer ?? null;
+  const loading = viewerState?.loading ?? false;
+  const authenticated = Boolean(preview || displayName || viewer?.authenticated);
+  const connected = Boolean(preview || displayName || viewer?.approved_participant);
+  const resolvedDisplayName = displayName || viewer?.display_name || "";
   const [modal, setModal] = useState<FeatureModal>(null);
+  const [giftStatus, setGiftStatus] = useState<GiftStatus | null>(null);
+  const [giftStatusError, setGiftStatusError] = useState("");
   const dialogRef = useRef<HTMLDialogElement>(null);
   const dialogTitleRef = useRef<HTMLHeadingElement>(null);
   const lastTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const giftAvailableRef = useRef(false);
+  const giftStatusRequestRef = useRef(false);
+  const [correctiveRequest, setCorrectiveRequest] = useState<Promise<CorrectiveExerciseResponse> | null>(null);
+  const [timeMachineRequest, setTimeMachineRequest] = useState<Promise<TimeMachineStatus> | null>(null);
+  const giftAvailable = Boolean(giftStatus?.eligible || giftStatus?.claim);
+  const giftStatusLoading = connected && giftStatus === null && !giftStatusError;
+  const [correctiveCache] = useState(() => createWarmRequest(() => requestPersonalFeature<CorrectiveExerciseResponse>(
+    "/api/me/corrective-exercise",
+    payload => typeof payload.accepting_applications === "boolean" && typeof payload.participant_name === "string",
+    "교정운동 문의 정보를 불러오지 못했어요.",
+  )));
+  const [timeMachineCache] = useState(() => createWarmRequest(() => requestPersonalFeature<TimeMachineStatus>(
+    "/api/me/time-machine",
+    payload => payload.state === "empty" || payload.state === "locked" || payload.state === "opened",
+    "목표 타임머신을 불러오지 못했어요.",
+  )));
+
+  const preloadCorrectiveData = useCallback(() => {
+    if (!connected || preview) return null;
+    const request = correctiveCache.read();
+    // A warm-up failure is handled when the modal consumes the same promise.
+    void request.catch(() => undefined);
+    setCorrectiveRequest(request);
+    return request;
+  }, [connected, preview, correctiveCache, setCorrectiveRequest]);
+
+  const preloadTimeMachineData = useCallback(() => {
+    if (!connected || preview) return null;
+    const request = timeMachineCache.read();
+    void request.catch(() => undefined);
+    setTimeMachineRequest(request);
+    return request;
+  }, [connected, preview, timeMachineCache, setTimeMachineRequest]);
 
   useEffect(() => {
-    const dialog = dialogRef.current;
-    if (!viewer?.authenticated || !dialog || !modal || dialog.open) return;
-    dialog.showModal();
-    window.requestAnimationFrame(() => dialogTitleRef.current?.focus());
-  }, [modal, viewer?.authenticated]);
+    const invalidate = () => { correctiveCache.clear(); timeMachineCache.clear(); };
+    window.addEventListener(DASHBOARD_REFRESH_DOM_EVENT, invalidate);
+    return () => { invalidate(); window.removeEventListener(DASHBOARD_REFRESH_DOM_EVENT, invalidate); };
+  }, [correctiveCache, timeMachineCache]);
 
   useEffect(() => {
-    if (!viewer?.authenticated || !modal) return;
+    giftAvailableRef.current = giftAvailable;
+  }, [giftAvailable]);
+
+  useEffect(() => {
+    if (!authenticated || preview) {
+      return;
+    }
+    const preloadMemberTools = () => {
+      preloadFortune();
+      preloadTimeMachine();
+      if (connected) {
+        preloadGiftBox();
+        preloadCorrectiveExercise();
+        preloadTimeMachineData();
+        preloadCorrectiveData();
+      }
+    };
+    // The feature area only renders for a signed-in viewer, so warm its small
+    // chunks and read-only context immediately after the dashboard paints.
+    let active = true;
+    queueMicrotask(() => {
+      if (active) preloadMemberTools();
+    });
+    return () => {
+      active = false;
+    };
+  }, [authenticated, connected, preview, preloadCorrectiveData, preloadTimeMachineData]);
+
+  useEffect(() => {
+    if (connected) return;
+    queueMicrotask(() => {
+      setCorrectiveRequest(null);
+      setTimeMachineRequest(null);
+    });
+  }, [connected]);
+
+  useEffect(() => {
+    if (!connected || preview) {
+      queueMicrotask(() => setGiftStatus(null));
+      return;
+    }
+
+    const controller = new AbortController();
+    const refreshGiftStatus = async () => {
+      if (giftStatusRequestRef.current) return;
+      giftStatusRequestRef.current = true;
+      try {
+        const response = await fetch("/api/me/gift-box", {
+          cache: "no-store",
+          credentials: "same-origin",
+          signal: controller.signal,
+        });
+        const payload = await response.json().catch(() => ({})) as GiftStatusResponse;
+        if (response.ok && typeof payload.eligible === "boolean" && payload.record_date && payload.participant_name) {
+          setGiftStatus(payload as GiftStatus);
+          setGiftStatusError("");
+        } else if (response.status !== 403) {
+          setGiftStatusError(payload.error || "응원 상자 상태를 확인하지 못했어요.");
+        }
+      } catch (error) {
+        if (!(error instanceof DOMException && error.name === "AbortError")) {
+          setGiftStatusError("응원 상자 상태를 확인하지 못했어요. 잠시 후 다시 확인해주세요.");
+        }
+      } finally {
+        giftStatusRequestRef.current = false;
+      }
+    };
+
+    void refreshGiftStatus();
+    const handleFocus = () => {
+      if (!giftAvailableRef.current) void refreshGiftStatus();
+    };
+    const handleVisibility = () => {
+      if (!giftAvailableRef.current && document.visibilityState === "visible") void refreshGiftStatus();
+    };
+    window.addEventListener("focus", handleFocus);
+    window.addEventListener(DASHBOARD_REFRESH_DOM_EVENT, handleFocus);
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    return () => {
+      controller.abort();
+      window.removeEventListener("focus", handleFocus);
+      window.removeEventListener(DASHBOARD_REFRESH_DOM_EVENT, handleFocus);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, [connected, preview]);
+
+  useEffect(() => {
+    if (!authenticated || !modal) return;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
       document.body.style.overflow = previousOverflow;
     };
-  }, [modal, viewer?.authenticated]);
+  }, [authenticated, modal]);
 
   useEffect(() => {
-    if (!viewer?.authenticated || window.location.hash !== "#member-features") return;
+    if (!authenticated || embedded || window.location.hash !== "#member-features") return;
     window.requestAnimationFrame(() => {
       document.getElementById("member-features")?.scrollIntoView({ block: "start" });
     });
-  }, [viewer?.authenticated]);
+  }, [authenticated, embedded]);
 
   const openModal = (kind: Exclude<FeatureModal, null>, trigger: HTMLButtonElement) => {
+    if (onOpenActivity) {
+      onOpenActivity(kind, {
+        correctiveRequest: kind === "corrective" ? preloadCorrectiveData() ?? undefined : undefined,
+        correctiveStatus: correctiveCache.peek(),
+        timeMachineRequest: kind === "time-machine" ? preloadTimeMachineData() ?? undefined : undefined,
+        timeMachineStatus: timeMachineCache.peek(),
+        giftStatus,
+        onGiftChange: setGiftStatus,
+        onTimeMachineChange: value => setTimeMachineRequest(timeMachineCache.set(value)),
+      });
+      return;
+    }
     lastTriggerRef.current = trigger;
+    // Data warm-up already runs on pointer/focus. Repeating it here can start a
+    // second request before React commits the first promise on pointer-down.
+    if (kind === "fortune") preloadFortune();
+    if (kind === "time-machine") {
+      preloadTimeMachine();
+    }
+    if (kind === "gift") preloadGiftBox();
+    if (kind === "corrective") {
+      preloadCorrectiveExercise();
+    }
     setModal(kind);
+    // The dialog already exists in the DOM. Opening it inside the pointer event
+    // avoids waiting for a post-paint effect before the user sees feedback.
+    if (dialogRef.current && !dialogRef.current.open) dialogRef.current.showModal();
+    window.requestAnimationFrame(() => dialogTitleRef.current?.focus());
   };
 
   const closeModal = () => {
@@ -59,126 +253,121 @@ export function FourthDashboardMemberArea() {
     window.requestAnimationFrame(() => lastTriggerRef.current?.focus());
   };
 
-  const openFortune = (trigger: HTMLButtonElement) => {
-    openModal("fortune", trigger);
-  };
-
-  const openGift = (trigger: HTMLButtonElement) => {
-    if (!viewer?.approved_participant) openModal("approval", trigger);
-    else openModal("gift", trigger);
-  };
-
-  const openCorrective = (trigger: HTMLButtonElement) => {
-    if (!viewer?.approved_participant) openModal("approval", trigger);
-    else openModal("corrective", trigger);
-  };
-
   const modalTitle = modal === "fortune"
     ? "오늘의 운세"
+    : modal === "time-machine"
+      ? "100일 목표 타임머신"
     : modal === "gift"
       ? "오늘의 응원 상자"
       : modal === "corrective"
-        ? "교정운동 신청"
-        : modal === "approval"
-          ? "크루 연결 확인 중"
-          : "개인 기능";
+        ? "교정운동 문의"
+        : "개인 기능";
 
-  if (loading || !viewer?.authenticated) return null;
+  if ((!preview && loading) || !authenticated) return null;
+
+  const actions = [
+    {
+      id: "time-machine" as const,
+      icon: "⏳",
+      title: "100일 목표 타임머신",
+      description: connected
+        ? "2027년 1월 1일에 열릴 목표를 보관해요"
+        : "개인 멤버 연결 후 이용할 수 있어요",
+      disabled: !connected,
+      preload: () => {
+        preloadTimeMachine();
+        preloadTimeMachineData();
+      },
+    },
+    {
+      id: "gift" as const,
+      icon: "🎁",
+      title: "오늘의 응원 상자",
+      description: giftStatus?.claim
+        ? "오늘 받은 응원을 다시 확인해보세요"
+        : giftStatusLoading
+          ? "오늘 인증 기록을 확인하고 있어요"
+          : connected
+            ? "오늘 인증을 완료하면 열 수 있어요"
+            : "개인 멤버 연결 후 이용할 수 있어요",
+      disabled: !preview && !giftAvailable,
+      preload: preloadGiftBox,
+    },
+    {
+      id: "fortune" as const,
+      icon: "🙏",
+      title: "오늘의 운세",
+      description: "행복한 오늘의 운세를 확인해보세요",
+      disabled: false,
+      preload: preloadFortune,
+    },
+    {
+      id: "corrective" as const,
+      icon: "🏃",
+      title: "교정운동 문의",
+      description: "교정운동이 필요하거나 궁금한 내용을 문의하시면 확인 후에 답변해드립니다.",
+      disabled: !connected,
+      preload: () => {
+        preloadCorrectiveExercise();
+        preloadCorrectiveData();
+      },
+    },
+  ];
+
+  const connectionMessage = viewer?.connection_status === "revoked"
+    ? "개인 멤버 연결이 중지됐어요. 운영자에게 확인해주세요."
+    : viewer?.connection_status === "setup_required" || viewer?.connection_status === "admin_missing"
+      ? "개인 멤버 연결 설정을 준비하고 있어요. 잠시 후 다시 확인해주세요."
+      : "개인 멤버 연결을 완료하지 못했어요. 다시 확인해주세요.";
 
   return (
     <>
       <section
         id="member-features"
-        className="mx-auto mt-3 w-[calc(100%_-_var(--page-gutter)_*_2)] max-w-[1200px] scroll-mt-20 rounded-[22px] bg-white p-2 shadow-[0_10px_30px_rgba(25,31,40,0.06)] ring-1 ring-slate-950/5 sm:mt-4 sm:rounded-[26px] sm:p-4"
+        className={embedded ? "w-full" : "mx-auto mt-3 w-[var(--content-width)] scroll-mt-20 rounded-[24px] bg-white p-2 shadow-[0_10px_30px_rgba(25,31,40,0.06)] ring-1 ring-slate-950/5 sm:mt-4 sm:p-3"}
         aria-labelledby="member-features-title"
       >
-        <div className="mb-2.5 flex min-h-9 items-center justify-between gap-2 px-1 sm:mb-3">
-              <div className="min-w-0">
-                <p className="text-[10px] font-black tracking-[0.08em] text-blue-600 sm:text-[11px]">PERSONAL</p>
-                <h2 id="member-features-title" className="truncate text-[12px] font-black text-slate-900 sm:text-sm">
-                  {viewer.display_name || "카카오 사용자"}님의 개인 화면
-                </h2>
-                <p className="mt-0.5 hidden truncate text-[10px] font-bold text-slate-500 sm:block">
-                  {viewer.verified_name
-                    ? "운영자가 확인한 이름이 적용됐어요."
-                    : "카카오 이름을 사용하며 운영자가 크루 확인 이름으로 변경할 수 있어요."}
-                </p>
-              </div>
-              <div className="flex shrink-0 items-center gap-1">
-                <Link href="/me" className="inline-flex min-h-10 items-center rounded-full bg-slate-100 px-3 text-[11px] font-black text-slate-700 sm:min-h-11">
-                  내 정보
-                </Link>
-                <button
-                  type="button"
-                  disabled={actionPending}
-                  onClick={() => {
-                    closeModal();
-                    void logout();
-                  }}
-                  className="min-h-10 rounded-full px-2 text-[11px] font-black text-slate-500 transition hover:bg-slate-100 disabled:opacity-50 sm:min-h-11 sm:px-2.5"
-                >
-                  {actionPending ? "처리 중" : "로그아웃"}
-                </button>
-              </div>
+        <h2 id="member-features-title" className="sr-only">개인 기능</h2>
+        {!connected ? (
+          <div className="mb-2 flex flex-col gap-3 rounded-[18px] bg-amber-50 px-4 py-4 ring-1 ring-amber-200/80 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm font-bold leading-6 text-amber-950" role="status">{connectionMessage}</p>
+            <button
+              type="button"
+              onClick={() => void viewerState?.reload()}
+              className="min-h-11 shrink-0 rounded-2xl bg-white px-4 text-xs font-black text-amber-900 ring-1 ring-amber-200"
+            >
+              다시 확인
+            </button>
+          </div>
+        ) : null}
+        <div className={`grid grid-cols-2 gap-2 ${embedded ? "" : "sm:grid-cols-4"}`}>
+          {actions.map((action) => (
+            <button
+              key={action.id}
+              type="button"
+              disabled={action.disabled}
+              aria-label={`${action.title}. ${action.description}${action.disabled ? ". 잠김" : ""}`}
+              onPointerEnter={preview ? undefined : action.preload}
+              onPointerDown={preview ? undefined : action.preload}
+              onFocus={preview ? undefined : action.preload}
+              onClick={(event) => openModal(action.id, event.currentTarget)}
+              className="group flex min-h-[100px] min-w-0 touch-manipulation flex-col items-center justify-center gap-2 rounded-[18px] border border-slate-100 bg-slate-50 px-2 py-3 text-center hover:bg-slate-100 focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <span aria-hidden="true" className="block text-[28px] leading-none">{action.icon}</span>
+              <strong className="block break-keep text-[13px] font-black leading-5 tracking-[-0.02em] text-slate-950 sm:text-[15px]">{action.title}</strong>
+            </button>
+          ))}
         </div>
-
-        <div className="grid grid-cols-3 gap-2 sm:gap-3">
-              <button
-                type="button"
-                onClick={(event) => openFortune(event.currentTarget)}
-                className="group flex min-h-[120px] min-w-0 flex-col justify-between rounded-[18px] bg-gradient-to-br from-violet-50 to-blue-50 p-3 text-left ring-1 ring-violet-100 transition hover:-translate-y-0.5 hover:shadow-md focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-violet-400 sm:min-h-[124px] sm:rounded-[22px] sm:p-4"
-              >
-                <span className="flex w-full items-start justify-between gap-1">
-                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white text-base shadow-sm ring-1 ring-violet-100 sm:h-11 sm:w-11 sm:rounded-2xl sm:text-xl" aria-hidden="true">✨</span>
-                  <span className="text-violet-400" aria-hidden="true">›</span>
-                </span>
-                <span className="mt-2 min-w-0">
-                  <strong className="block text-[12px] font-black leading-4 text-slate-950 sm:text-[15px] sm:leading-5">오늘의 운세</strong>
-                  <small className="mt-1 block text-[11px] font-bold leading-4 text-violet-600">인증 없이 바로 확인</small>
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={(event) => openGift(event.currentTarget)}
-                className="group flex min-h-[120px] min-w-0 flex-col justify-between rounded-[18px] bg-gradient-to-br from-blue-50 to-cyan-50 p-3 text-left ring-1 ring-blue-100 transition hover:-translate-y-0.5 hover:shadow-md focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-blue-400 sm:min-h-[124px] sm:rounded-[22px] sm:p-4"
-              >
-                <span className="flex w-full items-start justify-between gap-1">
-                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white text-base shadow-sm ring-1 ring-blue-100 sm:h-11 sm:w-11 sm:rounded-2xl sm:text-xl" aria-hidden="true">🎁</span>
-                  <span className="text-blue-400" aria-hidden="true">›</span>
-                </span>
-                <span className="mt-2 min-w-0">
-                  <strong className="block text-[12px] font-black leading-4 text-slate-950 sm:text-[15px] sm:leading-5">응원 상자</strong>
-                  <small className="mt-1 block text-[11px] font-bold leading-4 text-blue-600">
-                    {viewer.approved_participant ? "오늘 인증 후 열기" : "크루 연결 후 이용"}
-                  </small>
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={(event) => openCorrective(event.currentTarget)}
-                className="group flex min-h-[120px] min-w-0 flex-col justify-between rounded-[18px] bg-gradient-to-br from-emerald-50 to-teal-50 p-3 text-left ring-1 ring-emerald-100 transition hover:-translate-y-0.5 hover:shadow-md focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 sm:min-h-[124px] sm:rounded-[22px] sm:p-4"
-              >
-                <span className="flex w-full items-start justify-between gap-1">
-                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white text-base shadow-sm ring-1 ring-emerald-100 sm:h-11 sm:w-11 sm:rounded-2xl sm:text-xl" aria-hidden="true">🧘</span>
-                  <span className="text-emerald-500" aria-hidden="true">›</span>
-                </span>
-                <span className="mt-2 min-w-0">
-                  <strong className="block text-[12px] font-black leading-4 text-slate-950 sm:text-[15px] sm:leading-5">교정운동</strong>
-                  <small className="mt-1 block text-[11px] font-bold leading-4 text-emerald-700">
-                    {viewer.approved_participant ? "가능한 날짜로 신청" : "크루 연결 후 신청"}
-                  </small>
-                </span>
-              </button>
-        </div>
-
-        {error ? <p className="mt-2 px-1 text-[10px] font-bold text-rose-600" role="status">{error}</p> : null}
+        {giftStatusError ? (
+          <p className="px-3 pb-2 pt-3 text-xs font-semibold leading-5 text-slate-500" role="status">
+            {giftStatusError}
+          </p>
+        ) : null}
       </section>
 
-      <dialog
+      {!onOpenActivity && <dialog
         ref={dialogRef}
-        className={`${modal === "corrective" ? "w-[min(720px,calc(100%_-_24px))]" : "w-[min(520px,calc(100%_-_24px))]"} m-auto max-h-[92dvh] overflow-visible rounded-[30px] bg-white p-0 text-slate-950 shadow-2xl backdrop:bg-slate-950/45 max-sm:mb-0 max-sm:w-full max-sm:max-w-none max-sm:rounded-b-none max-sm:rounded-t-[30px]`}
+        className={`${modal === "corrective" ? "w-[min(560px,calc(100%_-_24px))]" : "w-[min(520px,calc(100%_-_24px))]"} m-auto max-h-[92dvh] overflow-visible rounded-[30px] bg-white p-0 text-slate-950 shadow-2xl backdrop:bg-slate-950/45`}
         aria-labelledby="member-feature-dialog-title"
         onCancel={(event) => {
           event.preventDefault();
@@ -190,7 +379,7 @@ export function FourthDashboardMemberArea() {
         onClose={() => setModal(null)}
       >
         <div className="max-h-[92dvh] overflow-y-auto p-4 pb-[max(24px,env(safe-area-inset-bottom))] sm:p-6">
-          <div className="sticky -top-4 z-10 mb-3 flex items-center justify-between gap-4 border-b border-slate-100 bg-white/95 px-1 py-3 backdrop-blur sm:-top-6 sm:py-4">
+          <div className="sticky -top-4 z-10 mb-4 flex items-center justify-between gap-4 border-b border-slate-100 bg-white/95 px-1 py-3 backdrop-blur sm:-top-6 sm:py-4">
             <h2 id="member-feature-dialog-title" ref={dialogTitleRef} tabIndex={-1} className="text-lg font-black outline-none">
               {modalTitle}
             </h2>
@@ -204,21 +393,20 @@ export function FourthDashboardMemberArea() {
             </button>
           </div>
 
-          {modal === "fortune" ? <DailyFortune /> : null}
-          {modal === "gift" ? <div className="-mt-4"><DailyGiftBox /></div> : null}
-          {modal === "corrective" ? <CorrectiveExerciseApplication /> : null}
-          {modal === "approval" ? (
-            <div className="rounded-[26px] bg-blue-50 p-5 ring-1 ring-blue-100">
-              <span className="text-4xl" aria-hidden="true">🔗</span>
-              <h3 className="mt-3 text-lg font-black text-slate-950">운영자가 크루를 연결하고 있어요</h3>
-              <p className="mt-2 text-sm font-bold leading-6 text-slate-600">
-                운세는 지금 바로 볼 수 있어요. 운영자가 카카오 계정과 크루를 연결하면 응원 상자와 교정운동 신청도 이용할 수 있습니다.
-              </p>
-              <Link href="/me" className="mt-5 flex min-h-12 items-center justify-center rounded-2xl bg-blue-600 px-4 text-sm font-black text-white">내 연결 상태 보기</Link>
-            </div>
+          {modal === "fortune" ? <DailyFortune defaultName={resolvedDisplayName} /> : null}
+          {modal === "time-machine" ? (
+            <TimeMachineGoalBox
+              initialRequest={timeMachineRequest ?? undefined}
+              onStatusChange={(nextStatus) => {
+                const request = timeMachineCache.set(nextStatus);
+                setTimeMachineRequest(request);
+              }}
+            />
           ) : null}
+          {modal === "gift" ? <DailyGiftBox initialStatus={giftStatus} onStatusChange={setGiftStatus} /> : null}
+          {modal === "corrective" ? <CorrectiveExerciseApplication initialRequest={correctiveRequest ?? undefined} /> : null}
         </div>
-      </dialog>
+      </dialog>}
     </>
   );
 }

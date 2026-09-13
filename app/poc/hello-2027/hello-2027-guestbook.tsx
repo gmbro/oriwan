@@ -1,12 +1,21 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
 
 import { HELLO_2027_COMMENT_BODY_MAX_LENGTH } from "@/lib/hello-2027-comments-contract";
+import { removeHello2027CommentFromView, updateHello2027CommentInView } from "@/lib/hello-2027-comments-view";
+import { DASHBOARD_REFRESH_DOM_EVENT } from "@/lib/dashboard-refresh-contract";
 import type {
   Hello2027GuestbookThread,
   Hello2027Reaction,
 } from "@/lib/hello-2027-types";
+import { ConfirmationDialog } from "@/components/confirmation-dialog";
 import styles from "./hello-2027-poc.module.css";
 
 type Hello2027GuestbookProps = {
@@ -14,6 +23,9 @@ type Hello2027GuestbookProps = {
   externalViewer?: Hello2027Viewer | null;
   externalViewerManaged?: boolean;
   externalViewerLoading?: boolean;
+  management?: boolean;
+  request?: typeof fetch;
+  onMutation?: () => void;
 };
 
 type Hello2027Viewer = {
@@ -44,7 +56,20 @@ type ReactionMutationResponse = {
   error?: string;
 };
 
+type CommentDeleteResponse = {
+  ok?: boolean;
+  id?: string;
+  status?: "deleted";
+  error?: string;
+};
+
+type CommentDeleteTarget = {
+  id: string;
+  label: "댓글" | "답글";
+};
+
 const MAX_GUESTBOOK_BODY_LENGTH = HELLO_2027_COMMENT_BODY_MAX_LENGTH;
+type AuthorMode = "kakao" | "anonymous";
 
 const REACTION_OPTIONS: readonly Hello2027Reaction["emoji"][] = ["👍", "❤️", "👏", "🌱", "🏃"];
 const REACTION_NAMES: Record<Hello2027Reaction["emoji"], string> = {
@@ -66,20 +91,28 @@ function cloneThreads(threads: readonly Hello2027GuestbookThread[]): Hello2027Gu
   }));
 }
 
+const KOREAN_DATE_TIME_FORMATTER = new Intl.DateTimeFormat("ko-KR", {
+  timeZone: "Asia/Seoul",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+});
+
 function formatKoreanDateTime(value: string) {
-  return new Intl.DateTimeFormat("ko-KR", {
-    timeZone: "Asia/Seoul",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).format(new Date(value));
+  return KOREAN_DATE_TIME_FORMATTER.format(new Date(value));
 }
 
 async function readJson<T>(response: Response): Promise<T> {
   return response.json().catch(() => ({})) as Promise<T>;
+}
+
+function announceGuestbookMutation() {
+  void import("@/lib/dashboard-refresh")
+    .then(({ broadcastDashboardRefresh }) => broadcastDashboardRefresh())
+    .catch(() => undefined);
 }
 
 export function Hello2027Guestbook({
@@ -87,6 +120,9 @@ export function Hello2027Guestbook({
   externalViewer,
   externalViewerManaged = false,
   externalViewerLoading = false,
+  management = false,
+  request = fetch,
+  onMutation = announceGuestbookMutation,
 }: Hello2027GuestbookProps) {
   const [threads, setThreads] = useState<Hello2027GuestbookThread[]>(() => cloneThreads(initialThreads));
   const [draft, setDraft] = useState("");
@@ -102,14 +138,42 @@ export function Hello2027Guestbook({
   const [commentsLoading, setCommentsLoading] = useState(true);
   const [localViewerLoading, setLocalViewerLoading] = useState(!externalViewerManaged);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
+  const [authorMode, setAuthorMode] = useState<AuthorMode>("kakao");
+  const [deleteError, setDeleteError] = useState("");
+  const deleteInFlight = useRef(false);
+  const [deleteTarget, setDeleteTarget] = useState<CommentDeleteTarget | null>(null);
+  const [editTarget, setEditTarget] = useState<{ id: string; label: "댓글" | "답글"; body: string; version: string } | null>(null);
+  const [editDraft, setEditDraft] = useState("");
+  const [editError, setEditError] = useState("");
+  const commentsReadVersion = useRef(0);
+  const guestbookSectionRef = useRef<HTMLElement | null>(null);
   const replyTriggerRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const deleteTriggerRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const removedCommentIdsRef = useRef<Set<string>>(new Set());
   const commentsLocked = !commentsLive;
   const viewerLoading = externalViewerManaged ? externalViewerLoading : localViewerLoading;
+  const canWrite = Boolean(
+    commentsLive
+    && viewer?.authenticated
+    && (authorMode === "anonymous" || viewer.display_name),
+  );
+
+  const closeDeleteDialog = useCallback(() => {
+    const targetId = deleteTarget?.id;
+    setDeleteTarget(null);
+    setDeleteError("");
+    if (targetId) {
+      window.requestAnimationFrame(() => deleteTriggerRefs.current[targetId]?.focus());
+    }
+  }, [deleteTarget]);
 
   useEffect(() => {
     let active = true;
+    let inFlight = false;
+    let queued = false;
+    let controller: AbortController | null = null;
     if (!externalViewerManaged) {
-      void fetch("/api/hello-2027/viewer", { cache: "no-store" })
+      void request("/api/hello-2027/viewer", { cache: "no-store" })
         .then(async (response) => {
           if (!response.ok) return null;
           return response.json() as Promise<Hello2027Viewer>;
@@ -129,39 +193,95 @@ export function Hello2027Guestbook({
           if (active) setLocalViewerLoading(false);
         });
     }
-    void fetch("/api/hello-2027/comments", { cache: "no-store" })
-      .then(async (response) => {
-        const payload = await readJson<CommentsReadResponse>(response);
-        if (!active) return;
-        if (response.ok && payload.live && Array.isArray(payload.threads)) {
-          setThreads(cloneThreads(payload.threads));
-          setCommentsLive(true);
-        } else {
-          setThreads([]);
-          setCommentsLive(false);
-        }
-      })
-      .catch(() => {
-        if (active) {
-          setThreads([]);
-          setCommentsLive(false);
-        }
-      })
-      .finally(() => {
-        if (active) setCommentsLoading(false);
-      });
+    const refreshComments = () => {
+      if (!active) return;
+      if (inFlight) { queued = true; return; }
+      inFlight = true;
+      controller = new AbortController();
+      const timeout = window.setTimeout(() => controller?.abort(), 10_000);
+      const readVersion = ++commentsReadVersion.current;
+      void request("/api/hello-2027/comments", { cache: "no-store", signal: controller.signal })
+        .then(async (response) => {
+          const payload = await readJson<CommentsReadResponse>(response);
+          if (!active || readVersion !== commentsReadVersion.current) return;
+          if (response.ok && payload.live && Array.isArray(payload.threads)) {
+            const refreshedThreads = Array.from(removedCommentIdsRef.current).reduce(
+              (current, removedId) => removeHello2027CommentFromView(current, removedId),
+              cloneThreads(payload.threads),
+            );
+            setThreads(refreshedThreads);
+            setCommentsLive(true);
+            setAnnouncement("");
+          } else {
+            setCommentsLive(false);
+            if (payload.error) setAnnouncement(payload.error);
+          }
+        })
+        .catch(() => {
+          if (active && readVersion === commentsReadVersion.current) {
+            setAnnouncement("댓글을 불러오지 못했어요. 네트워크를 확인한 뒤 다시 시도해주세요.");
+          }
+        })
+        .finally(() => {
+          window.clearTimeout(timeout);
+          controller = null;
+          inFlight = false;
+          if (active && readVersion === commentsReadVersion.current) setCommentsLoading(false);
+          if (active && queued) { queued = false; refreshComments(); }
+        });
+    };
+    refreshComments();
+    window.addEventListener(DASHBOARD_REFRESH_DOM_EVENT, refreshComments);
     return () => {
       active = false;
+      controller?.abort();
+      window.removeEventListener(DASHBOARD_REFRESH_DOM_EVENT, refreshComments);
     };
-  }, [externalViewerManaged, initialThreads]);
+  }, [externalViewerManaged, externalViewer?.authenticated, externalViewer?.display_name, request]);
+
+  const startEdit = (comment: Hello2027GuestbookThread | Hello2027GuestbookThread["replies"][number], label: "댓글" | "답글") => {
+    setEditTarget({ id: comment.id, label, body: comment.body, version: comment.updatedAt ?? comment.createdAt });
+    setEditDraft(comment.body);
+    setEditError("");
+    requestAnimationFrame(() => document.getElementById(`comment-edit-${comment.id}`)?.focus());
+  };
+
+  const saveEdit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!editTarget || pendingAction || commentsLocked || !viewer?.authenticated) return;
+    const target = editTarget;
+    const body = editDraft.trim();
+    if (!body || body.length > MAX_GUESTBOOK_BODY_LENGTH) { setEditError("수정할 내용을 150자 이내로 입력해주세요."); return; }
+    setPendingAction(`edit:${target.id}`); setEditError("");
+    try {
+      const response = await request("/api/hello-2027/comments", {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: target.id, body, expected_updated_at: target.version }),
+      });
+      const payload = await readJson<CommentMutationResponse>(response);
+      if (!response.ok || payload.comment?.id !== target.id) throw new Error(payload.error || "수정하지 못했어요.");
+      // Ignore any GET begun before this confirmed edit. Never replace the whole
+      // thread with the PATCH response: replies/reactions are independently owned.
+      ++commentsReadVersion.current;
+      setThreads(current => updateHello2027CommentInView(current, payload.comment!));
+      setEditTarget(null); setEditDraft("");
+      setAnnouncement(`${target.label}을 수정했어요.`);
+      onMutation();
+    } catch (error) { setEditError(error instanceof Error ? error.message : "수정하지 못했어요."); }
+    finally { setPendingAction(null); }
+  };
 
   const submitThread = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (commentsLocked) {
-      setValidationMessage("정식 오픈 후 댓글을 남길 수 있어요.");
+      setValidationMessage("댓글 기능을 잠시 점검하고 있어요.");
       return;
     }
-    if (viewer?.authenticated && !viewer.display_name) {
+    if (!viewer?.authenticated) {
+      setValidationMessage("댓글은 카카오 로그인 후 남길 수 있어요.");
+      return;
+    }
+    if (authorMode === "kakao" && !viewer.display_name) {
       setValidationMessage("카카오 이름을 확인하지 못했어요. 다시 로그인하거나 운영자에게 문의해주세요.");
       return;
     }
@@ -177,21 +297,27 @@ export function Hello2027Guestbook({
 
     setPendingAction("thread:create");
     try {
-      const response = await fetch("/api/hello-2027/comments", {
+      const response = await request("/api/hello-2027/comments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ body }),
+        body: JSON.stringify({ body, author_mode: authorMode }),
       });
       const payload = await readJson<CommentMutationResponse>(response);
       if (!response.ok || !payload.comment || !("replies" in payload.comment)) {
         throw new Error(payload.error || "댓글을 저장하지 못했어요.");
       }
-      setThreads((current) => [payload.comment as Hello2027GuestbookThread, ...current]);
+      // The POST response intentionally does not expose actor_key; the current
+      // authenticated creator can safely receive the local ownership affordance.
+      setThreads((current) => [{
+        ...(payload.comment as Hello2027GuestbookThread),
+        ownedByViewer: true,
+      }, ...current]);
       setDraft("");
       setValidationMessage("");
-      setAnnouncement(viewer?.authenticated
-        ? `${viewer.display_name} 이름으로 이야기를 남겼어요.`
-        : "랜덤 닉네임으로 이야기를 남겼어요.");
+      setAnnouncement(authorMode === "anonymous"
+        ? "익명으로 이야기를 남겼어요."
+        : `${viewer.display_name} 이름으로 이야기를 남겼어요.`);
+      onMutation();
     } catch (error) {
       setValidationMessage(error instanceof Error ? error.message : "댓글을 저장하지 못했어요.");
     } finally {
@@ -213,10 +339,14 @@ export function Hello2027Guestbook({
   const submitReply = async (event: FormEvent<HTMLFormElement>, threadId: string) => {
     event.preventDefault();
     if (commentsLocked) {
-      setAnnouncement("정식 오픈 후 답글을 남길 수 있어요.");
+      setAnnouncement("댓글 기능을 잠시 점검하고 있어요.");
       return;
     }
-    if (viewer?.authenticated && !viewer.display_name) {
+    if (!viewer?.authenticated) {
+      setAnnouncement("답글은 카카오 로그인 후 남길 수 있어요.");
+      return;
+    }
+    if (authorMode === "kakao" && !viewer.display_name) {
       setAnnouncement("카카오 이름을 확인하지 못했어요. 다시 로그인하거나 운영자에게 문의해주세요.");
       return;
     }
@@ -232,12 +362,13 @@ export function Hello2027Guestbook({
 
     setPendingAction(`reply:${threadId}`);
     try {
-      const response = await fetch("/api/hello-2027/comments", {
+      const response = await request("/api/hello-2027/comments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           body,
           parent_id: threadId,
+          author_mode: authorMode,
         }),
       });
       const payload = await readJson<CommentMutationResponse>(response);
@@ -245,14 +376,21 @@ export function Hello2027Guestbook({
         throw new Error(payload.error || "답글을 저장하지 못했어요.");
       }
       setThreads((current) => current.map((thread) => thread.id === threadId
-        ? { ...thread, replies: [...thread.replies, payload.comment!] }
+        ? {
+          ...thread,
+          replies: [...thread.replies, {
+            ...(payload.comment as Hello2027GuestbookThread["replies"][number]),
+            ownedByViewer: true,
+          }],
+        }
         : thread));
       setReplyDrafts((current) => ({ ...current, [threadId]: "" }));
       setExpandedThreadIds((current) => new Set(current).add(threadId));
       setReplyTargetId(null);
-      setAnnouncement(viewer?.authenticated
-        ? `${viewer.display_name} 이름으로 답글을 남겼어요.`
-        : "랜덤 닉네임으로 답글을 남겼어요.");
+      setAnnouncement(authorMode === "anonymous"
+        ? "익명으로 답글을 남겼어요."
+        : `${viewer.display_name} 이름으로 답글을 남겼어요.`);
+      onMutation();
     } catch (error) {
       setAnnouncement(error instanceof Error ? error.message : "답글을 저장하지 못했어요.");
     } finally {
@@ -261,11 +399,14 @@ export function Hello2027Guestbook({
   };
 
   const reactToComment = async (commentId: string, emoji: Hello2027Reaction["emoji"]) => {
-    if (commentsLocked) return;
+    if (commentsLocked || !viewer?.authenticated) {
+      setAnnouncement("댓글 반응은 카카오 로그인 후 남길 수 있어요.");
+      return;
+    }
     setPendingAction(`reaction:${commentId}`);
     setReactionPickerId(null);
     try {
-      const response = await fetch("/api/hello-2027/comments/reactions", {
+      const response = await request("/api/hello-2027/comments/reactions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ comment_id: commentId, emoji }),
@@ -284,6 +425,7 @@ export function Hello2027Guestbook({
         };
       }));
       setAnnouncement(`${REACTION_NAMES[emoji]} 반응을 업데이트했어요.`);
+      onMutation();
     } catch (error) {
       setAnnouncement(error instanceof Error ? error.message : "반응을 저장하지 못했어요.");
     } finally {
@@ -302,11 +444,60 @@ export function Hello2027Guestbook({
     void reactToComment(replyId, emoji);
   };
 
+  const deleteComment = async () => {
+    if (!deleteTarget || pendingAction || deleteInFlight.current) return;
+    deleteInFlight.current = true;
+    setDeleteError("");
+    const { id, label } = deleteTarget;
+
+    // Keep the dialog open until the server confirms deletion.
+    setPendingAction(`delete:${id}`);
+
+    setReplyTargetId((current) => current === id ? null : current);
+    setReactionPickerId((current) => current?.endsWith(`:${id}`) ? null : current);
+    setAnnouncement(`${label}을 삭제하고 있어요.`);
+
+    try {
+      const response = await request("/api/hello-2027/comments", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      const payload = await readJson<CommentDeleteResponse>(response);
+      if (!response.ok || !payload.ok || payload.id !== id) {
+        throw new Error(payload.error || `${label}을 삭제하지 못했어요.`);
+      }
+      removedCommentIdsRef.current.add(id);
+      setThreads((current) => removeHello2027CommentFromView(current, id));
+      closeDeleteDialog();
+      setAnnouncement(`${label}을 삭제했어요.`);
+      window.requestAnimationFrame(() => guestbookSectionRef.current?.focus({ preventScroll: true }));
+      onMutation();
+    } catch (error) {
+      removedCommentIdsRef.current.delete(id);
+      const message = error instanceof Error ? error.message : `${label}을 삭제하지 못했어요.`;
+      setDeleteError(message);
+      setAnnouncement(message);
+    } finally {
+      deleteInFlight.current = false;
+      setPendingAction(null);
+    }
+  };
+
   return (
-    <section id="guestbook" className={styles.guestbookSection} aria-labelledby="guestbook-title">
+    <section
+      ref={guestbookSectionRef}
+      id={management ? "managed-guestbook" : "guestbook"}
+      style={management ? { width: "100%", margin: 0 } : undefined}
+      className={styles.guestbookSection}
+      aria-labelledby={management ? "managed-guestbook-title" : "guestbook-title"}
+      tabIndex={-1}
+    >
       <div className={styles.guestbookHeading}>
-        <h2 id="guestbook-title">댓글</h2>
-        <p>문의사항이나 하고 싶은 이야기 떠들어재끼기</p>
+        <h2 id={management ? "managed-guestbook-title" : "guestbook-title"}>댓글</h2>
+        {!viewerLoading && !viewer?.authenticated ? (
+          <p className={styles.loginPromptTitle}>로그인해야 댓글을 남길 수 있어요</p>
+        ) : null}
       </div>
 
       {commentsLoading ? (
@@ -315,34 +506,52 @@ export function Hello2027Guestbook({
         </p>
       ) : null}
 
-      <form className={styles.guestbookComposer} onSubmit={submitThread} aria-describedby="guestbook-help guestbook-error">
-        <CommentIdentity viewer={viewer} />
-        <label className={styles.bodyLabel} htmlFor="guestbook-body">하고 싶은 이야기</label>
-        <textarea
-          id="guestbook-body"
-          value={draft}
-          maxLength={MAX_GUESTBOOK_BODY_LENGTH}
-          required
-          disabled={commentsLocked || viewerLoading || Boolean(pendingAction)}
-          placeholder={commentsLocked ? "정식 오픈 후 댓글을 남길 수 있어요." : "오늘의 느낌이나 궁금한 점을 적어주세요."}
-          onChange={(event) => {
-            setDraft(event.target.value);
-            if (validationMessage) setValidationMessage("");
-          }}
-        />
-        <div className={styles.composerFooter}>
-          <div>
-            <p id="guestbook-help">{commentsLocked ? "현재 입력 기능은 잠겨 있어요." : viewerLoading ? "로그인 상태를 확인하고 있어요." : "카카오 로그인 시 카카오 프로필 이름 또는 운영자 확인 이름, 미로그인 시 서버가 만든 랜덤 익명 닉네임으로 표시됩니다."}</p>
-            <p id="guestbook-error" className={styles.formError}>{validationMessage}</p>
+      {viewerLoading ? (
+        <p className={styles.guestbookAnnouncement} role="status">로그인 상태를 확인하고 있어요.</p>
+      ) : viewer?.authenticated ? (
+        <form className={styles.guestbookComposer} onSubmit={submitThread} aria-describedby={validationMessage ? "guestbook-help guestbook-error" : "guestbook-help"}>
+          <label className={styles.bodyLabel} htmlFor="guestbook-body">내용</label>
+          <textarea
+            id="guestbook-body"
+            value={draft}
+            maxLength={MAX_GUESTBOOK_BODY_LENGTH}
+            required
+            disabled={!canWrite || Boolean(pendingAction)}
+            placeholder={commentsLocked
+              ? commentsLoading ? "댓글을 불러오고 있어요." : "댓글 연결 상태를 확인해주세요."
+              : "기록 수정, 광고 배너 문의 및 오류 제보, 하고 싶은 말 모두 자유롭게 써주세요"}
+            onChange={(event) => {
+              setDraft(event.target.value);
+              if (validationMessage) setValidationMessage("");
+            }}
+          />
+          <div className={styles.composerFooter}>
+            <div>
+              <p id="guestbook-help">
+                {commentsLocked
+                  ? "현재 입력 기능을 점검하고 있어요."
+                  : authorMode === "anonymous"
+                    ? "다른 사람에게는 ‘익명’으로 보여요. 안전한 운영과 남용 방지를 위한 계정 연결만 유지합니다."
+                    : `${viewer.display_name} 이름으로 보여요.`}
+              </p>
+              {validationMessage ? <p id="guestbook-error" className={styles.formError} role="alert">{validationMessage}</p> : null}
+            </div>
+            <span>{draft.length}/{MAX_GUESTBOOK_BODY_LENGTH}</span>
+            <div className={styles.composerActions}>
+              <AnonymousChoice value={authorMode} onChange={setAuthorMode} disabled={Boolean(pendingAction)} />
+              <button type="submit" disabled={!canWrite || Boolean(pendingAction)}>
+                {commentsLoading ? "불러오는 중…" : commentsLocked ? "연결 확인 필요" : pendingAction === "thread:create" ? "남기는 중" : "댓글 남기기"}
+              </button>
+            </div>
           </div>
-          <span>{draft.length}/{MAX_GUESTBOOK_BODY_LENGTH}</span>
-          <button type="submit" disabled={commentsLocked || viewerLoading || Boolean(pendingAction) || Boolean(viewer?.authenticated && !viewer.display_name)}>
-            {commentsLocked ? "오픈 준비 중" : viewerLoading ? "확인 중" : pendingAction === "thread:create" ? "남기는 중" : viewer?.authenticated ? viewer.verified_name ? "확인 이름으로 남기기" : "카카오 이름으로 남기기" : "익명으로 남기기"}
-          </button>
-        </div>
-      </form>
+        </form>
+      ) : null}
 
-      <p className={styles.guestbookAnnouncement} role="status" aria-live="polite">{announcement}</p>
+      {announcement ? <p className={styles.guestbookAnnouncement} role="status" aria-live="polite">{announcement}</p> : null}
+
+      {!commentsLoading && commentsLive && threads.length === 0 ? (
+        <p className={styles.guestbookEmpty}>아직 댓글이 없어요</p>
+      ) : null}
 
       <ol className={styles.threadList}>
         {threads.map((thread) => {
@@ -352,31 +561,45 @@ export function Hello2027Guestbook({
               <article className={styles.threadCard}>
                 <div className={styles.commentMeta}>
                   <strong>{thread.author}</strong>
-                  <time dateTime={thread.createdAt}>{formatKoreanDateTime(thread.createdAt)}</time>
+                  <CommentTimestamp createdAt={thread.createdAt} updatedAt={thread.updatedAt} />
                 </div>
-                <p className={styles.threadBody}>{thread.body}</p>
+                {editTarget?.id === thread.id ? <CommentEditor id={thread.id} label="댓글" draft={editDraft} onChange={setEditDraft} onCancel={() => setEditTarget(null)} onSubmit={saveEdit} error={editError} busy={Boolean(pendingAction)} unchanged={editDraft.trim() === editTarget.body} /> : <p className={styles.threadBody}>{thread.body}</p>}
                 <ReactionBar
                   reactions={thread.reactions}
                   pickerOpen={reactionPickerId === `thread:${thread.id}`}
-                  disabled={commentsLocked || Boolean(pendingAction)}
+                  disabled={commentsLocked || !viewer?.authenticated || Boolean(pendingAction)}
                   onTogglePicker={() => setReactionPickerId((current) => current === `thread:${thread.id}` ? null : `thread:${thread.id}`)}
                   onReact={(emoji) => reactToThread(thread.id, emoji)}
                 />
 
                 <div className={styles.threadActions}>
-                  <button
-                    ref={(node) => { replyTriggerRefs.current[thread.id] = node; }}
-                    type="button"
-                    disabled={commentsLocked || viewerLoading || Boolean(pendingAction)}
-                    onClick={() => openReplyForm(thread.id)}
-                  >
-                    답글 달기
-                  </button>
+                  {viewer?.authenticated ? (
+                    <button
+                      ref={(node) => { replyTriggerRefs.current[thread.id] = node; }}
+                      type="button"
+                      disabled={commentsLocked || viewerLoading || Boolean(pendingAction)}
+                      onClick={() => openReplyForm(thread.id)}
+                    >
+                      답글 달기
+                    </button>
+                  ) : null}
+                  {thread.ownedByViewer && viewer?.authenticated ? (<>
+                    <button type="button" aria-label="내 댓글 수정" disabled={commentsLocked || Boolean(pendingAction) || Boolean(editTarget)} onClick={() => startEdit(thread, "댓글")}>수정</button>
+                    <button
+                      ref={(node) => { deleteTriggerRefs.current[thread.id] = node; }}
+                      className={styles.commentDeleteButton}
+                      type="button"
+                      disabled={commentsLocked || Boolean(pendingAction)}
+                      onClick={() => setDeleteTarget({ id: thread.id, label: "댓글" })}
+                    >
+                      삭제
+                    </button>
+                  </>) : null}
                   {thread.replies.length > 0 ? (
                     <button
                       type="button"
                       aria-expanded={expanded}
-                      aria-controls={`replies-${thread.id}`}
+                      aria-controls={`${management ? "managed-" : ""}replies-${thread.id}`}
                       onClick={() => setExpandedThreadIds((current) => {
                         const next = new Set(current);
                         if (next.has(thread.id)) next.delete(thread.id);
@@ -389,44 +612,58 @@ export function Hello2027Guestbook({
                   ) : null}
                 </div>
 
-                {replyTargetId === thread.id ? (
+                {viewer?.authenticated && replyTargetId === thread.id ? (
                   <form className={styles.replyComposer} onSubmit={(event) => submitReply(event, thread.id)}>
-                    <CommentIdentity viewer={viewer} compact />
                     <label className={styles.bodyLabel} htmlFor={`reply-body-${thread.id}`}>답글</label>
                     <textarea
                       id={`reply-body-${thread.id}`}
                       value={replyDrafts[thread.id] ?? ""}
                       maxLength={MAX_GUESTBOOK_BODY_LENGTH}
                       required
-                      disabled={viewerLoading || Boolean(pendingAction)}
+                      disabled={!canWrite || Boolean(pendingAction)}
                       placeholder="답글을 입력해주세요."
                       onChange={(event) => setReplyDrafts((current) => ({ ...current, [thread.id]: event.target.value }))}
                     />
                     <div className={styles.replyFooter}>
                       <span>{(replyDrafts[thread.id] ?? "").length}/{MAX_GUESTBOOK_BODY_LENGTH}</span>
+                      <AnonymousChoice value={authorMode} onChange={setAuthorMode} disabled={Boolean(pendingAction)} />
                       <button type="button" disabled={Boolean(pendingAction)} onClick={() => closeReplyForm(thread.id)}>취소</button>
-                      <button type="submit" disabled={viewerLoading || Boolean(pendingAction) || Boolean(viewer?.authenticated && !viewer.display_name)}>
+                      <button type="submit" disabled={!canWrite || Boolean(pendingAction)}>
                         {pendingAction === `reply:${thread.id}` ? "남기는 중" : "답글 남기기"}
                       </button>
                     </div>
                   </form>
                 ) : null}
 
-                <ul id={`replies-${thread.id}`} className={styles.replyList} hidden={!expanded}>
+                <ul id={`${management ? "managed-" : ""}replies-${thread.id}`} className={styles.replyList} hidden={!expanded}>
                   {thread.replies.map((reply) => (
                     <li key={reply.id}>
                       <div className={styles.commentMeta}>
                         <strong>{reply.author}</strong>
-                        <time dateTime={reply.createdAt}>{formatKoreanDateTime(reply.createdAt)}</time>
+                        <CommentTimestamp createdAt={reply.createdAt} updatedAt={reply.updatedAt} />
                       </div>
-                      <p>{reply.body}</p>
+                      {editTarget?.id === reply.id ? <CommentEditor id={reply.id} label="답글" draft={editDraft} onChange={setEditDraft} onCancel={() => setEditTarget(null)} onSubmit={saveEdit} error={editError} busy={Boolean(pendingAction)} unchanged={editDraft.trim() === editTarget.body} /> : <p>{reply.body}</p>}
                       <ReactionBar
                         reactions={reply.reactions}
                         pickerOpen={reactionPickerId === `reply:${reply.id}`}
-                        disabled={commentsLocked || Boolean(pendingAction)}
+                        disabled={commentsLocked || !viewer?.authenticated || Boolean(pendingAction)}
                         onTogglePicker={() => setReactionPickerId((current) => current === `reply:${reply.id}` ? null : `reply:${reply.id}`)}
                         onReact={(emoji) => reactToReply(reply.id, emoji)}
                       />
+                      {reply.ownedByViewer && viewer?.authenticated ? (
+                        <div className={styles.replyActions}>
+                          <button type="button" aria-label="내 답글 수정" disabled={commentsLocked || Boolean(pendingAction) || Boolean(editTarget)} onClick={() => startEdit(reply, "답글")}>수정</button>
+                          <button
+                            ref={(node) => { deleteTriggerRefs.current[reply.id] = node; }}
+                            className={styles.commentDeleteButton}
+                            type="button"
+                            disabled={commentsLocked || Boolean(pendingAction)}
+                            onClick={() => setDeleteTarget({ id: reply.id, label: "답글" })}
+                          >
+                            삭제
+                          </button>
+                        </div>
+                      ) : null}
                     </li>
                   ))}
                 </ul>
@@ -435,8 +672,42 @@ export function Hello2027Guestbook({
           );
         })}
       </ol>
+
+      {deleteTarget && <ConfirmationDialog
+        title={`${deleteTarget.label}을 삭제할까요?`}
+        description="삭제한 뒤에는 되돌릴 수 없어요."
+        busy={Boolean(pendingAction)}
+        onCancel={closeDeleteDialog}
+        onConfirm={() => void deleteComment()}
+      >
+        {deleteError && <p role="alert">{deleteError}</p>}
+      </ConfirmationDialog>}
     </section>
   );
+}
+
+function CommentTimestamp({ createdAt, updatedAt }: { createdAt: string; updatedAt?: string }) {
+  return <div className={styles.commentTimestamps}>
+    {updatedAt && Date.parse(updatedAt) > Date.parse(createdAt)
+      ? <time dateTime={updatedAt}>수정 {formatKoreanDateTime(updatedAt)}</time>
+      : <time dateTime={createdAt}>{formatKoreanDateTime(createdAt)}</time>}
+  </div>;
+}
+
+function CommentEditor({ id, label, draft, onChange, onCancel, onSubmit, error, busy, unchanged }: {
+  id: string; label: string; draft: string; onChange: (value: string) => void; onCancel: () => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void; error: string; busy: boolean; unchanged: boolean;
+}) {
+  return <form className={styles.replyComposer} onSubmit={onSubmit}>
+    <label className={styles.bodyLabel} htmlFor={`comment-edit-${id}`}>{label} 수정</label>
+    <textarea id={`comment-edit-${id}`} value={draft} onChange={event => onChange(event.target.value)} maxLength={MAX_GUESTBOOK_BODY_LENGTH} required disabled={busy} />
+    {error && <p className={styles.formError} role="alert">{error}</p>}
+    <div className={styles.replyFooter}>
+      <span>{draft.length}/{MAX_GUESTBOOK_BODY_LENGTH}</span>
+      <button type="button" disabled={busy} onClick={onCancel}>취소</button>
+      <button type="submit" disabled={busy || unchanged || !draft.trim()}>{busy ? "저장 중…" : "저장"}</button>
+    </div>
+  </form>;
 }
 
 type ReactionBarProps = {
@@ -488,17 +759,20 @@ function ReactionBar({ reactions, pickerOpen, disabled = false, onTogglePicker, 
   );
 }
 
-function CommentIdentity({ viewer, compact = false }: { viewer: Hello2027Viewer | null; compact?: boolean }) {
-  if (!viewer?.authenticated) return null;
-
-  const hasKakaoName = Boolean(viewer?.authenticated && viewer.display_name);
+function AnonymousChoice({
+  value,
+  onChange,
+  disabled = false,
+}: {
+  value: AuthorMode;
+  onChange: (value: AuthorMode) => void;
+  disabled?: boolean;
+}) {
   return (
-    <div className={`${styles.commentIdentity} ${compact ? styles.commentIdentityCompact : ""}`}>
-      <p>
-        {hasKakaoName
-          ? <><strong>{viewer?.display_name}</strong> 이름으로 작성됩니다.{viewer?.verified_name ? " 운영자가 크루 명단과 대조한 표시 이름입니다." : " 운영자가 이후 확인 이름으로 변경할 수 있어요."}</>
-          : <>카카오 이름을 확인하고 있어요.</>}
-      </p>
-    </div>
+    <label className={styles.anonymousChoice}>
+      <input type="checkbox" checked={value === "anonymous"} disabled={disabled}
+        onChange={(event) => onChange(event.target.checked ? "anonymous" : "kakao")} />
+      <span>익명으로 남기기</span>
+    </label>
   );
 }

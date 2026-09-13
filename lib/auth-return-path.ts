@@ -1,6 +1,6 @@
 const AUTH_RETURN_PATHS = new Set(["/", "/4th", "/4th/dashboard", "/me"]);
 const UNSAFE_PATH_CHARACTERS = /[\\\u0000-\u001f\u007f]/;
-type AuthReturnFallback = "/" | "/4th" | "/4th/dashboard" | "/4th/dashboard#member-features" | "/me";
+type AuthReturnFallback = "/" | "/4th" | "/4th/dashboard" | "/4th/dashboard#member-features" | "/4th/dashboard#my-activity" | "/4th/dashboard#guestbook" | "/me";
 
 /**
  * OAuth 복귀 위치는 제품에서 실제로 쓰는 내부 화면만 허용합니다.
@@ -21,8 +21,14 @@ export function getSafeAuthReturnPath(
       return fallback;
     }
 
-    const allowedHash = target.hash === "" || (target.pathname === "/4th/dashboard" && target.hash === "#member-features");
-    return allowedHash ? `${target.pathname}${target.hash}` : fallback;
+    const allowedHash = target.hash === ""
+      || (target.pathname === "/4th/dashboard" && ["#member-features", "#my-activity", "#guestbook"].includes(target.hash));
+    if (!allowedHash) return fallback;
+    // Old login links/cookies must no longer open My Info after OAuth.
+    if (target.pathname === "/4th/dashboard" && ["#member-features", "#my-activity"].includes(target.hash)) {
+      return target.pathname;
+    }
+    return `${target.pathname}${target.hash}`;
   } catch {
     return fallback;
   }

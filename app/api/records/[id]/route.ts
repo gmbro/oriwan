@@ -1,7 +1,8 @@
+import { readCertificationReview, reviewCertification, visibleCertificationNotes, writeCertificationReview } from "@/lib/certification-review";
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminDataAccess } from "@/lib/admin-data-access";
 import { calculatePaceSeconds } from "@/lib/run-records";
-import { guardMutationRequest } from "@/lib/request-security";
+import { guardMutationRequest, readLimitedJson } from "@/lib/request-security";
 import { invalidatePublicDashboardCache } from "@/lib/public-dashboard-data";
 import {
   FOURTH_PERSONAL_RECORD_DATE_ERROR,
@@ -47,7 +48,9 @@ export async function PATCH(
   if (!UUID_PATTERN.test(id)) {
     return NextResponse.json({ error: "수정할 기록을 다시 선택해주세요." }, { status: 400 });
   }
-  const body = await request.json().catch(() => ({}));
+  const parsedBody = await readLimitedJson(request, 256 * 1024);
+  if (!parsedBody.ok) return parsedBody.response;
+  const body = parsedBody.value;
   const patch: Record<string, string | number | null> = {};
 
   if (typeof body.participant_id === "string") patch.participant_id = body.participant_id;
@@ -57,13 +60,23 @@ export async function PATCH(
   }
   if ("distance_km" in body) patch.distance_km = sanitizeNumber(body.distance_km);
   if ("duration_seconds" in body) patch.duration_seconds = sanitizeInteger(body.duration_seconds);
-  if ("source_app" in body) patch.source_app = body.source_app || null;
+  if ("source_app" in body) {
+    if (body.source_app !== null && (typeof body.source_app !== "string" || body.source_app.length > 200)) {
+      return NextResponse.json({ error: "앱 이름은 200자 이내로 입력해주세요." }, { status: 400 });
+    }
+    patch.source_app = body.source_app || null;
+  }
   if ("status" in body) {
     const status = sanitizeStatus(body.status);
     if (!status) return NextResponse.json({ error: "기록 상태값을 다시 확인해주세요." }, { status: 400 });
     patch.status = status;
   }
-  if ("notes" in body) patch.notes = body.notes || null;
+  if ("notes" in body) {
+    if (body.notes !== null && (typeof body.notes !== "string" || body.notes.length > 4_000)) {
+      return NextResponse.json({ error: "메모는 4,000자 이내로 입력해주세요." }, { status: 400 });
+    }
+    patch.notes = body.notes || null;
+  }
 
   if (typeof patch.participant_id === "string") {
     const { data: participant, error: participantError } = await supabase
@@ -94,12 +107,46 @@ export async function PATCH(
     patch.pace_seconds_per_km = calculatePaceSeconds(distanceKm, durationSeconds);
   }
 
-  const { error } = await supabase
-    .from("daily_run_records")
-    .update(patch)
-    .eq("id", id)
-    .eq("user_id", user.id)
-    .eq("season_key", FOURTH_SEASON_KEY);
+  const { data: existing, error: readError } = await supabase.from("daily_run_records")
+    .select("id, status, participant_id, record_date, image_url, notes, distance_km, duration_seconds")
+    .eq("id", id).eq("user_id", user.id).eq("season_key", FOURTH_SEASON_KEY).maybeSingle();
+  if (readError) return NextResponse.json({ error: "현재 기록을 확인하지 못했어요." }, { status: 500 });
+  if (!existing) return NextResponse.json({ error: "기록을 찾을 수 없어요." }, { status: 404 });
+  const identityChanged = (typeof patch.record_date === "string" && patch.record_date !== existing.record_date)
+    || (typeof patch.participant_id === "string" && patch.participant_id !== existing.participant_id);
+  const storedReview = readCertificationReview(existing.notes);
+  const humanNotes = "notes" in patch ? visibleCertificationNotes(patch.notes as string | null) : visibleCertificationNotes(existing.notes);
+  const requiresApproval = patch.status === "certified" && (existing.status !== "certified" || identityChanged);
+  if (requiresApproval) {
+    const approval = body.approval && typeof body.approval === "object" ? body.approval as Record<string, unknown> : {};
+    if (approval.expectedImageUrl !== existing.image_url || approval.expectedNotes !== existing.notes) {
+      return NextResponse.json({ error: "인증샷이나 기록이 변경됐어요. 새로고침 후 다시 확인해주세요." }, { status: 409 });
+    }
+    const participantId = typeof patch.participant_id === "string" ? patch.participant_id : existing.participant_id;
+    const distance = distanceProvided ? distanceKm : existing.distance_km;
+    const duration = durationProvided ? durationSeconds : existing.duration_seconds;
+    if (!participantId || !((distance && distance > 0) || (duration && duration > 0)) || (distance !== null && (distance < 0 || distance > 300)) || (duration !== null && (duration < 0 || duration > 172800))) {
+      return NextResponse.json({ error: "멤버와 거리·시간을 먼저 확인해 저장해주세요." }, { status: 400 });
+    }
+    const result = reviewCertification({
+      recordDate: typeof patch.record_date === "string" ? patch.record_date : existing.record_date,
+      imageUrl: existing.image_url, review: storedReview, approval: body.approval, adminId: user.id,
+    });
+    if (!result.ok) return NextResponse.json({ error: result.error }, { status: 400 });
+    patch.notes = writeCertificationReview(humanNotes, result.review);
+  } else {
+    if (identityChanged && existing.status === "certified" && !patch.status) patch.status = "needs_review";
+    if (storedReview) patch.notes = writeCertificationReview(humanNotes, identityChanged || (patch.status && patch.status !== "certified")
+      ? { version: 1, uploadedAt: storedReview.uploadedAt } : storedReview);
+    else if ("notes" in patch) patch.notes = humanNotes || null;
+  }
+  let update = supabase.from("daily_run_records").update(patch)
+    .eq("id", id).eq("user_id", user.id).eq("season_key", FOURTH_SEASON_KEY);
+  // A concurrent re-upload/edit must not approve an image the admin never saw.
+  for (const key of ["status", "record_date", "participant_id", "image_url", "notes", "distance_km", "duration_seconds"] as const) {
+    update = existing[key] === null ? update.is(key, null) : update.eq(key, existing[key]);
+  }
+  const { data: updated, error } = await update.select("id").maybeSingle();
 
   if (error) {
     logServerFailure("Record update", error);
@@ -109,6 +156,7 @@ export async function PATCH(
     return NextResponse.json({ error: "러닝 기록을 수정하지 못했어요." }, { status: 500 });
   }
 
+  if (!updated) return NextResponse.json({ error: "다른 작업에서 기록이 변경됐어요. 새로고침 후 다시 확인해주세요." }, { status: 409 });
   invalidatePublicDashboardCache();
 
   return NextResponse.json({ success: true });

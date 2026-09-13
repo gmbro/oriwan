@@ -1,15 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 
 import { requireAdminDataAccess } from "@/lib/admin-data-access";
 import {
   HELLO_2027_SEASON_KEY,
+  HELLO_2027_CONTENT_CACHE_TAG,
   MAX_HELLO_2027_PROFILE_INTRODUCTIONS,
   MAX_PROFILE_INTRO_LENGTH,
   MAX_PROFILE_INTRO_NAME_LENGTH,
-  MAX_PROFILE_INTRO_TITLE_LENGTH,
   normalizeContentText,
 } from "@/lib/hello-2027-content";
-import { guardMutationRequest, guardReadRequest } from "@/lib/request-security";
+import { loadHello2027ProfileImageUrls } from "@/lib/hello-2027-profile-image-storage";
+import { guardMutationRequest, guardReadRequest, readLimitedJson } from "@/lib/request-security";
 import { isMissingTableError, missingSchemaResponse } from "@/lib/supabase-errors";
 
 export const dynamic = "force-dynamic";
@@ -54,31 +56,12 @@ function logDatabaseFailure(action: string, error: unknown) {
 }
 
 async function readBody(request: NextRequest) {
-  let rawBody: string;
-  try {
-    rawBody = await request.text();
-  } catch {
-    return { ok: false as const, response: json({ error: "요청 내용을 확인해주세요." }, 400) };
-  }
-
-  if (Buffer.byteLength(rawBody, "utf8") > MAX_BODY_BYTES) {
-    return { ok: false as const, response: json({ error: "요청 용량이 너무 커요." }, 413) };
-  }
-
-  try {
-    const parsed: unknown = JSON.parse(rawBody);
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      return { ok: false as const, response: json({ error: "요청 내용을 확인해주세요." }, 400) };
-    }
-    return { ok: true as const, body: parsed as JsonBody };
-  } catch {
-    return { ok: false as const, response: json({ error: "요청 내용을 확인해주세요." }, 400) };
-  }
+  const parsed = await readLimitedJson(request, MAX_BODY_BYTES);
+  if (!parsed.ok) return parsed;
+  return { ok: true as const, body: parsed.value };
 }
 
-function defaultTitle(name: string) {
-  return normalizeContentText(`${name}의 한마디`, MAX_PROFILE_INTRO_TITLE_LENGTH) || "크루의 한마디";
-}
+const PROFILE_INTRODUCTION_TITLE = "자기소개";
 
 export async function GET(request: NextRequest) {
   const guardResponse = guardReadRequest(request, {
@@ -91,7 +74,7 @@ export async function GET(request: NextRequest) {
   if (!access.ok) return access.response;
   const { user, service } = access;
 
-  const [participantResult, introductionResult] = await Promise.all([
+  const [participantResult, introductionResult, profileImageUrls] = await Promise.all([
     service
       .from("participants")
       .select("id, name")
@@ -107,6 +90,7 @@ export async function GET(request: NextRequest) {
       .eq("user_id", user.id)
       .eq("season_key", HELLO_2027_SEASON_KEY)
       .limit(MAX_HELLO_2027_PROFILE_INTRODUCTIONS),
+    loadHello2027ProfileImageUrls(service),
   ]);
 
   if (participantResult.error || introductionResult.error) {
@@ -116,18 +100,20 @@ export async function GET(request: NextRequest) {
     return json({ error: "크루 자기소개를 불러오지 못했어요." }, 500);
   }
 
+  const participants = (participantResult.data || []) as ParticipantRow[];
   const introductionByParticipant = new Map(
     ((introductionResult.data || []) as IntroductionRow[]).map((item) => [item.participant_id, item]),
   );
-  const items = ((participantResult.data || []) as ParticipantRow[]).map((participant) => {
+  const items = participants.map((participant) => {
     const introduction = introductionByParticipant.get(participant.id);
     const name = normalizeContentText(participant.name, MAX_PROFILE_INTRO_NAME_LENGTH) || "이름 확인 필요";
     return {
       participant_id: participant.id,
       name,
-      title: introduction?.title || defaultTitle(name),
+      title: PROFILE_INTRODUCTION_TITLE,
       body: introduction?.body || "",
       active: introduction?.active === true,
+      profile_image_url: profileImageUrls[participant.id] || null,
       created_at: introduction?.created_at || null,
       updated_at: introduction?.updated_at || null,
     };
@@ -151,7 +137,7 @@ export async function PUT(request: NextRequest) {
   if (!bodyResult.ok) return bodyResult.response;
   const body = bodyResult.body;
   const participantId = typeof body.participant_id === "string" ? body.participant_id : "";
-  const title = normalizeContentText(body.title, MAX_PROFILE_INTRO_TITLE_LENGTH);
+  const title = PROFILE_INTRODUCTION_TITLE;
   const active = typeof body.active === "boolean" ? body.active : null;
   const rawIntroduction = typeof body.body === "string" ? body.body.trim() : null;
   const introduction = rawIntroduction
@@ -162,9 +148,6 @@ export async function PUT(request: NextRequest) {
 
   if (!UUID_PATTERN.test(participantId)) {
     return json({ error: "자기소개를 저장할 크루를 다시 선택해주세요." }, 400);
-  }
-  if (!title) {
-    return json({ error: `자기소개 제목은 1~${MAX_PROFILE_INTRO_TITLE_LENGTH}자로 입력해주세요.` }, 400);
   }
   if (active === null) {
     return json({ error: "자기소개 공개 상태를 다시 확인해주세요." }, 400);
@@ -220,6 +203,7 @@ export async function PUT(request: NextRequest) {
   }
 
   const item = data as IntroductionRow;
+  revalidateTag(HELLO_2027_CONTENT_CACHE_TAG, { expire: 0 });
   return json({
     item: {
       participant_id: item.participant_id,

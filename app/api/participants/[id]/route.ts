@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminDataAccess } from "@/lib/admin-data-access";
-import { guardMutationRequest } from "@/lib/request-security";
+import { guardMutationRequest, readLimitedJson } from "@/lib/request-security";
 import { invalidatePublicDashboardCache } from "@/lib/public-dashboard-data";
 import { normalizeContentText } from "@/lib/hello-2027-content";
 import { FOURTH_SEASON_KEY } from "@/lib/fourth-season-contract";
 import { logServerFailure } from "@/lib/server-error-log";
+import {
+  cancelPendingKakaoProfileImageImport,
+  removeHello2027ProfileImage,
+} from "@/lib/hello-2027-profile-image-storage";
 import { isMissingTableError, missingSchemaResponse } from "@/lib/supabase-errors";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -26,7 +30,9 @@ export async function PATCH(
   if (!UUID_PATTERN.test(id)) {
     return NextResponse.json({ error: "수정할 멤버를 다시 선택해주세요." }, { status: 400 });
   }
-  const body = await request.json().catch(() => ({}));
+  const parsedBody = await readLimitedJson(request, 8 * 1024);
+  if (!parsedBody.ok) return parsedBody.response;
+  const body = parsedBody.value;
   const patch: Record<string, string | number | boolean | null> = {};
 
   if (typeof body.name === "string") {
@@ -44,7 +50,7 @@ export async function PATCH(
   }
   if (typeof body.active === "boolean") patch.active = body.active;
   if (body.display_order !== undefined) {
-    if (!Number.isInteger(body.display_order) || body.display_order < 0 || body.display_order > 10_000) {
+    if (typeof body.display_order !== "number" || !Number.isInteger(body.display_order) || body.display_order < 0 || body.display_order > 10_000) {
       return NextResponse.json({ error: "노출 순서는 0~10000 사이의 정수로 입력해주세요." }, { status: 400 });
     }
     patch.display_order = body.display_order;
@@ -103,6 +109,15 @@ export async function DELETE(
       return NextResponse.json(missingSchemaResponse("4기 멤버 스키마가 아직 준비되지 않았어요."), { status: 503 });
     }
     return NextResponse.json({ error: "멤버를 삭제하지 못했어요." }, { status: 500 });
+  }
+
+  try {
+    await cancelPendingKakaoProfileImageImport(supabase, id);
+    await removeHello2027ProfileImage(supabase, id);
+  } catch (profileImageError) {
+    // The inactive participant is no longer publicly resolvable even if
+    // Storage cleanup has a transient failure; retain a server-side signal.
+    logServerFailure("Participant profile image cleanup", profileImageError);
   }
 
   invalidatePublicDashboardCache();

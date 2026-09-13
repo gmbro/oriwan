@@ -7,6 +7,7 @@ import {
   youtubeThumbnailUrl,
 } from "@/lib/youtube-shorts";
 import type { TipCategory, YoutubeShortTip } from "@/lib/youtube-shorts";
+import { guardReadRequest } from "@/lib/request-security";
 
 export const dynamic = "force-dynamic";
 
@@ -148,7 +149,7 @@ async function fetchYoutubeShortsByQuery(
   searchUrl.searchParams.set("safeSearch", "strict");
   searchUrl.searchParams.set("key", apiKey);
 
-  const searchResponse = await fetch(searchUrl, { cache: "no-store" });
+  const searchResponse = await fetch(searchUrl, { next: { revalidate: 600 } });
   if (!searchResponse.ok) return { tips: [] as YoutubeShortTip[], nextPageToken: "" };
 
   const searchJson = (await searchResponse.json()) as { items?: YoutubeSearchItem[]; nextPageToken?: string };
@@ -162,7 +163,7 @@ async function fetchYoutubeShortsByQuery(
   videosUrl.searchParams.set("id", ids.join(","));
   videosUrl.searchParams.set("key", apiKey);
 
-  const videosResponse = await fetch(videosUrl, { cache: "no-store" });
+  const videosResponse = await fetch(videosUrl, { next: { revalidate: 600 } });
   if (!videosResponse.ok) return { tips: [] as YoutubeShortTip[], nextPageToken: searchJson.nextPageToken || "" };
 
   const videosJson = (await videosResponse.json()) as { items?: YoutubeVideoItem[] };
@@ -228,6 +229,16 @@ async function fetchYoutubeShorts(category: TipCategory, limit: number, seed: nu
 }
 
 export async function GET(request: NextRequest) {
+  const guardResponse = guardReadRequest(request, {
+    rateLimit: {
+      key: "youtube-shorts-read",
+      limit: 30,
+      windowMs: 60_000,
+      message: "추천 영상을 잠시 후 다시 불러와주세요.",
+    },
+  });
+  if (guardResponse) return guardResponse;
+
   const params = request.nextUrl.searchParams;
   const requestedCategory = params.get("category");
   const category: TipCategory = isRecoveryYoutubeTipCategory(requestedCategory) ? requestedCategory : "recovery";
@@ -258,7 +269,7 @@ export async function GET(request: NextRequest) {
       source: youtubeTips.length ? "youtube" : "curated",
       sort: "latest",
       updatedAt: new Date().toISOString(),
-    });
+    }, { headers: { "Cache-Control": "public, max-age=0, s-maxage=300, stale-while-revalidate=600" } });
   } catch {
     return NextResponse.json({
       tips: fallbackTips.slice(0, limit),
@@ -266,6 +277,6 @@ export async function GET(request: NextRequest) {
       source: "curated",
       sort: "latest",
       updatedAt: new Date().toISOString(),
-    });
+    }, { headers: { "Cache-Control": "public, max-age=0, s-maxage=300, stale-while-revalidate=600" } });
   }
 }

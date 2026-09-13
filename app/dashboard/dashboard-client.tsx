@@ -6,9 +6,8 @@ import type { CSSProperties, ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { IconArrowRight, IconCalendar, IconDna, IconDroplet, IconFlame, IconHeart, IconMountain, IconMuscle, IconRun, IconSprout, IconSync, IconTarget, IconVideo, IconX } from "@/components/icons";
 import { buildMemberPictogramMap, MemberPictogram } from "@/components/member-pictogram";
-import { NextSeasonNoticeModal } from "@/components/next-season-notice-modal";
-import { ACTUAL_CERTIFICATION_START_DATE, CERTIFICATION_DISPLAY_START_DATE, CHALLENGE_DAYS, CHALLENGE_END_DATE, NEXT_SEASON_START_DATE } from "@/lib/challenge";
-import { DASHBOARD_REFRESH_CHANNEL, DASHBOARD_REFRESH_EVENT } from "@/lib/dashboard-refresh";
+import { ACTUAL_CERTIFICATION_START_DATE, CERTIFICATION_DISPLAY_START_DATE, CHALLENGE_DAYS } from "@/lib/challenge";
+import { DASHBOARD_REFRESH_CHANNEL, DASHBOARD_REFRESH_EVENT } from "@/lib/dashboard-refresh-contract";
 import {
   growthBadgeAcquisitionPriority,
   getBestWeekdayMorningProgress,
@@ -155,7 +154,6 @@ const PUBLIC_DASHBOARD_FOCUS_REFRESH_MS = 30 * 1000;
 const PUBLIC_DASHBOARD_LIVE_REFRESH_MS = 30 * 1000;
 const PERSONAL_GROWTH_BADGE_STORAGE_KEY = "oriwan-personal-growth-badges-v3";
 const ONE_PLUS_ONE_DISMISS_STORAGE_KEY = "oriwan-one-plus-one-dismissed-v1";
-const NEXT_SEASON_NOTICE_STORAGE_KEY = "oriwan-next-season-notice-2026-09-23-v1";
 const FULL_HOUSE_FIREWORKS_STORAGE_KEY = "oriwan-full-house-fireworks-v1";
 const FULL_HOUSE_FIREWORKS_DURATION_MS = 1900;
 const ONE_PLUS_ONE_MILESTONES = new Set([40, 50, 60, 70, 80, 90]);
@@ -270,28 +268,6 @@ function writeDismissedOnePlusOneEvent(day: number, date: string) {
     window.localStorage.setItem(ONE_PLUS_ONE_DISMISS_STORAGE_KEY, onePlusOneDismissKey(day, date));
   } catch {
     // Dismissal is a convenience only; the event remains usable without storage.
-  }
-}
-
-function isNextSeasonPreparationDate(date: string) {
-  return date >= CHALLENGE_END_DATE && date <= NEXT_SEASON_START_DATE;
-}
-
-function readDismissedNextSeasonNotice(date: string) {
-  if (typeof window === "undefined") return false;
-  try {
-    return window.localStorage.getItem(NEXT_SEASON_NOTICE_STORAGE_KEY) === date;
-  } catch {
-    return false;
-  }
-}
-
-function writeDismissedNextSeasonNotice(date: string) {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(NEXT_SEASON_NOTICE_STORAGE_KEY, date);
-  } catch {
-    // The notice remains dismissible for the current page when storage is unavailable.
   }
 }
 
@@ -971,7 +947,6 @@ export function DashboardClient({
   const [showSeasonReportModal, setShowSeasonReportModal] = useState(false);
   const [showJourneyReportModal, setShowJourneyReportModal] = useState(false);
   const [showOnePlusOneEventModal, setShowOnePlusOneEventModal] = useState(false);
-  const [showNextSeasonNotice, setShowNextSeasonNotice] = useState(false);
   const [showFinalReportPreviewModal, setShowFinalReportPreviewModal] = useState(false);
   const [showRecoveryVideos, setShowRecoveryVideos] = useState(false);
   const [showRecoveryTrend, setShowRecoveryTrend] = useState(false);
@@ -983,18 +958,7 @@ export function DashboardClient({
   const loadingRef = useRef(false);
   const lastLoadedAtRef = useRef(0);
   const motionFrameRef = useRef<number | null>(null);
-  const nextSeasonNoticeClosedThisSessionRef = useRef(false);
   const onePlusOneEvent = useMemo(() => getOnePlusOneEvent(todayIso), [todayIso]);
-  const closeNextSeasonNotice = useCallback(() => {
-    nextSeasonNoticeClosedThisSessionRef.current = true;
-    setShowNextSeasonNotice(false);
-  }, []);
-  const dismissNextSeasonNoticeToday = useCallback(() => {
-    nextSeasonNoticeClosedThisSessionRef.current = true;
-    writeDismissedNextSeasonNotice(todayIso);
-    setShowNextSeasonNotice(false);
-  }, [todayIso]);
-
   const restartMotion = useCallback(() => {
     if (motionFrameRef.current) window.cancelAnimationFrame(motionFrameRef.current);
 
@@ -1133,53 +1097,6 @@ export function DashboardClient({
       cancelled = true;
     };
   }, [announcementsEnabled, onePlusOneEvent, todayIso]);
-
-  useEffect(() => {
-    if (
-      !announcementsEnabled ||
-      !isNextSeasonPreparationDate(todayIso) ||
-      nextSeasonNoticeClosedThisSessionRef.current ||
-      readDismissedNextSeasonNotice(todayIso)
-    ) return;
-    if (
-      showOnePlusOneEventModal ||
-      showJourneyReportModal ||
-      showSeasonReportModal ||
-      showFinalReportPreviewModal ||
-      Boolean(trendModal) ||
-      Boolean(selectedDailyRecordDate)
-    ) return;
-
-    let cancelled = false;
-    let timeout: number | undefined;
-    const tryOpenNotice = () => {
-      if (
-        cancelled ||
-        nextSeasonNoticeClosedThisSessionRef.current ||
-        readDismissedNextSeasonNotice(todayIso)
-      ) return;
-      if (document.querySelector('[role="dialog"][aria-modal="true"]')) {
-        timeout = window.setTimeout(tryOpenNotice, 1000);
-        return;
-      }
-      setShowNextSeasonNotice(true);
-    };
-    timeout = window.setTimeout(tryOpenNotice, 900);
-
-    return () => {
-      cancelled = true;
-      if (timeout !== undefined) window.clearTimeout(timeout);
-    };
-  }, [
-    announcementsEnabled,
-    selectedDailyRecordDate,
-    showFinalReportPreviewModal,
-    showJourneyReportModal,
-    showOnePlusOneEventModal,
-    showSeasonReportModal,
-    todayIso,
-    trendModal,
-  ]);
 
   const dashboard = useMemo(() => {
     const participants = data?.participants || [];
@@ -2115,12 +2032,6 @@ export function DashboardClient({
           {loading ? "오늘의 기록을 데려오는 중..." : `마지막 업데이트 ${formatLastUpdated(data?.generated_at)}`}
         </p>
 
-        {showNextSeasonNotice && (
-          <NextSeasonNoticeModal
-            onClose={closeNextSeasonNotice}
-            onCloseToday={dismissNextSeasonNoticeToday}
-          />
-        )}
 
         {showOnePlusOneEventModal && onePlusOneEvent && (
           <OnePlusOneEventModal

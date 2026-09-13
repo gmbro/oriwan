@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   anonymousFourthViewer,
@@ -32,32 +32,50 @@ export function FourthViewerProvider({
   const [loading, setLoading] = useState(initialViewer === undefined);
   const [actionPending, setActionPending] = useState(false);
   const [error, setError] = useState("");
+  const enrollmentRefreshSentRef = useRef(false);
+  const requestGeneration = useRef(0);
 
   const reload = useCallback(async () => {
+    const generation = ++requestGeneration.current;
     try {
       const response = await fetch("/api/hello-2027/viewer", {
         cache: "no-store",
         credentials: "same-origin",
       });
       const json = await response.json();
+      if (generation !== requestGeneration.current) return;
       if (!response.ok) throw new Error("viewer_failed");
       setViewer(json);
       setError("");
     } catch {
-      // A transient viewer refresh failure must not replace a trusted
-      // 서버가 확인한 로그인 상태와 브라우저의 최신 세션을 맞춥니다.
+      if (generation !== requestGeneration.current) return;
+      // Keep the last server-verified viewer during a transient network error.
       setViewer((current) => current ?? anonymousFourthViewer);
       setError("로그인 상태를 확인하지 못했어요. 잠시 후 다시 시도해주세요.");
     } finally {
-      setLoading(false);
+      if (generation === requestGeneration.current) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
+    if (initialViewer !== undefined) return;
     queueMicrotask(() => void reload());
-  }, [reload]);
+  }, [initialViewer, reload]);
+
+  useEffect(() => {
+    if (!viewer?.dashboard_member_changed || enrollmentRefreshSentRef.current) return;
+    enrollmentRefreshSentRef.current = true;
+
+    // Let other already-open public dashboards fetch the new member. Loading
+    // the broadcaster only for the one enrollment response keeps repeat visits
+    // and anonymous sessions lightweight.
+    void import("@/lib/dashboard-refresh")
+      .then(({ broadcastDashboardRefresh }) => broadcastDashboardRefresh())
+      .catch(() => undefined);
+  }, [viewer?.dashboard_member_changed]);
 
   const logout = useCallback(async () => {
+    ++requestGeneration.current;
     setActionPending(true);
     setError("");
     try {
@@ -69,6 +87,7 @@ export function FourthViewerProvider({
       });
       if (!response.ok) throw new Error("logout_failed");
       setViewer(anonymousFourthViewer);
+      setLoading(false);
       router.replace("/4th/dashboard");
     } catch {
       setError("로그아웃하지 못했어요. 잠시 후 다시 시도해주세요.");

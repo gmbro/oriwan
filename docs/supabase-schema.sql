@@ -74,9 +74,9 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE participants TO service_role;
 CREATE INDEX IF NOT EXISTS idx_participants_user_season_order
   ON participants(user_id, season_key, active, display_order, created_at);
 
--- 1-1. 참가자 로그인 계정 승인 연결
+-- 1-1. 참가자 로그인 계정 연결
 -- runner_name 같은 사용자 수정 가능 metadata는 권한 판정에 사용하지 않습니다.
--- 운영자가 실제 참가자를 확인한 뒤 service role 또는 SQL Editor에서 approved로 연결합니다.
+-- 앱 서버가 인증된 Kakao 계정마다 격리된 참가자를 자동 연결하며, 운영자는 연결을 조정·해제할 수 있습니다.
 CREATE TABLE IF NOT EXISTS participant_accounts (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   season_key TEXT DEFAULT '4th' NOT NULL CHECK (season_key ~ '^[0-9]+th$'),
@@ -92,7 +92,7 @@ CREATE TABLE IF NOT EXISTS participant_accounts (
 
 ALTER TABLE participant_accounts
   ADD COLUMN IF NOT EXISTS display_name_override TEXT;
--- 기존 승인 연결도 3기로 분류하고, 이후 API가 만드는 행만 기본값 4기를 사용합니다.
+-- 기존 계정 연결도 3기로 분류하고, 이후 API가 만드는 행만 기본값 4기를 사용합니다.
 ALTER TABLE participant_accounts
   ADD COLUMN IF NOT EXISTS season_key TEXT;
 UPDATE participant_accounts
@@ -107,7 +107,7 @@ ALTER TABLE participant_accounts
   ADD CONSTRAINT participant_accounts_season_key_check
   CHECK (season_key ~ '^[0-9]+th$') NOT VALID;
 
--- 기수별 연결을 함께 보존합니다. 4기 승인이 기존 3기 연결을 덮어쓰면 안 됩니다.
+-- 기수별 연결을 함께 보존합니다. 4기 연결이 기존 3기 연결을 덮어쓰면 안 됩니다.
 DROP INDEX IF EXISTS idx_participant_accounts_auth_user;
 DROP INDEX IF EXISTS idx_participant_accounts_participant;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_participant_accounts_season_auth_user
@@ -128,10 +128,12 @@ REVOKE ALL ON TABLE participant_accounts FROM authenticated;
 REVOKE ALL ON TABLE participant_accounts FROM PUBLIC;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE participant_accounts TO service_role;
 
--- 승인 전 확인:
+-- 카카오 로그인 시 앱이 공통 대시보드에 표시할 4기 참가자 연결을 자동 생성합니다.
+-- 아래 쿼리와 UPSERT 예시는 기존 멤버 재연결·운영자 확인 표시명 변경이 필요할 때만 사용합니다.
+-- 연결 전 확인:
 -- SELECT id, email, raw_user_meta_data->>'runner_name' AS requested_name FROM auth.users ORDER BY created_at DESC;
 -- SELECT id, name FROM participants WHERE active = TRUE ORDER BY display_order, created_at;
--- 승인 예시(세 UUID는 운영자가 직접 확인한 값으로 교체):
+-- 공개 멤버 연결 예시(세 UUID는 운영자가 직접 확인한 값으로 교체):
 -- INSERT INTO participant_accounts (season_key, participant_id, auth_user_id, status, approved_at, approved_by)
 -- VALUES ('4th', 'participant-uuid', 'kakao-auth-user-uuid', 'approved', NOW(), 'admin-auth-user-uuid')
 -- ON CONFLICT (season_key, auth_user_id) DO UPDATE
@@ -280,10 +282,10 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE participant_growth_badges TO servi
 CREATE INDEX IF NOT EXISTS idx_participant_growth_badges_user_season_participant
   ON participant_growth_badges(user_id, season_key, participant_id, earned_at DESC);
 
--- 4-1. 승인 참가자의 일일 응원 상자 개봉 이력
+-- 4-1. 연결 참가자의 일일 응원 상자 개봉 이력
 -- 지급 권한과 랜덤 결과는 브라우저가 아니라 /api/me/gift-box 서버 경로에서 결정합니다.
--- 오늘의 운세는 DB에 저장하지 않고 /api/me/fortune에서 인증 사용자와 KST 날짜를
--- 전용 서버 비밀값으로 HMAC해 계산하므로 별도 fortune 테이블을 만들지 않습니다.
+-- 오늘의 운세 결과와 입력 원문은 DB에 저장하지 않습니다. 외부 API 호출량만 사용자별·KST 날짜별로
+-- 집계하고, 실제 결과는 서명된 HttpOnly 쿠키로 당일 재사용합니다.
 CREATE TABLE IF NOT EXISTS daily_gift_claims (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   season_key TEXT DEFAULT '4th' NOT NULL CHECK (season_key ~ '^[0-9]+th$'),
@@ -295,6 +297,98 @@ CREATE TABLE IF NOT EXISTS daily_gift_claims (
   claimed_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
   UNIQUE(season_key, user_id, participant_id, record_date)
 );
+
+CREATE TABLE IF NOT EXISTS daily_fortune_usage (
+  auth_user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  fortune_date DATE NOT NULL,
+  request_count SMALLINT DEFAULT 1 NOT NULL CHECK (request_count BETWEEN 1 AND 20),
+  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  last_requested_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  PRIMARY KEY (auth_user_id, fortune_date)
+);
+
+CREATE OR REPLACE FUNCTION public.claim_daily_fortune_usage(
+  p_auth_user_id UUID,
+  p_fortune_date DATE,
+  p_daily_limit INTEGER DEFAULT 3
+)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  claimed BOOLEAN;
+  effective_limit INTEGER := LEAST(GREATEST(COALESCE(p_daily_limit, 3), 1), 20);
+BEGIN
+  IF p_auth_user_id IS NULL OR p_fortune_date IS NULL THEN
+    RETURN FALSE;
+  END IF;
+
+  INSERT INTO public.daily_fortune_usage (
+    auth_user_id,
+    fortune_date,
+    request_count,
+    created_at,
+    last_requested_at
+  ) VALUES (
+    p_auth_user_id,
+    p_fortune_date,
+    1,
+    NOW(),
+    NOW()
+  )
+  ON CONFLICT (auth_user_id, fortune_date) DO UPDATE
+    SET request_count = public.daily_fortune_usage.request_count + 1,
+        last_requested_at = NOW()
+    WHERE public.daily_fortune_usage.request_count < effective_limit
+  RETURNING TRUE INTO claimed;
+
+  RETURN COALESCE(claimed, FALSE);
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.release_daily_fortune_usage(
+  p_auth_user_id UUID,
+  p_fortune_date DATE
+)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+BEGIN
+  IF p_auth_user_id IS NULL OR p_fortune_date IS NULL THEN
+    RETURN;
+  END IF;
+
+  DELETE FROM public.daily_fortune_usage
+  WHERE auth_user_id = p_auth_user_id
+    AND fortune_date = p_fortune_date
+    AND request_count = 1;
+
+  UPDATE public.daily_fortune_usage
+  SET request_count = request_count - 1,
+      last_requested_at = NOW()
+  WHERE auth_user_id = p_auth_user_id
+    AND fortune_date = p_fortune_date
+    AND request_count > 1;
+END;
+$$;
+
+ALTER TABLE daily_fortune_usage ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE daily_fortune_usage FROM anon, authenticated, PUBLIC;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE daily_fortune_usage TO service_role;
+REVOKE ALL ON FUNCTION public.claim_daily_fortune_usage(UUID, DATE, INTEGER) FROM anon, authenticated, PUBLIC;
+GRANT EXECUTE ON FUNCTION public.claim_daily_fortune_usage(UUID, DATE, INTEGER) TO service_role;
+REVOKE ALL ON FUNCTION public.release_daily_fortune_usage(UUID, DATE) FROM anon, authenticated, PUBLIC;
+GRANT EXECUTE ON FUNCTION public.release_daily_fortune_usage(UUID, DATE) TO service_role;
+
+ALTER TABLE daily_gift_claims
+  DROP CONSTRAINT IF EXISTS daily_gift_claims_message_check;
+ALTER TABLE daily_gift_claims
+  ADD CONSTRAINT daily_gift_claims_message_check
+  CHECK (char_length(message) BETWEEN 1 AND 120);
 
 ALTER TABLE daily_gift_claims
   ADD COLUMN IF NOT EXISTS season_key TEXT DEFAULT '4th' NOT NULL;
@@ -312,7 +406,32 @@ REVOKE ALL ON TABLE daily_gift_claims FROM authenticated;
 REVOKE ALL ON TABLE daily_gift_claims FROM PUBLIC;
 GRANT SELECT, INSERT ON TABLE daily_gift_claims TO service_role;
 
--- 4-2. 4기 교정운동 가능 일정과 신청
+-- 4-2. 100일 목표 타임머신
+-- 목표 본문은 개인 API에서 2027-01-01 00:00 KST 전까지 봉인하고,
+-- OTP 인증을 마친 관리자만 전용 API에서 확인·재설정할 수 있습니다.
+CREATE TABLE IF NOT EXISTS time_machine_goals (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  season_key TEXT DEFAULT '4th' NOT NULL CHECK (season_key = '4th'),
+  user_id UUID REFERENCES auth.users(id) ON DELETE RESTRICT NOT NULL,
+  participant_id UUID REFERENCES participants(id) ON DELETE RESTRICT NOT NULL,
+  auth_user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  goal_title TEXT NOT NULL CHECK (char_length(goal_title) BETWEEN 2 AND 80),
+  goal_detail TEXT DEFAULT '' NOT NULL CHECK (char_length(goal_detail) BETWEEN 0 AND 500),
+  commitment TEXT DEFAULT '' NOT NULL CHECK (char_length(commitment) BETWEEN 0 AND 300),
+  unlock_at TIMESTAMPTZ DEFAULT '2026-12-31 15:00:00+00'::timestamptz NOT NULL
+    CHECK (unlock_at = '2026-12-31 15:00:00+00'::timestamptz),
+  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  UNIQUE(season_key, auth_user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_time_machine_goals_member
+  ON time_machine_goals(auth_user_id, season_key);
+
+ALTER TABLE time_machine_goals ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE time_machine_goals FROM anon, authenticated, PUBLIC;
+GRANT SELECT, INSERT, DELETE ON TABLE time_machine_goals TO service_role;
+
+-- 4-3. 4기 교정운동 가능 일정과 신청
 -- 통증·병원 이용 정보는 민감한 건강 관련 정보이므로 브라우저 Data API에서
 -- 직접 읽거나 쓰지 않습니다. 본인/운영자 권한을 확인한 Next.js 서버 API만
 -- service_role로 접근하고, 응답/서버 로그에는 필요한 범위 밖의 원문을 남기지 않습니다.
@@ -343,10 +462,10 @@ CREATE TABLE IF NOT EXISTS corrective_exercise_applications (
     AND btrim(participant_name_snapshot) <> ''
   ),
   requested_slot_id UUID REFERENCES corrective_exercise_slots(id) ON DELETE SET NULL,
-  requested_date DATE NOT NULL,
-  requested_start_time TIME WITHOUT TIME ZONE NOT NULL,
+  requested_date DATE,
+  requested_start_time TIME WITHOUT TIME ZONE,
   requested_end_time TIME WITHOUT TIME ZONE,
-  pain_areas TEXT[] NOT NULL CHECK (
+  pain_areas TEXT[] CHECK (
     cardinality(pain_areas) BETWEEN 1 AND 5
     AND array_position(pain_areas, NULL) IS NULL
     AND pain_areas <@ ARRAY[
@@ -354,17 +473,18 @@ CREATE TABLE IF NOT EXISTS corrective_exercise_applications (
       'knee', 'ankle', 'foot', 'elbow_wrist', 'other'
     ]::TEXT[]
   ),
-  pain_context TEXT NOT NULL CHECK (char_length(pain_context) BETWEEN 10 AND 500),
-  hospital_status TEXT NOT NULL CHECK (hospital_status IN ('none', 'past', 'current')),
+  pain_context TEXT CHECK (char_length(pain_context) BETWEEN 10 AND 500),
+  hospital_status TEXT CHECK (hospital_status IN ('none', 'past', 'current')),
   hospital_note TEXT CHECK (hospital_note IS NULL OR char_length(hospital_note) BETWEEN 1 AND 300),
   additional_note TEXT CHECK (additional_note IS NULL OR char_length(additional_note) BETWEEN 1 AND 500),
+  inquiry_message TEXT CHECK (inquiry_message IS NULL OR char_length(inquiry_message) BETWEEN 5 AND 500),
   status TEXT DEFAULT 'submitted' NOT NULL CHECK (
     status IN ('submitted', 'reviewing', 'schedule_proposed', 'confirmed', 'completed', 'cancelled', 'rejected')
   ),
   confirmed_for TIMESTAMPTZ,
   admin_note TEXT CHECK (admin_note IS NULL OR char_length(admin_note) BETWEEN 1 AND 500),
-  consent_version TEXT NOT NULL CHECK (char_length(consent_version) BETWEEN 1 AND 64),
-  consented_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  consent_version TEXT CHECK (char_length(consent_version) BETWEEN 1 AND 64),
+  consented_at TIMESTAMPTZ,
   retention_until TIMESTAMPTZ DEFAULT (NOW() + INTERVAL '180 days') NOT NULL,
   cancelled_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
@@ -392,6 +512,8 @@ CREATE INDEX IF NOT EXISTS idx_corrective_exercise_applications_admin
   ON corrective_exercise_applications(user_id, season_key, status, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_corrective_exercise_applications_member
   ON corrective_exercise_applications(auth_user_id, season_key, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_corrective_exercise_repeat_inquiries_member
+  ON corrective_exercise_applications(user_id, season_key, auth_user_id, participant_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_corrective_exercise_applications_slot
   ON corrective_exercise_applications(requested_slot_id, status, retention_until);
 CREATE INDEX IF NOT EXISTS idx_corrective_exercise_applications_retention
@@ -400,10 +522,6 @@ CREATE INDEX IF NOT EXISTS idx_corrective_exercise_audit_application
   ON corrective_exercise_audit_logs(user_id, application_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_corrective_exercise_audit_retention
   ON corrective_exercise_audit_logs(retention_until);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_corrective_exercise_one_active_per_member
-  ON corrective_exercise_applications(season_key, auth_user_id)
-  WHERE status IN ('submitted', 'reviewing', 'schedule_proposed', 'confirmed');
-
 -- 접수 중 데이터도 생성 후 180일을 넘기지 않고, 취소·거절·완료된 신청은
 -- 상태 변경 시점부터 90일 이내로 보관 기한을 단축합니다. 이미 더 이른 기한은 늘리지 않습니다.
 CREATE OR REPLACE FUNCTION public.set_corrective_exercise_retention()
@@ -959,6 +1077,8 @@ CREATE INDEX IF NOT EXISTS idx_hello_2027_comments_public
   ON hello_2027_comments(season_key, status, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_hello_2027_comments_parent
   ON hello_2027_comments(parent_id);
+CREATE INDEX IF NOT EXISTS idx_hello_2027_comments_actor_created
+  ON hello_2027_comments(season_key, actor_key, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_hello_2027_comment_reactions_comment
   ON hello_2027_comment_reactions(comment_id);
 CREATE INDEX IF NOT EXISTS idx_hello_2027_comment_reactions_season_comment
@@ -966,6 +1086,48 @@ CREATE INDEX IF NOT EXISTS idx_hello_2027_comment_reactions_season_comment
 CREATE INDEX IF NOT EXISTS idx_hello_2027_comment_reactions_auth_user
   ON hello_2027_comment_reactions(auth_user_id)
   WHERE auth_user_id IS NOT NULL;
+
+-- 같은 작성자의 분당 6개·24시간 40개 한도를 DB 트랜잭션에서 강제합니다.
+-- actor별 advisory lock을 사용해 여러 서버리스 인스턴스의 동시 INSERT도 우회하지 못합니다.
+CREATE OR REPLACE FUNCTION enforce_hello_2027_comment_rate_limit()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  recent_count INTEGER;
+  daily_count INTEGER;
+BEGIN
+  PERFORM pg_advisory_xact_lock(
+    hashtextextended('hello_2027_comment_rate:' || NEW.season_key || ':' || NEW.actor_key, 0)
+  );
+
+  SELECT COUNT(*) INTO recent_count
+  FROM hello_2027_comments
+  WHERE season_key = NEW.season_key
+    AND actor_key = NEW.actor_key
+    AND created_at >= NOW() - INTERVAL '1 minute';
+  IF recent_count >= 6 THEN
+    RAISE EXCEPTION 'hello_2027_comment_rate_limit_minute' USING ERRCODE = 'P0001';
+  END IF;
+
+  SELECT COUNT(*) INTO daily_count
+  FROM hello_2027_comments
+  WHERE season_key = NEW.season_key
+    AND actor_key = NEW.actor_key
+    AND created_at >= NOW() - INTERVAL '24 hours';
+  IF daily_count >= 40 THEN
+    RAISE EXCEPTION 'hello_2027_comment_rate_limit_day' USING ERRCODE = 'P0001';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_enforce_hello_2027_comment_rate_limit ON hello_2027_comments;
+CREATE TRIGGER trg_enforce_hello_2027_comment_rate_limit
+  BEFORE INSERT ON hello_2027_comments
+  FOR EACH ROW EXECUTE FUNCTION enforce_hello_2027_comment_rate_limit();
 
 -- 답글 작성은 부모 행을 잠근 뒤 개수를 검사해, 동시 요청에도 댓글당 50개를 넘지 않습니다.
 CREATE OR REPLACE FUNCTION enforce_hello_2027_reply_limit()
@@ -991,12 +1153,17 @@ BEGIN
 
   IF NOT FOUND
     OR parent_parent_id IS NOT NULL
-    OR parent_season <> NEW.season_key
-    OR parent_status <> 'visible' THEN
+    OR parent_season <> NEW.season_key THEN
     RAISE EXCEPTION 'hello_2027 reply parent is unavailable' USING ERRCODE = '23514';
   END IF;
 
   IF NEW.status = 'visible' THEN
+    -- 새 답글과 다시 공개되는 답글만 공개 상태의 부모를 요구합니다.
+    -- 이미 비식별 삭제된 부모 아래의 답글도 별도로 삭제할 수 있어야 합니다.
+    IF parent_status <> 'visible' THEN
+      RAISE EXCEPTION 'hello_2027 reply parent is unavailable' USING ERRCODE = '23514';
+    END IF;
+
     SELECT COUNT(*)
       INTO visible_reply_count
       FROM hello_2027_comments
@@ -1128,9 +1295,11 @@ REVOKE ALL ON TABLE hello_2027_comment_reactions FROM anon, authenticated, PUBLI
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE hello_2027_comments TO service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE hello_2027_comment_reactions TO service_role;
 REVOKE ALL ON FUNCTION enforce_hello_2027_reply_limit() FROM anon, authenticated, PUBLIC;
+REVOKE ALL ON FUNCTION enforce_hello_2027_comment_rate_limit() FROM anon, authenticated, PUBLIC;
 REVOKE ALL ON FUNCTION enforce_hello_2027_reaction_target() FROM anon, authenticated, PUBLIC;
 REVOKE ALL ON FUNCTION delete_hello_2027_comment(UUID, TEXT, TEXT, TEXT, UUID) FROM anon, authenticated, PUBLIC;
 GRANT EXECUTE ON FUNCTION enforce_hello_2027_reply_limit() TO service_role;
+GRANT EXECUTE ON FUNCTION enforce_hello_2027_comment_rate_limit() TO service_role;
 GRANT EXECUTE ON FUNCTION enforce_hello_2027_reaction_target() TO service_role;
 GRANT EXECUTE ON FUNCTION delete_hello_2027_comment(UUID, TEXT, TEXT, TEXT, UUID) TO service_role;
 

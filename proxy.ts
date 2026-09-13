@@ -12,7 +12,10 @@ export const config = {
     "/admin/:path*",
     "/api/auth/:path*",
     "/api/me/:path*",
-    "/api/hello-2027/:path*",
+    // Public content and image routes do not use the viewer's session. Avoid
+    // refreshing auth before every avatar/banner request on the dashboard.
+    "/api/hello-2027/viewer",
+    "/api/hello-2027/comments/:path*",
     "/api/admin/:path*",
   ],
 };

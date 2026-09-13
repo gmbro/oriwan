@@ -1,38 +1,42 @@
-import { NextResponse } from "next/server";
-import { getServiceClient } from "@/lib/admin-data";
-import { resolveParticipantAccount } from "@/lib/participant-account-server";
-import { createClient } from "@/lib/supabase/server";
-import { getKakaoDisplayName } from "@/lib/kakao-display-name";
+import { after, NextRequest, NextResponse } from "next/server";
+import { ownedMember, readMemberJson } from "@/lib/member-upload-server";
+import { guardMutationRequest } from "@/lib/request-security";
+import { invalidatePublicDashboardCache } from "@/lib/public-dashboard-data";
+import { broadcastDashboardRefreshFromServer } from "@/lib/dashboard-refresh-server";
+import { participantAccountMutationError } from "@/lib/participant-account-server";
+import { resolvePersonalMemberContext } from "@/lib/personal-member-context";
 import { logServerFailure } from "@/lib/server-error-log";
 
 export const dynamic = "force-dynamic";
 const privateHeaders = { "Cache-Control": "private, no-store, max-age=0", Vary: "Cookie" };
 
-function hasKakaoIdentity(user: { app_metadata?: Record<string, unknown>; identities?: Array<{ provider?: string }> }) {
-  return user.app_metadata?.provider === "kakao"
-    || Boolean(user.identities?.some((identity) => identity.provider === "kakao"));
-}
-
 export async function GET() {
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-    return NextResponse.json({ error: "카카오 로그인 서버 설정이 아직 준비되지 않았어요." }, { status: 503 });
-  }
-  const supabase = await createClient();
-  const { data: { user }, error } = await supabase.auth.getUser();
-  if (error || !user || !hasKakaoIdentity(user)) {
-    return NextResponse.json({ error: "카카오 로그인이 필요해요." }, { status: 401 });
-  }
-
-  const service = getServiceClient();
-  if (!service) return NextResponse.json({ error: "운영 서버 연결이 아직 준비되지 않았어요." }, { status: 503 });
-
   try {
-    const connection = await resolveParticipantAccount(service, user.id);
-    const kakaoDisplayName = getKakaoDisplayName(user);
+    const context = await resolvePersonalMemberContext();
+    if (!context.ok) {
+      if (context.reason === "configuration_unavailable") {
+        return NextResponse.json({ error: "카카오 로그인 서버 설정이 아직 준비되지 않았어요." }, { status: 503 });
+      }
+      if (context.reason === "unauthenticated") {
+        return NextResponse.json({ error: "카카오 로그인이 필요해요." }, { status: 401 });
+      }
+      return NextResponse.json({ error: "운영 서버 연결이 아직 준비되지 않았어요." }, { status: 503 });
+    }
+
+    const {
+      authUserId,
+      displayName: kakaoDisplayName,
+      connection,
+    } = context;
+    if (connection.status !== "approved" || !connection.participant) {
+      const failure = participantAccountMutationError(connection);
+      return NextResponse.json(failure.payload, { status: failure.status, headers: privateHeaders });
+    }
+    const usesKakaoName = !connection.displayName;
     return NextResponse.json({
-      user: { id: user.id },
-      display_name: connection.displayName || kakaoDisplayName,
-      name_source: connection.displayName ? "admin" : kakaoDisplayName ? "kakao" : null,
+      user: { id: authUserId },
+      display_name: usesKakaoName ? kakaoDisplayName || connection.displayName : connection.displayName,
+      name_source: usesKakaoName ? "kakao" : connection.displayName ? "admin" : null,
       matched_participant: connection.participant,
       connection_status: connection.status,
       connection_message: connection.message,
@@ -43,8 +47,39 @@ export async function GET() {
   }
 }
 
-export async function PATCH() {
-  return NextResponse.json({
-    error: "댓글 표시 이름은 운영자가 어드민에서 확인하고 변경합니다.",
-  }, { status: 403 });
+export async function PATCH(request: NextRequest) {
+  const guard = guardMutationRequest(request, { maxBodyBytes: 2048, rateLimit: { key: "own-display-name", limit: 10, windowMs: 60_000 } });
+  if (guard) return guard;
+  const owned = await ownedMember();
+  if ("response" in owned) return owned.response;
+  const parsed = await readMemberJson(request, 2048);
+  if ("response" in parsed) return parsed.response;
+  const { body } = parsed;
+  const name = typeof body.display_name === "string" ? body.display_name.trim().normalize("NFC").replace(/ +/g, " ") : "";
+  if (name.length < 2 || name.length > 40 || /[<>\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2060\u2066-\u2069\ufeff]/.test(name)) return NextResponse.json({ error: "표시 이름은 2~40자의 일반 텍스트로 입력해주세요." }, { status: 400, headers: privateHeaders });
+  const { service, authUserId, connection } = owned.context;
+  const oldName = connection.participant!.name;
+  try {
+    const previousAccount = await service.from("participant_accounts").select("updated_at")
+      .eq("auth_user_id", authUserId).eq("participant_id", owned.participantId).eq("season_key", "4th").eq("status", "approved").single();
+    if (previousAccount.error || !previousAccount.data) throw new Error("account_unavailable");
+    // Conditional updates prevent overwriting a concurrent operator edit.
+    // Account and record ownership remain immutable IDs, never a name match.
+    const { data: participant, error } = await service.from("participants").update({ name })
+      .eq("id", owned.participantId).eq("user_id", owned.adminUserId).eq("season_key", "4th").eq("name", oldName).eq("active", true).select("id").maybeSingle();
+    if (error || !participant) throw new Error("name_conflict");
+    const { data: account, error: accountError } = await service.from("participant_accounts")
+      .update({ display_name_override: name, updated_at: new Date().toISOString() })
+      .eq("auth_user_id", authUserId).eq("participant_id", owned.participantId).eq("season_key", "4th").eq("status", "approved").eq("updated_at", previousAccount.data.updated_at).select("participant_id").maybeSingle();
+    if (accountError || !account) {
+      // Compensate only our exact value; do not roll back someone else's edit.
+      await service.from("participants").update({ name: oldName }).eq("id", owned.participantId).eq("user_id", owned.adminUserId).eq("season_key", "4th").eq("name", name);
+      throw new Error("account_update_failed");
+    }
+    invalidatePublicDashboardCache();
+    after(() => broadcastDashboardRefreshFromServer(service));
+    return NextResponse.json({ display_name: name }, { headers: privateHeaders });
+  } catch {
+    return NextResponse.json({ error: "이름을 저장하지 못했어요. 최신 프로필을 확인하고 다시 시도해주세요." }, { status: 409, headers: privateHeaders });
+  }
 }

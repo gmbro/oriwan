@@ -1,107 +1,73 @@
 import { randomInt } from "node:crypto";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
-import { getServiceClient } from "@/lib/admin-data";
-import { FOURTH_SEASON_KEY, resolveParticipantAccount } from "@/lib/participant-account-server";
-import { guardMutationRequest } from "@/lib/request-security";
+import { FOURTH_SEASON_KEY } from "@/lib/participant-account-server";
+import { isWithinFourthPersonalRecordWindow } from "@/lib/fourth-season-contract";
+import { resolvePersonalMemberContext } from "@/lib/personal-member-context";
+import { guardMutationRequest, guardReadRequest } from "@/lib/request-security";
 import { toKstIsoDate } from "@/lib/run-records";
 import { logServerFailure } from "@/lib/server-error-log";
-import { createClient } from "@/lib/supabase/server";
 import { isMissingTableError, missingSchemaResponse } from "@/lib/supabase-errors";
-
-const GIFT_MESSAGES = [
-  "부럽네요!",
-  "참 잘했어요!",
-  "오늘도 화이팅!",
-  "고생하셨어요 :)",
-] as const;
-const FOURTH_SEASON_START_DATE = "2026-09-23";
-const FOURTH_SEASON_END_DATE = "2026-12-31";
-const FOURTH_GIFT_BOX_LIVE = process.env.FOURTH_GIFT_BOX_LIVE === "true";
 
 export const dynamic = "force-dynamic";
 
 type GiftContext = {
+  service: SupabaseClient;
   authUserId: string;
   adminUserId: string;
   participantId: string;
   participantName: string;
   recordDate: string;
-  seasonActive: boolean;
-  eligible: boolean;
 };
 
-function hasKakaoIdentity(user: { app_metadata?: Record<string, unknown>; identities?: Array<{ provider?: string }> }) {
-  return user.app_metadata?.provider === "kakao"
-    || Boolean(user.identities?.some((identity) => identity.provider === "kakao"));
-}
-
 async function resolveGiftContext(): Promise<GiftContext | NextResponse> {
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-    return NextResponse.json({ error: "카카오 로그인 서버 설정이 아직 준비되지 않았어요." }, { status: 503 });
-  }
-
-  const supabase = await createClient();
-  const { data: { user }, error } = await supabase.auth.getUser();
-  if (error || !user || !hasKakaoIdentity(user)) {
-    return NextResponse.json({ error: "카카오 로그인이 필요해요." }, { status: 401 });
-  }
-
-  const service = getServiceClient();
-  if (!service) {
+  const resolution = await resolvePersonalMemberContext();
+  if (!resolution.ok) {
+    if (resolution.reason === "configuration_unavailable") {
+      return NextResponse.json({ error: "카카오 로그인 서버 설정이 아직 준비되지 않았어요." }, { status: 503 });
+    }
+    if (resolution.reason === "unauthenticated") {
+      return NextResponse.json({ error: "카카오 로그인이 필요해요." }, { status: 401 });
+    }
     return NextResponse.json({ error: "운영 서버 연결이 아직 준비되지 않았어요." }, { status: 503 });
   }
 
-  const connection = await resolveParticipantAccount(service, user.id);
+  const { authUserId, service, connection } = resolution;
   if (connection.status !== "approved" || !connection.adminUserId || !connection.participant) {
     return NextResponse.json({
-      error: "승인된 크루만 오늘의 응원 상자를 받을 수 있어요.",
+      error: "개인 계정 연결을 완료하지 못했어요. 잠시 후 다시 시도해주세요.",
       connection_status: connection.status,
     }, { status: 403 });
   }
 
   const recordDate = toKstIsoDate(new Date());
-  const seasonActive = FOURTH_GIFT_BOX_LIVE
-    && recordDate >= FOURTH_SEASON_START_DATE
-    && recordDate <= FOURTH_SEASON_END_DATE;
-  if (!seasonActive) {
-    return {
-      authUserId: user.id,
-      adminUserId: connection.adminUserId,
-      participantId: connection.participant.id,
-      participantName: connection.participant.name,
-      recordDate,
-      seasonActive: false,
-      eligible: false,
-    };
+  if (!isWithinFourthPersonalRecordWindow(recordDate)) {
+    return NextResponse.json({ error: "4기 개인 기록 기간이 아니에요." }, { status: 403 });
   }
-  const { data: certification, error: certificationError } = await service
-    .from("daily_run_records")
-    .select("id")
-    .eq("user_id", connection.adminUserId)
-    .eq("season_key", FOURTH_SEASON_KEY)
-    .eq("participant_id", connection.participant.id)
-    .eq("record_date", recordDate)
-    .eq("status", "certified")
-    .maybeSingle();
-
-  if (certificationError) throw certificationError;
-
   return {
-    authUserId: user.id,
+    service,
+    authUserId,
     adminUserId: connection.adminUserId,
     participantId: connection.participant.id,
     participantName: connection.participant.name,
     recordDate,
-    seasonActive,
-    eligible: Boolean(certification),
   };
 }
 
-async function readClaim(context: GiftContext) {
-  const service = getServiceClient();
-  if (!service) return { data: null, error: new Error("service_missing") };
+async function readCertification(context: GiftContext) {
+  return context.service
+    .from("daily_run_records")
+    .select("id")
+    .eq("user_id", context.adminUserId)
+    .eq("season_key", FOURTH_SEASON_KEY)
+    .eq("participant_id", context.participantId)
+    .eq("record_date", context.recordDate)
+    .eq("status", "certified")
+    .maybeSingle();
+}
 
-  return service
+async function readClaim(context: GiftContext) {
+  return context.service
     .from("daily_gift_claims")
     .select("id, record_date, message, claimed_at")
     .eq("season_key", FOURTH_SEASON_KEY)
@@ -111,26 +77,61 @@ async function readClaim(context: GiftContext) {
     .maybeSingle();
 }
 
-export async function GET() {
+async function pickManagedEncouragement(context: GiftContext) {
+  const { data, error } = await context.service
+    .from("hello_2027_encouragements")
+    .select("message")
+    .eq("user_id", context.adminUserId)
+    .eq("season_key", FOURTH_SEASON_KEY)
+    .eq("active", true)
+    .order("display_order", { ascending: true })
+    .order("created_at", { ascending: true })
+    .limit(56);
+  if (error) return { message: null, error };
+
+  const messages = (data || []).flatMap((row) => {
+    const message = typeof row.message === "string" ? row.message.normalize("NFC").trim() : "";
+    return message && message.length <= 120 ? [message] : [];
+  });
+  return {
+    message: messages.length > 0 ? messages[randomInt(messages.length)] : null,
+    error: null,
+  };
+}
+
+export async function GET(request: NextRequest) {
+  const guardResponse = guardReadRequest(request, {
+    requireSameOrigin: true,
+    rateLimit: {
+      key: "daily-gift-box-read",
+      limit: 20,
+      windowMs: 60_000,
+      message: "응원 상자 상태 확인이 잠시 몰렸어요. 잠시 후 다시 확인해주세요.",
+    },
+  });
+  if (guardResponse) return guardResponse;
+
   try {
     const context = await resolveGiftContext();
     if (context instanceof NextResponse) return context;
 
-    const { data, error } = await readClaim(context);
-    if (error) {
-      if (isMissingTableError(error)) {
+    const [certification, claim] = await Promise.all([
+      readCertification(context),
+      readClaim(context),
+    ]);
+    if (certification.error) throw certification.error;
+    if (claim.error) {
+      if (isMissingTableError(claim.error)) {
         return NextResponse.json(missingSchemaResponse("오늘의 응원 상자 저장소가 아직 준비되지 않았어요."), { status: 503 });
       }
-      throw error;
+      throw claim.error;
     }
 
     return NextResponse.json({
-      eligible: context.eligible,
-      season_active: context.seasonActive,
-      season_starts_on: FOURTH_SEASON_START_DATE,
+      eligible: Boolean(certification.data),
       participant_name: context.participantName,
       record_date: context.recordDate,
-      claim: data || null,
+      claim: claim.data || null,
     }, { headers: { "Cache-Control": "private, no-store, max-age=0", Vary: "Cookie" } });
   } catch (error) {
     logServerFailure("Gift box status", error);
@@ -153,14 +154,15 @@ export async function POST(request: NextRequest) {
   try {
     const context = await resolveGiftContext();
     if (context instanceof NextResponse) return context;
-    if (!context.seasonActive) {
-      return NextResponse.json({ error: "4기 운영 오픈 후 응원 상자를 열 수 있어요." }, { status: 403 });
-    }
-    if (!context.eligible) {
+    const [certification, existing] = await Promise.all([
+      readCertification(context),
+      readClaim(context),
+    ]);
+    if (certification.error) throw certification.error;
+    if (!certification.data) {
       return NextResponse.json({ error: "오늘 인증을 완료하면 응원 상자가 열려요." }, { status: 403 });
     }
 
-    const existing = await readClaim(context);
     if (existing.error && !isMissingTableError(existing.error)) throw existing.error;
     if (existing.error && isMissingTableError(existing.error)) {
       return NextResponse.json(missingSchemaResponse("오늘의 응원 상자 저장소가 아직 준비되지 않았어요."), { status: 503 });
@@ -169,11 +171,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ claim: existing.data, already_claimed: true });
     }
 
-    const service = getServiceClient();
-    if (!service) return NextResponse.json({ error: "운영 서버 연결이 아직 준비되지 않았어요." }, { status: 503 });
+    const encouragement = await pickManagedEncouragement(context);
+    if (encouragement.error) {
+      if (isMissingTableError(encouragement.error)) {
+        return NextResponse.json(missingSchemaResponse("운영 응원글 저장소가 아직 준비되지 않았어요."), { status: 503 });
+      }
+      throw encouragement.error;
+    }
+    if (!encouragement.message) {
+      return NextResponse.json({ error: "운영자가 오늘의 응원글을 준비하고 있어요." }, { status: 503 });
+    }
 
-    const message = GIFT_MESSAGES[randomInt(GIFT_MESSAGES.length)];
-    const { data, error } = await service
+    const message = encouragement.message;
+    const { data, error } = await context.service
       .from("daily_gift_claims")
       .insert({
         season_key: FOURTH_SEASON_KEY,

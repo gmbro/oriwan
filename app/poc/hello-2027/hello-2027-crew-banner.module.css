@@ -1,0 +1,120 @@
+.banner {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  isolation: isolate;
+  container-type: inline-size;
+  background: #f7f9fb;
+  color: #191f28;
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  word-break: keep-all;
+}
+
+.artwork { position: absolute; inset: 0; container-type: size; }
+/* Artwork and runners share one cover-sized coordinate plane at every width. */
+.scene { position: absolute; left: 50%; top: 50%; width: max(100cqi, 233.66cqb); height: max(42.8cqi, 100cqb); transform: translate(-50%, -50%); container-type: size; }
+.image { object-fit: cover; }
+.runnerPresence { display: contents; }
+.runner { position: absolute; left: 0; top: 0; width: 14cqi; aspect-ratio: 3 / 4; mix-blend-mode: multiply; pointer-events: none; transform-origin: 50% 86%; transform: var(--rest-transform); animation: followGreyLane var(--travel-duration) linear var(--travel-delay) infinite, routeFade var(--travel-duration) linear var(--travel-delay) infinite; }
+.banner[data-background-ready="false"] .runner { visibility: hidden; }
+.runnerPresence[data-visible="false"] .runner,
+.runnerPresence[data-visible="false"] .runnerStrip,
+.banner[data-enhanced="false"] .runner { animation-play-state: paused; }
+.runnerWindow { width: 100%; height: 100%; overflow: hidden; opacity: 1; visibility: visible; transition: opacity 1.8s ease-in-out, visibility 0s; }
+/* Keep the multiply blend on the moving parent, so the white atlas matte
+   stays invisible throughout a count-change fade. Hidden runners are paused. */
+.runnerPresence[data-visible="false"] .runnerWindow { opacity: 0; visibility: hidden; transition: opacity 1.8s ease-in-out, visibility 0s linear 1.8s; }
+@starting-style {
+  .runnerPresence[data-visible="true"] .runnerWindow { opacity: 0; }
+}
+.runnerStill { display: block; width: 100%; height: 100%; }
+.runnerStrip { display: block; width: 800%; max-width: none; height: 100%; animation: stride var(--stride-duration) steps(8, end) var(--stride-delay) infinite; }
+@keyframes stride { to { transform: translateX(-100%); } }
+@keyframes followGreyLane {
+  0% { transform: var(--route-0); }
+  16% { transform: var(--route-16); }
+  32% { transform: var(--route-32); }
+  48% { transform: var(--route-48); }
+  64% { transform: var(--route-64); }
+  80% { transform: var(--route-80); }
+  92% { transform: var(--route-92); }
+  100% { transform: var(--route-100); }
+}
+/* Re-enter softly from the near end after disappearing into the bend. */
+@keyframes routeFade { 0%, 100% { opacity: 0; } 4%, 87% { opacity: 1; } 97% { opacity: 0; } }
+
+.eveningTint, .nightTint, .morningGlow { position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity 8s ease-in-out; }
+.eveningTint { background: linear-gradient(180deg, rgb(228 144 131 / 38%), rgb(255 200 131 / 24%) 52%, rgb(97 112 153 / 20%)); }
+.nightTint { background: linear-gradient(180deg, rgb(24 43 85 / 84%), rgb(39 64 99 / 73%) 55%, rgb(37 54 80 / 65%)); }
+.morningGlow { background: radial-gradient(ellipse at 72% 8%, rgb(255 228 175 / 36%), transparent 70%); }
+.banner[data-period="morning"] .morningGlow, .banner[data-period="evening"] .eveningTint, .banner[data-period="night"] .nightTint { opacity: 1; }
+.moon { position: absolute; left: 70%; top: 9%; width: 2.6%; aspect-ratio: 1; border-radius: 50%; background: #fff6d6; box-shadow: 0 0 22px rgb(255 244 205 / 22%); opacity: 0; transition: opacity 8s ease; }
+.stars { position: absolute; inset: 0 0 54% 45%; background: radial-gradient(circle at 12% 28%, #fffbe7 0 1px, transparent 2px), radial-gradient(circle at 28% 12%, #fffbe7 0 1px, transparent 2px), radial-gradient(circle at 68% 26%, #fffbe7 0 1px, transparent 2px), radial-gradient(circle at 78% 42%, #fffbe7 0 1px, transparent 2px), radial-gradient(circle at 45% 58%, #fffbe7 0 1px, transparent 2px); opacity: 0; transition: opacity 8s ease; }
+.banner[data-period="night"] .moon { opacity: .85; }
+.banner[data-period="night"] .stars { opacity: .7; }
+.cloudDrift { position: absolute; left: 25%; top: 3%; width: 60%; height: 26%; background: radial-gradient(ellipse at center, rgb(255 255 255 / 18%), transparent 64%); animation: drift 24s ease-in-out infinite alternate; }
+.waterShimmer { position: absolute; left: 30%; top: 43%; width: 32%; height: 16%; background: repeating-linear-gradient(177deg, transparent 0 14px, rgb(255 255 255 / 20%) 15px 16px, transparent 18px 29px); animation: shimmer 18s ease-in-out infinite alternate; }
+@keyframes drift { to { transform: translateX(18px); opacity: .5; } }
+@keyframes shimmer { to { transform: translateX(8px); opacity: .45; } }
+
+.weatherCloud, .weatherFog, .precipitation { position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity 8s ease-in-out; }
+.weatherCloud { background: linear-gradient(180deg, rgb(112 133 156 / 38%), rgb(185 197 208 / 12%) 55%, transparent); }
+.weatherFog { background: linear-gradient(180deg, transparent 30%, rgb(229 236 242 / 56%) 58%, rgb(229 236 242 / 12%)); }
+.banner:is([data-weather="cloudy"], [data-weather="rain"], [data-weather="snow"]) .weatherCloud { opacity: 1; }
+.banner[data-weather="fog"] .weatherFog { opacity: 1; }
+.banner:is([data-weather="rain"], [data-weather="snow"]) .precipitation { opacity: .65; }
+.weatherParticle { position: absolute; top: -5%; left: var(--particle-x); width: 1px; height: 12px; background: rgb(228 240 250 / 80%); border-radius: 2px; animation: weatherFall 12s linear var(--particle-delay) infinite; animation-play-state: paused; }
+.banner[data-weather="snow"] .weatherParticle { width: 3px; height: 3px; background: #fff; border-radius: 50%; animation-duration: 20s; }
+.banner:is([data-weather="rain"], [data-weather="snow"])[data-running="true"] .weatherParticle { animation-play-state: running; }
+@keyframes weatherFall { 0% { transform: translate(0, 0); opacity: 0; } 12%, 85% { opacity: .7; } 100% { transform: translate(-18px, 110cqb); opacity: 0; } }
+
+.wash { position: absolute; inset: 0; background: linear-gradient(90deg, rgb(247 249 251 / 95%), rgb(247 249 251 / 87%) 27%, rgb(247 249 251 / 28%) 49%, transparent 65%); pointer-events: none; }
+.content { position: absolute; top: 50%; left: 6%; width: 38%; max-width: 440px; transform: translateY(-50%); }
+.eyebrow { margin: 0 0 clamp(16px, 2cqi, 26px); color: #6b7684; font-size: clamp(10px, 1cqi, 12px); font-weight: 650; letter-spacing: .13em; }
+.title { margin: 0; font-size: clamp(18px, 2.1cqi, 26px); font-weight: 650; letter-spacing: -.045em; }
+.metric { display: flex; align-items: baseline; gap: 5px; margin: 8px 0 0; color: #1b64da; line-height: 1; }
+.metric strong { font-size: clamp(68px, 10cqi, 128px); font-weight: 750; letter-spacing: -.075em; }
+.metric > span { font-size: clamp(28px, 3.7cqi, 48px); font-weight: 600; letter-spacing: -.04em; }
+.progress { overflow: hidden; width: min(100%, 270px); height: 6px; margin-top: clamp(16px, 2cqi, 24px); border-radius: 99px; background: rgb(49 130 246 / 13%); }
+.progress > span { display: block; width: 100%; height: 100%; border-radius: inherit; background: #3182f6; transform-origin: left; transition: transform 350ms ease-out; }
+.description { margin: 12px 0 0; font-size: clamp(13px, 1.35cqi, 17px); font-weight: 600; line-height: 1.5; letter-spacing: -.03em; }
+.seasonCountdown { display: flex; align-items: center; gap: 8px; margin: 10px 0 0; font-size: 11px; color: #6b7684; font-variant-numeric: tabular-nums; }
+.seasonCountdown strong { border-radius: 7px; padding: 3px 7px; color: #1b64da; background: #e8f3ff; font-size: 12px; font-weight: 700; }
+.completionGlow { position: absolute; inset: 15% 8% 30% 62%; pointer-events: none; background: radial-gradient(circle at 20% 50%, #f2cb7c 0 2px, transparent 3px), radial-gradient(circle at 80% 15%, #f2cb7c 0 2px, transparent 3px), radial-gradient(circle at 65% 70%, #f2cb7c 0 2px, transparent 3px); animation: celebrate 2s ease-out both; }
+@keyframes celebrate { 0% { opacity: 0; transform: translateY(8px); } 35% { opacity: .7; } 100% { opacity: 0; transform: translateY(-12px); } }
+.motionToggle { position: absolute; top: 8px; right: 8px; display: grid; place-items: center; width: 44px; height: 44px; border: 0; border-radius: 50%; background: transparent; color: #4e5968; cursor: pointer; }
+.motionToggle:focus-visible { outline: 2px solid #3182f6; outline-offset: -3px; }
+.motionToggle:disabled { opacity: .4; cursor: default; }
+.pauseIcon { width: 11px; height: 13px; border-left: 3px solid; border-right: 3px solid; }
+.playIcon { width: 0; height: 0; border-top: 7px solid transparent; border-bottom: 7px solid transparent; border-left: 10px solid; }
+.banner[data-running="false"] :is(.runner, .runnerStrip, .cloudDrift, .waterShimmer, .completionGlow) { animation-play-state: paused; }
+
+@container (max-width: 600px) {
+  .artwork { top: 32%; }
+  .scene { left: 100%; transform: translate(-100%, -50%); }
+  .wash { background: linear-gradient(180deg, #f7f9fb 0%, #f7f9fb 45%, rgb(247 249 251 / 95%) 58%, rgb(247 249 251 / 12%) 76%, transparent 86%); }
+  .content { top: 22px; left: 24px; width: calc(100% - 48px); max-width: none; transform: none; }
+  .eyebrow { margin-bottom: 12px; font-size: 9px; letter-spacing: .12em; }
+  .title { font-size: 16px; }
+  .metric { margin-top: 4px; }
+  .metric strong { font-size: 62px; }
+  .metric > span { font-size: 28px; }
+  .progress { width: 144px; height: 5px; margin-top: 10px; }
+  .description { margin-top: 8px; font-size: 12px; }
+}
+@container (max-width: 360px) {
+  .content { top: 18px; left: 20px; width: calc(100% - 40px); }
+  .eyebrow { margin-bottom: 9px; }
+  .metric strong { font-size: 54px; }
+  .artwork { top: 38%; }
+  .wash { background: linear-gradient(180deg, #f7f9fb 0%, #f7f9fb 50%, rgb(247 249 251 / 95%) 63%, rgb(247 249 251 / 12%) 80%, transparent 90%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .banner *, .banner *::before { animation: none !important; transition: none !important; }
+}
+
+.eyebrow { font-size: 12px; font-weight: 500; line-height: 1.5; }
+.title { font-size: clamp(18px, 2cqi, 24px); font-weight: 600; line-height: 1.4; }
+.description { font-size: clamp(13px, 1.3cqi, 16px); font-weight: 500; line-height: 1.5; }
+.seasonCountdown strong { font-size: 12px; font-weight: 600; line-height: 1.4; }

@@ -2,6 +2,7 @@
 
 # dependencies
 /node_modules
+/.pnpm-store
 /.pnp
 .pnp.*
 .yarn/*
@@ -15,6 +16,7 @@
 
 # next.js
 /.next/
+/.next-local/
 /out/
 
 # production
@@ -41,3 +43,13 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .env*.local
+
+# Local transfer contains duplicate source and private credentials
+/TWTT-workspace/
+/node_modules.icloud-backup/
+/.next-local.icloud-backup/
+/.next.icloud-backup/
+/node_modules */
+
+/.next */
+/.next-local */

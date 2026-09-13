@@ -1,14 +1,21 @@
 import "server-only";
 
+import { unstable_cache } from "next/cache";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { findAdminUserId, getServiceClient } from "@/lib/admin-data";
+import { PUBLIC_FOURTH_PARTICIPANT_ORDER_FILTER } from "@/lib/fourth-participant-visibility";
 import { FOURTH_SEASON_KEY } from "@/lib/fourth-season-contract";
+import {
+  DEFAULT_HELLO_2027_BANNER_CLICK_URL,
+  isSafeHello2027BannerClickUrl,
+} from "@/lib/hello-2027-banner-contract";
+import { hydrateLegacyFourthSeasonBanner } from "@/lib/hello-2027-banner-presets";
+import { loadHello2027BannerClickUrls } from "@/lib/hello-2027-banner-storage";
 import {
   MAX_HELLO_2027_PROFILE_INTRODUCTIONS,
   MAX_PROFILE_INTRO_LENGTH,
   MAX_PROFILE_INTRO_NAME_LENGTH,
-  MAX_PROFILE_INTRO_TITLE_LENGTH,
 } from "@/lib/hello-2027-profile-introduction-contract";
 
 export {
@@ -19,6 +26,7 @@ export {
 } from "@/lib/hello-2027-profile-introduction-contract";
 
 export const HELLO_2027_SEASON_KEY = FOURTH_SEASON_KEY;
+export const HELLO_2027_CONTENT_CACHE_TAG = "hello-2027-public-content";
 export const MAX_HELLO_2027_ENCOURAGEMENTS = 56;
 export const MAX_HELLO_2027_BANNERS = 10;
 export const MAX_ENCOURAGEMENT_LENGTH = 120;
@@ -44,6 +52,7 @@ export type PublicHello2027Banner = {
   description: string;
   alt: string;
   imageSrc: string;
+  clickUrl: string;
   mobileFocus: Hello2027MobileFocus;
   displayOrder: number;
 };
@@ -190,12 +199,21 @@ async function loadBanners(supabase: SupabaseClient, adminUserId: string) {
     .limit(MAX_HELLO_2027_BANNERS);
 
   if (error) throw error;
+  const clickUrls = await loadHello2027BannerClickUrls(
+    supabase,
+    adminUserId,
+    (data || []).map((row) => row.id),
+  );
 
-  return ((data || []) as BannerRow[]).flatMap((row) => {
+  return ((data || []) as BannerRow[]).map(hydrateLegacyFourthSeasonBanner).flatMap((row) => {
     const ownerName = normalizeContentText(row.owner_name, MAX_BANNER_OWNER_LENGTH);
     const title = normalizeContentText(row.title, MAX_BANNER_TITLE_LENGTH);
     const description = normalizeContentText(row.description, MAX_BANNER_DESCRIPTION_LENGTH);
     const alt = normalizeContentText(row.alt_text, MAX_BANNER_ALT_LENGTH);
+    const storedClickUrl = clickUrls[row.id];
+    const clickUrl = isSafeHello2027BannerClickUrl(storedClickUrl)
+      ? storedClickUrl.trim()
+      : DEFAULT_HELLO_2027_BANNER_CLICK_URL;
     if (!ownerName || !title || !description || !alt || !isSafeHello2027ImageUrl(row.image_url)) return [];
     return [{
       id: row.id,
@@ -204,6 +222,7 @@ async function loadBanners(supabase: SupabaseClient, adminUserId: string) {
       description,
       alt,
       imageSrc: row.image_url.trim(),
+      clickUrl,
       mobileFocus: isHello2027MobileFocus(row.mobile_focus) ? row.mobile_focus : "center",
       displayOrder: Number.isInteger(row.display_order) ? row.display_order : 0,
     }];
@@ -234,6 +253,7 @@ async function loadProfileIntroductions(supabase: SupabaseClient, adminUserId: s
     .eq("user_id", adminUserId)
     .eq("season_key", HELLO_2027_SEASON_KEY)
     .eq("active", true)
+    .or(PUBLIC_FOURTH_PARTICIPANT_ORDER_FILTER)
     .in("id", rows.map((row) => row.participant_id));
   if (participantError) throw participantError;
   const activeParticipantNames = new Map(
@@ -245,7 +265,7 @@ async function loadProfileIntroductions(supabase: SupabaseClient, adminUserId: s
 
   return rows.flatMap((row) => {
     const name = activeParticipantNames.get(row.participant_id);
-    const title = normalizeContentText(row.title, MAX_PROFILE_INTRO_TITLE_LENGTH);
+    const title = "자기소개";
     const body = normalizeContentText(row.body, MAX_PROFILE_INTRO_LENGTH);
     if (!name || !title || !body) return [];
     return [{
@@ -257,7 +277,7 @@ async function loadProfileIntroductions(supabase: SupabaseClient, adminUserId: s
   });
 }
 
-export async function getPublicHello2027Content(): Promise<PublicHello2027Content> {
+async function loadPublicHello2027Content(): Promise<PublicHello2027Content> {
   const fallback = {
     encouragements: [] as PublicHello2027Encouragement[],
     banners: [] as PublicHello2027Banner[],
@@ -331,3 +351,12 @@ export async function getPublicHello2027Content(): Promise<PublicHello2027Conten
     },
   };
 }
+
+export const getPublicHello2027Content = unstable_cache(
+  loadPublicHello2027Content,
+  [HELLO_2027_CONTENT_CACHE_TAG, HELLO_2027_SEASON_KEY, "v4-approved-members"],
+  {
+    revalidate: 15,
+    tags: [HELLO_2027_CONTENT_CACHE_TAG],
+  },
+);

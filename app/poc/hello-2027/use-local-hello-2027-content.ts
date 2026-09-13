@@ -1,14 +1,19 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
 import type { Hello2027Ad, Hello2027ProfileIntroduction } from "@/lib/hello-2027-types";
+import {
+  DEFAULT_HELLO_2027_BANNER_CLICK_URL,
+  isSafeHello2027BannerClickUrl,
+} from "@/lib/hello-2027-banner-contract";
 import {
   MAX_HELLO_2027_PROFILE_INTRODUCTIONS,
   MAX_PROFILE_INTRO_LENGTH,
   MAX_PROFILE_INTRO_NAME_LENGTH,
   MAX_PROFILE_INTRO_TITLE_LENGTH,
 } from "@/lib/hello-2027-profile-introduction-contract";
+import { DASHBOARD_REFRESH_DOM_EVENT } from "@/lib/dashboard-refresh-contract";
 
 export type ResolvedHello2027Ad = Hello2027Ad & {
   isUploaded: boolean;
@@ -81,6 +86,9 @@ function cleanPublishedAd(value: unknown): ResolvedHello2027Ad | null {
   const description = cleanText(value.description, 100);
   const alt = cleanText(value.alt, 80);
   const imageSrc = cleanText(value.imageSrc, 2_000);
+  const clickUrl = isSafeHello2027BannerClickUrl(value.clickUrl)
+    ? value.clickUrl.trim()
+    : DEFAULT_HELLO_2027_BANNER_CLICK_URL;
   const mobileFocus = value.mobileFocus === "left" || value.mobileFocus === "right"
     ? value.mobileFocus
     : "center";
@@ -93,6 +101,7 @@ function cleanPublishedAd(value: unknown): ResolvedHello2027Ad | null {
     description,
     alt,
     imageSrc,
+    clickUrl,
     mobileFocus,
     isUploaded: imageSrc.startsWith("https://"),
   };
@@ -140,46 +149,57 @@ export function useLocalHello2027Content(
   defaultEncouragements: readonly string[] = [],
   preferPublishedContent = false,
 ) {
-  void defaultAds;
-  void defaultEncouragements;
   void preferPublishedContent;
   const [content, setContent] = useState<LocalContent>(() => ({
-    ads: [],
+    ads: defaultAds.map((ad) => ({ ...ad, isUploaded: ad.imageSrc.startsWith("https://") })),
     avatarUrls: {},
-    encouragements: [],
+    encouragements: [...defaultEncouragements],
     profileIntroductions: {},
   }));
-  const refresh = useCallback(async () => {
-    try {
-      const response = await fetch("/api/hello-2027/content", {
-        cache: "no-store",
-        credentials: "same-origin",
-      });
-      if (!response.ok) throw new Error("published_content_failed");
-      const published = await response.json() as PublishedContent;
-      setContent(cleanPublishedContent(published));
-    } catch {
-      setContent({
-        ads: [],
-        avatarUrls: {},
-        encouragements: [],
-        profileIntroductions: {},
-      });
-    }
-  }, []);
-
   useEffect(() => {
     let active = true;
+    let inFlight = false;
+    let queued = false;
+    let controller: AbortController | null = null;
+    const refresh = async () => {
+      if (inFlight) { queued = true; return; }
+      inFlight = true;
+      controller = new AbortController();
+      const timeout = window.setTimeout(() => controller?.abort(), 8_000);
+      try {
+        const response = await fetch("/api/hello-2027/content", {
+          cache: "no-store",
+          // The endpoint never reads personal data. Same-origin cookies still
+          // allow Vercel's protected preview session to reach this public API.
+          credentials: "same-origin",
+          signal: controller.signal,
+        });
+        if (!response.ok) throw new Error("published_content_failed");
+        const published = await response.json() as PublishedContent;
+        if (active) setContent(cleanPublishedContent(published));
+      } catch {
+        // Preserve the last successful content during a transient outage.
+        // An error must not empty the carousel and shift the entire page.
+      } finally {
+        window.clearTimeout(timeout);
+        controller = null;
+        inFlight = false;
+        if (active && queued) { queued = false; void refresh(); }
+      }
+    };
     const runRefresh = () => {
       if (!active) return;
       void refresh();
     };
 
     runRefresh();
+    window.addEventListener(DASHBOARD_REFRESH_DOM_EVENT, runRefresh);
     return () => {
       active = false;
+      controller?.abort();
+      window.removeEventListener(DASHBOARD_REFRESH_DOM_EVENT, runRefresh);
     };
-  }, [refresh]);
+  }, []);
 
   return content;
 }

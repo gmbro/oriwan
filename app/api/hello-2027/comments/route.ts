@@ -1,4 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
+import { broadcastDashboardRefreshFromServer } from "@/lib/dashboard-refresh-server";
+import { invalidatePublicDashboardCache } from "@/lib/public-dashboard-data";
 
 import {
   HELLO_2027_COMMENTS_LIVE,
@@ -8,10 +10,10 @@ import {
   getHello2027CommentsService,
   hello2027PrivateHeaders,
   normalizeCommentBody,
-  pickHello2027RandomNickname,
   readHello2027JsonBody,
   readHello2027Threads,
   resolveHello2027CommentActor,
+  resolveHello2027CommentReadActor,
   toHello2027Comment,
 } from "@/lib/hello-2027-comments-server";
 import { HELLO_2027_COMMENT_MAX_REPLIES } from "@/lib/hello-2027-comments-contract";
@@ -34,7 +36,7 @@ function publicJson(
 
 function commentsDisabledResponse() {
   return publicJson({
-    error: "정식 오픈 후 댓글을 남길 수 있어요.",
+    error: "댓글 기능을 잠시 점검하고 있어요.",
     live: false,
   }, 403);
 }
@@ -53,7 +55,6 @@ export async function GET(request: NextRequest) {
     return publicJson({ threads: [], live: false, source: "preview" });
   }
 
-  const actor = await resolveHello2027CommentActor(request);
   const service = getHello2027CommentsService();
   if (!service) {
     return publicJson({
@@ -65,7 +66,8 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const { threads, error } = await readHello2027Threads(service, actor.actorKey);
+    const actorKey = resolveHello2027CommentReadActor(request).then((actor) => actor.actorKey);
+    const { threads, error } = await readHello2027Threads(service, actorKey);
     if (error) {
       if (isMissingTableError(error)) {
         return publicJson({
@@ -117,17 +119,24 @@ export async function POST(request: NextRequest) {
     : typeof record.parent_id === "string" && UUID_PATTERN.test(record.parent_id)
       ? record.parent_id
       : undefined;
-  if (!body) return publicJson({ error: "댓글은 공백 없이 150자 이내로 입력해주세요." }, 400);
+  if (!body) return publicJson({ error: "댓글 내용을 150자 이내로 입력해주세요." }, 400);
   if (parentId === undefined) return publicJson({ error: "답글을 남길 댓글을 다시 확인해주세요." }, 400);
 
   const actor = await resolveHello2027CommentActor(request);
   if (actor.authError) {
     return publicJson({ error: "로그인 상태를 확인하지 못했어요. 잠시 후 다시 시도해주세요." }, 503);
   }
-  const authorMode = actor.user ? "kakao" : "random";
-  if (authorMode === "kakao" && (!actor.user || !actor.kakaoName)) {
+  if (!actor.user) {
+    return publicJson({ error: "댓글은 카카오 로그인 후 남길 수 있어요." }, 401);
+  }
+  const requestedMode = record.author_mode;
+  if (requestedMode !== "kakao" && requestedMode !== "anonymous") {
+    return publicJson({ error: "댓글에 표시할 이름 방식을 선택해주세요." }, 400, actor);
+  }
+  if (requestedMode === "kakao" && !actor.kakaoName) {
     return publicJson({ error: "카카오 이름으로 작성하려면 다시 로그인해주세요." }, 401, actor);
   }
+  const storedAuthorMode = requestedMode === "anonymous" ? "random" : "kakao";
 
   const service = getHello2027CommentsService();
   if (!service) {
@@ -135,6 +144,32 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    const now = Date.now();
+    const [{ count: recentCount, error: recentCountError }, { count: dailyCount, error: dailyCountError }] = await Promise.all([
+      service
+        .from("hello_2027_comments")
+        .select("id", { count: "exact", head: true })
+        .eq("season_key", HELLO_2027_COMMENTS_SEASON)
+        .eq("actor_key", actor.actorKey)
+        .gte("created_at", new Date(now - 60_000).toISOString()),
+      service
+        .from("hello_2027_comments")
+        .select("id", { count: "exact", head: true })
+        .eq("season_key", HELLO_2027_COMMENTS_SEASON)
+        .eq("actor_key", actor.actorKey)
+        .gte("created_at", new Date(now - 24 * 60 * 60_000).toISOString()),
+    ]);
+    const countError = recentCountError || dailyCountError;
+    if (countError) {
+      if (isMissingTableError(countError)) {
+        return publicJson(missingSchemaResponse("공용 댓글 저장소가 아직 준비되지 않았어요."), 503, actor);
+      }
+      throw countError;
+    }
+    if ((recentCount || 0) >= 6 || (dailyCount || 0) >= 40) {
+      return publicJson({ error: "댓글을 잠시 많이 남겼어요. 조금 뒤 다시 이어주세요." }, 429, actor);
+    }
+
     if (parentId) {
       const [{ data: parent, error: parentError }, { count, error: countError }] = await Promise.all([
         service
@@ -170,19 +205,24 @@ export async function POST(request: NextRequest) {
       .insert({
         season_key: HELLO_2027_COMMENTS_SEASON,
         parent_id: parentId,
-        author_name: authorMode === "kakao" ? actor.kakaoName : pickHello2027RandomNickname(),
-        author_mode: authorMode,
-        auth_user_id: actor.user?.id || null,
+        author_name: requestedMode === "anonymous" ? "익명" : actor.kakaoName,
+        author_mode: storedAuthorMode,
+        // 익명 표시는 공개 이름만 감춥니다. actor_key는 본인 삭제와 남용 방지를 위해 유지합니다.
+        auth_user_id: requestedMode === "anonymous" ? null : actor.user.id,
         actor_key: actor.actorKey,
         body,
         status: "visible",
       })
-      .select("id, parent_id, author_name, body, created_at")
+      // actor_key is reduced to ownedByViewer by toHello2027Comment and never serialized.
+      .select("id, parent_id, author_name, actor_key, body, created_at, updated_at")
       .single();
 
     if (error) {
       if (isMissingTableError(error)) {
         return publicJson(missingSchemaResponse("공용 댓글 저장소가 아직 준비되지 않았어요."), 503, actor);
+      }
+      if (error.code === "P0001" && error.message?.includes("hello_2027_comment_rate_limit")) {
+        return publicJson({ error: "댓글을 잠시 많이 남겼어요. 조금 뒤 다시 이어주세요." }, 429, actor);
       }
       if (error.code === "23514") {
         return publicJson({ error: "답글을 더 남길 수 없거나 원문 상태가 변경됐어요." }, 409, actor);
@@ -190,10 +230,55 @@ export async function POST(request: NextRequest) {
       throw error;
     }
 
-    return publicJson({ comment: toHello2027Comment(data) }, 201, actor);
+    invalidatePublicDashboardCache();
+    after(() => broadcastDashboardRefreshFromServer(service));
+    return publicJson({ comment: toHello2027Comment(data, [], actor.actorKey) }, 201, actor);
   } catch (error) {
     logServerFailure("Hello 2027 comment create", error);
     return publicJson({ error: "댓글을 저장하지 못했어요. 잠시 후 다시 시도해주세요." }, 500, actor);
+  }
+}
+
+export async function PATCH(request: NextRequest) {
+  const guardResponse = guardMutationRequest(request, {
+    maxBodyBytes: 4 * 1024,
+    rateLimit: { key: "hello-2027-comment-edit", limit: 10, windowMs: 60_000 },
+  });
+  if (guardResponse) return guardResponse;
+  if (!HELLO_2027_COMMENTS_LIVE) return commentsDisabledResponse();
+  const parsed = await readHello2027JsonBody(request, 4 * 1024);
+  if (!parsed.ok) return publicJson({ error: parsed.error }, parsed.status);
+  const value = parsed.value;
+  const input = value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
+  const id = typeof input?.id === "string" ? input.id : "";
+  const body = normalizeCommentBody(input?.body);
+  const version = typeof input?.expected_updated_at === "string" ? input.expected_updated_at : "";
+  if (!UUID_PATTERN.test(id) || !body || version.length > 50 || !Number.isFinite(Date.parse(version))) {
+    return publicJson({ error: "수정할 댓글과 내용을 다시 확인해주세요. 댓글은 150자 이내로 입력해주세요." }, 400);
+  }
+  const actor = await resolveHello2027CommentActor(request, { includeDisplayName: false });
+  if (actor.authError) return publicJson({ error: "로그인 상태를 확인하지 못했어요. 잠시 후 다시 시도해주세요." }, 503);
+  if (!actor.user) return publicJson({ error: "댓글 수정은 카카오 로그인 후 이용할 수 있어요." }, 401);
+  const service = getHello2027CommentsService();
+  if (!service) return publicJson({ error: "공용 댓글 저장소가 아직 준비되지 않았어요." }, 503, actor);
+  try {
+    // Both anonymous display names and Kakao names use the verified owner key.
+    // Compare-and-set prevents stale forms from overwriting a newer edit/delete.
+    const { data, error } = await service.from("hello_2027_comments")
+      .update({ body, updated_at: new Date().toISOString() })
+      .eq("id", id).eq("season_key", HELLO_2027_COMMENTS_SEASON)
+      .eq("actor_key", actor.actorKey).eq("status", "visible")
+      .eq("updated_at", version)
+      .select("id, parent_id, author_name, actor_key, body, created_at, updated_at")
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) return publicJson({ error: "수정할 수 없거나 다른 곳에서 변경된 댓글이에요. 새로고침 후 다시 확인해주세요." }, 409, actor);
+    invalidatePublicDashboardCache();
+    after(() => broadcastDashboardRefreshFromServer(service));
+    return publicJson({ comment: toHello2027Comment(data, [], actor.actorKey) }, 200, actor);
+  } catch (error) {
+    logServerFailure("Hello 2027 comment edit", error);
+    return publicJson({ error: "댓글을 수정하지 못했어요. 입력 내용은 유지했으니 다시 시도해주세요." }, 500, actor);
   }
 }
 
@@ -218,9 +303,14 @@ export async function DELETE(request: NextRequest) {
     : "";
   if (!UUID_PATTERN.test(id)) return publicJson({ error: "삭제할 댓글을 다시 확인해주세요." }, 400);
 
-  const actor = await resolveHello2027CommentActor(request);
+  // Deletion is authorized by the actor key, so resolving a display name would
+  // add a database round trip without changing the authorization decision.
+  const actor = await resolveHello2027CommentActor(request, { includeDisplayName: false });
   if (actor.authError) {
     return publicJson({ error: "로그인 상태를 확인하지 못했어요. 잠시 후 다시 시도해주세요." }, 503);
+  }
+  if (!actor.user) {
+    return publicJson({ error: "댓글 삭제는 카카오 로그인 후 이용할 수 있어요." }, 401);
   }
   const service = getHello2027CommentsService();
   if (!service) return publicJson({ error: "공용 댓글 저장소가 아직 준비되지 않았어요." }, 503, actor);
@@ -242,6 +332,8 @@ export async function DELETE(request: NextRequest) {
     if (data !== "deleted") {
       return publicJson({ error: "삭제할 수 있는 댓글을 찾지 못했어요." }, 404, actor);
     }
+    invalidatePublicDashboardCache();
+    after(() => broadcastDashboardRefreshFromServer(service));
     return publicJson({ ok: true, id, status: "deleted" }, 200, actor);
   } catch (error) {
     logServerFailure("Hello 2027 comment delete", error);

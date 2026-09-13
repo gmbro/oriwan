@@ -61,6 +61,8 @@ export function isRecoveryCertificationRecord(record: {
   raw_extracted_text?: string | null;
   source_app?: string | null;
 }) {
+  // Untrusted OCR text in a member upload cannot grant recovery credit.
+  if (record.source_app === "member-upload") return false;
   if (hasRecoveryCertificationOverrideOffText(record.notes)) return false;
   if (record.is_recovery_certification) return true;
   return (

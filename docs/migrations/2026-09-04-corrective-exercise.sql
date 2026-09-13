@@ -29,10 +29,10 @@ CREATE TABLE IF NOT EXISTS public.corrective_exercise_applications (
     AND btrim(participant_name_snapshot) <> ''
   ),
   requested_slot_id UUID REFERENCES public.corrective_exercise_slots(id) ON DELETE SET NULL,
-  requested_date DATE NOT NULL,
-  requested_start_time TIME WITHOUT TIME ZONE NOT NULL,
+  requested_date DATE,
+  requested_start_time TIME WITHOUT TIME ZONE,
   requested_end_time TIME WITHOUT TIME ZONE,
-  pain_areas TEXT[] NOT NULL CHECK (
+  pain_areas TEXT[] CHECK (
     cardinality(pain_areas) BETWEEN 1 AND 5
     AND array_position(pain_areas, NULL) IS NULL
     AND pain_areas <@ ARRAY[
@@ -40,17 +40,18 @@ CREATE TABLE IF NOT EXISTS public.corrective_exercise_applications (
       'knee', 'ankle', 'foot', 'elbow_wrist', 'other'
     ]::TEXT[]
   ),
-  pain_context TEXT NOT NULL CHECK (char_length(pain_context) BETWEEN 10 AND 500),
-  hospital_status TEXT NOT NULL CHECK (hospital_status IN ('none', 'past', 'current')),
+  pain_context TEXT CHECK (char_length(pain_context) BETWEEN 10 AND 500),
+  hospital_status TEXT CHECK (hospital_status IN ('none', 'past', 'current')),
   hospital_note TEXT CHECK (hospital_note IS NULL OR char_length(hospital_note) BETWEEN 1 AND 300),
   additional_note TEXT CHECK (additional_note IS NULL OR char_length(additional_note) BETWEEN 1 AND 500),
+  inquiry_message TEXT CHECK (inquiry_message IS NULL OR char_length(inquiry_message) BETWEEN 5 AND 500),
   status TEXT DEFAULT 'submitted' NOT NULL CHECK (
     status IN ('submitted', 'reviewing', 'schedule_proposed', 'confirmed', 'completed', 'cancelled', 'rejected')
   ),
   confirmed_for TIMESTAMPTZ,
   admin_note TEXT CHECK (admin_note IS NULL OR char_length(admin_note) BETWEEN 1 AND 500),
-  consent_version TEXT NOT NULL CHECK (char_length(consent_version) BETWEEN 1 AND 64),
-  consented_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  consent_version TEXT CHECK (char_length(consent_version) BETWEEN 1 AND 64),
+  consented_at TIMESTAMPTZ,
   retention_until TIMESTAMPTZ DEFAULT (NOW() + INTERVAL '180 days') NOT NULL,
   cancelled_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
@@ -76,6 +77,8 @@ CREATE INDEX IF NOT EXISTS idx_corrective_exercise_applications_admin
   ON public.corrective_exercise_applications(user_id, season_key, status, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_corrective_exercise_applications_member
   ON public.corrective_exercise_applications(auth_user_id, season_key, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_corrective_exercise_repeat_inquiries_member
+  ON public.corrective_exercise_applications(user_id, season_key, auth_user_id, participant_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_corrective_exercise_applications_slot
   ON public.corrective_exercise_applications(requested_slot_id, status, retention_until);
 CREATE INDEX IF NOT EXISTS idx_corrective_exercise_applications_retention
@@ -84,10 +87,6 @@ CREATE INDEX IF NOT EXISTS idx_corrective_exercise_audit_application
   ON public.corrective_exercise_audit_logs(user_id, application_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_corrective_exercise_audit_retention
   ON public.corrective_exercise_audit_logs(retention_until);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_corrective_exercise_one_active_per_member
-  ON public.corrective_exercise_applications(season_key, auth_user_id)
-  WHERE status IN ('submitted', 'reviewing', 'schedule_proposed', 'confirmed');
-
 CREATE OR REPLACE FUNCTION public.set_corrective_exercise_retention()
 RETURNS TRIGGER
 LANGUAGE plpgsql

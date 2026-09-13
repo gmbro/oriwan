@@ -11,6 +11,7 @@ export type Hello2027Ad = {
   description: string;
   alt: string;
   imageSrc: string;
+  clickUrl?: string;
   mobileFocus?: "left" | "center" | "right";
 };
 
@@ -30,6 +31,9 @@ export type Hello2027GuestbookReply = {
   author: string;
   body: string;
   createdAt: string;
+  updatedAt?: string;
+  /** True only when the current server-resolved actor owns this comment. */
+  ownedByViewer: boolean;
   reactions: readonly Hello2027Reaction[];
 };
 
@@ -38,18 +42,35 @@ export type Hello2027GuestbookThread = {
   author: string;
   body: string;
   createdAt: string;
+  updatedAt?: string;
+  /** True only when the current server-resolved actor owns this comment. */
+  ownedByViewer: boolean;
   reactions: readonly Hello2027Reaction[];
   replies: readonly Hello2027GuestbookReply[];
+};
+
+export type Hello2027ParticipantRecordEntry = {
+  recordDateIso: string;
+  monthDay: string;
+  weekday: string;
+  distanceKm: number | null;
+  durationMinutes: number | null;
+  status: "certified" | "needs_review";
 };
 
 export type Hello2027Participant = {
   id: string;
   fullName: string;
   pictogramIndex: number;
+  profileImageUrl: string | null;
   completed: boolean;
   seasonCompletionRate: number;
   distanceKm: number | null;
   durationMinutes: number | null;
+  certifiedDays: number;
+  recordHistory: readonly Hello2027ParticipantRecordEntry[];
+  totalDistanceKm: number;
+  totalDurationMinutes: number;
   product: {
     name: string;
     description: string;
@@ -67,6 +88,7 @@ export type Hello2027Snapshot = {
   daysUntil2027: number;
   completedToday: number;
   participantCount: number;
+  officialTotals: { distanceKm: number; durationMinutes: number };
   rates: readonly Hello2027Rate[];
   ads: readonly Hello2027Ad[];
   encouragements: readonly string[];

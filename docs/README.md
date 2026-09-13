@@ -46,8 +46,11 @@ app/api/records/analyze/route.ts    이미지 OCR 분석 및 기록 생성
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase 프로젝트 URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon key |
 | `SUPABASE_SERVICE_ROLE_KEY` | Storage 업로드용 service role key |
-| `CORRECTIVE_EXERCISE_LIVE` | 교정운동 운영 전환 플래그. 전용 SQL·Cron·권한 검증 후 정확히 `true`로 설정 |
-| `GEMINI_API_KEY` | Gemini 이미지 분석 API 키 |
+| `CORRECTIVE_EXERCISE_LIVE` | 선택. 문의 저장·파기와 운영 권한을 실검증한 뒤에만 `true`로 설정 |
+| `HELLO_2027_COMMENTS_DISABLED` | 선택. 긴급 점검 시에만 `true`로 설정해 댓글 쓰기·반응을 중단 |
+| `GEMINI_API_KEY` | Gemini 이미지 분석 및 비식별 파생 정보 기반 오늘의 운세 API 키 |
+| `GEMINI_FORTUNE_API_KEY` | 권장. OCR과 쿼터를 분리한 오늘의 운세 전용 Gemini API 키 |
+| `GEMINI_FORTUNE_MODEL` | 선택. 기본 운세 모델이며 기본값은 `gemini-3.1-flash-lite` |
 | `GEMINI_OCR_MODEL` | 선택. 기본 OCR 모델이며 기본값은 `gemini-3.1-flash-lite` |
 | `GEMINI_OCR_FALLBACK_MODEL` | 선택. 품질 미달 때만 호출하며 기본값은 `gemini-3.5-flash` |
 | `GEMINI_OCR_FALLBACK_CONFIDENCE` | 선택. 고급 모델 재분석 기준이며 기본값은 `0.8` |
@@ -60,8 +63,12 @@ app/api/records/analyze/route.ts    이미지 OCR 분석 및 기록 생성
 
 1. `docs/supabase-schema.sql`: 공통 운영 테이블과 4기 콘텐츠 저장소
 2. `docs/migrations/2026-09-04-corrective-exercise-audit-and-delete.sql`: 교정운동 변경 감사·즉시 삭제 보강
-3. `docs/migrations/2026-09-04-corrective-exercise-retention-cron.sql`: 만료 데이터 자동 파기
-4. `docs/supabase-security-hardening.sql`: 브라우저 직접 접근·Realtime·공개 Storage 차단
+3. `docs/migrations/2026-09-06-corrective-exercise-simple-inquiry.sql`: 일정·문진형 폼을 간단 문의로 전환
+4. `docs/migrations/2026-09-07-corrective-exercise-repeat-inquiries.sql`: 간단 문의를 새 양식으로 반복 접수
+5. `docs/migrations/2026-09-07-time-machine-goals.sql`: 2027년 새해에 열리는 100일 목표 상자
+6. `docs/migrations/2026-09-07-time-machine-optional-fields.sql`: 타임머신 세부 목표 제거·다짐 선택 입력 전환(기존 운영 DB)
+7. `docs/migrations/2026-09-04-corrective-exercise-retention-cron.sql`: 만료 데이터 자동 파기
+8. `docs/supabase-security-hardening.sql`: 브라우저 직접 접근·Realtime·공개 Storage 차단
 
 기존 운영 DB에 일부 저장소만 누락된 경우에는 범위가 작은 전용 SQL을 먼저 사용할 수 있습니다.
 

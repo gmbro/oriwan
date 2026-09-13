@@ -46,19 +46,20 @@ export type CorrectiveExerciseApplication = {
   participant_id?: string;
   participant_name: string;
   requested_slot_id: string | null;
-  requested_date: string;
-  requested_start_time: string;
+  requested_date: string | null;
+  requested_start_time: string | null;
   requested_end_time: string | null;
   pain_areas: CorrectiveExercisePainArea[];
-  pain_context: string;
-  hospital_status: CorrectiveExerciseHospitalStatus;
+  pain_context: string | null;
+  hospital_status: CorrectiveExerciseHospitalStatus | null;
   hospital_note: string | null;
   additional_note: string | null;
+  inquiry_message: string | null;
   status: CorrectiveExerciseApplicationStatus;
   confirmed_for: string | null;
   admin_note?: string | null;
-  consent_version: string;
-  consented_at: string;
+  consent_version: string | null;
+  consented_at: string | null;
   retention_until: string;
   created_at: string;
   updated_at: string;
@@ -73,6 +74,7 @@ export type CorrectiveExerciseApplicationSummary = Pick<
   | "requested_date"
   | "requested_start_time"
   | "requested_end_time"
+  | "inquiry_message"
   | "status"
   | "confirmed_for"
   | "retention_until"
@@ -84,6 +86,12 @@ export const CORRECTIVE_EXERCISE_CONSENT_VERSION = "2026-09-04-v1";
 
 export const MAX_CORRECTIVE_PAIN_AREAS = 5;
 export const MAX_CORRECTIVE_PAIN_CONTEXT_LENGTH = 500;
+export const MIN_CORRECTIVE_INQUIRY_LENGTH = 5;
+export const MAX_CORRECTIVE_INQUIRY_LENGTH = 500;
+export const MAX_CORRECTIVE_INQUIRY_PAIN_AREA_LENGTH = 60;
+export const MAX_CORRECTIVE_INQUIRY_ONSET_LENGTH = 80;
+export const MAX_CORRECTIVE_INQUIRY_TRIGGER_LENGTH = 100;
+export const MAX_CORRECTIVE_INQUIRY_ADDITIONAL_LENGTH = 180;
 export const MAX_CORRECTIVE_HOSPITAL_NOTE_LENGTH = 300;
 export const MAX_CORRECTIVE_ADDITIONAL_NOTE_LENGTH = 500;
 export const MAX_CORRECTIVE_ADMIN_NOTE_LENGTH = 500;
@@ -154,9 +162,103 @@ export function normalizeCorrectiveText(value: unknown, maxLength: number, requi
   if (typeof value !== "string") return required ? null : "";
   const normalized = value
     .normalize("NFC")
-    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "")
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F\u061c\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]/g, "")
     .replace(/\r\n?/g, "\n")
     .trim();
   if ((required && !normalized) || normalized.length > maxLength) return null;
   return normalized;
+}
+
+export type CorrectiveInquiryFields = {
+  pain_area: string;
+  pain_onset: string;
+  aggravating_situation: string;
+  additional_question: string;
+};
+
+/**
+ * Keep repeat inquiries in the existing retained message column instead of
+ * introducing a separate health-profile store for each short form field.
+ */
+export function formatCorrectiveInquiryMessage(fields: CorrectiveInquiryFields) {
+  return [
+    `통증 부위: ${fields.pain_area}`,
+    `언제부터 불편했나요: ${fields.pain_onset}`,
+    `더 불편한 움직임·상황: ${fields.aggravating_situation}`,
+    fields.additional_question ? `그 밖에 문의: ${fields.additional_question}` : null,
+  ].filter((line): line is string => Boolean(line)).join("\n");
+}
+
+function parseStructuredCorrectiveInquiry(record: Record<string, unknown>) {
+  const painArea = normalizeCorrectiveText(
+    record.pain_area,
+    MAX_CORRECTIVE_INQUIRY_PAIN_AREA_LENGTH,
+    true,
+  );
+  if (!painArea) return { ok: false as const, error: "통증 부위를 간단히 적어주세요." };
+
+  const painOnset = normalizeCorrectiveText(
+    record.pain_onset,
+    MAX_CORRECTIVE_INQUIRY_ONSET_LENGTH,
+    true,
+  );
+  if (!painOnset) return { ok: false as const, error: "불편함이 시작된 때를 적어주세요." };
+
+  const aggravatingSituation = normalizeCorrectiveText(
+    record.aggravating_situation,
+    MAX_CORRECTIVE_INQUIRY_TRIGGER_LENGTH,
+    true,
+  );
+  if (!aggravatingSituation) {
+    return { ok: false as const, error: "더 불편한 움직임이나 상황을 적어주세요." };
+  }
+
+  const additionalQuestion = normalizeCorrectiveText(
+    record.additional_question,
+    MAX_CORRECTIVE_INQUIRY_ADDITIONAL_LENGTH,
+  );
+  if (additionalQuestion === null) return { ok: false as const, error: "그 밖의 문의 내용이 너무 길어요." };
+
+  const fields: CorrectiveInquiryFields = {
+    pain_area: painArea,
+    pain_onset: painOnset,
+    aggravating_situation: aggravatingSituation,
+    additional_question: additionalQuestion,
+  };
+  const inquiryMessage = formatCorrectiveInquiryMessage(fields);
+  if (inquiryMessage.length > MAX_CORRECTIVE_INQUIRY_LENGTH) {
+    return { ok: false as const, error: "문의 내용이 너무 길어요." };
+  }
+
+  return { ok: true as const, value: { inquiry_message: inquiryMessage, fields } };
+}
+
+export function parseCorrectiveInquiryInput(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return { ok: false as const, error: "문의 내용을 다시 확인해주세요." };
+  }
+  const record = value as Record<string, unknown>;
+  const hasStructuredFields = [
+    "pain_area",
+    "pain_onset",
+    "aggravating_situation",
+    "additional_question",
+  ].some((field) => Object.hasOwn(record, field));
+  if (hasStructuredFields) return parseStructuredCorrectiveInquiry(record);
+
+  const inquiryMessage = normalizeCorrectiveText(
+    record.inquiry_message ?? record.message,
+    MAX_CORRECTIVE_INQUIRY_LENGTH,
+    true,
+  );
+  if (!inquiryMessage || inquiryMessage.length < MIN_CORRECTIVE_INQUIRY_LENGTH) {
+    return {
+      ok: false as const,
+      error: `문의 내용을 ${MIN_CORRECTIVE_INQUIRY_LENGTH}자 이상 적어주세요.`,
+    };
+  }
+  return {
+    ok: true as const,
+    value: { inquiry_message: inquiryMessage },
+  };
 }

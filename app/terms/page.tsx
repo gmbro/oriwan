@@ -8,16 +8,16 @@ export const metadata = {
 export default function TermsPage() {
   return (
     <main className="min-h-screen overflow-x-hidden pb-20">
-      <header className="sticky top-0 z-50 border-b border-oriwan-border bg-oriwan-bg/90 px-3 py-3.5 backdrop-blur-md sm:px-5">
-        <div className="mx-auto flex max-w-lg items-center justify-between">
+      <header className="sticky top-0 z-50 border-b border-oriwan-border bg-white/95 px-3 py-3.5 backdrop-blur-sm sm:px-5">
+        <div className="mx-auto flex max-w-3xl items-center justify-between">
           <Link href="/4th" className="text-oriwan-text-muted text-sm hover:text-oriwan-text transition-colors">← 돌아가기</Link>
           <h1 className="gradient-text text-lg font-black">이용약관</h1>
           <div className="w-16" />
         </div>
       </header>
 
-      <div className="mx-auto max-w-lg px-3 py-4 sm:px-5 sm:py-8">
-        <div className="card mobile-page-card space-y-6 p-4 text-sm leading-relaxed text-oriwan-text-muted sm:p-6">
+      <div className="mx-auto max-w-3xl px-3 py-4 sm:px-5 sm:py-8">
+        <div className="rounded-[26px] bg-white space-y-7 p-5 text-sm leading-7 text-oriwan-text-muted shadow-sm ring-1 ring-slate-950/5 sm:p-8 sm:text-[15px]">
           <section>
             <h2 className="mb-2 text-base font-bold text-oriwan-text">제1조 (목적과 현재 상태)</h2>
             <p>
@@ -28,37 +28,34 @@ export default function TermsPage() {
 
           <section>
             <h2 className="mb-2 text-base font-bold text-oriwan-text">제2조 (서비스 내용)</h2>
-            <p className="mb-2">정식 운영을 위해 준비 중인 서비스 범위는 다음과 같습니다.</p>
+            <p className="mb-2">서비스 범위는 다음과 같습니다.</p>
             <ul className="list-disc space-y-1 pl-5">
               <li>3기 읽기 전용 기록과 4기 공통 대시보드 제공</li>
               <li>시즌 참가자의 인증 여부와 인증률 등 공개 현황 제공</li>
               <li>운영자의 인증 이미지 검수, OCR 보조 및 인증 상태 관리</li>
-              <li>카카오 로그인 이용자의 인증 없는 오늘의 운세 확인</li>
-              <li>승인된 4기 참가자의 당일 인증 완료 후 하루 한 번 응원 상자 제공</li>
-              <li>비로그인 랜덤 닉네임 또는 운영자 확인 표시명을 사용하는 댓글·답글·반응 제공</li>
-              <li>운영자의 인증, 크루프로필, 응원글, 배너와 댓글 관리</li>
+              <li>카카오 로그인 이용자가 직접 입력한 정보의 비식별 파생 조건을 이용한 외부 AI 오늘의 운세</li>
+              <li>연결된 4기 참가자의 당일 인증 완료 후 그날 한 번 응원 상자 제공</li>
+              <li>로그인 이용자가 닉네임 또는 공개 익명을 선택하는 댓글·답글·반응 제공</li>
+              <li>교정운동 간단 문의와 운영자의 개인 카톡 답변</li>
+              <li>운영자의 인증, 멤버프로필, 응원글, 배너와 댓글 관리</li>
             </ul>
-            <p className="mt-2">
-              사전 공개 기간에는 댓글·답글·반응이 잠겨 있으며, 운영용 서버 저장소와 관리 기능을 연결한 뒤 별도 안내와 함께
-              엽니다.
-            </p>
           </section>
 
           <section>
             <h2 className="mb-2 text-base font-bold text-oriwan-text">제3조 (비로그인 이용)</h2>
             <p>
-              비로그인 방문자는 공개 대시보드를 조회할 수 있습니다. 정식 댓글 기능이 열린 뒤에는 서버가 배정한 랜덤
-              닉네임으로 댓글을 작성할 수 있으나 응원 상자는 열 수 없습니다.
+              비로그인 방문자는 공개 대시보드, 멤버 현황과 공개 댓글을 조회할 수 있습니다. 댓글·답글·반응 작성,
+              오늘의 운세, 응원 상자와 교정운동 문의는 이용할 수 없습니다.
             </p>
           </section>
 
           <section>
             <h2 className="mb-2 text-base font-bold text-oriwan-text">제4조 (카카오 로그인 이용)</h2>
             <p>
-              카카오 로그인은 계정 연결 수단입니다. 개인 이용자가 로그인해 사용할 수 있는 기능은 오늘의 운세 확인,
-              카카오 프로필 닉네임 또는 운영자 확인 표시명으로 댓글을 작성하는 기능과, 승인된 참가자가 당일 인증을
-              완료했을 때 응원 상자를 여는 기능으로 제한됩니다.
-              개인 이용자는 인증 등록·수정, OCR 실행, 크루 관리 또는 프로필 자기수정을 할 수 없습니다.
+              카카오 로그인은 계정 연결 수단입니다. 개인 이용자는 오늘의 운세, 닉네임 또는 공개 익명을 선택한 댓글,
+              연결 참가자의 당일 인증 완료 후 응원 상자, 교정운동 문의를 이용할 수 있습니다. 연결된 개인 이용자는 내 활동에서
+              자신의 인증샷을 올려 OCR 식별과 검수를 요청하고 공개 프로필 사진·표시 이름을 변경할 수 있습니다.
+              공식 인증 승인은 운영자가 결정하며, 다른 멤버 관리 또는 자기소개 수정은 운영자에게만 허용합니다.
             </p>
             <p className="mt-2">
               로그인에 필요한 필수 동의항목은 프로필 닉네임이며, 프로필 이미지는 선택 동의항목입니다. 프로필 이미지를
@@ -66,31 +63,40 @@ export default function TermsPage() {
               요청하거나 수집하지 않습니다. 필수 닉네임 제공에 동의하지 않으면 카카오 개인 기능은 이용할 수 없지만,
               공개 대시보드는 로그인 없이 볼 수 있습니다.
             </p>
+            <p className="mt-2">
+              신규 멤버의 첫 가입 때 선택 프로필 이미지가 제공되면 안전하게 재인코딩한 사본을 기본 공개 사진으로 사용할 수
+              있습니다. 기존 가입자에게는 소급 적용하지 않으며, 이용자와 운영자는 이후 사진을 교체하거나 삭제할 수 있습니다.
+            </p>
           </section>
 
           <section>
             <h2 className="mb-2 text-base font-bold text-oriwan-text">제5조 (표시명과 참가자 연결)</h2>
             <p>
-              카카오 프로필 닉네임과 운영자가 크루 명단을 대조해 정한 표시명은 별도 본인확인 서비스가 인증한 법적 실명으로
-              보지 않습니다. 댓글은 카카오 프로필 닉네임을 기본으로 사용하고 운영자 확인 표시명이 있으면 그 이름을 사용합니다.
-              이름 유사성만으로 참가자와 자동 연결하지 않으며, 미승인·승인 해제 계정은 응원 상자를 이용할 수 없습니다.
+              카카오 로그인 계정은 별도 운영자 승인 없이 공통 대시보드의 4기 참가자에 자동 등록됩니다. 카카오 프로필 닉네임과
+              운영자가 멤버 명단을 대조해 정한 표시명은 별도 본인확인 서비스가 인증한 법적 실명으로
+              보지 않습니다. 댓글마다 표시 닉네임 또는 ‘익명’을 선택할 수 있습니다. 익명 선택은 공개 표시만 감추며
+              안전한 운영과 남용 방지를 위한 계정 연결은 유지합니다. 참가자와 연결되지 않은 계정은 응원 상자를 이용할 수 없습니다.
             </p>
           </section>
 
           <section>
             <h2 className="mb-2 text-base font-bold text-oriwan-text">제6조 (응원 상자)</h2>
             <p>
-              응원 상자는 카카오 로그인, 운영자 승인, 4기 참가자 연결, Asia/Seoul 기준 당일 인증 완료 여부를 서버가 확인한
-              뒤 하루 한 번 제공합니다. 메시지형 결과는 무작위로 정해지며 현금이나 유상 상품으로 교환되지 않습니다.
+              응원 상자는 카카오 로그인, 4기 참가자 연결, Asia/Seoul 기준 당일 인증 완료 여부를 서버가 확인한 뒤 그날 한 번
+              제공합니다. 2026년 9월 23일 전 인증은 공식 D-day와 인증률에 포함되지 않지만 개인 기록에는 표시되고, 해당일
+              인증을 완료했다면 응원 상자를 받을 수 있습니다. 메시지는 무작위로 정해지며 현금이나 상품으로 교환되지 않습니다.
             </p>
           </section>
 
           <section>
             <h2 className="mb-2 text-base font-bold text-oriwan-text">제6조의2 (오늘의 운세)</h2>
             <p>
-              오늘의 운세는 카카오 로그인 이용자에게 인증 여부와 관계없이 제공하는 오락용 응원 메시지입니다. 중요한 건강,
-              재정, 법률 또는 생활 결정을 위한 예측이나 조언이 아니며, 결과는 별도 DB에 저장하지 않고 Asia/Seoul 날짜를
-              기준으로 당일 계산합니다.
+              오늘의 운세는 만 18세 이상 카카오 로그인 이용자에게 인증 여부와 관계없이 제공하는 오락용 메시지입니다.
+              이용자가 이름, 생년월일, 태어난 시간과 생활 권역을 입력하면, 서버는 원문을
+              저장하거나 외부로 보내지 않고 별자리·띠·시간대·광역 권역·비가역 이름 지표만 Google Gemini에 전송합니다.
+              이 파생 참고값은 생성 결과에 표시하지 않습니다. 생성 결과도 DB에 저장하지 않으며, 남용 방지를 위해
+              사용자별 날짜와 새 결과 생성 횟수만 보관합니다.
+              중요한 건강, 재정, 법률 또는 생활 결정의 근거로 사용할 수 없습니다.
             </p>
           </section>
 
@@ -98,7 +104,7 @@ export default function TermsPage() {
             <h2 className="mb-2 text-base font-bold text-oriwan-text">제7조 (운영자 권한)</h2>
             <p>
               관리자 화면은 지정된 관리자 이메일 인증번호와 서버 측 권한 검사를 통과한 운영자만 접근할 수 있습니다.
-              정식 운영에서는 참가자 연결과 표시명, 크루프로필, 인증 기록, 응원글, 배너 및 댓글 운영 상태를 관리하는 기능을
+              참가자 연결과 표시명, 멤버프로필, 인증 기록, 응원글, 배너 및 댓글 운영 상태를 관리하는 기능을
               서버에 연결하고 중요한 변경 이력을 남기는 것을 운영 기준으로 합니다.
             </p>
           </section>
@@ -125,7 +131,8 @@ export default function TermsPage() {
             <h2 className="mb-2 text-base font-bold text-oriwan-text">제10조 (동의 철회와 계정 종료)</h2>
             <p>
               이용자는 카카오의 연결된 서비스 관리에서 선택 동의를 철회하거나 앱 연결을 해제할 수 있습니다. 선택 프로필
-              이미지 동의를 철회해도 다른 기능 이용에는 제한이 없습니다. 앱 연결 해제 또는 서비스 탈퇴 시 카카오 개인
+              이미지 동의를 철회해도 다른 기능 이용에는 제한이 없습니다. 서비스에 이미 복사된 공개 사진은 내 활동에서
+              직접 삭제하거나 운영자에게 삭제를 요청할 수 있습니다. 앱 연결 해제 또는 서비스 탈퇴 시 카카오 개인
               기능은 종료됩니다. TWTT 로그아웃은 앱 연결 해제나 서비스 탈퇴를 뜻하지 않습니다.
             </p>
             <p className="mt-2">
@@ -142,6 +149,20 @@ export default function TermsPage() {
               개인정보와 운영 데이터의 세부 보관기간, Supabase 리전·백업 잔존기간, 삭제 요청 절차와 운영 문의처는 정식
               운영 전에 확정해 개인정보처리방침과 함께 고지합니다. 이 사전 공개 문구는 현재 구현과 운영 계획을 설명하며,
               구체적인 법적 판단을 대신하지 않습니다.
+            </p>
+          </section>
+
+          <section id="weather-data" className="scroll-mt-24">
+            <h2 className="mb-2 text-base font-bold text-oriwan-text">날씨 데이터 출처</h2>
+            <p>
+              배너의 날씨 연출은 서울 강남구 기준의 MET Norway 예보 데이터를 바탕으로 합니다.
+              예보를 배경과 강수 효과로 단순화한 표현이며, 실시간 관측이나 실제 적설량을 표시하지 않습니다.
+            </p>
+            <p className="mt-2">
+              Based on data from{' '}
+              <a className="text-blue-600 underline underline-offset-2" href="https://api.met.no/weatherapi/locationforecast/2.0/documentation" target="_blank" rel="noopener noreferrer">MET Norway</a>
+              {' '}·{' '}
+              <a className="text-blue-600 underline underline-offset-2" href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer">CC BY 4.0</a>
             </p>
           </section>
 

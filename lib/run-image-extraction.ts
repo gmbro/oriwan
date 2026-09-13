@@ -1,4 +1,5 @@
 import { CHALLENGE_START_DATE } from "@/lib/challenge";
+import { isSupportedRasterSignature } from "@/lib/image-signature";
 
 export const MAX_IMAGE_BYTES = 3 * 1024 * 1024;
 export const SUPPORTED_IMAGE_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
@@ -10,6 +11,8 @@ export type UploadedImage = {
 
 export type ExtractedRunBase = {
   record_date?: string | null;
+  activity_date?: string | null;
+  activity_time?: string | null;
   distance_km?: number | string | null;
   duration_text?: string | null;
   duration_seconds?: number | string | null;
@@ -26,6 +29,7 @@ export function parseDataUrl(dataUrl: string) {
   if (!match) throw new Error("Invalid image data URL");
   if (!SUPPORTED_IMAGE_MIME_TYPES.has(match[1])) throw new Error("Unsupported image type");
   if (Buffer.byteLength(match[2], "base64") > MAX_IMAGE_BYTES) throw new Error("Image too large");
+  if (!isSupportedRasterSignature(Buffer.from(match[2], "base64"), match[1])) throw new Error("Image content does not match its type");
   return { mimeType: match[1], base64: match[2] };
 }
 

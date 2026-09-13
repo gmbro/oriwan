@@ -4,18 +4,22 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build --webpack",
+    "build": "node scripts/verify-activity-release.mjs && next build --webpack && node scripts/replace-encouragement-quotes.mjs",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "dev:local": "next dev --webpack --hostname 127.0.0.1 --port 3000",
+    "test": "node --experimental-strip-types --test tests/*.test.mjs",
+    "typecheck": "next typegen && tsc --noEmit"
   },
   "dependencies": {
     "@google/genai": "^1.50.1",
     "@supabase/ssr": "^0.10.2",
     "@supabase/supabase-js": "^2.105.0",
     "html-to-image": "^1.11.13",
-    "next": "16.3.0",
-    "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "next": "16.3.3",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "sharp": "^0.35.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
@@ -23,7 +27,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.3.0",
+    "eslint-config-next": "16.3.3",
     "tailwindcss": "^4",
     "typescript": "^5"
   },

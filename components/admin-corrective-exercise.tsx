@@ -51,8 +51,8 @@ const STATUS_OPTIONS: ReadonlyArray<{ value: ApplicationStatus; label: string }>
 ];
 
 const STATUS_TRANSITIONS: Record<ApplicationStatus, readonly ApplicationStatus[]> = {
-  submitted: ["submitted", "reviewing", "schedule_proposed", "confirmed", "cancelled", "rejected"],
-  reviewing: ["reviewing", "schedule_proposed", "confirmed", "cancelled", "rejected"],
+  submitted: ["submitted", "reviewing", "schedule_proposed", "confirmed", "completed", "cancelled", "rejected"],
+  reviewing: ["reviewing", "schedule_proposed", "confirmed", "completed", "cancelled", "rejected"],
   schedule_proposed: ["schedule_proposed", "reviewing", "confirmed", "cancelled", "rejected"],
   confirmed: ["confirmed", "completed", "cancelled"],
   completed: ["completed"],
@@ -109,8 +109,8 @@ function statusMeta(status: ApplicationStatus) {
   return { label: "신청 취소", className: "bg-slate-100 text-slate-600 ring-slate-200" };
 }
 
-function hospitalLabel(status: HospitalStatus) {
-  return CORRECTIVE_HOSPITAL_STATUS_LABELS[status];
+function hospitalLabel(status: HospitalStatus | null) {
+  return status ? CORRECTIVE_HOSPITAL_STATUS_LABELS[status] : "응답 없음";
 }
 
 function participantName(application: Pick<CorrectiveApplication, "participant_name">) {
@@ -131,9 +131,11 @@ function slotLabel(slot: CorrectiveSlot | null, fallbackDate?: string | null) {
   return `${formatDate(slot.slot_date)} · ${formatTime(slot.start_time)}${endTime}`;
 }
 
-function applicationScheduleLabel(application: Pick<CorrectiveApplicationSummary, "requested_slot_id" | "requested_date" | "requested_start_time" | "requested_end_time">, slots: CorrectiveSlot[]) {
+function applicationScheduleLabel(application: Pick<CorrectiveApplicationSummary, "requested_slot_id" | "requested_date" | "requested_start_time" | "requested_end_time" | "inquiry_message">, slots: CorrectiveSlot[]) {
+  if (application.inquiry_message && !application.requested_date) return "간단 문의";
   const slot = applicationSlot(application, slots);
   if (slot) return slotLabel(slot);
+  if (!application.requested_date) return "일정 없이 접수";
   const endTime = application.requested_end_time ? `–${formatTime(application.requested_end_time)}` : "";
   return `${formatDate(application.requested_date)} · ${formatTime(application.requested_start_time)}${endTime}`;
 }
@@ -420,7 +422,7 @@ export function AdminCorrectiveExercise() {
       setSelectedId("");
       clearSensitiveDetail();
       const refreshed = await load(true);
-      if (refreshed) setFeedback({ tone: "success", message: `${name}님의 신청과 건강 문진 내용을 삭제했어요.` });
+      if (refreshed) setFeedback({ tone: "success", message: `${name}님의 문의 내용을 삭제했어요.` });
     } catch (error) {
       setFeedback({ tone: "error", message: error instanceof Error ? error.message : "신청을 삭제하지 못했어요." });
     } finally {
@@ -490,9 +492,9 @@ export function AdminCorrectiveExercise() {
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p className="text-[11px] font-black tracking-[0.02em] text-blue-600">교정운동 운영</p>
-            <h2 id="corrective-exercise-admin-title" className="mt-1 text-2xl font-black tracking-[-0.04em] text-oriwan-text sm:text-3xl">교정운동 신청</h2>
+            <h2 id="corrective-exercise-admin-title" className="mt-1 text-2xl font-black tracking-[-0.04em] text-oriwan-text sm:text-3xl">교정운동 문의</h2>
             <p className="mt-2 max-w-3xl break-keep text-sm font-semibold leading-6 text-oriwan-text-muted">
-              신청자의 희망 일정과 사전 문진을 확인하고, 연락·확정·완료 흐름을 한곳에서 관리해요.
+              멤버가 남긴 문의를 확인하고 개인 카톡 연락과 처리 상태를 관리해요.
             </p>
           </div>
           <button type="button" onClick={() => void load(true)} disabled={refreshing || loading} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-oriwan-surface-light px-4 text-xs font-black text-oriwan-text transition hover:bg-slate-200 disabled:opacity-50 sm:w-fit">
@@ -501,24 +503,12 @@ export function AdminCorrectiveExercise() {
           </button>
         </div>
 
-        <div className="mt-5 rounded-[22px] bg-rose-50 p-4 text-rose-950 ring-1 ring-rose-100 sm:p-5">
-          <div className="flex items-start gap-3">
-            <span className="grid size-9 shrink-0 place-items-center rounded-full bg-rose-100 text-sm font-black text-rose-700" aria-hidden="true">!</span>
-            <div>
-              <p className="text-sm font-black">민감한 건강정보를 다루는 화면이에요</p>
-              <p className="mt-1 break-keep text-xs font-semibold leading-5 text-rose-900/65">
-                일정 조율에 필요한 내용만 열람하고 외부로 전달하지 마세요. 진단이나 치료 판단이 아닌 신청 접수용 문진이며, 응급 증상은 의료기관 안내가 우선입니다.
-              </p>
-            </div>
-          </div>
-        </div>
-
         <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
           {[
             ["전체", summary.all, "text-oriwan-text", "all"],
             ["확인 필요", summary.waiting, "text-blue-600", "attention"],
-            ["일정 확정", summary.confirmed, "text-violet-600", "confirmed"],
-            ["진행 완료", summary.completed, "text-lime-700", "completed"],
+            ["연락 확정", summary.confirmed, "text-violet-600", "confirmed"],
+            ["처리 완료", summary.completed, "text-lime-700", "completed"],
           ].map(([label, count, color, filter]) => (
             <button
               key={String(label)}
@@ -536,7 +526,7 @@ export function AdminCorrectiveExercise() {
         {feedback ? <div className="mt-4"><Notice feedback={feedback} /></div> : null}
         {setupRequired ? (
           <div className="mt-3 rounded-2xl bg-amber-50 px-4 py-3 text-xs font-bold leading-5 text-amber-950 ring-1 ring-amber-200">
-            Supabase SQL Editor에서 기본 교정운동 SQL 다음 <code className="font-black">docs/migrations/2026-09-04-corrective-exercise-audit-and-delete.sql</code>을 적용한 뒤 다시 불러와주세요.
+            Supabase SQL Editor에서 <code className="font-black">docs/migrations/2026-09-06-corrective-exercise-simple-inquiry.sql</code>을 적용한 뒤 다시 불러와주세요.
           </div>
         ) : null}
       </div>
@@ -545,8 +535,8 @@ export function AdminCorrectiveExercise() {
         <section className="card mobile-page-card p-4 sm:p-5" aria-labelledby="corrective-application-list-title">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h3 id="corrective-application-list-title" className="text-lg font-black text-oriwan-text">신청 목록</h3>
-              <p className="mt-1 text-xs font-semibold text-oriwan-text-muted">상세 문진은 신청을 선택했을 때만 보여요.</p>
+              <h3 id="corrective-application-list-title" className="text-lg font-black text-oriwan-text">문의 목록</h3>
+              <p className="mt-1 text-xs font-semibold text-oriwan-text-muted">문의 내용은 항목을 선택했을 때만 보여요.</p>
             </div>
             <span className="rounded-full bg-blue-50 px-3 py-1.5 text-[11px] font-black text-blue-700">{filteredApplications.length}건</span>
           </div>
@@ -586,7 +576,7 @@ export function AdminCorrectiveExercise() {
               <div>
                 <span className="mx-auto block size-8 animate-spin rounded-full border-4 border-blue-100 border-t-blue-600" aria-hidden="true" />
                 <p className="mt-4 text-base font-black text-oriwan-text">선택한 신청을 불러오는 중…</p>
-                <p className="mt-1 text-xs font-semibold leading-5 text-oriwan-text-muted">민감 문진 내용은 이 화면에만 잠시 표시합니다.</p>
+                <p className="mt-1 text-xs font-semibold leading-5 text-oriwan-text-muted">문의 내용을 불러오고 있어요.</p>
               </div>
             </div>
           ) : selectedId && detailError ? (
@@ -614,21 +604,23 @@ export function AdminCorrectiveExercise() {
               </div>
 
               <dl className="mt-4 grid gap-2 sm:grid-cols-2">
-                <DetailItem label="희망 일정">{applicationScheduleLabel(selectedApplication, slots)}</DetailItem>
-                <DetailItem label="통증 부위">
+                <div className="sm:col-span-2">
+                  <DetailItem label="문의 내용">{selectedApplication.inquiry_message || selectedApplication.pain_context || selectedApplication.additional_note}</DetailItem>
+                </div>
+                {selectedApplication.requested_date ? <DetailItem label="기존 희망 일정">{applicationScheduleLabel(selectedApplication, slots)}</DetailItem> : null}
+                {selectedApplication.pain_areas.length ? <DetailItem label="기존 통증 부위">
                   {painAreas(selectedApplication).length ? (
                     <span className="flex flex-wrap gap-1.5">
                       {painAreas(selectedApplication).map((area) => <span key={area} className="rounded-full bg-white px-2.5 py-1 text-xs font-black text-blue-700 ring-1 ring-blue-100">{area}</span>)}
                     </span>
                   ) : "응답 없음"}
-                </DetailItem>
-                <DetailItem label="통증 발생 상황">{selectedApplication.pain_context}</DetailItem>
-                <DetailItem label="병원 이용 여부">{hospitalLabel(selectedApplication.hospital_status)}</DetailItem>
-                <DetailItem label="병원 관련 설명">{selectedApplication.hospital_note}</DetailItem>
-                <DetailItem label="추가 전달사항">{selectedApplication.additional_note}</DetailItem>
-                <DetailItem label="민감정보 수집 동의">{formatTimestamp(selectedApplication.consented_at)}</DetailItem>
+                </DetailItem> : null}
+                {selectedApplication.pain_context ? <DetailItem label="기존 통증 발생 상황">{selectedApplication.pain_context}</DetailItem> : null}
+                {selectedApplication.hospital_status ? <DetailItem label="기존 병원 이용 여부">{hospitalLabel(selectedApplication.hospital_status)}</DetailItem> : null}
+                {selectedApplication.hospital_note ? <DetailItem label="기존 병원 관련 설명">{selectedApplication.hospital_note}</DetailItem> : null}
+                {selectedApplication.additional_note && selectedApplication.inquiry_message ? <DetailItem label="기존 추가 전달사항">{selectedApplication.additional_note}</DetailItem> : null}
                 <DetailItem label="자동 삭제 예정">{formatTimestamp(selectedApplication.retention_until)}</DetailItem>
-                <DetailItem label="현재 확정 일정">{formatTimestamp(selectedApplication.confirmed_for)}</DetailItem>
+                {selectedApplication.confirmed_for ? <DetailItem label="연락 예정">{formatTimestamp(selectedApplication.confirmed_for)}</DetailItem> : null}
               </dl>
 
               <div className="mt-5 border-t border-slate-100 pt-5">
@@ -669,7 +661,7 @@ export function AdminCorrectiveExercise() {
               <div className="mt-5 rounded-[20px] bg-rose-50 p-4 ring-1 ring-rose-100">
                 <p className="text-xs font-black text-rose-900">삭제 요청 처리</p>
                 <p className="mt-1 text-[11px] font-semibold leading-5 text-rose-700">
-                  신청과 건강 문진 원문은 운영 DB에서 즉시 삭제되며 이 화면에서 되돌릴 수 없어요. 감사 로그에는 원문 없이 신청 ID·상태·처리자·시각만 남습니다.
+                  문의 원문은 운영 DB에서 즉시 삭제되며 이 화면에서 되돌릴 수 없어요. 감사 로그에는 원문 없이 문의 ID·상태·처리자·시각만 남습니다.
                 </p>
                 {deleteArmedId === selectedApplication.id ? (
                   <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:justify-end">
@@ -691,7 +683,7 @@ export function AdminCorrectiveExercise() {
             <div className="grid min-h-72 place-items-center rounded-[22px] bg-oriwan-surface-light px-6 text-center">
               <div>
                 <p className="text-base font-black text-oriwan-text">확인할 신청을 선택해주세요</p>
-                <p className="mt-1 text-xs font-semibold leading-5 text-oriwan-text-muted">민감 문진 내용은 선택한 신청 한 건만 표시합니다.</p>
+                <p className="mt-1 text-xs font-semibold leading-5 text-oriwan-text-muted">문의 내용은 선택한 한 건만 표시합니다.</p>
               </div>
             </div>
           )}

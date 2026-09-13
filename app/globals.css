@@ -96,6 +96,19 @@ img { -webkit-user-drag: none; user-select: none; }
 }
 
 @media (max-width: 639px) {
+  /* Opaque mobile cards do not need a live backdrop blur on every scroll. */
+  .card {
+    background: #fff;
+    backdrop-filter: none;
+  }
+
+  body input, body select, body textarea {
+    min-width: 0;
+    max-width: 100%;
+    /* Component text-sm utilities must not trigger iOS focus zoom. */
+    font-size: 16px !important;
+  }
+
   .mobile-sheet {
     max-height: 100dvh;
     border-right: 0;
@@ -103,6 +116,7 @@ img { -webkit-user-drag: none; user-select: none; }
     border-left: 0;
     border-radius: 24px 24px 0 0;
     padding-bottom: max(1rem, env(safe-area-inset-bottom));
+    overscroll-behavior: contain;
   }
 
   .mobile-page-card {

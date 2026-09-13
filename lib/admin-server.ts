@@ -1,13 +1,22 @@
 import { NextResponse } from "next/server";
-import type { User } from "@supabase/supabase-js";
+import type { JwtPayload } from "@supabase/supabase-js";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
 import { isAdminEmail } from "@/lib/admin";
 
 type AuthReadable = {
   auth: {
-    getUser: () => Promise<{ data: { user: User | null } }>;
+    getClaims: () => Promise<{
+      data: { claims: JwtPayload } | null;
+      error: unknown;
+    }>;
   };
+};
+
+export type AdminSessionUser = {
+  id: string;
+  email: string | null;
+  user_metadata: Record<string, unknown>;
 };
 
 const ADMIN_SESSION_COOKIE = "oriwan_admin_verified";
@@ -77,31 +86,36 @@ export async function hasValidAdminSession(userId: string) {
 }
 
 export async function requireAdminUser(supabase: AuthReadable) {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { data, error } = await supabase.auth.getClaims();
+  const claims = data?.claims ?? null;
 
-  if (!user) {
+  if (error || !claims) {
     return {
       user: null,
       response: NextResponse.json({ error: "어드민에 들어가려면 먼저 로그인해주세요." }, { status: 401 }),
     };
   }
 
-  if (!isAdminEmail(user.email)) {
+  if (!isAdminEmail(claims.email)) {
     return {
       user: null,
       response: NextResponse.json({ error: "지정된 관리자만 들어올 수 있어요." }, { status: 403 }),
     };
   }
 
-  const hasAdminSession = await hasValidAdminSession(user.id);
+  const hasAdminSession = await hasValidAdminSession(claims.sub);
   if (!hasAdminSession) {
     return {
       user: null,
       response: NextResponse.json({ error: "관리자 이메일 인증이 만료됐어요. 다시 인증해주세요." }, { status: 401 }),
     };
   }
+
+  const user: AdminSessionUser = {
+    id: claims.sub,
+    email: typeof claims.email === "string" ? claims.email : null,
+    user_metadata: claims.user_metadata || {},
+  };
 
   return { user, response: null };
 }

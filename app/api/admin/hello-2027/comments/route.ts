@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { hardDeleteAdminHello2027Comment } from "@/lib/admin-comment-delete";
 import { requireAdminDataAccess } from "@/lib/admin-data-access";
 import {
   HELLO_2027_COMMENTS_SEASON,
-  createHello2027DeletedActorKey,
   readHello2027JsonBody,
   readHello2027ReactionRows,
   type CommentRow,
@@ -38,6 +38,7 @@ export async function GET(request: NextRequest) {
       .from("hello_2027_comments")
       .select("id, parent_id, author_name, author_mode, body, status, created_at, updated_at, deleted_at")
       .eq("season_key", HELLO_2027_COMMENTS_SEASON)
+      .neq("status", "deleted")
       .order("created_at", { ascending: false })
       .limit(HELLO_2027_COMMENT_LIST_LIMIT);
     if (error) {
@@ -158,7 +159,7 @@ export async function DELETE(request: NextRequest) {
 
   const access = await requireAdminDataAccess();
   if (!access.ok) return access.response;
-  const { user: adminUser, service } = access;
+  const { service } = access;
 
   const parsedBody = await readHello2027JsonBody(request, 2 * 1024);
   if (!parsedBody.ok) return adminJson({ error: parsedBody.error }, parsedBody.status);
@@ -170,21 +171,29 @@ export async function DELETE(request: NextRequest) {
   if (!UUID_PATTERN.test(id)) return adminJson({ error: "삭제할 댓글을 다시 확인해주세요." }, 400);
 
   try {
-    const { data, error } = await service.rpc("delete_hello_2027_comment", {
-      p_comment_id: id,
-      p_season_key: HELLO_2027_COMMENTS_SEASON,
-      p_deleted_actor_key: createHello2027DeletedActorKey(),
-      p_expected_actor_key: null,
-      p_moderated_by: adminUser.id,
-    });
+    // One DELETE is atomic. PostgreSQL cascades a parent deletion to its replies
+    // and cascades every deleted comment to its reactions.
+    const { data: deletedComment, error } = await hardDeleteAdminHello2027Comment(
+      service,
+      id,
+      HELLO_2027_COMMENTS_SEASON,
+    );
     if (error) {
       if (isMissingTableError(error)) {
-        return adminJson(missingSchemaResponse("댓글 관리 삭제 기능이 아직 준비되지 않았어요."), 503);
+        return adminJson(missingSchemaResponse("댓글 관리 저장소가 아직 준비되지 않았어요."), 503);
       }
       throw error;
     }
-    if (data !== "deleted") return adminJson({ error: "삭제할 댓글을 찾지 못했어요." }, 404);
-    return adminJson({ ok: true, id, status: "deleted" });
+    if (!deletedComment) {
+      return adminJson({ error: "삭제할 댓글을 찾지 못했어요." }, 404);
+    }
+    return adminJson({
+      ok: true,
+      id,
+      parent_id: deletedComment.parent_id,
+      status: "deleted",
+      deletion: "hard",
+    });
   } catch (error) {
     logServerFailure("Admin Hello 2027 comment delete", error);
     return adminJson({ error: "댓글을 삭제하지 못했어요." }, 500);

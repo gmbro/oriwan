@@ -1,15 +1,15 @@
 import "server-only";
 
-import type { SupabaseClient, User } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { getServiceClient } from "@/lib/admin-data";
-import { requireAdminUser } from "@/lib/admin-server";
+import { requireAdminUser, type AdminSessionUser } from "@/lib/admin-server";
 import { createClient } from "@/lib/supabase/server";
 
 type AdminDataAccess =
   | {
       ok: true;
-      user: User;
+      user: AdminSessionUser;
       service: SupabaseClient;
     }
   | {
@@ -42,7 +42,7 @@ export async function requireAdminDataAccess(): Promise<AdminDataAccess> {
       ),
     };
   }
-  let user: User | null;
+  let user: AdminSessionUser | null;
   let response: NextResponse | null;
   try {
     ({ user, response } = await requireAdminUser(authClient));

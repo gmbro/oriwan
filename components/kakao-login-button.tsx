@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getSafeAuthReturnPath } from "@/lib/auth-return-path";
 
 type KakaoLoginButtonProps = {
@@ -8,6 +8,7 @@ type KakaoLoginButtonProps = {
   className?: string;
   label?: string;
   variant?: "default" | "compact";
+  restart?: boolean;
 };
 
 export function KakaoLoginButton({
@@ -15,16 +16,28 @@ export function KakaoLoginButton({
   className = "",
   label = "카카오로 로그인",
   variant = "default",
+  restart = false,
 }: KakaoLoginButtonProps) {
   const startedRef = useRef(false);
   const [pending, setPending] = useState(false);
   const safeNextPath = getSafeAuthReturnPath(nextPath, "/");
   const compact = variant === "compact";
+  const loginUrl = `/api/auth/kakao?next=${encodeURIComponent(safeNextPath)}${restart ? "&restart=1" : ""}`;
+
+  useEffect(() => {
+    const resetPendingState = () => {
+      startedRef.current = false;
+      setPending(false);
+    };
+
+    window.addEventListener("pageshow", resetPendingState);
+    return () => window.removeEventListener("pageshow", resetPendingState);
+  }, []);
 
   return (
     <div className={compact ? "inline-flex shrink-0" : "w-full"}>
       <a
-        href={`/api/auth/kakao?next=${encodeURIComponent(safeNextPath)}`}
+        href={loginUrl}
         aria-disabled={pending}
         aria-busy={pending}
         onClick={(event) => {

@@ -1,7 +1,7 @@
 import "server-only";
 
 import { createHash, randomBytes, randomInt } from "node:crypto";
-import type { SupabaseClient, User } from "@supabase/supabase-js";
+import type { JwtPayload, PostgrestError, SupabaseClient, User } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 
 import type {
@@ -19,9 +19,11 @@ import {
   type Hello2027CommentAuthorMode,
   type Hello2027CommentEmoji,
 } from "@/lib/hello-2027-comments-contract";
+import { isHello2027PublicThreadStatus } from "@/lib/hello-2027-comments-view";
 import { getKakaoDisplayName } from "@/lib/kakao-display-name";
 import { FOURTH_SEASON_KEY, resolveParticipantAccount } from "@/lib/participant-account-server";
 import { logServerFailure } from "@/lib/server-error-log";
+import { readLimitedText } from "@/lib/request-security";
 import { createClient } from "@/lib/supabase/server";
 
 const VISITOR_COOKIE = "twtt_hello_2027_visitor";
@@ -64,7 +66,8 @@ export type Hello2027CommentActor = {
   authError: boolean;
 };
 
-export const HELLO_2027_COMMENTS_LIVE = process.env.HELLO_2027_COMMENTS_LIVE === "true";
+export const HELLO_2027_COMMENTS_LIVE = process.env.HELLO_2027_COMMENTS_DISABLED !== "true"
+  && process.env.HELLO_2027_COMMENTS_LIVE !== "false";
 export const HELLO_2027_COMMENTS_SEASON = FOURTH_SEASON_KEY;
 export const hello2027PrivateHeaders = {
   "Cache-Control": "private, no-store, max-age=0",
@@ -77,6 +80,18 @@ function isKakaoUser(user: User | null) {
     || Boolean(user.identities?.some((identity) => identity.provider === "kakao"));
 }
 
+function isKakaoClaims(claims: JwtPayload | null) {
+  if (!claims) return false;
+  const appMetadata = claims.app_metadata || {};
+  const providers = new Set([
+    typeof appMetadata.provider === "string" ? appMetadata.provider : "",
+    ...(Array.isArray(appMetadata.providers)
+      ? appMetadata.providers.filter((provider): provider is string => typeof provider === "string")
+      : []),
+  ]);
+  return providers.has("kakao");
+}
+
 function visitorActorKey(token: string) {
   return `guest:${createHash("sha256").update(token).digest("hex")}`;
 }
@@ -85,14 +100,85 @@ function userActorKey(userId: string) {
   return `user:${createHash("sha256").update(userId).digest("hex")}`;
 }
 
-export async function resolveHello2027CommentActor(request: NextRequest): Promise<Hello2027CommentActor> {
-  let user: User | null = null;
-  let authError = false;
-  const hasAuthCookie = request.cookies.getAll().some(({ name }) =>
+function hasSupabaseAuthCookie(request: NextRequest) {
+  return request.cookies.getAll().some(({ name }) =>
     name.startsWith("sb-") && name.includes("auth-token"));
-  const hasAuthConfiguration = Boolean(
+}
+
+function hasSupabaseAuthConfiguration() {
+  return Boolean(
     process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
   );
+}
+
+function makeAuthErrorActor(): Hello2027CommentActor {
+  return {
+    actorKey: "auth-error",
+    user: null,
+    kakaoName: null,
+    visitorToken: null,
+    setVisitorCookie: false,
+    authError: true,
+  };
+}
+
+function makeVisitorActor(request: NextRequest): Hello2027CommentActor {
+  const existingToken = request.cookies.get(VISITOR_COOKIE)?.value || "";
+  const hasValidToken = VISITOR_TOKEN_PATTERN.test(existingToken);
+  const visitorToken = hasValidToken ? existingToken : randomBytes(32).toString("base64url");
+  return {
+    actorKey: visitorActorKey(visitorToken),
+    user: null,
+    kakaoName: null,
+    visitorToken,
+    setVisitorCookie: !hasValidToken,
+    authError: false,
+  };
+}
+
+/**
+ * Resolves only the ownership key needed by the public GET endpoint.
+ * Anonymous reads never contact Supabase Auth, while authenticated reads use
+ * cryptographically verified claims. Mutations keep using getUser() below.
+ */
+export async function resolveHello2027CommentReadActor(
+  request: NextRequest,
+): Promise<Hello2027CommentActor> {
+  const hasAuthCookie = hasSupabaseAuthCookie(request);
+  if (!hasAuthCookie) return makeVisitorActor(request);
+  if (!hasSupabaseAuthConfiguration()) return makeAuthErrorActor();
+
+  try {
+    const auth = await createClient();
+    const { data, error } = await auth.auth.getClaims();
+    const claims = data?.claims ?? null;
+    if (error) return makeAuthErrorActor();
+    if (!claims || typeof claims.sub !== "string" || !isKakaoClaims(claims)) {
+      return makeVisitorActor(request);
+    }
+
+    return {
+      actorKey: userActorKey(claims.sub),
+      user: null,
+      kakaoName: null,
+      visitorToken: null,
+      setVisitorCookie: false,
+      authError: false,
+    };
+  } catch (error) {
+    logServerFailure("Hello 2027 comment read auth lookup", error);
+    return makeAuthErrorActor();
+  }
+}
+
+export async function resolveHello2027CommentActor(
+  request: NextRequest,
+  options: { includeDisplayName?: boolean } = {},
+): Promise<Hello2027CommentActor> {
+  let user: User | null = null;
+  let authError = false;
+  const hasAuthCookie = hasSupabaseAuthCookie(request);
+  const hasAuthConfiguration = hasSupabaseAuthConfiguration();
   if (hasAuthConfiguration) {
     try {
       const auth = await createClient();
@@ -108,29 +194,27 @@ export async function resolveHello2027CommentActor(request: NextRequest): Promis
   }
 
   if (authError) {
-    return {
-      actorKey: "auth-error",
-      user: null,
-      kakaoName: null,
-      visitorToken: null,
-      setVisitorCookie: false,
-      authError: true,
-    };
+    return makeAuthErrorActor();
   }
 
   if (user) {
-    let kakaoName = getKakaoDisplayName(user);
-    const service = getServiceClient();
-    if (service) {
-      try {
-        const connection = await resolveParticipantAccount(service, user.id);
-        if (connection.status === "approved" && connection.displayName) {
-          kakaoName = connection.displayName;
+    let kakaoName: string | null = null;
+    if (options.includeDisplayName !== false) {
+      kakaoName = getKakaoDisplayName(user);
+      const service = getServiceClient();
+      if (service) {
+        try {
+          const connection = await resolveParticipantAccount(service, user.id);
+          // Automatically enrolled personal profiles keep following the current
+          // Kakao nickname. Only an operator-confirmed public member may override it.
+          if (connection.status === "approved" && !connection.automaticallyEnrolled && connection.displayName) {
+            kakaoName = connection.displayName;
+          }
+        } catch (error) {
+          // A profile connection outage must not turn an otherwise valid Kakao
+          // session into an anonymous author. Fall back to Kakao identity data.
+          logServerFailure("Hello 2027 comment display-name lookup", error);
         }
-      } catch (error) {
-        // A profile connection outage must not turn an otherwise valid Kakao
-        // session into an anonymous author. Fall back to Kakao identity data.
-        logServerFailure("Hello 2027 comment display-name lookup", error);
       }
     }
 
@@ -144,17 +228,7 @@ export async function resolveHello2027CommentActor(request: NextRequest): Promis
     };
   }
 
-  const existingToken = request.cookies.get(VISITOR_COOKIE)?.value || "";
-  const hasValidToken = VISITOR_TOKEN_PATTERN.test(existingToken);
-  const visitorToken = hasValidToken ? existingToken : randomBytes(32).toString("base64url");
-  return {
-    actorKey: visitorActorKey(visitorToken),
-    user: null,
-    kakaoName: null,
-    visitorToken,
-    setVisitorCookie: !hasValidToken,
-    authError: false,
-  };
+  return makeVisitorActor(request);
 }
 
 export function applyHello2027VisitorCookie(response: NextResponse, actor: Hello2027CommentActor) {
@@ -181,16 +255,10 @@ export function normalizeCommentBody(value: unknown) {
 }
 
 export async function readHello2027JsonBody(request: NextRequest, maxBytes: number) {
+  const result = await readLimitedText(request, maxBytes);
+  if (!result.ok) return result;
   try {
-    const rawBody = await request.text();
-    if (Buffer.byteLength(rawBody, "utf8") > maxBytes) {
-      return {
-        ok: false as const,
-        status: 413,
-        error: "요청 용량이 너무 커요. 내용을 줄여 다시 시도해주세요.",
-      };
-    }
-    return { ok: true as const, value: JSON.parse(rawBody) as unknown };
+    return { ok: true as const, value: JSON.parse(result.value) as unknown };
   } catch {
     return {
       ok: false as const,
@@ -248,6 +316,8 @@ function aggregateReactions(rows: readonly ReactionRow[], actorKey: string) {
 
 const REACTION_PAGE_SIZE = 1_000;
 const REACTION_MAX_ROWS = 50_000;
+const REACTION_COMMENT_CHUNK_SIZE = 50;
+const REACTION_QUERY_CONCURRENCY = 4;
 
 export async function readHello2027ReactionRows(
   service: SupabaseClient,
@@ -256,23 +326,49 @@ export async function readHello2027ReactionRows(
   const rows: ReactionRow[] = [];
   if (commentIds.length === 0) return { rows, error: null };
 
-  for (let chunkStart = 0; chunkStart < commentIds.length; chunkStart += 50) {
-    const commentIdChunk = commentIds.slice(chunkStart, chunkStart + 50);
-    for (let offset = 0; rows.length < REACTION_MAX_ROWS; offset += REACTION_PAGE_SIZE) {
-      const { data, error } = await service
-        .from("hello_2027_comment_reactions")
-        .select("comment_id, emoji, actor_key")
-        .eq("season_key", HELLO_2027_COMMENTS_SEASON)
-        .in("comment_id", commentIdChunk)
-        .order("id", { ascending: true })
-        .range(offset, offset + REACTION_PAGE_SIZE - 1);
-      if (error) return { rows: [] as ReactionRow[], error };
-      const page = (data || []) as ReactionRow[];
-      rows.push(...page);
-      if (page.length < REACTION_PAGE_SIZE) break;
-    }
-    if (rows.length >= REACTION_MAX_ROWS) break;
+  const commentIdChunks: string[][] = [];
+  for (
+    let chunkStart = 0;
+    chunkStart < commentIds.length;
+    chunkStart += REACTION_COMMENT_CHUNK_SIZE
+  ) {
+    commentIdChunks.push(commentIds.slice(chunkStart, chunkStart + REACTION_COMMENT_CHUNK_SIZE));
   }
+
+  let nextChunkIndex = 0;
+  let reactionError: PostgrestError | null = null;
+  const workerCount = Math.min(REACTION_QUERY_CONCURRENCY, commentIdChunks.length);
+
+  await Promise.all(Array.from({ length: workerCount }, async () => {
+    while (!reactionError && rows.length < REACTION_MAX_ROWS) {
+      const chunkIndex = nextChunkIndex;
+      nextChunkIndex += 1;
+      const commentIdChunk = commentIdChunks[chunkIndex];
+      if (!commentIdChunk) return;
+
+      for (let offset = 0; !reactionError && rows.length < REACTION_MAX_ROWS; offset += REACTION_PAGE_SIZE) {
+        const { data, error } = await service
+          .from("hello_2027_comment_reactions")
+          .select("comment_id, emoji, actor_key")
+          .eq("season_key", HELLO_2027_COMMENTS_SEASON)
+          .in("comment_id", commentIdChunk)
+          .order("id", { ascending: true })
+          .range(offset, offset + REACTION_PAGE_SIZE - 1);
+        if (error) {
+          reactionError ||= error;
+          return;
+        }
+        if (reactionError) return;
+
+        const page = (data || []) as ReactionRow[];
+        const remainingRowCount = REACTION_MAX_ROWS - rows.length;
+        rows.push(...page.slice(0, remainingRowCount));
+        if (page.length < REACTION_PAGE_SIZE) break;
+      }
+    }
+  }));
+
+  if (reactionError) return { rows: [] as ReactionRow[], error: reactionError };
 
   return { rows, error: null };
 }
@@ -287,12 +383,16 @@ export async function readHello2027ReactionSummary(
   return { reactions: aggregateReactions(rows, actorKey), error: null };
 }
 
-export async function readHello2027Threads(service: SupabaseClient, actorKey: string) {
+export async function readHello2027Threads(service: SupabaseClient, actorKeyRequest: string | Promise<string>) {
   const { data: topLevelComments, error: commentError } = await service
     .from("hello_2027_comments")
-    .select("id, parent_id, author_name, body, status, created_at")
+    // actor_key never leaves this server module. Reduce it to an ownership flag;
+    // the DELETE endpoint independently enforces ownership before deleting.
+    .select("id, parent_id, author_name, actor_key, body, status, created_at, updated_at")
     .eq("season_key", HELLO_2027_COMMENTS_SEASON)
-    .in("status", ["visible", "deleted"])
+    // A deleted parent remains in storage to preserve reply foreign keys, but
+    // its complete thread must disappear from the public dashboard.
+    .eq("status", "visible")
     .is("parent_id", null)
     .order("created_at", { ascending: false })
     .limit(HELLO_2027_COMMENT_PUBLIC_THREAD_LIMIT);
@@ -306,7 +406,7 @@ export async function readHello2027Threads(service: SupabaseClient, actorKey: st
     for (let offset = 0; offset < replyLimit; offset += REACTION_PAGE_SIZE) {
       const { data, error } = await service
         .from("hello_2027_comments")
-        .select("id, parent_id, author_name, body, status, created_at")
+        .select("id, parent_id, author_name, actor_key, body, status, created_at, updated_at")
         .eq("season_key", HELLO_2027_COMMENTS_SEASON)
         .eq("status", "visible")
         .in("parent_id", topLevelIds)
@@ -324,6 +424,10 @@ export async function readHello2027Threads(service: SupabaseClient, actorKey: st
   const { rows: reactions, error: reactionError } = await readHello2027ReactionRows(service, commentIds);
   if (reactionError) return { threads: [] as Hello2027GuestbookThread[], error: reactionError };
 
+  // Ownership is resolved concurrently with public data reads, never cached or
+  // inferred from client-provided identity. Only the final booleans are public.
+  const actorKey = await actorKeyRequest;
+
   const reactionsByComment = new Map<string, ReactionRow[]>();
   for (const reaction of reactions) {
     const current = reactionsByComment.get(reaction.comment_id) || [];
@@ -340,18 +444,22 @@ export async function readHello2027Threads(service: SupabaseClient, actorKey: st
       author: row.author_name,
       body: row.body,
       createdAt: row.created_at,
+      updatedAt: row.updated_at ?? row.created_at,
+      ownedByViewer: row.actor_key === actorKey,
       reactions: aggregateReactions(reactionsByComment.get(row.id) || [], actorKey),
     });
     repliesByParent.set(row.parent_id, replies);
   }
 
   const threads = topLevelRows
-    .filter((row) => row.status === "visible" || (repliesByParent.get(row.id)?.length || 0) > 0)
+    .filter((row) => isHello2027PublicThreadStatus(row.status))
     .map((row) => ({
       id: row.id,
       author: row.author_name,
       body: row.body,
       createdAt: row.created_at,
+      updatedAt: row.updated_at ?? row.created_at,
+      ownedByViewer: row.actor_key === actorKey,
       reactions: aggregateReactions(reactionsByComment.get(row.id) || [], actorKey),
       replies: repliesByParent.get(row.id) || [],
     } satisfies Hello2027GuestbookThread));
@@ -362,12 +470,15 @@ export async function readHello2027Threads(service: SupabaseClient, actorKey: st
 export function toHello2027Comment(
   row: CommentRow,
   reactions: readonly Hello2027Reaction[] = [],
+  viewerActorKey?: string,
 ): Hello2027GuestbookThread | Hello2027GuestbookReply {
   const base = {
     id: row.id,
     author: row.author_name,
     body: row.body,
     createdAt: row.created_at,
+    updatedAt: row.updated_at ?? row.created_at,
+    ownedByViewer: Boolean(viewerActorKey && row.actor_key === viewerActorKey),
     reactions,
   };
   return row.parent_id ? base : { ...base, replies: [] };

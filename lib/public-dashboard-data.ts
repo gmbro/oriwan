@@ -1,6 +1,9 @@
+import "server-only";
+
 import { revalidatePath, revalidateTag, unstable_cache } from "next/cache";
 import type { PostgrestError, SupabaseClient } from "@supabase/supabase-js";
 import { findAdminUserId, getServiceClient } from "@/lib/admin-data";
+import { PUBLIC_FOURTH_PARTICIPANT_ORDER_FILTER } from "@/lib/fourth-participant-visibility";
 import {
   FOURTH_SEASON_DAYS as CHALLENGE_DAYS,
   FOURTH_SEASON_END_DATE as CHALLENGE_END_DATE,
@@ -21,7 +24,7 @@ import { addDays, getCertificationCreditMetrics, isCertificationCountedStatus, i
 import { isMissingTableError, missingSchemaResponse } from "@/lib/supabase-errors";
 
 const PUBLIC_DASHBOARD_REVALIDATE_SECONDS = 60;
-const PUBLIC_DASHBOARD_PAYLOAD_VERSION = "4th-season-isolated-v1";
+const PUBLIC_DASHBOARD_PAYLOAD_VERSION = "4th-season-isolated-v2-approved-members";
 export const PUBLIC_DASHBOARD_CACHE_TAG = "public-dashboard";
 export const PUBLIC_DASHBOARD_CACHE_CONTROL = "private, no-store, max-age=0, must-revalidate";
 const PUBLIC_DASHBOARD_MEMORY_CACHE_TTL_MS = PUBLIC_DASHBOARD_REVALIDATE_SECONDS * 1000;
@@ -66,6 +69,8 @@ type PublicDashboardCacheEntry = {
   payload?: PublicDashboardPayload;
   promise?: Promise<PublicDashboardPayload>;
 };
+
+let publicDashboardCacheGeneration = 0;
 
 type GrowthBadgeInsertRow = {
   user_id: string;
@@ -346,7 +351,8 @@ export async function buildPublicDashboardPayload(
     .from("participants")
     .select("id, name, active, display_order, created_at")
     .eq("user_id", adminUserId)
-    .eq("season_key", FOURTH_SEASON_KEY);
+    .eq("season_key", FOURTH_SEASON_KEY)
+    .or(PUBLIC_FOURTH_PARTICIPANT_ORDER_FILTER);
   if (participantScope === "active") participantsQuery = participantsQuery.eq("active", true);
 
   const [participantsResult, recordsResult] = await Promise.all([
@@ -436,6 +442,7 @@ const getCachedPublicDashboardPayload = unstable_cache(
 );
 
 export function invalidatePublicDashboardCache() {
+  publicDashboardCacheGeneration += 1;
   publicDashboardCache = null;
   revalidateTag(PUBLIC_DASHBOARD_CACHE_TAG, { expire: 0 });
   revalidatePath("/dashboard");
@@ -462,13 +469,19 @@ export async function getPublicDashboardPayload(cacheKey: string, from: string, 
   const promise = bypassCache
     ? buildPublicDashboardPayload(from, to)
     : getCachedPublicDashboardPayload(from, to);
+  const requestGeneration = publicDashboardCacheGeneration;
   if (!bypassCache) {
     publicDashboardCache = { key: cacheKey, expiresAt: 0, payload: publicDashboardCache?.payload, promise };
   }
 
   try {
     const payload = await promise;
-    if (!bypassCache) {
+    if (
+      !bypassCache
+      && requestGeneration === publicDashboardCacheGeneration
+      && publicDashboardCache?.key === cacheKey
+      && publicDashboardCache.promise === promise
+    ) {
       publicDashboardCache = {
         key: cacheKey,
         expiresAt: Date.now() + PUBLIC_DASHBOARD_MEMORY_CACHE_TTL_MS,
@@ -478,7 +491,12 @@ export async function getPublicDashboardPayload(cacheKey: string, from: string, 
 
     return { payload, cacheStatus: bypassCache ? "BYPASS" : "MISS" };
   } catch (error) {
-    if (!bypassCache && publicDashboardCache?.key === cacheKey && publicDashboardCache.payload) {
+    if (
+      !bypassCache
+      && requestGeneration === publicDashboardCacheGeneration
+      && publicDashboardCache?.key === cacheKey
+      && publicDashboardCache.payload
+    ) {
       publicDashboardCache = {
         key: cacheKey,
         expiresAt: Date.now() + PUBLIC_DASHBOARD_MEMORY_CACHE_TTL_MS,
@@ -487,7 +505,11 @@ export async function getPublicDashboardPayload(cacheKey: string, from: string, 
       return { payload: publicDashboardCache.payload, cacheStatus: "STALE" };
     }
 
-    if (!bypassCache && publicDashboardCache?.key === cacheKey) {
+    if (
+      !bypassCache
+      && requestGeneration === publicDashboardCacheGeneration
+      && publicDashboardCache?.key === cacheKey
+    ) {
       publicDashboardCache = null;
     }
     throw error;

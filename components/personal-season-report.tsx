@@ -117,6 +117,11 @@ export function PersonalSeasonReport({
 
   const fileName = () => safeFileName(`report_${member.name}.png`);
 
+  const photoCacheKey = useCallback(() => {
+    const width = Math.round(posterRef.current?.getBoundingClientRect().width ?? 0);
+    return `${member.id}:${member.certifiedDays}:${member.distanceKm}:${member.durationSeconds}:${width}`;
+  }, [member.certifiedDays, member.distanceKm, member.durationSeconds, member.id]);
+
   const downloadPhoto = (blob: Blob) => {
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
@@ -129,90 +134,43 @@ export function PersonalSeasonReport({
   };
 
   useEffect(() => {
-    const poster = posterRef.current;
-    if (!poster) return;
-
-    let cancelled = false;
-    let prepareTimer: number | undefined;
-    let idleHandle: number | undefined;
-    let preparationSequence = 0;
-    let lastPreparedWidth = 0;
-    const idleWindow = window as Window & {
-      requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
-      cancelIdleCallback?: (handle: number) => void;
-    };
-    const cacheKeyForWidth = (width: number) => (
-      `${member.id}:${member.certifiedDays}:${member.distanceKm}:${member.durationSeconds}:${width}`
-    );
-    const initialWidth = Math.round(poster.getBoundingClientRect().width);
-    const initialCachedPhoto = initialWidth ? readPreparedPhoto(cacheKeyForWidth(initialWidth)) : null;
-    preparedPhotoRef.current = initialCachedPhoto;
-    lastPreparedWidth = initialCachedPhoto ? initialWidth : 0;
-    setPhotoReady(Boolean(initialCachedPhoto));
-    setShowDownloadFallback(false);
-    setNotice("");
-
-    const preparePhoto = async () => {
-      const width = Math.round(poster.getBoundingClientRect().width);
-      if (!width || (width === lastPreparedWidth && preparedPhotoRef.current)) return;
-      const cacheKey = cacheKeyForWidth(width);
-      const cachedPhoto = readPreparedPhoto(cacheKey);
-      if (cachedPhoto) {
-        preparedPhotoRef.current = cachedPhoto;
-        lastPreparedWidth = width;
-        setPhotoReady(true);
-        return;
-      }
-      const sequence = ++preparationSequence;
-      preparedPhotoRef.current = null;
-      setPhotoReady(false);
+    let active = true;
+    const cachedPhoto = readPreparedPhoto(photoCacheKey());
+    preparedPhotoRef.current = cachedPhoto;
+    queueMicrotask(() => {
+      if (!active) return;
+      setPhotoReady(Boolean(cachedPhoto));
       setShowDownloadFallback(false);
       setNotice("");
-      try {
-        const blob = await createPoster();
-        if (cancelled || sequence !== preparationSequence) return;
-        preparedPhotoRef.current = blob;
-        writePreparedPhoto(cacheKey, blob);
-        lastPreparedWidth = width;
-        setPhotoReady(true);
-      } catch (error) {
-        if (cancelled || sequence !== preparationSequence) return;
-        setNotice(error instanceof Error ? error.message : "리포트 사진을 준비하지 못했습니다.");
-      }
-    };
-
-    const schedulePreparation = () => {
-      if (prepareTimer !== undefined) window.clearTimeout(prepareTimer);
-      if (idleHandle !== undefined) idleWindow.cancelIdleCallback?.(idleHandle);
-      if (idleWindow.requestIdleCallback) {
-        idleHandle = idleWindow.requestIdleCallback(() => {
-          idleHandle = undefined;
-          void preparePhoto();
-        }, { timeout: 1000 });
-        return;
-      }
-      prepareTimer = window.setTimeout(() => void preparePhoto(), 350);
-    };
-    const resizeObserver = new ResizeObserver(schedulePreparation);
-    resizeObserver.observe(poster);
-    schedulePreparation();
-
+    });
     return () => {
-      cancelled = true;
-      preparationSequence += 1;
-      resizeObserver.disconnect();
-      if (prepareTimer !== undefined) window.clearTimeout(prepareTimer);
-      if (idleHandle !== undefined) idleWindow.cancelIdleCallback?.(idleHandle);
-      preparedPhotoRef.current = null;
+      active = false;
     };
-  }, [createPoster, member.certifiedDays, member.distanceKm, member.durationSeconds, member.id]);
+  }, [photoCacheKey]);
 
   const savePosterAsPhoto = async () => {
-    const blob = preparedPhotoRef.current;
-    if (!blob || saveInFlightRef.current) return;
+    if (saveInFlightRef.current) return;
     saveInFlightRef.current = true;
     setNotice("");
     setShowDownloadFallback(false);
+
+    let blob = preparedPhotoRef.current;
+    if (!blob) {
+      setSaving(true);
+      try {
+        blob = await createPoster();
+        preparedPhotoRef.current = blob;
+        writePreparedPhoto(photoCacheKey(), blob);
+        setPhotoReady(true);
+        setNotice("사진 준비가 끝났어요. 버튼을 한 번 더 누르면 저장 메뉴가 열려요.");
+      } catch (error) {
+        setNotice(error instanceof Error ? error.message : "리포트 사진을 준비하지 못했습니다.");
+      } finally {
+        saveInFlightRef.current = false;
+        setSaving(false);
+      }
+      return;
+    }
 
     const photo = new File([blob], fileName(), { type: "image/png" });
     const shareData = {
@@ -351,14 +309,14 @@ export function PersonalSeasonReport({
             <button
               type="button"
               onClick={savePosterAsPhoto}
-              disabled={!photoReady || saving}
+              disabled={saving}
               aria-busy={saving}
               className="flex min-h-12 w-full items-center justify-center rounded-2xl bg-slate-950 px-4 text-sm font-black text-lime-200 shadow-lg shadow-slate-950/15 transition-colors hover:bg-slate-800 disabled:cursor-wait"
             >
-              {saving ? "저장 메뉴 여는 중…" : "사진 앱에 저장"}
+              {saving ? "사진 준비 중…" : photoReady ? "사진 앱에 저장" : "저장할 사진 준비하기"}
             </button>
             <p className="mt-2 text-center text-[9px] font-bold leading-4 text-slate-500">
-              모바일에서는 열린 메뉴에서 ‘이미지 저장’을 선택해주세요.
+              필요할 때만 이미지를 만들어요. 준비 후 열린 메뉴에서 ‘이미지 저장’을 선택해주세요.
             </p>
             {showDownloadFallback && (
               <button
@@ -384,7 +342,7 @@ export function PersonalSeasonReport({
               <Link href={reportBasePath} className="inline-flex items-center gap-1 text-[10px] font-black text-lime-700">전체 <IconArrowRight size={13} /></Link>
             </div>
             <div className="-mx-1 mt-3 flex snap-x gap-2 overflow-x-auto px-1 pb-2 pt-2">
-              <Link href={reportBasePath} prefetch className="flex w-16 shrink-0 snap-start flex-col items-center gap-1.5 rounded-2xl bg-slate-950 px-2 py-3 text-white">
+              <Link href={reportBasePath} prefetch={false} className="flex w-16 shrink-0 snap-start flex-col items-center gap-1.5 rounded-2xl bg-slate-950 px-2 py-3 text-white">
                 <span className="flex h-9 w-9 items-center justify-center rounded-full bg-lime-300 text-[10px] font-black text-slate-950">ALL</span>
                 <span className="text-[9px] font-black">전체</span>
               </Link>
@@ -392,7 +350,7 @@ export function PersonalSeasonReport({
                 <Link
                   key={item.id}
                   href={`${reportBasePath}/${item.id}`}
-                  prefetch
+                  prefetch={false}
                   aria-current={item.id === member.id ? "page" : undefined}
                   className={`flex w-16 shrink-0 snap-start flex-col items-center gap-1.5 rounded-2xl px-2 py-3 ring-1 ${item.id === member.id ? "bg-lime-50 ring-lime-300" : "bg-slate-50 ring-slate-950/5"}`}
                 >

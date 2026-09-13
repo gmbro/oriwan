@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ADMIN_EMAIL, isAdminEmail } from "@/lib/admin";
 import { clearAdminSessionCookie, hasValidAdminSession, setAdminSessionCookie } from "@/lib/admin-server";
-import { guardMutationRequest } from "@/lib/request-security";
+import { guardMutationRequest, readLimitedJson } from "@/lib/request-security";
 import { logServerFailure } from "@/lib/server-error-log";
 import { createClient } from "@/lib/supabase/server";
 
@@ -43,23 +43,26 @@ function adminUserResponse(user: { id: string; email?: string | null; user_metad
 export async function GET() {
   const supabase = await getConfiguredAuthClient();
   if (!supabase) return authUnavailableResponse();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { data, error } = await supabase.auth.getClaims();
+  const claims = data?.claims ?? null;
 
-  if (!user || !isAdminEmail(user.email)) {
-    const response = NextResponse.json({ authenticated: false, error: "관리자 이메일 인증이 필요해요." }, { status: user ? 403 : 401 });
+  if (error || !claims || !isAdminEmail(claims.email)) {
+    const response = NextResponse.json({ authenticated: false, error: "관리자 이메일 인증이 필요해요." }, { status: claims ? 403 : 401 });
     clearAdminSessionCookie(response);
     return response;
   }
 
-  if (!(await hasValidAdminSession(user.id))) {
+  if (!(await hasValidAdminSession(claims.sub))) {
     const response = NextResponse.json({ authenticated: false, error: "관리자 이메일 인증이 필요해요." }, { status: 401 });
     clearAdminSessionCookie(response);
     return response;
   }
 
-  return NextResponse.json(adminUserResponse(user));
+  return NextResponse.json(adminUserResponse({
+    id: claims.sub,
+    email: typeof claims.email === "string" ? claims.email : null,
+    user_metadata: claims.user_metadata || {},
+  }));
 }
 
 export async function PUT(request: NextRequest) {
@@ -102,9 +105,11 @@ export async function POST(request: NextRequest) {
   });
   if (guardResponse) return guardResponse;
 
-  const body = await request.json().catch(() => ({}));
+  const parsedBody = await readLimitedJson(request, 4 * 1024);
+  if (!parsedBody.ok) return parsedBody.response;
+  const body = parsedBody.value;
   const token = typeof body.token === "string" ? body.token.replace(/\D/g, "") : "";
-  if (!token) {
+  if (!/^\d{6,8}$/.test(token)) {
     return NextResponse.json({ error: "메일로 받은 인증번호를 입력해주세요." }, { status: 400 });
   }
 

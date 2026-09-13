@@ -3,20 +3,28 @@
 import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { DEFAULT_HELLO_2027_BANNER_CLICK_URL } from "@/lib/hello-2027-banner-contract";
+import { getCrewBannerStats } from "@/lib/hello-2027-crew-banner";
+import type { BannerWeatherCondition } from "@/lib/gangnam-weather";
+import { Hello2027CrewBanner } from "./hello-2027-crew-banner";
 import styles from "./hello-2027-poc.module.css";
-import { TwttRunnerPictogram } from "./twtt-runner-pictogram";
 import type { ResolvedHello2027Ad } from "./use-local-hello-2027-content";
 
 type Hello2027BannerCarouselProps = {
   ads: readonly ResolvedHello2027Ad[];
-  dayPhaseClass: string;
-  todayRate: number;
+  dayPhase: string;
+  motionDisabled?: boolean;
+  completedToday: number;
+  participantCount: number;
+  weatherPreview?: BannerWeatherCondition;
+  seasonDday?: string;
 };
 
 const DEFAULT_SCENE = "/images/poc/hello-2027/hello-2027-riverside.webp";
-const AUTO_ADVANCE_MS = 5_000;
+const AUTO_ADVANCE_MS = 14_000;
 
-export function Hello2027BannerCarousel({ ads, dayPhaseClass, todayRate }: Hello2027BannerCarouselProps) {
+export function Hello2027BannerCarousel({ ads, dayPhase, completedToday, participantCount, motionDisabled = false, weatherPreview, seasonDday }: Hello2027BannerCarouselProps) {
+  const { rate: todayRate } = getCrewBannerStats(completedToday, participantCount);
   const trackRef = useRef<HTMLDivElement>(null);
   const scrollFrameRef = useRef<number | null>(null);
   const [currentSlide, setCurrentSlide] = useState(0);
@@ -28,7 +36,6 @@ export function Hello2027BannerCarousel({ ads, dayPhaseClass, todayRate }: Hello
   const [isDocumentVisible, setIsDocumentVisible] = useState(true);
   const slideCount = ads.length + 1;
   const visibleSlide = Math.min(currentSlide, slideCount - 1);
-  const normalizedTodayRate = Math.min(100, Math.max(0, todayRate));
 
   const goToSlide = useCallback((index: number) => {
     const track = trackRef.current;
@@ -89,7 +96,7 @@ export function Hello2027BannerCarousel({ ads, dayPhaseClass, todayRate }: Hello
   return (
     <section
       className={styles.hero}
-      aria-label="오늘의 인증률과 크루 광고"
+      aria-label="오늘의 인증률과 멤버 광고"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       onFocusCapture={() => setHasFocus(true)}
@@ -107,7 +114,7 @@ export function Hello2027BannerCarousel({ ads, dayPhaseClass, todayRate }: Hello
         tabIndex={0}
         role="region"
         aria-roledescription="캐러셀"
-        aria-label={`배너 ${slideCount}개${slideCount > 1 && !prefersReducedMotion ? ", 5초마다 자동 전환" : ""}`}
+        aria-label={`배너 ${slideCount}개${slideCount > 1 && !prefersReducedMotion ? ", 14초마다 자동 전환" : ""}`}
         onKeyDown={(event) => {
           if (event.key === "ArrowLeft") goToSlide(visibleSlide - 1);
           if (event.key === "ArrowRight") goToSlide(visibleSlide + 1);
@@ -124,49 +131,13 @@ export function Hello2027BannerCarousel({ ads, dayPhaseClass, todayRate }: Hello
         }}
       >
         <article
-          className={`${styles.bannerSlide} ${dayPhaseClass}`}
+          className={styles.bannerSlide}
           role="group"
           aria-roledescription="슬라이드"
           aria-hidden={visibleSlide !== 0}
           aria-label={`1 / ${slideCount}, 오늘의 인증률 ${todayRate}%`}
         >
-          <div className={`${styles.bannerCanvas} ${styles.todayBannerCanvas}`}>
-            <div className={styles.worldLayer} aria-hidden="true">
-              <Image src={DEFAULT_SCENE} alt="" fill preload sizes="100vw" />
-            </div>
-            <div className={styles.timeTint} aria-hidden="true" />
-            <div className={styles.todaySceneWash} aria-hidden="true" />
-            <div className={styles.storyBanner}>
-              <div className={styles.todayEyebrow}>
-                <span>TODAY</span>
-                <span>한강 러닝</span>
-              </div>
-              <div className={styles.todayMetric}>
-                <div>
-                  <h2>오늘의 인증률</h2>
-                  <strong>
-                    {todayRate}
-                    <small>%</small>
-                  </strong>
-                </div>
-                <span className={styles.todayRunner} aria-hidden="true">
-                  <TwttRunnerPictogram
-                    variant={5}
-                    name="TWTT"
-                    completed={normalizedTodayRate >= 100}
-                    pose="run"
-                    animated
-                    decorative
-                    size="hero"
-                  />
-                </span>
-              </div>
-              <div className={styles.todayProgress} aria-hidden="true">
-                <span style={{ width: `${normalizedTodayRate}%` }} />
-              </div>
-              <p>오늘도 각자의 속도로, 한강처럼 꾸준히</p>
-            </div>
-          </div>
+          <Hello2027CrewBanner completedToday={completedToday} participantCount={participantCount} dayPhase={dayPhase} active={visibleSlide === 0 && isDocumentVisible} motionDisabled={motionDisabled || isUserPaused} showMotionControl={false} weatherPreview={weatherPreview} seasonDday={seasonDday} />
         </article>
 
         {ads.map((ad, index) => (
@@ -178,14 +149,20 @@ export function Hello2027BannerCarousel({ ads, dayPhaseClass, todayRate }: Hello
             aria-hidden={visibleSlide !== index + 1}
             aria-label={`${index + 2} / ${slideCount}, ${ad.ownerName}님의 ${ad.title} 광고`}
           >
-            <div className={styles.bannerCanvas}>
+            <a
+              className={`${styles.bannerCanvas} ${styles.bannerLink}`}
+              href={ad.clickUrl || DEFAULT_HELLO_2027_BANNER_CLICK_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              tabIndex={visibleSlide === index + 1 ? 0 : -1}
+              aria-label={`${ad.ownerName}의 ${ad.title} 광고 페이지로 이동 (새 창)`}
+            >
               <div className={styles.worldLayer}>
                 {Math.abs(index + 1 - visibleSlide) <= 1 ? (
                   <Image
                     src={ad.imageSrc || DEFAULT_SCENE}
                     alt={ad.alt}
                     fill
-                    unoptimized={ad.isUploaded}
                     sizes="100vw"
                     className={ad.mobileFocus === "left"
                       ? styles.mobileFocusLeft
@@ -201,7 +178,8 @@ export function Hello2027BannerCarousel({ ads, dayPhaseClass, todayRate }: Hello
                 <strong>{ad.title}</strong>
                 <p>{ad.description}</p>
               </div>
-            </div>
+              <p className={styles.bannerInquiry}>배너 광고 문의는 하단의 댓글로 문의주세요.</p>
+            </a>
           </article>
         ))}
       </div>
@@ -227,26 +205,15 @@ export function Hello2027BannerCarousel({ ads, dayPhaseClass, todayRate }: Hello
             <span aria-hidden="true">›</span>
           </button>
 
-          <div className={styles.carouselFooter}>
-            <div className={styles.carouselDots} aria-label="배너 선택">
-              {Array.from({ length: slideCount }, (_, index) => (
-                <button
-                  type="button"
-                  key={index}
-                  aria-label={`${index + 1}번째 배너 보기`}
-                  aria-current={index === visibleSlide ? "true" : undefined}
-                  onClick={() => goToSlide(index)}
-                />
-              ))}
-            </div>
-            <span>{visibleSlide + 1} / {slideCount}</span>
+        </>
+      ) : null}
             <button
-              className={styles.carouselToggle}
+              className={`${styles.carouselToggle} ${visibleSlide === 0 ? styles.crewMotionToggle : ""}`}
               type="button"
               aria-pressed={isUserPaused}
               aria-label={prefersReducedMotion
-                ? "배너 자동 전환 정지됨"
-                : isUserPaused ? "배너 자동 전환 재생" : "배너 자동 전환 일시정지"}
+                ? "배너 움직임 정지됨"
+                : isUserPaused ? "배너 움직임과 자동 전환 재생" : "배너 움직임과 자동 전환 일시정지"}
               disabled={prefersReducedMotion}
               onClick={(event) => {
                 const shouldResume = isUserPaused;
@@ -267,9 +234,6 @@ export function Hello2027BannerCarousel({ ads, dayPhaseClass, todayRate }: Hello
                 aria-hidden="true"
               />
             </button>
-          </div>
-        </>
-      ) : null}
     </section>
   );
 }

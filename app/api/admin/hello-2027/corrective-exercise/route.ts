@@ -22,7 +22,7 @@ import {
   FOURTH_SEASON_START_DATE,
   isWithinFourthSeasonWindow,
 } from "@/lib/fourth-season-contract";
-import { guardMutationRequest, guardReadRequest } from "@/lib/request-security";
+import { guardMutationRequest, guardReadRequest, readLimitedJson } from "@/lib/request-security";
 import { toKstIsoDate } from "@/lib/run-records";
 import { logServerFailure } from "@/lib/server-error-log";
 import { isMissingTableError, missingSchemaResponse } from "@/lib/supabase-errors";
@@ -56,19 +56,20 @@ type ApplicationRow = {
   participant_id: string;
   participant_name_snapshot: string;
   requested_slot_id: string | null;
-  requested_date: string;
-  requested_start_time: string;
+  requested_date: string | null;
+  requested_start_time: string | null;
   requested_end_time: string | null;
-  pain_areas: string[];
-  pain_context: string;
-  hospital_status: string;
+  pain_areas: string[] | null;
+  pain_context: string | null;
+  hospital_status: string | null;
   hospital_note: string | null;
   additional_note: string | null;
+  inquiry_message: string | null;
   status: CorrectiveExerciseApplication["status"];
   confirmed_for: string | null;
   admin_note: string | null;
-  consent_version: string;
-  consented_at: string;
+  consent_version: string | null;
+  consented_at: string | null;
   retention_until: string;
   created_at: string;
   updated_at: string;
@@ -82,6 +83,7 @@ type ApplicationSummaryRow = Pick<
   | "requested_date"
   | "requested_start_time"
   | "requested_end_time"
+  | "inquiry_message"
   | "status"
   | "confirmed_for"
   | "retention_until"
@@ -96,33 +98,23 @@ function json(payload: object, status = 200) {
 function setupRequired() {
   return json({
     ...missingSchemaResponse("교정운동 운영 저장소가 아직 준비되지 않았어요."),
-    setup_file: "docs/migrations/2026-09-04-corrective-exercise-audit-and-delete.sql",
+    setup_file: "docs/migrations/2026-09-06-corrective-exercise-simple-inquiry.sql",
     prerequisite_file: "docs/migrations/2026-09-04-corrective-exercise.sql",
   }, 503);
 }
 
 async function readJsonBody(request: NextRequest, maxBodyBytes = MAX_BODY_BYTES) {
-  try {
-    const rawBody = await request.text();
-    if (Buffer.byteLength(rawBody, "utf8") > maxBodyBytes) {
-      return { ok: false as const, response: json({ error: "요청 용량이 너무 커요." }, 413) };
-    }
-    const value: unknown = JSON.parse(rawBody);
-    if (!value || typeof value !== "object" || Array.isArray(value)) {
-      return { ok: false as const, response: json({ error: "요청 내용을 다시 확인해주세요." }, 400) };
-    }
-    return { ok: true as const, body: value as JsonBody };
-  } catch {
-    return { ok: false as const, response: json({ error: "요청 형식을 확인할 수 없어요." }, 400) };
-  }
+  const parsed = await readLimitedJson(request, maxBodyBytes);
+  if (!parsed.ok) return parsed;
+  return { ok: true as const, body: parsed.value };
 }
 
 function applicationSelect() {
-  return "id, participant_id, participant_name_snapshot, requested_slot_id, requested_date, requested_start_time, requested_end_time, pain_areas, pain_context, hospital_status, hospital_note, additional_note, status, confirmed_for, admin_note, consent_version, consented_at, retention_until, created_at, updated_at";
+  return "id, participant_id, participant_name_snapshot, requested_slot_id, requested_date, requested_start_time, requested_end_time, pain_areas, pain_context, hospital_status, hospital_note, additional_note, inquiry_message, status, confirmed_for, admin_note, consent_version, consented_at, retention_until, created_at, updated_at";
 }
 
 function applicationSummarySelect() {
-  return "id, participant_id, participant_name_snapshot, requested_slot_id, requested_date, requested_start_time, requested_end_time, status, confirmed_for, retention_until, created_at, updated_at";
+  return "id, participant_id, participant_name_snapshot, requested_slot_id, requested_date, requested_start_time, requested_end_time, inquiry_message, status, confirmed_for, retention_until, created_at, updated_at";
 }
 
 function normalizeTime(value: string | null) {
@@ -136,13 +128,14 @@ function serializeApplication(row: ApplicationRow): CorrectiveExerciseApplicatio
     participant_name: row.participant_name_snapshot,
     requested_slot_id: row.requested_slot_id,
     requested_date: row.requested_date,
-    requested_start_time: normalizeTime(row.requested_start_time) || "",
+    requested_start_time: normalizeTime(row.requested_start_time),
     requested_end_time: normalizeTime(row.requested_end_time),
-    pain_areas: row.pain_areas.filter(isCorrectiveExercisePainArea),
+    pain_areas: (row.pain_areas || []).filter(isCorrectiveExercisePainArea),
     pain_context: row.pain_context,
-    hospital_status: isCorrectiveExerciseHospitalStatus(row.hospital_status) ? row.hospital_status : "none",
+    hospital_status: isCorrectiveExerciseHospitalStatus(row.hospital_status) ? row.hospital_status : null,
     hospital_note: row.hospital_note,
     additional_note: row.additional_note,
+    inquiry_message: row.inquiry_message,
     status: row.status,
     confirmed_for: row.confirmed_for,
     admin_note: row.admin_note,
@@ -161,8 +154,9 @@ function serializeApplicationSummary(row: ApplicationSummaryRow): CorrectiveExer
     participant_name: row.participant_name_snapshot,
     requested_slot_id: row.requested_slot_id,
     requested_date: row.requested_date,
-    requested_start_time: normalizeTime(row.requested_start_time) || "",
+    requested_start_time: normalizeTime(row.requested_start_time),
     requested_end_time: normalizeTime(row.requested_end_time),
+    inquiry_message: row.inquiry_message,
     status: row.status,
     confirmed_for: row.confirmed_for,
     retention_until: row.retention_until,
@@ -247,8 +241,8 @@ function canTransitionApplication(
 ) {
   if (from === to) return true;
   const transitions: Record<CorrectiveExerciseApplication["status"], readonly CorrectiveExerciseApplication["status"][]> = {
-    submitted: ["reviewing", "schedule_proposed", "confirmed", "cancelled", "rejected"],
-    reviewing: ["schedule_proposed", "confirmed", "cancelled", "rejected"],
+    submitted: ["reviewing", "schedule_proposed", "confirmed", "completed", "cancelled", "rejected"],
+    reviewing: ["schedule_proposed", "confirmed", "completed", "cancelled", "rejected"],
     schedule_proposed: ["reviewing", "confirmed", "cancelled", "rejected"],
     confirmed: ["completed", "cancelled"],
     completed: [],

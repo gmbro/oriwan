@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getFourthViewer } from "@/lib/fourth-viewer-server";
+import { invalidatePublicDashboardCache } from "@/lib/public-dashboard-data";
 import { guardReadRequest } from "@/lib/request-security";
 
 export const dynamic = "force-dynamic";
@@ -19,5 +20,7 @@ export async function GET(request: NextRequest) {
     return guardResponse;
   }
 
-  return NextResponse.json(await getFourthViewer(), { headers: privateHeaders });
+  const viewer = await getFourthViewer();
+  if (viewer.dashboard_member_changed) invalidatePublicDashboardCache();
+  return NextResponse.json(viewer, { headers: privateHeaders });
 }

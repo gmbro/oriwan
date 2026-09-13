@@ -43,7 +43,7 @@ export function SeasonWeeklyLineChart({
           <g key={point.week.label}>
             <circle cx={point.x} cy={point.y} r={isBest ? 6 : 4} fill={isBest ? "#0f172a" : "#ffffff"} stroke={accent} strokeWidth="3" />
             {isBest && (
-              <text x={point.x} y={Math.max(point.y - 12, 11)} textAnchor="middle" fontSize="10" fontWeight="900" fill="#0f172a">
+              <text x={point.x} y={Math.max(point.y - 14, 13)} textAnchor="middle" fontSize="13" fontWeight="900" fill="#0f172a">
                 {point.week.rate}%
               </text>
             )}
@@ -52,7 +52,7 @@ export function SeasonWeeklyLineChart({
       })}
       {points.map((point) => (
         (point.index === 0 || point.index === bestWeekIndex || point.index === points.length - 1) && (
-          <text key={`label-${point.week.label}`} x={point.x} y={height - 5} textAnchor="middle" fontSize="9" fontWeight="800" fill="#64748b">
+          <text key={`label-${point.week.label}`} x={point.x} y={height - 5} textAnchor="middle" fontSize="12" fontWeight="800" fill="#64748b">
             {point.week.label}
           </text>
         )
@@ -78,14 +78,14 @@ export function SeasonWeeklyBars({
         const isBest = index === bestWeekIndex;
         return (
           <div key={week.label} className="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-1">
-            {isBest && <span className="text-[8px] font-black text-current">{week.rate}%</span>}
+            {isBest && <span className="text-xs font-black text-current">{week.rate}%</span>}
             <span
               className="w-full min-w-1 rounded-full bg-current transition-all"
               style={{ height: `${Math.max(week.rate, 4)}%`, color: isBest ? accent : `${accent}66` }}
               title={`${week.label} ${week.rate}%`}
             />
             {(index === 0 || index === weeks.length - 1 || isBest) && (
-              <span className="whitespace-nowrap text-[8px] font-black opacity-55">{week.label}</span>
+              <span className="whitespace-nowrap text-[11px] font-black opacity-65">{week.label}</span>
             )}
           </div>
         );
@@ -100,13 +100,13 @@ export function SeasonMonthlyBars({ months, accent = "#bef264" }: { months: Seas
       {months.map((month) => (
         <div key={month.key} className="min-w-0">
           <div className="mb-1.5 flex items-end justify-between gap-1">
-            <span className="whitespace-nowrap text-[9px] font-black opacity-60 sm:text-[10px]">{month.label}</span>
-            <span className="whitespace-nowrap text-[11px] font-black sm:text-xs">{month.rate}%</span>
+            <span className="whitespace-nowrap text-xs font-black opacity-65">{month.label}</span>
+            <span className="whitespace-nowrap text-xs font-black">{month.rate}%</span>
           </div>
           <div className="h-2 overflow-hidden rounded-full bg-current/10">
             <div className="h-full rounded-full" style={{ width: `${month.rate}%`, backgroundColor: accent }} />
           </div>
-          <p className="mt-1 whitespace-nowrap text-[7px] font-bold opacity-50 sm:text-[8px]">{month.certifiedDays}/{month.targetDays}일</p>
+          <p className="mt-1 whitespace-nowrap text-[11px] font-bold opacity-60">{month.certifiedDays}/{month.targetDays}일</p>
         </div>
       ))}
     </div>

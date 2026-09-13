@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminDataAccess } from "@/lib/admin-data-access";
 import { isMissingTableError, missingSchemaResponse } from "@/lib/supabase-errors";
-import { guardMutationRequest } from "@/lib/request-security";
+import { guardMutationRequest, readLimitedJson } from "@/lib/request-security";
 import { invalidatePublicDashboardCache } from "@/lib/public-dashboard-data";
 import { normalizeContentText } from "@/lib/hello-2027-content";
 import { FOURTH_SEASON_KEY } from "@/lib/fourth-season-contract";
@@ -43,7 +43,9 @@ export async function POST(request: NextRequest) {
   if (!access.ok) return access.response;
   const { user, service: supabase } = access;
 
-  const body = await request.json().catch(() => ({}));
+  const parsedBody = await readLimitedJson(request, 8 * 1024);
+  if (!parsedBody.ok) return parsedBody.response;
+  const body = parsedBody.value;
   const name = normalizeContentText(body.name, MAX_PARTICIPANT_NAME_LENGTH);
   const rawNickname = typeof body.nickname === "string" ? body.nickname.trim() : "";
   const nickname = rawNickname ? normalizeContentText(rawNickname, MAX_PARTICIPANT_INTRO_LENGTH) : null;
@@ -62,7 +64,7 @@ export async function POST(request: NextRequest) {
       season_key: FOURTH_SEASON_KEY,
       name,
       nickname,
-      display_order: Number.isInteger(body.display_order) && body.display_order >= 0 && body.display_order <= 10_000
+      display_order: typeof body.display_order === "number" && Number.isInteger(body.display_order) && body.display_order >= 0 && body.display_order <= 10_000
         ? body.display_order
         : 0,
       active: true,

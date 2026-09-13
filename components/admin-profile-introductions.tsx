@@ -1,11 +1,11 @@
 "use client";
 
+import Image from "next/image";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import {
-  MAX_PROFILE_INTRO_LENGTH,
-  MAX_PROFILE_INTRO_TITLE_LENGTH,
-} from "@/lib/hello-2027-profile-introduction-contract";
+import { broadcastDashboardRefresh } from "@/lib/dashboard-refresh";
+import { resolveHello2027ProfileImageUrl } from "@/lib/hello-2027-profile-image";
+import { MAX_PROFILE_INTRO_LENGTH } from "@/lib/hello-2027-profile-introduction-contract";
 
 type ProfileIntroduction = {
   participant_id: string;
@@ -13,11 +13,12 @@ type ProfileIntroduction = {
   title: string;
   body: string;
   active: boolean;
+  profile_image_url: string | null;
   created_at: string | null;
   updated_at: string | null;
 };
 
-type ProfileDraft = Pick<ProfileIntroduction, "title" | "body" | "active">;
+type ProfileDraft = Pick<ProfileIntroduction, "body" | "active">;
 
 type Feedback = {
   tone: "success" | "error";
@@ -31,28 +32,76 @@ type ApiPayload = {
   item?: ProfileIntroduction;
 };
 
+type ProfileImageApiPayload = {
+  error?: string;
+  participant_id?: string;
+  profile_image_url?: string | null;
+};
+
+type TimeMachineGoal = {
+  id: string;
+  participant_id: string;
+  goal_title: string;
+  goal_detail: string;
+  commitment: string;
+  created_at: string;
+  unlock_at: string;
+  status: "sealed" | "opened";
+};
+
+type TimeMachineApiPayload = {
+  error?: string;
+  setup_required?: boolean;
+  items?: TimeMachineGoal[];
+  reset?: { goal_id: string; participant_id: string };
+};
+
+const DATE_TIME_FORMATTER = new Intl.DateTimeFormat("ko-KR", {
+  dateStyle: "medium",
+  timeStyle: "short",
+  timeZone: "Asia/Seoul",
+});
+
+function formatDateTime(value: string) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "시간 확인 필요" : DATE_TIME_FORMATTER.format(date);
+}
+
 function toDraft(item: ProfileIntroduction): ProfileDraft {
   return {
-    title: item.title,
     body: item.body,
     active: item.active,
   };
 }
 
 function isSameDraft(item: ProfileIntroduction, draft: ProfileDraft) {
-  return item.title === draft.title
-    && item.body === draft.body
+  return item.body === draft.body
     && item.active === draft.active;
 }
 
-export function AdminProfileIntroductions() {
+export function AdminProfileIntroductions({
+  active = true,
+  refreshKey = "",
+}: {
+  active?: boolean;
+  refreshKey?: string;
+}) {
   const [items, setItems] = useState<ProfileIntroduction[]>([]);
   const [drafts, setDrafts] = useState<Record<string, ProfileDraft>>({});
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState("");
+  const [imageBusyId, setImageBusyId] = useState("");
   const [loadError, setLoadError] = useState<Feedback | null>(null);
   const [setupRequired, setSetupRequired] = useState(false);
   const [feedbackById, setFeedbackById] = useState<Record<string, Feedback>>({});
+  const [imageFeedbackById, setImageFeedbackById] = useState<Record<string, Feedback>>({});
+  const [timeMachineGoals, setTimeMachineGoals] = useState<TimeMachineGoal[]>([]);
+  const [timeMachineLoading, setTimeMachineLoading] = useState(true);
+  const [timeMachineLoadError, setTimeMachineLoadError] = useState<Feedback | null>(null);
+  const [timeMachineSetupRequired, setTimeMachineSetupRequired] = useState(false);
+  const [confirmingResetId, setConfirmingResetId] = useState("");
+  const [resettingId, setResettingId] = useState("");
+  const [timeMachineFeedbackById, setTimeMachineFeedbackById] = useState<Record<string, Feedback>>({});
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -68,6 +117,7 @@ export function AdminProfileIntroductions() {
       setItems(nextItems);
       setDrafts(Object.fromEntries(nextItems.map((item) => [item.participant_id, toDraft(item)])));
       setFeedbackById({});
+      setImageFeedbackById({});
       setSetupRequired(false);
     } catch (error) {
       setLoadError({
@@ -79,19 +129,47 @@ export function AdminProfileIntroductions() {
     }
   }, []);
 
+  const loadTimeMachineGoals = useCallback(async () => {
+    setTimeMachineLoading(true);
+    setTimeMachineLoadError(null);
+    try {
+      const response = await fetch("/api/admin/hello-2027/time-machine", { cache: "no-store" });
+      const json = await response.json().catch(() => ({})) as TimeMachineApiPayload;
+      if (!response.ok) {
+        setTimeMachineSetupRequired(Boolean(json.setup_required));
+        throw new Error(json.error || "목표 타임머신을 불러오지 못했어요.");
+      }
+      setTimeMachineGoals(Array.isArray(json.items) ? json.items : []);
+      setTimeMachineSetupRequired(false);
+      setTimeMachineFeedbackById({});
+    } catch (error) {
+      setTimeMachineLoadError({
+        tone: "error",
+        message: error instanceof Error ? error.message : "목표 타임머신을 불러오지 못했어요.",
+      });
+    } finally {
+      setTimeMachineLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
+    if (!active) return;
     queueMicrotask(() => {
       void load();
+      void loadTimeMachineGoals();
     });
-  }, [load]);
+  }, [active, load, loadTimeMachineGoals, refreshKey]);
 
   const publicCount = useMemo(() => items.filter((item) => item.active).length, [items]);
+  const timeMachineGoalByParticipant = useMemo(
+    () => new Map(timeMachineGoals.map((goal) => [goal.participant_id, goal])),
+    [timeMachineGoals],
+  );
 
   const updateDraft = (participantId: string, patch: Partial<ProfileDraft>) => {
     setDrafts((current) => ({
       ...current,
       [participantId]: {
-        title: current[participantId]?.title || "",
         body: current[participantId]?.body || "",
         active: current[participantId]?.active || false,
         ...patch,
@@ -107,19 +185,11 @@ export function AdminProfileIntroductions() {
 
   const save = async (item: ProfileIntroduction) => {
     const draft = drafts[item.participant_id] || toDraft(item);
-    const title = draft.title.replace(/\s+/gu, " ").trim();
     const body = draft.body
       .replace(/\r\n?/gu, "\n")
       .replace(/[\t ]+/gu, " ")
       .trim();
 
-    if (!title || title.length > MAX_PROFILE_INTRO_TITLE_LENGTH) {
-      setFeedbackById((current) => ({
-        ...current,
-        [item.participant_id]: { tone: "error", message: `제목은 1~${MAX_PROFILE_INTRO_TITLE_LENGTH}자로 입력해주세요.` },
-      }));
-      return;
-    }
     if (body.length > MAX_PROFILE_INTRO_LENGTH || (draft.active && !body)) {
       setFeedbackById((current) => ({
         ...current,
@@ -145,7 +215,6 @@ export function AdminProfileIntroductions() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           participant_id: item.participant_id,
-          title,
           body,
           active: draft.active,
         }),
@@ -158,7 +227,9 @@ export function AdminProfileIntroductions() {
 
       const saved = json.item;
       setItems((current) => current.map((currentItem) => (
-        currentItem.participant_id === saved.participant_id ? saved : currentItem
+        currentItem.participant_id === saved.participant_id
+          ? { ...saved, profile_image_url: currentItem.profile_image_url }
+          : currentItem
       )));
       setDrafts((current) => ({ ...current, [saved.participant_id]: toDraft(saved) }));
       setFeedbackById((current) => ({
@@ -169,6 +240,7 @@ export function AdminProfileIntroductions() {
         },
       }));
       setSetupRequired(false);
+      void broadcastDashboardRefresh();
     } catch (error) {
       setFeedbackById((current) => ({
         ...current,
@@ -179,6 +251,143 @@ export function AdminProfileIntroductions() {
       }));
     } finally {
       setSavingId("");
+    }
+  };
+
+  const updateProfileImage = async (item: ProfileIntroduction, file: File) => {
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      setImageFeedbackById((current) => ({
+        ...current,
+        [item.participant_id]: { tone: "error", message: "JPG, PNG, WebP 이미지를 선택해주세요." },
+      }));
+      return;
+    }
+    if (file.size > 4 * 1024 * 1024) {
+      setImageFeedbackById((current) => ({
+        ...current,
+        [item.participant_id]: { tone: "error", message: "프로필 사진은 4MB 이하로 올려주세요." },
+      }));
+      return;
+    }
+
+    setImageBusyId(item.participant_id);
+    setImageFeedbackById((current) => {
+      const next = { ...current };
+      delete next[item.participant_id];
+      return next;
+    });
+    try {
+      const formData = new FormData();
+      formData.set("participant_id", item.participant_id);
+      formData.set("file", file);
+      const response = await fetch("/api/admin/hello-2027/profile-image", {
+        method: "POST",
+        body: formData,
+      });
+      const json = await response.json().catch(() => ({})) as ProfileImageApiPayload;
+      if (!response.ok || typeof json.profile_image_url !== "string") {
+        throw new Error(json.error || "프로필 사진을 저장하지 못했어요.");
+      }
+      setItems((current) => current.map((currentItem) => (
+        currentItem.participant_id === item.participant_id
+          ? { ...currentItem, profile_image_url: json.profile_image_url || null }
+          : currentItem
+      )));
+      setImageFeedbackById((current) => ({
+        ...current,
+        [item.participant_id]: { tone: "success", message: "프로필 사진을 변경했어요." },
+      }));
+      void broadcastDashboardRefresh();
+    } catch (error) {
+      setImageFeedbackById((current) => ({
+        ...current,
+        [item.participant_id]: {
+          tone: "error",
+          message: error instanceof Error ? error.message : "프로필 사진을 저장하지 못했어요.",
+        },
+      }));
+    } finally {
+      setImageBusyId("");
+    }
+  };
+
+  const removeProfileImage = async (item: ProfileIntroduction) => {
+    if (!window.confirm(`${item.name}님의 프로필 사진을 기본 이미지로 바꿀까요?`)) return;
+    setImageBusyId(item.participant_id);
+    setImageFeedbackById((current) => {
+      const next = { ...current };
+      delete next[item.participant_id];
+      return next;
+    });
+    try {
+      const response = await fetch("/api/admin/hello-2027/profile-image", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ participant_id: item.participant_id }),
+      });
+      const json = await response.json().catch(() => ({})) as ProfileImageApiPayload;
+      if (!response.ok) throw new Error(json.error || "프로필 사진을 삭제하지 못했어요.");
+      setItems((current) => current.map((currentItem) => (
+        currentItem.participant_id === item.participant_id
+          ? { ...currentItem, profile_image_url: null }
+          : currentItem
+      )));
+      setImageFeedbackById((current) => ({
+        ...current,
+        [item.participant_id]: { tone: "success", message: "기본 프로필 이미지로 바꿨어요." },
+      }));
+      void broadcastDashboardRefresh();
+    } catch (error) {
+      setImageFeedbackById((current) => ({
+        ...current,
+        [item.participant_id]: {
+          tone: "error",
+          message: error instanceof Error ? error.message : "프로필 사진을 삭제하지 못했어요.",
+        },
+      }));
+    } finally {
+      setImageBusyId("");
+    }
+  };
+
+  const resetTimeMachine = async (participantId: string, goal: TimeMachineGoal) => {
+    setResettingId(goal.id);
+    setTimeMachineFeedbackById((current) => {
+      const next = { ...current };
+      delete next[participantId];
+      return next;
+    });
+    try {
+      const response = await fetch("/api/admin/hello-2027/time-machine", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ goal_id: goal.id }),
+      });
+      const json = await response.json().catch(() => ({})) as TimeMachineApiPayload;
+      if (!response.ok || !json.reset) {
+        if (json.setup_required) setTimeMachineSetupRequired(true);
+        throw new Error(json.error || "목표 타임머신을 재설정하지 못했어요.");
+      }
+
+      setTimeMachineGoals((current) => current.filter((item) => item.id !== goal.id));
+      setConfirmingResetId("");
+      setTimeMachineFeedbackById((current) => ({
+        ...current,
+        [participantId]: {
+          tone: "success",
+          message: "기존 목표를 삭제했어요. 멤버가 새 목표 타임머신을 설정할 수 있습니다.",
+        },
+      }));
+    } catch (error) {
+      setTimeMachineFeedbackById((current) => ({
+        ...current,
+        [participantId]: {
+          tone: "error",
+          message: error instanceof Error ? error.message : "목표 타임머신을 재설정하지 못했어요.",
+        },
+      }));
+    } finally {
+      setResettingId("");
     }
   };
 
@@ -217,6 +426,16 @@ export function AdminProfileIntroductions() {
         </div>
       ) : null}
 
+      {timeMachineLoadError ? (
+        <div className={`mt-4 rounded-2xl px-4 py-3 ring-1 ${timeMachineSetupRequired ? "bg-amber-50 text-amber-950 ring-amber-200" : "bg-rose-50 text-rose-800 ring-rose-200"}`} role="alert">
+          <p className="text-sm font-black">{timeMachineSetupRequired ? "타임머신 운영 DB 준비가 필요해요" : "타임머신을 불러오지 못했어요"}</p>
+          <p className="mt-1 break-keep text-xs font-semibold leading-5">{timeMachineLoadError.message}</p>
+          <button type="button" onClick={() => void loadTimeMachineGoals()} className="mt-3 min-h-11 rounded-xl bg-white px-4 text-xs font-black text-oriwan-text ring-1 ring-slate-200">
+            다시 불러오기
+          </button>
+        </div>
+      ) : null}
+
       {loading ? (
         <div className="mt-4 grid min-h-36 place-items-center rounded-[22px] bg-white/80 text-center ring-1 ring-blue-100" role="status">
           <div>
@@ -233,15 +452,20 @@ export function AdminProfileIntroductions() {
       ) : null}
 
       {!loading && items.length ? (
-        <div className="mt-4 grid gap-3 lg:grid-cols-2">
+        <div className="mt-4 grid gap-3">
           {items.map((item) => {
             const draft = drafts[item.participant_id] || toDraft(item);
             const feedback = feedbackById[item.participant_id];
+            const imageFeedback = imageFeedbackById[item.participant_id];
             const dirty = !isSameDraft(item, draft);
-            const titleId = `profile-title-${item.participant_id}`;
             const bodyId = `profile-body-${item.participant_id}`;
             const feedbackId = `profile-feedback-${item.participant_id}`;
             const saving = savingId === item.participant_id;
+            const imageBusy = imageBusyId === item.participant_id;
+            const timeMachineGoal = timeMachineGoalByParticipant.get(item.participant_id);
+            const timeMachineFeedback = timeMachineFeedbackById[item.participant_id];
+            const confirmingReset = Boolean(timeMachineGoal && confirmingResetId === timeMachineGoal.id);
+            const resetting = Boolean(timeMachineGoal && resettingId === timeMachineGoal.id);
             const visibilityChanged = item.active !== draft.active;
             const visibilityLabel = draft.active
               ? (visibilityChanged ? "저장 후 공개" : "공개 중")
@@ -254,47 +478,74 @@ export function AdminProfileIntroductions() {
                   event.preventDefault();
                   void save(item);
                 }}
-                className="rounded-[22px] bg-white p-4 ring-1 ring-slate-950/5 sm:p-5"
+                className="w-full rounded-[22px] bg-white p-4 ring-1 ring-slate-950/5 sm:p-5"
                 aria-label={`${item.name} 공개 자기소개`}
               >
-                <div className="flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <strong className="block truncate text-base font-black text-oriwan-text">{item.name}</strong>
-                    <span className={`mt-1 inline-flex rounded-full px-2.5 py-1 text-[11px] font-black ${draft.active ? "bg-lime-100 text-lime-900" : "bg-slate-100 text-slate-600"}`}>
-                      {visibilityLabel}
-                    </span>
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className="relative grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-full bg-blue-50 text-xl font-black text-blue-700 ring-1 ring-blue-100">
+                      <Image
+                        src={resolveHello2027ProfileImageUrl(item.profile_image_url)}
+                        alt={`${item.name} 프로필 사진`}
+                        fill
+                        unoptimized={Boolean(item.profile_image_url)}
+                        sizes="64px"
+                        className="object-cover"
+                      />
+                    </div>
+                    <div className="min-w-0">
+                      <strong className="block truncate text-base font-black text-oriwan-text">{item.name}</strong>
+                      <span className={`mt-1 inline-flex rounded-full px-2.5 py-1 text-[11px] font-black ${draft.active ? "bg-lime-100 text-lime-900" : "bg-slate-100 text-slate-600"}`}>
+                        {visibilityLabel}
+                      </span>
+                    </div>
                   </div>
-                  <label className="inline-flex min-h-11 shrink-0 cursor-pointer items-center gap-2 rounded-full bg-oriwan-surface-light px-3 text-[11px] font-black text-oriwan-text">
-                    <input
-                      type="checkbox"
-                      checked={draft.active}
-                      disabled={saving}
-                      onChange={(event) => updateDraft(item.participant_id, { active: event.target.checked })}
-                      className="h-4 w-4 accent-blue-600"
-                    />
-                    공개
-                  </label>
+                  <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                    <label className={`inline-flex min-h-11 items-center rounded-xl bg-blue-50 px-3 text-xs font-black text-blue-700 ring-1 ring-blue-100 ${imageBusy ? "cursor-not-allowed opacity-60" : "cursor-pointer hover:bg-blue-100"}`}>
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        disabled={imageBusy}
+                        className="sr-only"
+                        onChange={(event) => {
+                          const file = event.target.files?.[0];
+                          event.target.value = "";
+                          if (file) void updateProfileImage(item, file);
+                        }}
+                      />
+                      {imageBusy ? "처리 중…" : item.profile_image_url ? "사진 변경" : "사진 등록"}
+                    </label>
+                    {item.profile_image_url ? (
+                      <button
+                        type="button"
+                        disabled={imageBusy}
+                        onClick={() => void removeProfileImage(item)}
+                        className="min-h-11 rounded-xl bg-rose-50 px-3 text-xs font-black text-rose-700 ring-1 ring-rose-100 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        사진 삭제
+                      </button>
+                    ) : null}
+                    <label className="inline-flex min-h-11 shrink-0 cursor-pointer items-center gap-2 rounded-full bg-oriwan-surface-light px-3 text-[11px] font-black text-oriwan-text">
+                      <input
+                        type="checkbox"
+                        checked={draft.active}
+                        disabled={saving}
+                        onChange={(event) => updateDraft(item.participant_id, { active: event.target.checked })}
+                        className="h-4 w-4 accent-blue-600"
+                      />
+                      공개
+                    </label>
+                  </div>
                 </div>
 
-                <label htmlFor={titleId} className="mt-4 block text-xs font-black text-oriwan-text-muted">
-                  소개 제목
-                </label>
-                <input
-                  id={titleId}
-                  required
-                  maxLength={MAX_PROFILE_INTRO_TITLE_LENGTH}
-                  value={draft.title}
-                  disabled={saving}
-                  onChange={(event) => updateDraft(item.participant_id, { title: event.target.value })}
-                  aria-describedby={feedback ? feedbackId : undefined}
-                  className="mt-1.5 min-h-11 w-full rounded-xl border border-oriwan-border bg-white px-3 text-base font-black text-oriwan-text outline-none focus:border-blue-500"
-                />
-                <div className="mt-1 flex justify-end text-[11px] font-bold text-oriwan-text-muted">
-                  {draft.title.length}/{MAX_PROFILE_INTRO_TITLE_LENGTH}
-                </div>
+                {imageFeedback ? (
+                  <p className={`mt-3 rounded-xl px-3 py-2 text-xs font-bold leading-5 ${imageFeedback.tone === "success" ? "bg-lime-50 text-lime-900" : "bg-rose-50 text-rose-800"}`} role="status">
+                    {imageFeedback.message}
+                  </p>
+                ) : null}
 
-                <label htmlFor={bodyId} className="mt-2 block text-xs font-black text-oriwan-text-muted">
-                  공개 자기소개
+                <label htmlFor={bodyId} className="mt-4 block text-sm font-black text-oriwan-text">
+                  자기소개
                 </label>
                 <textarea
                   id={bodyId}
@@ -326,6 +577,109 @@ export function AdminProfileIntroductions() {
                 >
                   {saving ? "저장 중…" : dirty ? "변경 내용 저장" : "저장됨"}
                 </button>
+
+                <section className="mt-5 border-t border-slate-200 pt-5" aria-labelledby={`time-machine-title-${item.participant_id}`}>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <p className="text-[11px] font-black uppercase tracking-[0.08em] text-blue-700">100일 목표 타임머신</p>
+                      <h4 id={`time-machine-title-${item.participant_id}`} className="mt-1 text-base font-black text-oriwan-text">목표 보관 상태</h4>
+                    </div>
+                    <span className={`rounded-full px-3 py-1.5 text-[11px] font-black ${timeMachineGoal ? (timeMachineGoal.status === "opened" ? "bg-lime-100 text-lime-900" : "bg-blue-100 text-blue-800") : "bg-slate-100 text-slate-600"}`}>
+                      {timeMachineLoading
+                        ? "불러오는 중"
+                        : timeMachineLoadError
+                          ? "확인 필요"
+                          : timeMachineGoal?.status === "opened"
+                            ? "개봉됨"
+                            : timeMachineGoal
+                              ? "봉인 중"
+                              : "설정 전"}
+                    </span>
+                  </div>
+
+                  {!timeMachineLoading && !timeMachineLoadError && !timeMachineGoal ? (
+                    <p className="mt-3 rounded-2xl bg-slate-50 px-4 py-4 text-sm font-semibold text-oriwan-text-muted ring-1 ring-slate-200">
+                      아직 설정한 목표가 없습니다.
+                    </p>
+                  ) : null}
+
+                  {timeMachineGoal ? (
+                    <div className="mt-3 rounded-[20px] bg-slate-50 p-4 ring-1 ring-slate-200">
+                      <dl className="grid gap-4">
+                        <div>
+                          <dt className="text-xs font-black text-oriwan-text-muted">2027년 1월 1일에 보고 싶은 목표</dt>
+                          <dd className="mt-1 whitespace-pre-wrap break-words text-sm font-black leading-6 text-oriwan-text">{timeMachineGoal.goal_title}</dd>
+                        </div>
+                        {timeMachineGoal.goal_detail ? (
+                          <div>
+                            <dt className="text-xs font-black text-oriwan-text-muted">기존 세부 목표</dt>
+                            <dd className="mt-1 whitespace-pre-wrap break-words text-sm font-semibold leading-6 text-oriwan-text">{timeMachineGoal.goal_detail}</dd>
+                          </div>
+                        ) : null}
+                        {timeMachineGoal.commitment ? (
+                          <div>
+                            <dt className="text-xs font-black text-oriwan-text-muted">나의 다짐</dt>
+                            <dd className="mt-1 whitespace-pre-wrap break-words text-sm font-semibold leading-6 text-oriwan-text">{timeMachineGoal.commitment}</dd>
+                          </div>
+                        ) : null}
+                      </dl>
+                      <div className="mt-4 grid gap-2 rounded-2xl bg-white px-3 py-3 text-xs font-semibold text-oriwan-text-muted ring-1 ring-slate-200 sm:grid-cols-2">
+                        <p>설정 <time dateTime={timeMachineGoal.created_at}>{formatDateTime(timeMachineGoal.created_at)}</time></p>
+                        <p>개봉 <time dateTime={timeMachineGoal.unlock_at}>{formatDateTime(timeMachineGoal.unlock_at)}</time></p>
+                      </div>
+
+                      {confirmingReset ? (
+                        <div className="mt-4 rounded-2xl bg-rose-50 p-4 text-rose-950 ring-1 ring-rose-200" role="group" aria-label={`${item.name} 목표 타임머신 재설정 확인`}>
+                          <p className="text-sm font-black">이 목표를 삭제하고 다시 설정할 수 있게 할까요?</p>
+                          <p className="mt-1 break-keep text-xs font-semibold leading-5 text-rose-800">
+                            목표와 작성한 다짐이 영구 삭제되며 되돌릴 수 없습니다. 삭제 후 멤버는 새 타임머신을 작성할 수 있어요.
+                          </p>
+                          <div className="mt-3 grid grid-cols-2 gap-2">
+                            <button
+                              type="button"
+                              disabled={resetting}
+                              onClick={() => setConfirmingResetId("")}
+                              className="min-h-11 rounded-xl bg-white px-3 text-xs font-black text-oriwan-text ring-1 ring-slate-200 disabled:opacity-60"
+                            >
+                              취소
+                            </button>
+                            <button
+                              type="button"
+                              disabled={resetting}
+                              onClick={() => void resetTimeMachine(item.participant_id, timeMachineGoal)}
+                              className="min-h-11 rounded-xl bg-rose-600 px-3 text-xs font-black text-white disabled:opacity-60"
+                            >
+                              {resetting ? "재설정 중…" : "삭제 후 재설정 허용"}
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled={Boolean(resettingId)}
+                          onClick={() => {
+                            setConfirmingResetId(timeMachineGoal.id);
+                            setTimeMachineFeedbackById((current) => {
+                              if (!current[item.participant_id]) return current;
+                              const next = { ...current };
+                              delete next[item.participant_id];
+                              return next;
+                            });
+                          }}
+                          className="mt-4 min-h-11 w-full rounded-xl bg-white px-4 text-sm font-black text-rose-700 ring-1 ring-rose-200 transition hover:bg-rose-50 disabled:opacity-60"
+                        >
+                          목표 재설정
+                        </button>
+                      )}
+                    </div>
+                  ) : null}
+
+                  {timeMachineFeedback ? (
+                    <p className={`mt-3 rounded-xl px-3 py-2 text-xs font-bold leading-5 ${timeMachineFeedback.tone === "success" ? "bg-lime-50 text-lime-900" : "bg-rose-50 text-rose-800"}`} role="status">
+                      {timeMachineFeedback.message}
+                    </p>
+                  ) : null}
+                </section>
               </form>
             );
           })}

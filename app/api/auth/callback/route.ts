@@ -1,11 +1,36 @@
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 import { getSafeAuthReturnUrl } from "@/lib/auth-return-path";
 import {
   KAKAO_AUTH_RETURN_COOKIE,
   KAKAO_AUTH_START_COOKIE,
   kakaoAuthStartCookieOptions,
 } from "@/lib/kakao-auth-flow";
+import {
+  getOAuthExchangeFailure,
+  getOAuthProviderFailure,
+  getSingleOAuthCode,
+  type KakaoCallbackError,
+} from "@/lib/kakao-auth-validation";
+import { guardReadRequest } from "@/lib/request-security";
+import { getServiceClient } from "@/lib/admin-data";
+import { broadcastDashboardRefreshFromServer } from "@/lib/dashboard-refresh-server";
+import { getKakaoDisplayName, getKakaoProfileImageUrl } from "@/lib/kakao-display-name";
+import {
+  importNewKakaoProfileImage,
+  markKakaoProfileImageImportPendingIfEligible,
+} from "@/lib/hello-2027-profile-image-storage";
+import { ensureParticipantAccount } from "@/lib/participant-account-server";
+import { invalidatePublicDashboardCache } from "@/lib/public-dashboard-data";
+import { logServerFailure } from "@/lib/server-error-log";
 import { createClient } from "@/lib/supabase/server";
+
+function hasKakaoProvider(user: {
+  app_metadata?: Record<string, unknown>;
+  identities?: Array<{ provider?: string }>;
+}) {
+  return user.app_metadata?.provider === "kakao"
+    || user.identities?.some((identity) => identity.provider === "kakao") === true;
+}
 
 function callbackRedirect(target: URL) {
   const response = NextResponse.redirect(target, {
@@ -34,14 +59,30 @@ function callbackConfigurationError(message: string, status: number) {
   return response;
 }
 
+function callbackFailureUrl(origin: string, error: KakaoCallbackError) {
+  const target = new URL("/4th", origin);
+  target.searchParams.set("error", error);
+  return target;
+}
+
 /**
  * GET /api/auth/callback
  *
  * Kakao OAuth 완료 후 요청한 화면으로 이동합니다.
  */
 export async function GET(request: NextRequest) {
+  const guardResponse = guardReadRequest(request, {
+    rateLimit: {
+      key: "kakao-oauth-callback",
+      limit: 30,
+      windowMs: 60_000,
+      message: "로그인 확인 요청이 잠시 몰렸어요. 잠시 후 다시 시도해주세요.",
+    },
+  });
+  if (guardResponse) return guardResponse;
+
   const { searchParams, origin } = new URL(request.url);
-  const code = searchParams.get("code");
+  const code = getSingleOAuthCode(searchParams);
   // Keep compatibility with any authorization started immediately before this
   // deployment, while preferring the fixed-callback return cookie for new flows.
   const requestedReturnPath = request.cookies.get(KAKAO_AUTH_RETURN_COOKIE)?.value
@@ -55,7 +96,11 @@ export async function GET(request: NextRequest) {
   }
   if (configuredSiteUrl) {
     try {
-      redirectOrigin = new URL(/^https?:\/\//i.test(configuredSiteUrl) ? configuredSiteUrl : `https://${configuredSiteUrl}`).origin;
+      const siteUrl = new URL(/^https?:\/\//i.test(configuredSiteUrl) ? configuredSiteUrl : `https://${configuredSiteUrl}`);
+      if (process.env.NODE_ENV === "production" && siteUrl.protocol !== "https:") {
+        throw new Error("Production SITE_URL must use HTTPS.");
+      }
+      redirectOrigin = siteUrl.origin;
     } catch {
       console.error("Invalid SITE_URL configured for auth callback.");
       if (process.env.NODE_ENV === "production") {
@@ -64,23 +109,88 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  const providerFailure = getOAuthProviderFailure(searchParams);
+  if (providerFailure) {
+    logServerFailure("Kakao OAuth provider", { code: providerFailure.logCode });
+    return callbackRedirect(callbackFailureUrl(redirectOrigin, providerFailure.userError));
+  }
+
   if (code) {
     try {
       const supabase = await createClient({ requireCookieWrites: true });
-      const { error } = await supabase.auth.exchangeCodeForSession(code);
+      const { data, error } = await supabase.auth.exchangeCodeForSession(code);
 
       if (!error) {
+        // Finish first-time enrollment before redirecting. This removes the
+        // previous race where the dashboard snapshot could be read in parallel
+        // before its Kakao participant row existed.
+        const service = getServiceClient();
+        if (service && data.user && hasKakaoProvider(data.user)) {
+          try {
+            const enrollment = await ensureParticipantAccount(
+              service,
+              data.user.id,
+              getKakaoDisplayName(data.user),
+            );
+            if (enrollment.dashboardMemberChanged) {
+              invalidatePublicDashboardCache();
+              // Membership does not depend on Kakao's optional image consent.
+              // Notify already-open dashboards even when no image is available.
+              after(() => broadcastDashboardRefreshFromServer(service));
+            }
+
+            const kakaoProfileImageUrl = getKakaoProfileImageUrl(data.user);
+            const eligibleParticipant = enrollment.status === "approved"
+              ? enrollment.participant
+              : null;
+            if (eligibleParticipant && kakaoProfileImageUrl) {
+              const participantId = eligibleParticipant.id;
+              // Downloading and sanitizing a remote image must not delay the
+              // successful OAuth redirect. Next keeps this work alive after the
+              // response on supported runtimes (including Vercel).
+              after(async () => {
+                try {
+                  if (!await markKakaoProfileImageImportPendingIfEligible(service, participantId)) {
+                    return;
+                  }
+                  const imported = await importNewKakaoProfileImage(
+                    service,
+                    participantId,
+                    kakaoProfileImageUrl,
+                  );
+                  if (!imported) return;
+                  invalidatePublicDashboardCache();
+                  await broadcastDashboardRefreshFromServer(service);
+                } catch (profileImageError) {
+                  logServerFailure("Kakao profile image import", profileImageError);
+                }
+              });
+            }
+          } catch (enrollmentError) {
+            // Keep the valid login session. The destination's viewer resolver
+            // retries enrollment and surfaces only a generic connection state.
+            logServerFailure("Kakao participant enrollment", enrollmentError);
+          }
+        }
+
         const redirectTarget = getSafeAuthReturnUrl(
           requestedReturnPath,
           redirectOrigin,
-          "/4th/dashboard#member-features",
+          "/4th/dashboard",
         );
         return callbackRedirect(redirectTarget);
       }
-    } catch {
-      console.error("Kakao OAuth callback exchange failed.");
+
+      const exchangeFailure = getOAuthExchangeFailure(error);
+      logServerFailure("Kakao OAuth exchange", { code: exchangeFailure.logCode });
+      return callbackRedirect(callbackFailureUrl(redirectOrigin, exchangeFailure.userError));
+    } catch (error) {
+      const exchangeFailure = getOAuthExchangeFailure(error);
+      logServerFailure("Kakao OAuth exchange", { code: exchangeFailure.logCode });
+      return callbackRedirect(callbackFailureUrl(redirectOrigin, exchangeFailure.userError));
     }
   }
 
-  return callbackRedirect(new URL("/4th?error=auth_failed", redirectOrigin));
+  logServerFailure("Kakao OAuth callback", { code: "missing_or_invalid_code" });
+  return callbackRedirect(callbackFailureUrl(redirectOrigin, "auth_failed"));
 }
