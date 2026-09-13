@@ -49,7 +49,18 @@
 .nightTint { background: linear-gradient(180deg, rgb(24 43 85 / 84%), rgb(39 64 99 / 73%) 55%, rgb(37 54 80 / 65%)); }
 .morningGlow { background: radial-gradient(ellipse at 72% 8%, rgb(255 228 175 / 36%), transparent 70%); }
 .banner[data-period="morning"] .morningGlow, .banner[data-period="evening"] .eveningTint, .banner[data-period="night"] .nightTint { opacity: 1; }
-.moon { position: absolute; left: 70%; top: 9%; width: 2.6%; aspect-ratio: 1; border-radius: 50%; background: #fff6d6; box-shadow: 0 0 22px rgb(255 244 205 / 22%); opacity: 0; transition: opacity 8s ease; }
+/* Fixed to the artwork's open sky, left of the foreground tree canopy. */
+.moon {
+  position: absolute; left: 55%; top: 15%; width: 2.4%; aspect-ratio: 1;
+  border-radius: 50%; pointer-events: none;
+  background:
+    radial-gradient(ellipse at 32% 37%, rgb(131 139 151 / 25%) 0 9%, transparent 17%),
+    radial-gradient(ellipse at 61% 59%, rgb(136 145 156 / 21%) 0 13%, transparent 23%),
+    radial-gradient(circle at 40% 73%, rgb(147 151 158 / 18%) 0 6%, transparent 12%),
+    radial-gradient(circle at 34% 30%, #fff9e8 0%, #e9e7da 58%, #b8bfca 100%);
+  box-shadow: inset -2px -1px 4px rgb(58 75 102 / 20%), 0 0 12px rgb(236 241 255 / 14%);
+  opacity: 0; transition: opacity 8s ease;
+}
 .stars { position: absolute; inset: 0 0 54% 45%; background: radial-gradient(circle at 12% 28%, #fffbe7 0 1px, transparent 2px), radial-gradient(circle at 28% 12%, #fffbe7 0 1px, transparent 2px), radial-gradient(circle at 68% 26%, #fffbe7 0 1px, transparent 2px), radial-gradient(circle at 78% 42%, #fffbe7 0 1px, transparent 2px), radial-gradient(circle at 45% 58%, #fffbe7 0 1px, transparent 2px); opacity: 0; transition: opacity 8s ease; }
 .banner[data-period="night"] .moon { opacity: .85; }
 .banner[data-period="night"] .stars { opacity: .7; }
