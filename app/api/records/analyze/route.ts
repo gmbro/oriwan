@@ -22,7 +22,6 @@ import {
   calculatePaceSeconds,
   hasRecoveryCertificationLink,
   hasRecoveryCertificationText,
-  isCertificationCountedStatus,
   isRecoveryCertificationFlag,
 } from "@/lib/run-records";
 import {
@@ -244,7 +243,7 @@ function duplicateResult(input: {
     status: "duplicate",
     duplicate: true,
     confidence_score: null,
-    notes: `${input.participant.name}님은 ${input.recordDate}에 이미 인증되어 있어요. 중복 이미지는 저장하지 않았습니다.`,
+    notes: `${input.participant.name}님은 ${input.recordDate}에 이미 등록된 기록이 있어요. 중복 이미지는 저장하지 않았습니다. 기존 기록에서 보완·승인해주세요.`,
   };
 }
 
@@ -376,7 +375,7 @@ export async function POST(request: NextRequest) {
           const existingRecord = fallbackParticipant?.id
             ? await findExistingRecord(supabase, user.id, fallbackParticipant.id, targetDate)
             : null;
-          if (fallbackParticipant && existingRecord?.id && isCertificationCountedStatus(existingRecord.status)) {
+          if (fallbackParticipant && existingRecord?.id) {
             results.push(duplicateResult({
               record: existingRecord,
               fileName: image.name,
@@ -417,18 +416,9 @@ export async function POST(request: NextRequest) {
             notes: fallbackNotes,
           };
 
-          const { data: fallbackRecord, error: fallbackRecordError } = existingRecord?.id
-            ? await supabase
-              .from("daily_run_records")
-              .update(fallbackPayload)
-              .eq("id", existingRecord.id)
-              .eq("user_id", user.id)
-              .eq("season_key", FOURTH_SEASON_KEY)
-              .select("id")
-              .single()
-            : await supabase
-              .from("daily_run_records")
-              .insert(fallbackPayload)
+          const { data: fallbackRecord, error: fallbackRecordError } = await supabase
+            .from("daily_run_records")
+            .insert(fallbackPayload)
               .select("id")
               .single();
 
@@ -473,7 +463,7 @@ export async function POST(request: NextRequest) {
       let existingRecord: ExistingRunRecord | null = null;
       if (participant?.id && recordDate) {
         existingRecord = await findExistingRecord(supabase, user.id, participant.id, recordDate);
-        if (existingRecord?.id && isCertificationCountedStatus(existingRecord.status)) {
+        if (existingRecord?.id) {
           results.push(duplicateResult({
             record: existingRecord,
             fileName: image.name,
@@ -528,19 +518,9 @@ export async function POST(request: NextRequest) {
         ].filter(Boolean).join(" / "), { version: 1, uploadedAt, ocrDate: extracted.activity_date ?? null, ocrTime: extracted.activity_time ?? null }),
       };
 
-      const { data: record, error: recordError } = existingRecord?.id
-        ? await supabase
-          .from("daily_run_records")
-          .update(recordPayload)
-          .neq("status", "certified")
-          .eq("id", existingRecord.id)
-          .eq("user_id", user.id)
-          .eq("season_key", FOURTH_SEASON_KEY)
-          .select("id")
-          .single()
-        : await supabase
-          .from("daily_run_records")
-          .insert(recordPayload)
+      const { data: record, error: recordError } = await supabase
+        .from("daily_run_records")
+        .insert(recordPayload)
           .select("id")
           .single();
 

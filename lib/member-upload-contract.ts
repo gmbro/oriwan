@@ -27,3 +27,10 @@ export function ownsFreshDraft(draft: MemberUploadDraft, participantId: string, 
   const age = now - Date.parse(draft.createdAt);
   return draft.participantId === participantId && Number.isFinite(age) && age >= 0 && age < MEMBER_UPLOAD_DRAFT_TTL;
 }
+
+export const MEMBER_EVIDENCE_ERROR = "운동 시작 시간과 거리를 확인할 수 없어요, 운영자에게 문의주세요";
+export function hasMemberUploadEvidence(draft: MemberUploadDraft) {
+  return /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(draft.activityTime ?? "")
+    && typeof draft.distanceKm === "number" && Number.isFinite(draft.distanceKm)
+    && draft.distanceKm > 0 && draft.distanceKm <= 300;
+}

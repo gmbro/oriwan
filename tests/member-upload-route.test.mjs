@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import ts from "typescript";
-import { MEMBER_UPLOAD_BUCKET, MEMBER_UPLOAD_DRAFT_PATTERN, ownsFreshDraft, validateMemberSubmission } from "../lib/member-upload-contract.ts";
+import { MEMBER_EVIDENCE_ERROR, hasMemberUploadEvidence, MEMBER_UPLOAD_BUCKET, MEMBER_UPLOAD_DRAFT_PATTERN, ownsFreshDraft, validateMemberSubmission } from "../lib/member-upload-contract.ts";
 
 // Execute the actual POST body with injected auth/storage/DB ports. Tests never
 // contact production and deliberately send forged ownership/status fields.
@@ -14,7 +14,7 @@ function harness(overrides = {}) {
   const calls = [];
   const draftId = `2026-10-08/${"a".repeat(64)}`;
   const body = { draftId, date: "2026-10-08", distanceKm: 5.2, durationSeconds: 1930, participant_id: "victim", user_id: "victim-admin", status: "certified", ...overrides.body };
-  const draft = { participantId: "owner", createdAt: new Date().toISOString(), date: body.date, distanceKm: 5, durationSeconds: 1900, rawText: "original OCR", confidence: .9, model: "gemini-3.1-flash-lite", ...overrides.draft };
+  const draft = { participantId: "owner", createdAt: new Date().toISOString(), date: body.date, activityTime: "07:35", distanceKm: 5, durationSeconds: 1900, rawText: "original OCR", confidence: .9, model: "gemini-3.1-flash-lite", ...overrides.draft };
   const service = { from(table) {
     assert.equal(table, "daily_run_records");
     return { insert(row) { calls.push({ insert: row }); return { select() { return { async single() { return overrides.databaseError ? { error: overrides.databaseError } : { data: { id: "saved", status: row.status } }; } }; } }; },
@@ -27,7 +27,7 @@ function harness(overrides = {}) {
     toKstIsoDate: () => "2026-10-08", privateJson: json,
     privateUploadStore: async () => { calls.push({ storage: true }); return {}; },
     uploadPrefix: (owner, id) => `4th/${owner}/${id}`, readUploadDraft: async () => draft,
-    writeCertificationReview, ownsFreshDraft, MEMBER_UPLOAD_BUCKET, FOURTH_SEASON_KEY: "4th",
+    MEMBER_EVIDENCE_ERROR, hasMemberUploadEvidence, writeCertificationReview, ownsFreshDraft, MEMBER_UPLOAD_BUCKET, FOURTH_SEASON_KEY: "4th",
     calculatePaceSeconds: (distance, duration) => Math.round(duration / distance),
     invalidatePublicDashboardCache: () => calls.push({ invalidated: true }),
     after: () => {}, broadcastDashboardRefreshFromServer: () => {},
@@ -58,4 +58,13 @@ test("개인 POST: 같은 사진·날짜 더블클릭은 기존 기록을 반환
   assert.ok(h.calls.some(c => c.filter?.[0] === "participant_id" && c.filter[1] === "owner"));
   const conflicting = harness({ databaseError: { code: "23505" }, existing: { id: "existing", image_url: "operator-original.webp" } });
   assert.equal((await conflicting.POST({})).status, 409);
+});
+
+test("개인 제출은 수동 입력값이 있어도 서버 OCR의 시작 시각·거리가 없으면 차단", async () => {
+  for (const draft of [{ activityTime: null }, { activityTime: "24:00" }, { distanceKm: null }, { distanceKm: 0 }]) {
+    const h = harness({ draft });
+    const result = await h.POST({});
+    assert.equal(result.status, 422); assert.equal(result.body.error, MEMBER_EVIDENCE_ERROR);
+    assert.ok(!h.calls.some(c => c.insert));
+  }
 });

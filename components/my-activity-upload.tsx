@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
-import { MEMBER_UPLOAD_MAX_BYTES, type MemberUploadDraft } from "@/lib/member-upload-contract";
+import { MEMBER_EVIDENCE_ERROR, hasMemberUploadEvidence, MEMBER_UPLOAD_MAX_BYTES, type MemberUploadDraft } from "@/lib/member-upload-contract";
 import styles from "./my-activity.module.css";
 
 async function reduceScreenshot(file: File) {
@@ -39,6 +39,7 @@ export default function MyActivityUpload({ today, onSubmitted, preview = false }
   useEffect(() => { alive.current = true; return () => { alive.current = false; xhr.current?.abort(); }; }, []);
   useEffect(() => () => { if (image) URL.revokeObjectURL(image); }, [image]);
   const acceptDraft = (value: MemberUploadDraft) => {
+    if (!hasMemberUploadEvidence(value)) { setDraft(null); setError(MEMBER_EVIDENCE_ERROR); setStage("choose"); return; }
     setDraft(value); setDate(value.date || ""); setDistance(value.distanceKm === null ? "" : String(value.distanceKm));
     setMinutes(value.durationSeconds === null ? "" : String(Math.floor(value.durationSeconds / 60)));
     setSeconds(value.durationSeconds === null ? "0" : String(value.durationSeconds % 60)); setStage("confirm");
@@ -51,7 +52,7 @@ export default function MyActivityUpload({ today, onSubmitted, preview = false }
       if (!alive.current) return;
       setImage(URL.createObjectURL(prepared));
       if (preview) {
-        acceptDraft({ id: "preview", participantId: "preview", date: today, distanceKm: 5.2, durationSeconds: 1930, confidence: .95, createdAt: "", rawText: "", model: "preview", warning: "미리보기 예시입니다. 실제 OCR·저장은 실행하지 않아요." });
+        acceptDraft({ id: "preview", participantId: "preview", date: today, activityDate: today, activityTime: "07:35", distanceKm: 5.2, durationSeconds: 1930, confidence: .95, createdAt: "", rawText: "", model: "preview", warning: "미리보기 예시입니다. 실제 OCR·저장은 실행하지 않아요." });
         return;
       }
       const result = await new Promise<MemberUploadDraft>((resolve, reject) => {
@@ -82,6 +83,7 @@ export default function MyActivityUpload({ today, onSubmitted, preview = false }
   return <>
     {stage === "choose" && <p className={styles.muted}>캡쳐 사진을 업로드해주세요</p>}
     {stage !== "done" && <p className={styles.muted}>오전 8시 이전에 운동을 시작했다는 시각이 보이도록 업로드해주세요</p>}
+    {stage !== "done" && <p className={styles.muted}>운동한 날짜마다 1건만 제출할 수 있어요. 운영자가 이미 등록한 날은 추가 제출할 수 없어요.</p>}
     {error && <p className={`${styles.feedback} ${styles.error}`} role="alert">{error}</p>}
     {stage === "done" ? <><div className={styles.feedback} role="status">{preview ? "미리보기 제출 완료 · 실제 저장 없음" : <><strong>인증이 완료되었습니다</strong><p>내 기록에 저장했어요. 현재 운영자 승인 대기 중이며, 공식 인증률과 공동 목표는 승인 후 반영돼요.</p><p>{date} · {distance}km · {minutes}분 {seconds}초</p></>}</div><button className={styles.primary} onClick={() => { setDraft(null); setStage("choose"); setImage(""); }}>다른 인증샷 올리기</button></> : <>
       {image && <Image unoptimized width={800} height={800} src={image} alt="내가 선택한 인증샷 미리보기" className={styles.preview} />}

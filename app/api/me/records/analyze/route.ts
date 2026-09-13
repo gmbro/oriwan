@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
       draft.rawText = String(extracted.raw_text || "").slice(0, 4000);
       if (!draft.activityDate || !draft.activityTime || !draft.date || !draft.distanceKm || !draft.durationSeconds || (draft.confidence ?? 0) < 0.8) draft.warning = "일부 값은 확인이 필요해요. 캡처본과 비교해 입력해주세요.";
     } catch {
-      draft.warning = "자동 인식을 완료하지 못했어요. 하루 최대 8회 인식하며, 날짜·거리·시간을 직접 입력해 제출할 수 있어요.";
+      draft.warning = "자동 인식을 완료하지 못했어요. 하루 최대 8회 인식하며, 사진을 다시 확인하거나 운영자에게 문의해주세요.";
     }
     const saved = await store.upload(`${prefix}/draft.json`, JSON.stringify(draft), { contentType: "application/json", upsert: false });
     if (saved.error) throw saved.error;
