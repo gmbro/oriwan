@@ -1,5 +1,6 @@
+import { broadcastDashboardRefreshFromServer } from "@/lib/dashboard-refresh-server";
 import { readCertificationReview, reviewCertification, visibleCertificationNotes, writeCertificationReview } from "@/lib/certification-review";
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 import { requireAdminDataAccess } from "@/lib/admin-data-access";
 import { calculatePaceSeconds } from "@/lib/run-records";
 import { guardMutationRequest, readLimitedJson } from "@/lib/request-security";
@@ -158,6 +159,7 @@ export async function PATCH(
 
   if (!updated) return NextResponse.json({ error: "다른 작업에서 기록이 변경됐어요. 새로고침 후 다시 확인해주세요." }, { status: 409 });
   invalidatePublicDashboardCache();
+  after(() => broadcastDashboardRefreshFromServer(supabase));
 
   return NextResponse.json({ success: true });
 }
@@ -190,6 +192,7 @@ export async function DELETE(
   }
 
   invalidatePublicDashboardCache();
+  after(() => broadcastDashboardRefreshFromServer(supabase));
 
   return NextResponse.json({ success: true });
 }

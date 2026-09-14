@@ -7,16 +7,16 @@ test("한국시간 당일 00:00부터 07:59:59.999까지 접수, 08:00과 전날
   for (const time of ["2026-10-07T15:00:00Z", "2026-10-07T22:59:59.999Z", "2026-10-08T07:30:00+09:00"]) assert.equal(wasUploadedBeforeDeadline(base.recordDate, time), true);
   for (const time of ["2026-10-07T14:59:59Z", "2026-10-07T23:00:00Z", "2026-10-08T22:00:00Z", "invalid", null]) assert.equal(wasUploadedBeforeDeadline(base.recordDate, time), false);
 });
-test("정시 업로드도 운동 시각 증거·관리자 확인과 이미지가 있어야 승인", () => {
-  assert.equal(reviewCertification(base).review.basis, "screenshot");
-  for (const patch of [{ approval: { confirmed: true } }, { approval: {} }, { imageUrl: null }, { recordDate: "2026-10-09" }, { recordDate: "2026-02-30" }, { recordDate: "bad" }]) assert.equal(reviewCertification({ ...base, ...patch }).ok, false);
+test("관리자 확인과 이미지·유효한 날짜가 있어야 승인", () => {
+  assert.equal(reviewCertification(base).review.basis, "admin");
+  for (const patch of [{ approval: {} }, { imageUrl: null }, { recordDate: "2026-02-30" }, { recordDate: "bad" }]) assert.equal(reviewCertification({ ...base, ...patch }).ok, false);
 });
-test("늦은 제출과 기존 기록은 같은 운동일의 8시 이전 캡처를 관리자가 확인하면 승인", () => {
+test("관리자 승인은 OCR 시각과 캡처 날짜 입력을 요구하지 않음", () => {
   for (const review of [null, { version: 1, uploadedAt: "2026-10-07T23:00:00Z" }]) {
     const input = { ...base, review, approval: { confirmed: true, evidenceConfirmed: true, captureDate: base.recordDate, captureTime: "07:59" } };
     const result = reviewCertification(input);
-    assert.equal(result.ok, true); assert.equal(result.review.basis, "screenshot"); assert.equal(result.review.approvedBy, "admin");
-    for (const patch of [{ captureTime: "08:00" }, { captureTime: "19:00" }, { captureTime: "7:99" }, { captureTime: "" }, { captureDate: "2026-10-07" }, { evidenceConfirmed: false }]) assert.equal(reviewCertification({ ...input, approval: { ...input.approval, ...patch } }).ok, false);
+    assert.equal(result.ok, true); assert.equal(result.review.basis, "admin"); assert.equal(result.review.approvedBy, "admin");
+    for (const patch of [{ captureTime: "08:00" }, { captureTime: "19:00" }, { captureTime: "7:99" }, { captureTime: "" }, { captureDate: "2026-10-07" }, { evidenceConfirmed: false }]) assert.equal(reviewCertification({ ...input, approval: { ...input.approval, ...patch } }).ok, true);
   }
 });
 test("검수 메모는 중복되지 않고 서버 업로드 시각·승인 이력을 유지", () => {
@@ -33,7 +33,7 @@ test("검수 메모는 중복되지 않고 서버 업로드 시각·승인 이�
    for (const uploadedAt of ["2026-10-09T12:00:00+09:00", "2026-11-08T23:30:00+09:00"]) {
      const result = reviewCertification({ ...base, review: { version: 1, uploadedAt, ocrDate: base.recordDate, ocrTime: "06:15" }, now: "2026-11-09T00:00:00Z" });
      assert.equal(result.ok, true);
-     assert.equal(result.review.basis, "screenshot");
+     assert.equal(result.review.basis, "admin");
      assert.equal(result.review.ocrTime, "06:15");
    }
  });
@@ -41,3 +41,5 @@ test("검수 메모는 중복되지 않고 서버 업로드 시각·승인 이�
    const result = reviewCertification({ ...base, review: { version: 1, uploadedAt: base.review.uploadedAt, ocrDate: base.recordDate, ocrTime: "06:15" }, approval: {} });
    assert.equal(result.ok, false);
  });
+
+test("관리자 판단으로 시각 입력 없이 미래·과거 날짜 승인 가능",()=>{for(const recordDate of ["2026-10-09","2026-09-15"]) assert.equal(reviewCertification({...base,recordDate,approval:{confirmed:true}}).ok,true);});

@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
   const access = await requireAdminDataAccess(); if (!access.ok) return access.response;
   const body = await readLimitedJson(request, 16384); if (!body.ok) return body.response;
   const event = parseSeasonEvent(body.value);
-  if (!event) return json({ error: "2026년 9~12월 날짜와 제목, 시간 형식을 확인해주세요." }, 400);
+  if (!event) return json({ error: "2026년 9월~2027년 1월 1일 날짜와 제목, 시간 형식을 확인해주세요." }, 400);
   const id = body.value.id === undefined ? randomUUID() : body.value.id;
   if (typeof id !== "string" || !EVENT_ID.test(id)) return json({ error: "일정 번호가 올바르지 않아요." }, 400);
   const { error } = await access.service.storage.from("photos").upload(`${scheduleDirectory(access.user.id)}/${id}.txt`, JSON.stringify(event), { upsert: true, contentType: "text/plain" });

@@ -66,6 +66,13 @@ export function DailyGiftBox({ initialStatus = null, onStatusChange, preview = f
     return () => controller.abort();
   }, [initialStatus, onStatusChange, preview]);
 
+  useEffect(() => {
+    if (!initialStatus || opening) return;
+    setStatus(initialStatus);
+    setOpened(Boolean(initialStatus.claim));
+    setLoading(false);
+  }, [initialStatus, opening]);
+
   const openGift = async () => {
     if (!status?.eligible || status.claim || opening) return;
     setOpening(true);

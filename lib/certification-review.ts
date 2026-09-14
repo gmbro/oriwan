@@ -6,7 +6,7 @@ export type CertificationReview = {
   uploadedAt: string | null;
   approvedAt?: string;
   approvedBy?: string;
-  basis?: "upload" | "screenshot";
+  basis?: "upload" | "screenshot" | "admin";
   ocrDate?: string | null;
   ocrTime?: string | null;
   captureDate?: string;
@@ -41,12 +41,8 @@ export function reviewCertification(input: {
   const approval = input.approval && typeof input.approval === "object" ? input.approval as Record<string, unknown> : {};
   if (approval.confirmed !== true) return { ok: false as const, error: "인증샷을 확인한 뒤 ‘인증 승인’을 눌러주세요." };
   const dayStart = Date.parse(`${input.recordDate}T00:00:00+09:00`);
-  if (!input.recordDate || !Number.isFinite(dayStart) || !/^\d{4}-\d{2}-\d{2}$/.test(input.recordDate) || new Date(`${input.recordDate}T00:00:00Z`).toISOString().slice(0, 10) !== input.recordDate || dayStart > Date.parse(now)) return { ok: false as const, error: "운동한 날짜를 확인해주세요. 미래 날짜는 승인할 수 없어요." };
+  if (!input.recordDate || !Number.isFinite(dayStart) || !/^\d{4}-\d{2}-\d{2}$/.test(input.recordDate) || new Date(`${input.recordDate}T00:00:00Z`).toISOString().slice(0, 10) !== input.recordDate) return { ok: false as const, error: "운동한 날짜를 확인해주세요." };
   if (!input.imageUrl) return { ok: false as const, error: "인증샷이 필요해요. 이미지 올리기에서 해당 멤버의 캡처본을 먼저 등록해주세요." };
   const review: CertificationReview = { version: 1, uploadedAt: input.review?.uploadedAt ?? null, approvedAt: now, approvedBy: input.adminId, ocrDate: input.review?.ocrDate ?? null, ocrTime: input.review?.ocrTime ?? null };
-  const time = typeof approval.captureTime === "string" ? approval.captureTime : "";
-  if (approval.evidenceConfirmed !== true || approval.captureDate !== input.recordDate || !/^0[0-7]:[0-5]\d(?::[0-5]\d)?$/.test(time)) {
-    return { ok: false as const, error: "업로드 시각과 관계없이 캡처의 운동일과 오전 8시 이전 시각(00:00~07:59)을 확인해야 승인할 수 있어요." };
-  }
-  return { ok: true as const, review: { ...review, basis: "screenshot" as const, captureDate: input.recordDate, captureTime: time } };
+  return { ok: true as const, review: { ...review, basis: "admin" as const } };
 }

@@ -73,7 +73,6 @@ export function FourthDashboardMemberArea({
   const dialogRef = useRef<HTMLDialogElement>(null);
   const dialogTitleRef = useRef<HTMLHeadingElement>(null);
   const lastTriggerRef = useRef<HTMLButtonElement | null>(null);
-  const giftAvailableRef = useRef(false);
   const giftStatusRequestRef = useRef(false);
   const [correctiveRequest, setCorrectiveRequest] = useState<Promise<CorrectiveExerciseResponse> | null>(null);
   const [timeMachineRequest, setTimeMachineRequest] = useState<Promise<TimeMachineStatus> | null>(null);
@@ -113,9 +112,6 @@ export function FourthDashboardMemberArea({
     return () => { invalidate(); window.removeEventListener(DASHBOARD_REFRESH_DOM_EVENT, invalidate); };
   }, [correctiveCache, timeMachineCache]);
 
-  useEffect(() => {
-    giftAvailableRef.current = giftAvailable;
-  }, [giftAvailable]);
 
   useEffect(() => {
     if (!authenticated || preview) {
@@ -157,8 +153,10 @@ export function FourthDashboardMemberArea({
     }
 
     const controller = new AbortController();
+    let queued = false;
     const refreshGiftStatus = async () => {
-      if (giftStatusRequestRef.current) return;
+      if (controller.signal.aborted) return;
+      if (giftStatusRequestRef.current) { queued = true; return; }
       giftStatusRequestRef.current = true;
       try {
         const response = await fetch("/api/me/gift-box", {
@@ -179,22 +177,25 @@ export function FourthDashboardMemberArea({
         }
       } finally {
         giftStatusRequestRef.current = false;
+        if (queued && !controller.signal.aborted) { queued = false; void refreshGiftStatus(); }
       }
     };
 
     void refreshGiftStatus();
     const handleFocus = () => {
-      if (!giftAvailableRef.current) void refreshGiftStatus();
+      void refreshGiftStatus();
     };
     const handleVisibility = () => {
-      if (!giftAvailableRef.current && document.visibilityState === "visible") void refreshGiftStatus();
+      if (document.visibilityState === "visible") void refreshGiftStatus();
     };
+    const giftTimer = window.setInterval(handleVisibility, 15000);
     window.addEventListener("focus", handleFocus);
     window.addEventListener(DASHBOARD_REFRESH_DOM_EVENT, handleFocus);
     document.addEventListener("visibilitychange", handleVisibility);
 
     return () => {
       controller.abort();
+      window.clearInterval(giftTimer);
       window.removeEventListener("focus", handleFocus);
       window.removeEventListener(DASHBOARD_REFRESH_DOM_EVENT, handleFocus);
       document.removeEventListener("visibilitychange", handleVisibility);

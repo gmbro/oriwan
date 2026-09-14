@@ -1,6 +1,6 @@
-export type SeasonEvent = { id: string; date: string; time: string; endTime?: string; title: string; location: string; description: string };
+export type SeasonEvent = { id: string; date: string; endDate?: string; time: string; endTime?: string; title: string; location: string; description: string };
 export const SCHEDULE_START = "2026-09-01";
-export const SCHEDULE_END = "2026-12-31";
+export const SCHEDULE_END = "2027-01-01";
 export function parseSeasonEvent(value: unknown): Omit<SeasonEvent, "id"> | null {
   if (!value || typeof value !== "object") return null;
   const row = value as Record<string, unknown>;
@@ -10,5 +10,7 @@ export function parseSeasonEvent(value: unknown): Omit<SeasonEvent, "id"> | null
   if (time === null || (time && !/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) || !title || location === null || description === null) return null;
   const endTime = row.endTime === undefined ? "" : text("endTime", 5);
   if (endTime === null || (endTime && (!/^([01]\d|2[0-3]):[0-5]\d$/.test(endTime) || !time || endTime <= time))) return null;
-  return { date, time, title, location, description, ...(endTime ? {endTime} : {}) };
+  const endDate = row.endDate === undefined ? "" : text("endDate", 10);
+  if (endDate === null || (endDate && (!/^\d{4}-\d{2}-\d{2}$/.test(endDate) || endDate < date || endDate > SCHEDULE_END || !Number.isFinite(Date.parse(endDate)) || new Date(endDate).toISOString().slice(0,10) !== endDate))) return null;
+  return { date, ...(endDate ? {endDate} : {}), time, title, location, description, ...(endTime ? {endTime} : {}) };
 }

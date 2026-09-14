@@ -24,7 +24,8 @@ function harness({ body = {}, existing = row, denied = false, concurrent = false
     }; return query;
   } };
   const modules = {
-    "next/server": { NextResponse: { json } },
+    "@/lib/dashboard-refresh-server": { broadcastDashboardRefreshFromServer: async () => calls.push({broadcast:true}) },
+    "next/server": { after: fn=>fn(), NextResponse: { json } },
     "@/lib/admin-data-access": { requireAdminDataAccess: async () => denied ? { ok: false, response: json({ error: "admin only" }, { status: 403 }) } : { ok: true, user: { id: "operator" }, service } },
     "@/lib/certification-review": { ...review, reviewCertification: input => review.reviewCertification({ ...input, now: "2026-10-08T01:00:00Z" }) },
     "@/lib/run-records": { calculatePaceSeconds: (distance, duration) => distance && duration ? duration / distance : null },
@@ -58,11 +59,11 @@ test("정시 접수는 명시적 승인 시에만 certified와 관리자 승인 
   assert.equal(saved.status, "certified"); assert.equal(review.readCertificationReview(saved.notes).approvedBy, "operator");
   assert.ok(h.calls.some(c => c.filter?.[0] === "image_url" && c.filter[1] === row.image_url));
 });
-test("늦은 접수는 08:00 캡처 거절, 같은 운동일 07:59 확인 후 승인", async () => {
+test("관리자 승인은 08:00 이후 기록도 즉시 인증 완료", async () => {
   const late = { ...row, notes: review.writeCertificationReview("late", { version: 1, uploadedAt: "2026-10-07T23:00:00Z" }) };
   for (const time of ["08:00", "07:59"]) {
     const h = harness({ existing: late, body: { status: "certified", approval: { ...approval, expectedNotes: late.notes, evidenceConfirmed: true, captureDate: row.record_date, captureTime: time } } });
-    assert.equal((await h.patch()).status, time === "07:59" ? 200 : 400);
+    assert.equal((await h.patch()).status, 200);
   }
 });
 test("거리 보정은 자동 승인하지 않으며 메모를 지워도 서버의 접수 시각은 유지", async () => {
