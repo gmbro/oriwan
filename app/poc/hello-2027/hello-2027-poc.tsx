@@ -1,6 +1,7 @@
 "use client";
 
 import { projectDashboardRecords } from "@/lib/dashboard-record-visibility";
+import { PersonalGoalBanner } from "@/components/personal-goal-banner";
 import { PublicSiteHeader } from "@/components/public-site-header";
 import { SeasonSchedule } from "@/components/season-schedule";
 import { PublicSiteFooter } from "@/components/public-site-footer";
@@ -189,6 +190,7 @@ export function Hello2027Poc({
       <PublicSiteHeader memberFeatures={memberFeatures} />
 
       <main id="top" className={styles.main}>
+        {memberFeatures && viewerState?.viewer?.authenticated && viewerState.viewer.approved_participant && <PersonalGoalBanner key={viewerState.viewer.participant_id} />}
         {viewerState?.viewer?.authenticated && !viewerState.viewer.approved_participant && <p role="status" className="mb-5 rounded-2xl bg-blue-50 p-4 text-sm font-bold text-blue-600">운영자 승인을 기다리고 있어요. 승인 후 멤버로 참여할 수 있어요.</p>}
         <h1 className={styles.visuallyHidden}>{liveSnapshot.seasonName} {liveSnapshot.versionName}</h1>
 
@@ -252,7 +254,7 @@ export function Hello2027Poc({
                         <span className={styles.completionBadge} aria-hidden="true">✓</span>
                       ) : null}
                       <span className={styles.participantIdentity}>
-                        <span style={{position:"relative",display:"inline-flex"}}><span className={styles.characterWrap} aria-hidden="true"><ParticipantAvatar imageUrl={participant.profileImageUrl} /></span>{participant.timeMachineActive && <span style={{position:"absolute",top:0,left:0}}><TimeMachineBadge /></span>}</span>
+                        <span style={{position:"relative",display:"inline-flex"}}><span className={styles.characterWrap} aria-hidden="true"><ParticipantAvatar imageUrl={participant.profileImageUrl} /></span></span>
                         <span className={styles.participantNameRow}>
                           <strong>{participant.fullName}<small>님</small></strong>
                         </span>
@@ -446,7 +448,7 @@ export function ParticipantDialog({
           </button>
           <div className={styles.dialogProfile}>
             <div className={styles.profileImageEditor}>
-              <div style={{position:"relative"}}><div className={styles.dialogCharacter} aria-hidden="true"><ParticipantAvatar imageUrl={participant.profileImageUrl} dialog /></div>{participant.timeMachineActive && <span style={{position:"absolute",top:0,left:0}}><TimeMachineBadge /></span>}</div>
+              <div style={{position:"relative"}}><div className={styles.dialogCharacter} aria-hidden="true"><ParticipantAvatar imageUrl={participant.profileImageUrl} dialog /></div></div>
             </div>
             <div>
               <h2 id="participant-dialog-title" ref={titleRef} tabIndex={-1}>{participant.fullName}</h2>

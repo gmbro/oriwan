@@ -24,7 +24,7 @@ const CorrectiveExerciseApplication = dynamic(
 );
 const TimeMachineGoalBox = dynamic(
   () => import("@/components/time-machine-goal-box").then((module) => module.TimeMachineGoalBox),
-  { loading: () => <div className="h-72 animate-pulse rounded-[24px] bg-slate-100" aria-label="목표 타임머신을 불러오는 중" /> },
+  { loading: () => <div className="h-72 animate-pulse rounded-[24px] bg-slate-100" aria-label="목표 설정을 불러오는 중" /> },
 );
 
 const preloadFortune = () => void import("@/components/daily-fortune").catch(() => undefined);
@@ -86,7 +86,7 @@ export function FourthDashboardMemberArea({
   const [timeMachineCache] = useState(() => createWarmRequest(() => requestPersonalFeature<TimeMachineStatus>(
     "/api/me/time-machine",
     payload => payload.state === "empty" || payload.state === "locked" || payload.state === "opened",
-    "목표 타임머신을 불러오지 못했어요.",
+    "목표 설정을 불러오지 못했어요.",
   )));
 
   const preloadCorrectiveData = useCallback(() => {
@@ -258,7 +258,7 @@ export function FourthDashboardMemberArea({
   const modalTitle = modal === "fortune"
     ? "오늘 운세"
     : modal === "time-machine"
-      ? "타임머신"
+      ? "목표 설정"
     : modal === "gift"
       ? "인증박스"
       : modal === "corrective"
@@ -271,9 +271,9 @@ export function FourthDashboardMemberArea({
     {
       id: "time-machine" as const,
       icon: <ActivityIcon kind="time-machine" size={28}/>,
-      title: "타임머신",
+      title: "목표 설정",
       description: connected
-        ? "2027년 1월 1일에 열릴 목표를 보관해요"
+        ? "100일 동안 달릴 나만의 다짐을 적어요"
         : "개인 멤버 연결 후 이용할 수 있어요",
       disabled: !connected,
       preload: () => {

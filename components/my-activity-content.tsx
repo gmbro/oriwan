@@ -30,7 +30,7 @@ type ReadyViews = {
   TimeMachine: typeof import("./time-machine-goal-box")["TimeMachineGoalBox"];
 };
 export type MyActivitySection = "locker" | "home" | "profile" | "upload" | "records" | "support" | "fortune" | "gift" | "corrective" | "time-machine";
-export type MyActivityData = PersonalRecordsPayload & { profile: { display_name: string; profile_image_url: string | null; connection_status: string; matched_participant: { id: string; name: string } } };
+export type MyActivityData = PersonalRecordsPayload & { goal?: import("./time-machine-goal-box").TimeMachineStatus; profile: { display_name: string; profile_image_url: string | null; connection_status: string; matched_participant: { id: string; name: string } } };
 
 export default function MyActivityContent({ section, onSection, onFeature, name, imageUrl, onChanged, preview, active, featureSeed }: {
   section: MyActivitySection; onSection: (section: MyActivitySection) => void; name: string; imageUrl?: string | null;
@@ -39,7 +39,8 @@ export default function MyActivityContent({ section, onSection, onFeature, name,
   onFeature: (section: "fortune" | "gift" | "corrective" | "time-machine", seed?: MyActivityFeatureSeed) => void;
 }) {
   const [lockerCache]=useState(()=>createLockerRequest());
-  const supportStatus = useSupportStatus(active);
+  const loadedSupportStatus = useSupportStatus(active && !preview);
+  const supportStatus = preview ? { locked: false, nextAt: null, loading: false, error: "" } : loadedSupportStatus;
   const viewer = useOptionalFourthViewer();
   const [data, setData] = useState<MyActivityData | null>(preview ?? null);
   const [error, setError] = useState("");
@@ -130,7 +131,7 @@ export default function MyActivityContent({ section, onSection, onFeature, name,
     {section === "home" && <h3 className={styles.groupTitle}>나의 활동</h3>}
     {primarySection && <>
       <div className={styles.menuList} role="group" aria-label="내 정보 메뉴" data-compact={section !== "home"}>
-        {([{ key: "profile", title: "프로필", icon: <><circle cx="12" cy="8" r="4" /><path d="M4 22v-2a8 8 0 0 1 16 0v2" /></> }, { key: "upload", title: "인증하기", icon: <><rect x="3" y="3" width="18" height="18" rx="4" /><path d="M12 17V7m-4 4 4-4 4 4" /></> }, { key: "records", title: "내 기록", icon: <><path d="M4 20h17M6 16v-4m6 4V7m6 9V3" /></> }, { key: "support", title: "후원", icon: <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z" /> }] as const).map(item => <button type="button" className={styles.menu} key={item.key} aria-pressed={section === item.key} disabled={!connected || (item.key === "support" && (supportStatus.locked || supportStatus.loading))} title={item.key === "support" && supportStatus.locked ? `다음 후원: ${new Date(supportStatus.nextAt!).toLocaleDateString("ko-KR",{timeZone:"Asia/Seoul"})}` : undefined} onClick={() => onSection(item.key)}><span className={styles.menuIcon}><svg viewBox="0 0 24 24" aria-hidden="true">{item.icon}</svg></span><strong>{item.title}</strong></button>)}
+        {([{ key: "profile", title: "프로필", icon: <><circle cx="12" cy="8" r="4" /><path d="M4 22v-2a8 8 0 0 1 16 0v2" /></> }, { key: "support", title: "후원", icon: <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z" /> }, { key: "upload", title: "인증하기", icon: <><rect x="3" y="3" width="18" height="18" rx="4" /><path d="M12 17V7m-4 4 4-4 4 4" /></> }, { key: "records", title: "내 기록", icon: <><path d="M4 20h17M6 16v-4m6 4V7m6 9V3" /></> } ] as const).map(item => <button type="button" className={styles.menu} key={item.key} aria-pressed={section === item.key} disabled={!connected || (item.key === "support" && (supportStatus.locked || supportStatus.loading))} title={item.key === "support" && supportStatus.locked ? `다음 후원: ${new Date(supportStatus.nextAt!).toLocaleDateString("ko-KR",{timeZone:"Asia/Seoul"})}` : undefined} onClick={() => onSection(item.key)}><span className={styles.menuIcon}><svg viewBox="0 0 24 24" aria-hidden="true">{item.icon}</svg></span><strong>{item.title}</strong></button>)}
       </div>
       {supportStatus.locked&&<p className={styles.muted}>다음 후원은 {new Date(supportStatus.nextAt!).toLocaleDateString("ko-KR",{timeZone:"Asia/Seoul"})}부터 가능해요.</p>}
     </>}
@@ -144,8 +145,8 @@ export default function MyActivityContent({ section, onSection, onFeature, name,
     {section === "fortune" && !preview && <FortuneView defaultName={displayName} />}
     {section === "gift" && !preview && <GiftView initialStatus={featureSeed?.giftStatus} onStatusChange={featureSeed?.onGiftChange} />}
     {section === "corrective" && !preview && <CorrectiveView initialRequest={featureSeed?.correctiveRequest} initialStatus={featureSeed?.correctiveStatus} />}
-    {section === "time-machine" && !preview && <TimeMachineView active={active} initialRequest={featureSeed?.timeMachineRequest} initialStatus={featureSeed?.timeMachineStatus} onStatusChange={featureSeed?.onTimeMachineChange} />}
-    {preview && !primarySection && <p className={styles.feedback}>미리보기예요. 개인 기능의 실제 조회·신청은 실행하지 않아요.</p>}
+    {section === "time-machine" && <TimeMachineView preview={Boolean(preview)} active={active} initialRequest={featureSeed?.timeMachineRequest} initialStatus={preview?.goal ?? featureSeed?.timeMachineStatus} onStatusChange={preview ? (goal) => window.dispatchEvent(new CustomEvent("twtt:preview-goal", { detail: goal })) : featureSeed?.onTimeMachineChange} />}
+    {preview && !primarySection && section !== "time-machine" && <p className={styles.feedback}>미리보기예요. 개인 기능의 실제 조회·신청은 실행하지 않아요.</p>}
     {/* Keep read-only warm data alive while navigating inside the same sheet. */}
     <div hidden={section !== "home"} className={styles.featureSection}>
       <h3 className={styles.groupTitle}>도구</h3>

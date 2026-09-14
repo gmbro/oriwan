@@ -89,7 +89,9 @@ export async function PUT(request: NextRequest) {
   });
 
   if (error) {
-    return NextResponse.json({ error: "인증번호를 보내지 못했어요. Supabase 이메일 OTP 설정을 확인해주세요." }, { status: 500 });
+    logServerFailure("Admin OTP send", error);
+    const limited = error.status === 429 || error.code === "over_email_send_rate_limit" || error.code === "over_request_rate_limit";
+    return NextResponse.json({ error: limited ? "이메일 인증번호 발송 한도에 도달했어요. 잠시 후 다시 요청해주세요. 계속 발생하면 운영자의 메일 발송 설정 확인이 필요해요." : "인증번호 메일 발송에 실패했어요. 잠시 후 다시 시도해주세요.", code: limited ? "email_rate_limited" : "email_delivery_failed" }, { status: limited ? 429 : 502, headers: PRIVATE_HEADERS });
   }
 
   return NextResponse.json({ ok: true });

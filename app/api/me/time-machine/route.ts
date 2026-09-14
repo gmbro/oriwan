@@ -50,7 +50,7 @@ async function resolveTimeMachineContext(): Promise<TimeMachineContext | NextRes
       return json({ error: "카카오 로그인 서버 설정이 아직 준비되지 않았어요." }, 503);
     }
     if (resolution.reason === "unauthenticated") {
-      return json({ error: "목표 타임머신은 카카오 로그인 후 이용할 수 있어요." }, 401);
+      return json({ error: "목표은 카카오 로그인 후 이용할 수 있어요." }, 401);
     }
     return json({ error: "운영 서버 연결이 아직 준비되지 않았어요." }, 503);
   }
@@ -82,7 +82,7 @@ async function readGoal(context: TimeMachineContext) {
 
 function missingTableResponse() {
   return json({
-    ...missingSchemaResponse("목표 타임머신 저장소가 아직 준비되지 않았어요."),
+    ...missingSchemaResponse("목표 저장소가 아직 준비되지 않았어요."),
     setup_file: "docs/migrations/2026-09-07-time-machine-goals.sql",
   }, 503);
 }
@@ -91,8 +91,6 @@ function serializeGoal(row: TimeMachineGoalRow | null) {
   const timing = getTimeMachineTiming();
   if (!row) return { state: "empty", ...timing };
 
-  // The server, not CSS or a client clock, is the gate for sealed goal contents.
-  if (!timing.unlocked) return { state: "locked", ...timing, created_at: row.created_at };
   return {
     state: "opened",
     ...timing,
@@ -129,7 +127,7 @@ export async function GET(request: NextRequest) {
     return json(serializeGoal((data as TimeMachineGoalRow | null) ?? null));
   } catch (error) {
     logServerFailure("Time machine goal read", error);
-    return json({ error: "목표 타임머신을 불러오지 못했어요." }, 500);
+    return json({ error: "목표을 불러오지 못했어요." }, 500);
   }
 }
 
@@ -140,7 +138,7 @@ export async function POST(request: NextRequest) {
       key: "time-machine-create",
       limit: 5,
       windowMs: 60_000,
-      message: "타임머신 발동 요청이 잠시 몰렸어요. 잠시 후 다시 시도해주세요.",
+      message: "목표 저장 요청이 잠시 몰렸어요. 잠시 후 다시 시도해주세요.",
     },
   });
   if (guardResponse) return guardResponse;
@@ -148,9 +146,6 @@ export async function POST(request: NextRequest) {
   try {
     const context = await resolveTimeMachineContext();
     if (context instanceof NextResponse) return context;
-    if (getTimeMachineTiming().unlocked) {
-      return json({ error: "타임머신이 이미 열렸어요. 다음 목표 상자를 기다려주세요." }, 403);
-    }
     const bodyResult = await readJsonBody(request);
     if (!bodyResult.ok) return bodyResult.response;
     const parsed = parseTimeMachineGoalInput(bodyResult.body);
@@ -158,7 +153,7 @@ export async function POST(request: NextRequest) {
 
     const { data, error } = await context.service
       .from("time_machine_goals")
-      .insert({
+      .upsert({
         season_key: TIME_MACHINE_SEASON_KEY,
         user_id: context.adminUserId,
         participant_id: context.participantId,
@@ -166,12 +161,12 @@ export async function POST(request: NextRequest) {
         goal_title: parsed.value.goal_title,
         goal_detail: parsed.value.goal_detail,
         commitment: parsed.value.commitment,
-      })
+      }, { onConflict: "season_key,auth_user_id" })
       .select("id, goal_title, goal_detail, commitment, created_at")
       .single();
     if (error) {
       if (isMissingTableError(error)) return missingTableResponse();
-      if (error.code === "23505") return json({ error: "이미 목표 타임머신을 발동했어요." }, 409);
+      if (error.code === "23505") return json({ error: "이미 목표을 발동했어요." }, 409);
       throw error;
     }
   invalidatePublicDashboardCache();
@@ -179,6 +174,6 @@ export async function POST(request: NextRequest) {
     return json(serializeGoal(data as TimeMachineGoalRow), 201);
   } catch (error) {
     logServerFailure("Time machine goal create", error);
-    return json({ error: "목표 타임머신을 발동하지 못했어요. 잠시 후 다시 시도해주세요." }, 500);
+    return json({ error: "목표을 발동하지 못했어요. 잠시 후 다시 시도해주세요." }, 500);
   }
 }

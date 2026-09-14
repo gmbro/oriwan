@@ -21,3 +21,5 @@
 @media(prefers-reduced-motion:reduce){.cheered{animation:none}}
 .choices { border:0; padding:0; margin:0; min-width:0; }
 .choices:disabled { opacity:.6; }
+
+.price{display:inline-block;padding:7px 10px;margin-bottom:12px;border-radius:10px;background:#e8f3ff;color:#3182f6;font-size:13px;font-weight:700}.detail .guide{padding:16px;background:#f9fafb;border-radius:16px;gap:16px}.detail .guide div{display:grid;grid-template-columns:76px 1fr;align-items:start;line-height:1.8;gap:10px}.detail .guide dd{font-size:13px;font-weight:500;overflow-wrap:anywhere}@media(max-width:400px){.detail .guide div{grid-template-columns:1fr;gap:2px}.detail{padding:16px}}

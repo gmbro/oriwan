@@ -901,7 +901,7 @@ function AdminWorkspacePanel({
           <div>
             <p className="text-[11px] font-black uppercase text-blue-600">Crew profile</p>
             <h2 id="crew-admin-title" className="mt-1 text-2xl font-black text-oriwan-text">크루 프로필</h2>
-            <p className="mt-2 text-sm font-semibold leading-6 text-oriwan-text-muted">멤버 기본 정보와 4기 공개 자기소개, 목표 타임머신을 관리합니다.</p>
+            <p className="mt-2 text-sm font-semibold leading-6 text-oriwan-text-muted">멤버 기본 정보와 4기 공개 자기소개를 관리합니다.</p>
           </div>
           <button type="button" onClick={onOpenCrew} className="btn-primary min-h-12 shrink-0 px-5 text-sm">멤버 관리</button>
         </div>
@@ -1209,7 +1209,7 @@ export default function AdminPage() {
     return records
       .filter((record) => (
         record.status === "needs_review" &&
-        (!record.participant_id || certificationParticipantIds.has(record.participant_id))
+        (Boolean(record.participant_id) && certificationParticipantIds.has(record.participant_id!))
       ))
       .map((record) => ({
         record,
@@ -2225,7 +2225,7 @@ export default function AdminPage() {
                             <span className="min-w-0">
                               <span className="block truncate text-sm font-black text-slate-900">{participantName}</span>
                               <span className="mt-0.5 block truncate text-[10px] font-semibold text-slate-500">
-                                {record.notes || "확인 필요"}
+                                {"날짜와 운동 기록을 확인해주세요."}
                               </span>
                             </span>
                             <span className="shrink-0 text-right">

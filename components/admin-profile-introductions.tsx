@@ -156,7 +156,7 @@ export function AdminProfileIntroductions({
     if (!active) return;
     queueMicrotask(() => {
       void load();
-      void loadTimeMachineGoals();
+
     });
   }, [active, load, loadTimeMachineGoals, refreshKey]);
 
@@ -575,108 +575,7 @@ export function AdminProfileIntroductions({
                   {saving ? "저장 중…" : dirty ? "변경 내용 저장" : "저장됨"}
                 </button>
 
-                <section className="mt-5 border-t border-slate-200 pt-5" aria-labelledby={`time-machine-title-${item.participant_id}`}>
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div>
-                      <p className="text-[11px] font-black uppercase tracking-[0.08em] text-blue-700">100일 목표 타임머신</p>
-                      <h4 id={`time-machine-title-${item.participant_id}`} className="mt-1 text-base font-black text-oriwan-text">목표 보관 상태</h4>
-                    </div>
-                    <span className={`rounded-full px-3 py-1.5 text-[11px] font-black ${timeMachineGoal ? (timeMachineGoal.status === "opened" ? "bg-lime-100 text-lime-900" : "bg-blue-100 text-blue-800") : "bg-slate-100 text-slate-600"}`}>
-                      {timeMachineLoading
-                        ? "불러오는 중"
-                        : timeMachineLoadError
-                          ? "확인 필요"
-                          : timeMachineGoal?.status === "opened"
-                            ? "개봉됨"
-                            : timeMachineGoal
-                              ? "봉인 중"
-                              : "설정 전"}
-                    </span>
-                  </div>
 
-                  {!timeMachineLoading && !timeMachineLoadError && !timeMachineGoal ? (
-                    <p className="mt-3 rounded-2xl bg-slate-50 px-4 py-4 text-sm font-semibold text-oriwan-text-muted ring-1 ring-slate-200">
-                      아직 설정한 목표가 없습니다.
-                    </p>
-                  ) : null}
-
-                  {timeMachineGoal ? (
-                    <div className="mt-3 rounded-[20px] bg-slate-50 p-4 ring-1 ring-slate-200">
-                      <dl className="grid gap-4">
-                        <div>
-                          <dt className="text-xs font-black text-oriwan-text-muted">2027년 1월 1일에 보고 싶은 목표</dt>
-                          <dd className="mt-1 whitespace-pre-wrap break-words text-sm font-black leading-6 text-oriwan-text">{timeMachineGoal.goal_title}</dd>
-                        </div>
-                        {timeMachineGoal.goal_detail ? (
-                          <div>
-                            <dt className="text-xs font-black text-oriwan-text-muted">기존 세부 목표</dt>
-                            <dd className="mt-1 whitespace-pre-wrap break-words text-sm font-semibold leading-6 text-oriwan-text">{timeMachineGoal.goal_detail}</dd>
-                          </div>
-                        ) : null}
-                        {timeMachineGoal.commitment ? (
-                          <div>
-                            <dt className="text-xs font-black text-oriwan-text-muted">나의 다짐</dt>
-                            <dd className="mt-1 whitespace-pre-wrap break-words text-sm font-semibold leading-6 text-oriwan-text">{timeMachineGoal.commitment}</dd>
-                          </div>
-                        ) : null}
-                      </dl>
-                      <div className="mt-4 grid gap-2 rounded-2xl bg-white px-3 py-3 text-xs font-semibold text-oriwan-text-muted ring-1 ring-slate-200 sm:grid-cols-2">
-                        <p>설정 <time dateTime={timeMachineGoal.created_at}>{formatDateTime(timeMachineGoal.created_at)}</time></p>
-                        <p>개봉 <time dateTime={timeMachineGoal.unlock_at}>{formatDateTime(timeMachineGoal.unlock_at)}</time></p>
-                      </div>
-
-                      {confirmingReset ? (
-                        <div className="mt-4 rounded-2xl bg-rose-50 p-4 text-rose-950 ring-1 ring-rose-200" role="group" aria-label={`${item.name} 목표 타임머신 재설정 확인`}>
-                          <p className="text-sm font-black">이 목표를 삭제하고 다시 설정할 수 있게 할까요?</p>
-                          <p className="mt-1 break-keep text-xs font-semibold leading-5 text-rose-800">
-                            목표와 작성한 다짐이 영구 삭제되며 되돌릴 수 없습니다. 삭제 후 멤버는 새 타임머신을 작성할 수 있어요.
-                          </p>
-                          <div className="mt-3 grid grid-cols-2 gap-2">
-                            <button
-                              type="button"
-                              disabled={resetting}
-                              onClick={() => setConfirmingResetId("")}
-                              className="min-h-11 rounded-xl bg-white px-3 text-xs font-black text-oriwan-text ring-1 ring-slate-200 disabled:opacity-60"
-                            >
-                              취소
-                            </button>
-                            <button
-                              type="button"
-                              disabled={resetting}
-                              onClick={() => void resetTimeMachine(item.participant_id, timeMachineGoal)}
-                              className="min-h-11 rounded-xl bg-rose-600 px-3 text-xs font-black text-white disabled:opacity-60"
-                            >
-                              {resetting ? "재설정 중…" : "삭제 후 재설정 허용"}
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <button
-                          type="button"
-                          disabled={Boolean(resettingId)}
-                          onClick={() => {
-                            setConfirmingResetId(timeMachineGoal.id);
-                            setTimeMachineFeedbackById((current) => {
-                              if (!current[item.participant_id]) return current;
-                              const next = { ...current };
-                              delete next[item.participant_id];
-                              return next;
-                            });
-                          }}
-                          className="mt-4 min-h-11 w-full rounded-xl bg-white px-4 text-sm font-black text-rose-700 ring-1 ring-rose-200 transition hover:bg-rose-50 disabled:opacity-60"
-                        >
-                          목표 재설정
-                        </button>
-                      )}
-                    </div>
-                  ) : null}
-
-                  {timeMachineFeedback ? (
-                    <p className={`mt-3 rounded-xl px-3 py-2 text-xs font-bold leading-5 ${timeMachineFeedback.tone === "success" ? "bg-lime-50 text-lime-900" : "bg-rose-50 text-rose-800"}`} role="status">
-                      {timeMachineFeedback.message}
-                    </p>
-                  ) : null}
-                </section>
               </form>
             );
           })}
