@@ -157,11 +157,10 @@ export async function POST(request: NextRequest) {
   }
 
   const statusProvided = Object.hasOwn(body, "status");
-  const status = statusProvided ? sanitizeStatus(body.status) : "needs_review";
+  const status = statusProvided ? sanitizeStatus(body.status) : "certified";
   if (!status) {
     return NextResponse.json({ error: "기록 상태값을 다시 확인해주세요." }, { status: 400 });
   }
-  if (status === "certified") return NextResponse.json({ error: "먼저 검수 대기로 저장하고 인증샷 확인 후 승인해주세요." }, { status: 400 });
   const { data, error } = await supabase
     .from("daily_run_records")
     .insert(

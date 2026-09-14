@@ -94,8 +94,8 @@ function decideStatus(input: {
   const hasMetric = Boolean((input.distanceKm && input.distanceKm > 0) || (input.durationSeconds && input.durationSeconds > 0));
   if (!input.participantId || !input.recordDate) return "needs_review";
   if (!hasMetric) return "missing";
-  // OCR prepares a draft. Only the separate administrator review can certify it.
-  return "needs_review";
+  // Complete uploaded records are immediately certified.
+  return "certified";
 }
 
 async function analyzeImage(image: UploadedImage, knownNames: string[], targetDate?: string | null) {
@@ -475,13 +475,13 @@ export async function POST(request: NextRequest) {
       }
 
       const paceSeconds = calculatePaceSeconds(distanceKm, durationSeconds);
-      const status = getGeminiOcrFallbackReasons(analyzed.extracted, { requireParticipantName: true, requireRecordDate: true }).length ? "needs_review" : decideStatus({
+      const status = decideStatus({
         participantId: participant?.id,
         recordDate,
         distanceKm,
         durationSeconds,
       });
-      needsReviewCount += 1;
+      if (status === "needs_review" || status === "missing") needsReviewCount += 1;
 
       const filePath = await uploadImageToStorage({
         supabase,

@@ -38,10 +38,10 @@ function harness(overrides = {}) {
 test("개인 POST: 비로그인은 저장소·DB를 만지기 전에 차단", async () => {
   const h = harness({ unauthenticated: true }); assert.equal((await h.POST({})).status, 401); assert.deepEqual(h.calls, []);
 });
-test("개인 POST: 요청의 타인 ID·certified 상태를 무시하고 서버 소유자로 검수 제출", async () => {
+test("개인 POST: 요청의 타인 ID·certified 상태를 무시하고 서버 소유자로 즉시 인증", async () => {
   const h = harness(); assert.equal((await h.POST({})).status, 201);
   const row = h.calls.find(c => c.insert).insert;
-  assert.equal(row.user_id, "operator"); assert.equal(row.participant_id, "owner"); assert.equal(row.status, "needs_review");
+  assert.equal(row.user_id, "operator"); assert.equal(row.participant_id, "owner"); assert.equal(row.status, "certified");
   assert.equal(readCertificationReview(row.notes).uploadedAt !== null, true);
   assert.equal(row.raw_extracted_text, "original OCR"); assert.match(row.notes, /OCR 원본.*사용자 확인값/s);
   assert.match(row.image_url, /^member-run-uploads\/4th\/auth-owner\//);
@@ -60,11 +60,11 @@ test("개인 POST: 같은 사진·날짜 더블클릭은 기존 기록을 반환
   assert.equal((await conflicting.POST({})).status, 409);
 });
 
-test("개인 제출은 수동 입력값이 있어도 서버 OCR의 시작 시각·거리가 없으면 차단", async () => {
+test("OCR 값이 없어도 회원이 입력한 유효한 기록은 즉시 인증", async () => {
   for (const draft of [{ activityTime: null }, { activityTime: "24:00" }, { distanceKm: null }, { distanceKm: 0 }]) {
     const h = harness({ draft });
     const result = await h.POST({});
-    assert.equal(result.status, 422); assert.match(result.body.error, "activityTime" in draft ? /시작 시각/ : /운동 거리/);
-    assert.ok(!h.calls.some(c => c.insert));
+    assert.equal(result.status, 201);
+    assert.equal(h.calls.find(c => c.insert).insert.status, "certified");
   }
 });

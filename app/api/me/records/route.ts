@@ -186,17 +186,16 @@ export async function POST(request: NextRequest) {
     const prefix = uploadPrefix(authUserId, body.draftId);
     const draft = await readUploadDraft(store, prefix);
     if (!draft || !ownsFreshDraft(draft, owned.participantId)) return privateJson({ error: "인증샷 확인 시간이 지났어요. 사진을 다시 선택해주세요." }, 410);
-    if (!hasMemberUploadEvidence(draft)) return privateJson({ error: [...memberEvidenceIssues(draft), "운영자에게 문의해주세요."].join(" ") }, 422);
     const imagePath = `${MEMBER_UPLOAD_BUCKET}/${prefix}/image.webp`;
-    // Never trust a submitted member id/status. Pending data must not increase
-    // the public certification rate. The DB's unique date index arbitrates races.
+    // Resolve ownership on the server and certify submitted records immediately.
+    // The unique member/date index prevents duplicate submissions.
     const { data, error } = await service.from("daily_run_records").insert({
       user_id: owned.adminUserId, season_key: FOURTH_SEASON_KEY, participant_id: owned.participantId,
       record_date: values.date, distance_km: values.distanceKm, duration_seconds: values.durationSeconds,
       pace_seconds_per_km: calculatePaceSeconds(values.distanceKm, values.durationSeconds),
-      source_app: "member-upload", status: "needs_review", confidence_score: draft.confidence,
+      source_app: "member-upload", status: "certified", confidence_score: draft.confidence,
       image_url: imagePath, raw_extracted_text: draft.rawText,
-      notes: writeCertificationReview(`개인 직접 제출 · 운영자 검수 필요\nOCR 원본: ${JSON.stringify({ date: draft.date, distanceKm: draft.distanceKm, durationSeconds: draft.durationSeconds, model: draft.model })}\n사용자 확인값: ${JSON.stringify(values)}`, { version: 1, uploadedAt: draft.createdAt, ocrDate: draft.activityDate ?? null, ocrTime: draft.activityTime ?? null }),
+      notes: writeCertificationReview(`개인 직접 제출 · 자동 인증 완료\nOCR 원본: ${JSON.stringify({ date: draft.date, distanceKm: draft.distanceKm, durationSeconds: draft.durationSeconds, model: draft.model })}\n사용자 확인값: ${JSON.stringify(values)}`, { version: 1, uploadedAt: draft.createdAt, ocrDate: draft.activityDate ?? null, ocrTime: draft.activityTime ?? null }),
     }).select("id, status").single();
     if (error?.code === "23505") {
       const { data: existing } = await service.from("daily_run_records").select("id, status, image_url")

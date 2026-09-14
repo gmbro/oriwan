@@ -47,6 +47,7 @@ type Participant = {
   id: string;
   name: string;
   nickname: string | null;
+  profile_image_url?: string | null;
   active: boolean;
   display_order: number | null;
 };
@@ -187,12 +188,11 @@ const ADMIN_TABS: ReadonlyArray<{ key: AdminTab; label: string; compactLabel: st
   { key: "corrective-exercise", label: "교정운동", compactLabel: "교정운동" },
   { key: "locker", label: "보관함", compactLabel: "보관함" },
   { key: "gifts", label: "응원상자", compactLabel: "응원상자" },
-  { key: "encouragements", label: "응원글", compactLabel: "응원글" },
   { key: "banners", label: "배너", compactLabel: "배너" },
   { key: "comments", label: "댓글", compactLabel: "댓글" },
 ];
 
-const PRELOADED_CONTENT_TABS = new Set<AdminTab>(["encouragements", "banners", "comments"]);
+const PRELOADED_CONTENT_TABS = new Set<AdminTab>(["banners", "comments"]);
 // The recovery analytics panel is intentionally kept out of the certification tab.
 // Its record metadata remains intact so it can be restored without a data migration.
 const SHOW_RECOVERY_CERTIFICATION_DASHBOARD = false;
@@ -202,7 +202,6 @@ const PRESERVED_WORKSPACE_TABS: ReadonlyArray<Exclude<AdminTab, "certifications"
   "gifts",
   "crew",
   "corrective-exercise",
-  "encouragements",
   "banners",
   "comments",
 ];
@@ -232,7 +231,7 @@ const isOfficialCertificationToday = effectiveToday >= ACTUAL_CERTIFICATION_STAR
 function statusLabel(status: AnalysisStatus) {
   if (status === "duplicate") return "이미 인증됨";
   if (status === "certified") return "완료";
-  if (status === "needs_review") return "확인 중";
+  if (status === "needs_review") return "기록 확인";
   if (status === "missing") return "보류";
   if (status === "rejected") return "반려";
   return "아직";
@@ -1636,7 +1635,7 @@ export default function AdminPage() {
       const certified = results.filter((result) => result.status === "certified").length;
       const duplicate = results.filter((result) => result.duplicate || result.status === "duplicate").length;
       const review = results.length - certified - duplicate;
-      setAnalysisMessage(`${results.length}장 정리 완료 · 이미 인증 ${duplicate}건 · 검수 대기 ${review}건 · 날짜별 기록에서 승인해주세요.`);
+      setAnalysisMessage(`${results.length}장 정리 완료 · 이미 인증 ${duplicate}건 · 정보 확인 ${review}건 · 정보가 비어 있는 기록은 날짜별 기록에서 수정해주세요.`);
       await refreshAfterMutation();
     } catch (err) {
       setAnalysisMessage(err instanceof Error ? err.message : "이미지를 읽지 못했어요. 흐린 이미지는 직접 입력으로 가볍게 보완해주세요.");
@@ -1724,7 +1723,7 @@ export default function AdminPage() {
 
     const durationSeconds = parseDurationToSeconds(result.edit_duration || "");
     const hasMetric = Boolean((result.edit_distance || "").trim() || durationSeconds);
-    const nextStatus: RecordStatus = result.participant_id && result.record_date && hasMetric ? "needs_review" : "missing";
+    const nextStatus: RecordStatus = result.participant_id && result.record_date && hasMetric ? "certified" : "missing";
     const nextNotes = nextRecordNotesForStatus(nextStatus, result);
     const resultKey = getAnalysisResultKey(result, resultIndex);
     setUpdatingAnalysisKey(resultKey);
@@ -1756,7 +1755,7 @@ export default function AdminPage() {
             }
           : item
       )));
-      setAnalysisMessage("검수 대기로 저장했어요. 멤버의 날짜별 기록에서 인증샷을 확인한 뒤 승인해주세요.");
+      setAnalysisMessage("저장하고 인증 완료 처리했어요.");
       await refreshAfterMutation(false);
     } catch (err) {
       setAnalysisMessage(err instanceof Error ? err.message : "기록을 수정하지 못했어요.");
@@ -1798,7 +1797,7 @@ export default function AdminPage() {
     };
     const durationSeconds = parseDurationToSeconds(draft.duration);
     const hasMetric = Boolean(draft.distance.trim() || durationSeconds);
-    const nextStatus: RecordStatus = record.participant_id && record.record_date && hasMetric ? (record.status === "certified" ? "certified" : "needs_review") : "missing";
+    const nextStatus: RecordStatus = record.participant_id && record.record_date && hasMetric ? "certified" : "missing";
     const nextNotes = nextRecordNotesForStatus(nextStatus, record);
     setUpdatingRecordId(record.id);
 
@@ -1842,7 +1841,7 @@ export default function AdminPage() {
     }
 
     const hasMetric = Boolean(nextDistance.trim() || durationSeconds);
-    const nextStatus: RecordStatus = record.participant_id && record.record_date && hasMetric ? (record.status === "certified" ? "certified" : "needs_review") : "missing";
+    const nextStatus: RecordStatus = record.participant_id && record.record_date && hasMetric ? "certified" : "missing";
     const nextNotes = nextRecoveryRecordNotes(record.notes, recoveryEnabled);
     const nextSourceApp = nextRecoverySourceApp(record.source_app, recoveryEnabled);
     const parsedDistance = nextDistance.trim() ? Number(nextDistance) : null;
@@ -1928,7 +1927,7 @@ export default function AdminPage() {
         record_date: manualDate,
         distance_km: manualDistance,
         duration_seconds: duration,
-        status: "needs_review",
+        status: "certified",
         notes: !manualDistance || !duration ? "거리 또는 시간은 나중에 보완 가능" : null,
       }),
     });
@@ -2127,7 +2126,7 @@ export default function AdminPage() {
                 오늘 인증 현황
               </h2>
               <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
-                인증 진행 상태와 검수할 기록을 한눈에 확인하세요.
+                인증 진행 상태와 수정할 기록을 한눈에 확인하세요.
               </p>
             </div>
             <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-slate-100 px-3 py-2 text-[11px] font-black text-slate-600 ring-1 ring-slate-200">
@@ -2153,7 +2152,7 @@ export default function AdminPage() {
                   </div>
                 </div>
                 <div className="flex min-w-[7.5rem] items-center justify-between gap-3 rounded-2xl bg-white px-4 py-3 shadow-sm ring-1 ring-blue-100 sm:block sm:text-right">
-                  <span className="block text-[10px] font-black text-slate-500">검수 대기</span>
+                  <span className="block text-[10px] font-black text-slate-500">정보 확인</span>
                   <span className="text-2xl font-black text-slate-950">{adminStats.reviewCount}</span>
                 </div>
               </div>
@@ -2204,7 +2203,7 @@ export default function AdminPage() {
 
                 <div className="rounded-[20px] bg-slate-50 p-3.5 ring-1 ring-slate-200">
                   <div className="flex items-center justify-between gap-2">
-                    <p className="text-[11px] font-black text-slate-600">검수 대기 상세</p>
+                    <p className="text-[11px] font-black text-slate-600">정보 확인 상세</p>
                     <span className="rounded-full bg-white px-2.5 py-1 text-[10px] font-black text-slate-700 ring-1 ring-slate-200">
                       {reviewRecords.length}건
                     </span>
@@ -2342,7 +2341,7 @@ export default function AdminPage() {
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex min-w-0 flex-1 items-center gap-3">
                       <span className="relative shrink-0">
-                        <MemberPictogram index={row.pictogramIndex} participantName={row.participant.name} className="!h-11 !w-11" />
+                        <Image unoptimized src={row.participant.profile_image_url || "/images/poc/hello-2027/default-profile-avatar.webp"} alt={row.participant.name} width={44} height={44} className="h-11 w-11 rounded-full object-cover" />
                         <span className="absolute -left-1 -top-1 rounded-full bg-blue-600 px-1.5 py-0.5 text-[9px] font-black leading-none text-white ring-2 ring-white">
                           {index + 1}
                         </span>
@@ -2880,7 +2879,7 @@ export default function AdminPage() {
                             {isDuplicate ? "저장 안 함" : isUpdatingResult ? "저장 중" : "수정 저장"}
                           </button>
                         </div>
-                        {result.id && result.participant_id && !isDuplicate && <button type="button" disabled={isUpdatingResult} onClick={() => openParticipantRecords(result.participant_id!)} className="mt-2 min-h-11 w-full rounded-xl bg-blue-50 px-4 py-3 text-sm font-bold text-blue-700 disabled:opacity-40">날짜별 기록에서 검수하기</button>}
+                        {result.id && result.participant_id && !isDuplicate && <button type="button" disabled={isUpdatingResult} onClick={() => openParticipantRecords(result.participant_id!)} className="mt-2 min-h-11 w-full rounded-xl bg-blue-50 px-4 py-3 text-sm font-bold text-blue-700 disabled:opacity-40">날짜별 기록 수정하기</button>}
                         {formatVisibleRecordNotes(result.notes) && <p className="mt-2 text-[11px] font-semibold leading-5 text-oriwan-text-muted">{formatVisibleRecordNotes(result.notes)}</p>}
                       </div>
                     );
@@ -2909,11 +2908,7 @@ export default function AdminPage() {
             <div className="card mobile-sheet w-full max-w-2xl overflow-y-auto p-4 sm:max-h-[88vh] sm:p-6" onClick={(event) => event.stopPropagation()}>
               <div className="mb-4 flex items-start justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-2">
-                  <MemberPictogram
-                    index={participantPictogramById.get(selectedRecordsParticipant.id)}
-                    participantName={selectedRecordsParticipant.name}
-                    size="lg"
-                  />
+                  <Image unoptimized src={selectedRecordsParticipant.profile_image_url || "/images/poc/hello-2027/default-profile-avatar.webp"} alt={selectedRecordsParticipant.name} width={56} height={56} className="h-14 w-14 rounded-full object-cover" />
                   <div className="min-w-0">
                     <p className="text-xs font-black text-oriwan-text-muted">날짜별 기록 수정</p>
                     <h2 className="truncate text-2xl font-black leading-tight text-oriwan-text">
@@ -2989,10 +2984,7 @@ export default function AdminPage() {
                             className="w-full rounded-xl border border-oriwan-border bg-white px-3 py-2.5 text-sm font-black text-oriwan-text outline-none focus:border-oriwan-primary"
                           />
                         </div>
-                        {record.status !== "certified" && <button type="button" className="min-h-11 rounded-xl bg-blue-600 px-4 py-3 text-sm font-bold text-white disabled:opacity-40"
-                          disabled={isSaving || isDeleting || draft.distance !== formatDistanceInput(record.distance_km) || draft.duration !== formatDurationInput(record.duration_seconds)}
-                          onClick={() => setApprovalRecord(record)}>인증샷 확인 후 승인</button>}
-                        {record.status !== "certified" && <p className="text-xs text-slate-500">수정한 값은 먼저 저장해주세요. 오전 8시 이후 업로드는 캡처의 날짜·시각 확인이 필요해요.</p>}
+
                         <div className="grid grid-cols-[5.25rem_minmax(0,1fr)_minmax(0,1fr)] gap-2 sm:flex sm:justify-end">
                           <button
                             type="button"
@@ -3123,7 +3115,7 @@ export default function AdminPage() {
               <div className="mb-4 flex items-start justify-between gap-3">
                 <div>
                   <h2 className="text-xl font-black leading-tight text-oriwan-text">기록 직접 입력</h2>
-                  <p className="mt-1 text-xs text-oriwan-text-muted">검수 대기로 저장돼요. 인증샷을 올리고 관리자가 승인해야 인증돼요.</p>
+                  <p className="mt-1 text-xs text-oriwan-text-muted">저장하면 바로 인증 완료돼요.</p>
                 </div>
                 <button
                   type="button"
@@ -3144,7 +3136,7 @@ export default function AdminPage() {
                 9월 23일 전 기록은 준비 러닝으로 저장해 개인 기록에만 보여요. 공식 100일 인증에는 포함되지 않습니다.
               </p>
               <button type="button" onClick={saveManualRecord} className="btn-primary mt-4 w-full py-3 text-sm">
-                검수 대기로 저장하기
+                기록 저장하기
               </button>
             </div>
           </div>

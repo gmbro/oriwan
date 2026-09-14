@@ -48,9 +48,9 @@ export function KakaoLoginButton({
           startedRef.current = true;
           setPending(true);
         }}
-        className={`inline-flex items-center justify-center gap-2 bg-[#FEE500] font-black text-[#191919] transition hover:bg-[#f4dc00] focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[#191919]/30 ${pending ? "cursor-wait opacity-70" : ""} ${compact
-          ? "min-h-[30px] gap-1 rounded-full px-1.5 py-1 text-[9px]"
-          : "min-h-12 w-full rounded-2xl px-5 py-3 text-sm"
+        className={`inline-flex items-center justify-center gap-2 font-semibold text-[#191919] transition focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[#191919]/30 ${pending ? "cursor-wait opacity-70" : ""} ${compact
+          ? "min-h-8 gap-1 bg-transparent px-1 py-1 text-xs hover:underline"
+          : "min-h-10 w-full bg-transparent px-3 py-2 text-sm hover:underline"
         } ${className}`}
       >
         <svg aria-hidden="true" viewBox="0 0 24 24" className={compact ? "h-[11px] w-[11px] fill-current" : "h-5 w-5 fill-current"}>

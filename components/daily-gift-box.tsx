@@ -67,11 +67,11 @@ export function DailyGiftBox({ initialStatus = null, onStatusChange, preview = f
   }, [initialStatus, onStatusChange, preview]);
 
   useEffect(() => {
-    if (!initialStatus || opening) return;
+    if (!initialStatus) return;
     setStatus(initialStatus);
     setOpened(Boolean(initialStatus.claim));
     setLoading(false);
-  }, [initialStatus, opening]);
+  }, [initialStatus]);
 
   const openGift = async () => {
     if (!status?.eligible || status.claim || opening) return;
@@ -79,7 +79,7 @@ export function DailyGiftBox({ initialStatus = null, onStatusChange, preview = f
     setOpened(false);
     setMessage("");
 
-    const motionDelay = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 5000;
+    const motionDelay = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 700;
     try {
       if (preview) {
         await new Promise(resolve => window.setTimeout(resolve, motionDelay));

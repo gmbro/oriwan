@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
-import { memberEvidenceIssues, hasMemberUploadEvidence, MEMBER_UPLOAD_MAX_BYTES, type MemberUploadDraft } from "@/lib/member-upload-contract";
+import { MEMBER_UPLOAD_MAX_BYTES, type MemberUploadDraft } from "@/lib/member-upload-contract";
 import { KoreanExerciseDate, formatKoreanExerciseDate } from "./korean-exercise-date";
 import styles from "./my-activity.module.css";
 
@@ -40,7 +40,6 @@ export default function MyActivityUpload({ today, onSubmitted, onViewRecords, pr
   useEffect(() => { alive.current = true; return () => { alive.current = false; xhr.current?.abort(); }; }, []);
   useEffect(() => () => { if (image) URL.revokeObjectURL(image); }, [image]);
   const acceptDraft = (value: MemberUploadDraft) => {
-    if (!hasMemberUploadEvidence(value)) { setDraft(value); setError([...memberEvidenceIssues(value), "기록은 아직 제출되지 않았어요. 해결이 어렵다면 운영자에게 문의해주세요."].join(" ")); setStage("choose"); return; }
     setDraft(value); setDistance(value.distanceKm === null ? "" : String(value.distanceKm));
     setMinutes(value.durationSeconds === null ? "" : String(Math.floor(value.durationSeconds / 60)));
     setSeconds(value.durationSeconds === null ? "0" : String(value.durationSeconds % 60)); setStage("confirm");
@@ -83,11 +82,11 @@ export default function MyActivityUpload({ today, onSubmitted, onViewRecords, pr
     } catch (e) { if (alive.current) { setStage("confirm"); setError(e instanceof Error ? e.message : "제출하지 못했어요."); } }
   };
   return <>
-    {stage !== "done" && <p className={styles.uploadGuidance}>운동 시작 시각이 오전 8시 이전(00:00~07:59)인 기록만 인증할 수 있어요. 업로드 시간은 관계없어요.</p>}
+    {stage !== "done" && <p className={styles.uploadGuidance}>사진을 올리고 날짜·거리·시간을 확인하면 바로 인증 완료돼요.</p>}
     {["choose", "uploading", "analyzing"].includes(stage) && <div className={styles.field}>운동한 날짜 (사진 선택 전 확인)<KoreanExerciseDate min="2026-08-13" max={today < "2026-12-31" ? today : "2026-12-31"} value={date} disabled={stage !== "choose"} onChange={setDate} /></div>}
     {stage !== "done" && <p className={styles.muted}>운동한 날짜마다 1건만 제출할 수 있어요. 등록 실패 시 문의주시면 운영자가 업로드해드려요</p>}
     {error && <p className={`${styles.feedback} ${styles.error}`} role="alert">{error}</p>}
-    {stage === "done" ? <><div className={styles.feedback} role="status">{preview ? "미리보기 제출 완료 · 실제 저장 없음" : <><strong>인증이 완료되었습니다</strong><p>내 기록에 저장했어요. 현재 운영자 승인 대기 중이며, 공식 인증률과 공동 목표는 승인 후 반영돼요.</p><p>{formatKoreanExerciseDate(date)} · {distance}km · {minutes}분 {seconds}초</p></>}</div>{onViewRecords && <button className={styles.primary} onClick={onViewRecords}>내 기록에서 확인하기</button>}<button className={styles.primary} onClick={() => { setDraft(null); setStage("choose"); setImage(""); }}>다른 인증샷 올리기</button></> : <>
+    {stage === "done" ? <><div className={styles.feedback} role="status">{preview ? "미리보기 제출 완료 · 실제 저장 없음" : <><strong>인증이 완료되었습니다</strong><p>내 기록에 저장했어요. 오늘 기록이면 인증박스를 바로 열 수 있어요.</p><p>{formatKoreanExerciseDate(date)} · {distance}km · {minutes}분 {seconds}초</p></>}</div>{onViewRecords && <button className={styles.primary} onClick={onViewRecords}>내 기록에서 확인하기</button>}<button className={styles.primary} onClick={() => { setDraft(null); setStage("choose"); setImage(""); }}>다른 인증샷 올리기</button></> : <>
       {image && <p className={styles.muted} role="status">{draft ? "사진 저장 완료 · " + (stage === "confirm" || stage === "submitting" ? "인식값 확인 후 인증 제출을 눌러주세요." : "인증 조건 또는 인식값 확인 필요 · 기록 미제출") : "선택한 사진 미리보기 · 아직 기록 제출 전이에요."}</p>}
       {image && <Image unoptimized width={800} height={800} src={image} alt="내가 선택한 인증샷 미리보기" className={styles.preview} />}
       <input ref={input} type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={e => { void upload(e.target.files?.[0]); e.target.value = ""; }} />
@@ -97,11 +96,11 @@ export default function MyActivityUpload({ today, onSubmitted, onViewRecords, pr
         {draft?.warning && <p className={styles.feedback}>{draft.warning}</p>}
         <strong>사진과 기록이 맞는지 확인해주세요</strong>
         <p className={styles.muted}>사진에서 읽은 운동 날짜: {(draft?.activityDate || draft?.date) ? formatKoreanExerciseDate((draft?.activityDate || draft?.date)!) : "사진에서 날짜를 읽지 못했어요. 선택한 날짜를 직접 확인해주세요."}<br/>운동 시작 시각: {draft?.activityTime}</p>
-        {(draft?.activityDate || draft?.date) && (draft?.activityDate || draft?.date) !== date && <p className={styles.feedback}>선택한 날짜와 사진에서 읽은 날짜가 달라요. 사진을 확인한 후 제출해주세요. 운영자에게 두 날짜가 함께 전달돼요.</p>}
+        {(draft?.activityDate || draft?.date) && (draft?.activityDate || draft?.date) !== date && <p className={styles.feedback}>선택한 날짜와 사진에서 읽은 날짜가 달라요. 사진을 확인한 후 제출해주세요. 운동한 날짜로 저장돼요.</p>}
         <div className={styles.field}>운동한 날짜<KoreanExerciseDate min="2026-08-13" max={today < "2026-12-31" ? today : "2026-12-31"} value={date} onChange={setDate} /></div>
         <label className={styles.field}>달린 거리 (km)<input required type="number" inputMode="decimal" min="0.001" max="300" step="0.001" placeholder="확인 필요" value={distance} onChange={e => setDistance(e.target.value)} /></label>
         <div className={styles.row}><label className={styles.field} style={{ flex: 1 }}>총 시간 (분)<input required type="number" inputMode="numeric" min="0" max="2880" step="1" placeholder="확인 필요" value={minutes} onChange={e => setMinutes(e.target.value)} /></label><label className={styles.field} style={{ flex: 1 }}>초<input required type="number" inputMode="numeric" min="0" max="59" step="1" value={seconds} onChange={e => setSeconds(e.target.value)} /></label></div>
-        <p className={styles.muted}>자동 인식값을 수정하면 원래 인식값과 함께 운영자에게 전달돼요. 같은 날의 기록을 중복 제출할 수 없어요.</p>
+        <p className={styles.muted}>인식값이 다르거나 비어 있으면 직접 수정해주세요. 제출하면 바로 인증 완료돼요.</p>
         <button className={styles.primary} type="submit" disabled={stage === "submitting"}>{stage === "submitting" ? "제출 중…" : "인증 제출"}</button>
         <button className={styles.secondary} type="button" disabled={stage === "submitting"} onClick={() => input.current?.click()}>다른 사진 선택</button>
       </form>}

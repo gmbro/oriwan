@@ -1,3 +1,4 @@
+import { loadHello2027ProfileImageUrls } from "@/lib/hello-2027-profile-image-storage";
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminDataAccess } from "@/lib/admin-data-access";
 import { isMissingTableError, missingSchemaResponse } from "@/lib/supabase-errors";
@@ -32,7 +33,8 @@ export async function GET() {
     return NextResponse.json({ error: "멤버 목록을 불러오지 못했어요." }, { status: 500 });
   }
 
-  return NextResponse.json({ participants: data || [] });
+  const images = await loadHello2027ProfileImageUrls(supabase, (data || []).map(p => p.id));
+  return NextResponse.json({ participants: (data || []).map(p => ({ ...p, profile_image_url: images[p.id] || null })) }, { headers: { "Cache-Control": "private, no-store" } });
 }
 
 export async function POST(request: NextRequest) {

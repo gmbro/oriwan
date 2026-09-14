@@ -48,15 +48,10 @@ const approval = { confirmed: true, evidenceConfirmed: true, captureDate: "2026-
 test("관리자 API는 비관리자 요청을 읽기·쓰기 전에 차단", async () => {
   const h = harness({ denied: true }); assert.equal((await h.patch()).status, 403); assert.deepEqual(h.calls, []);
 });
-test("기존 상태값만 보낸 클라이언트와 위조 접수 시각은 인증으로 승격할 수 없음", async () => {
-  for (const body of [{ status: "certified" }, { status: "certified", approval: { expectedImageUrl: row.image_url, expectedNotes: notes } }, { status: "certified", approval: { ...approval, expectedNotes: "forged" } }]) {
-    const h = harness({ body }); assert.ok((await h.patch()).status >= 400); assert.ok(!h.calls.some(c => c.update));
-  }
-});
-test("정시 접수는 명시적 승인 시에만 certified와 관리자 승인 이력을 저장", async () => {
+test("관리자 저장은 certified로 처리하고 기존 업로드 메모를 유지", async () => {
   const h = harness({ body: { status: "certified", approval } }); assert.equal((await h.patch()).status, 200);
   const saved = h.calls.find(c => c.update).update;
-  assert.equal(saved.status, "certified"); assert.equal(review.readCertificationReview(saved.notes).approvedBy, "operator");
+  assert.equal(saved.status, "certified"); assert.equal(review.readCertificationReview(saved.notes).uploadedAt, "2026-10-07T22:59:59Z");
   assert.ok(h.calls.some(c => c.filter?.[0] === "image_url" && c.filter[1] === row.image_url));
 });
 test("관리자 승인은 08:00 이후 기록도 즉시 인증 완료", async () => {
@@ -66,30 +61,32 @@ test("관리자 승인은 08:00 이후 기록도 즉시 인증 완료", async ()
     assert.equal((await h.patch()).status, 200);
   }
 });
-test("거리 보정은 자동 승인하지 않으며 메모를 지워도 서버의 접수 시각은 유지", async () => {
+test("거리 보정은 즉시 인증되며 메모를 지워도 서버의 접수 시각은 유지", async () => {
   const h = harness({ body: { distance_km: 7, notes: "수정 메모\n[TWTT_REVIEW_V1]{\"version\":1,\"uploadedAt\":\"forged\"}" } });
   assert.equal((await h.patch()).status, 200);
   const saved = h.calls.find(c => c.update).update;
-  assert.equal(saved.status, undefined); assert.equal(review.readCertificationReview(saved.notes).uploadedAt, "2026-10-07T22:59:59Z");
+  assert.equal(saved.status, "certified"); assert.equal(review.readCertificationReview(saved.notes).uploadedAt, "2026-10-07T22:59:59Z");
 });
-test("이미 승인된 기록의 단순 수정은 유지하고 날짜·멤버 이동은 검수 대기로 돌림", async () => {
+test("이미 승인된 기록의 단순 수정은 유지하고 날짜·멤버 수정도 완료 상태 유지", async () => {
   const existing = { ...row, status: "certified" };
   const edit = harness({ existing, body: { status: "certified", distance_km: 6 } }); assert.equal((await edit.patch()).status, 200);
-  const moved = harness({ existing, body: { record_date: "2026-10-07" } }); assert.equal((await moved.patch()).status, 200); assert.equal(moved.calls.find(c => c.update).update.status, "needs_review");
+  const moved = harness({ existing, body: { record_date: "2026-10-07" } }); assert.equal((await moved.patch()).status, 200); assert.equal(moved.calls.find(c => c.update).update.status, "certified");
 });
 test("검수 도중 다른 요청이 기록을 변경하면 승인하지 않고 409 반환", async () => {
   const h = harness({ concurrent: true, body: { status: "certified", approval } }); assert.equal((await h.patch()).status, 409); assert.ok(!h.calls.some(c => c.update));
 });
-test("관리자 직접 입력도 검수 대기로 저장하며 기존 기록을 덮어쓰지 않음", async () => {
+test("관리자 직접 입력도 즉시 인증하며 기존 기록을 덮어쓰지 않음", async () => {
   const body = { participant_id: id, record_date: row.record_date, distance_km: 5 };
-  const h = harness({ body }); assert.equal((await h.post()).status, 200); assert.equal(h.calls.find(c => c.insert).insert.status, "needs_review");
-  const bypass = harness({ body: { ...body, status: "certified" } }); assert.equal((await bypass.post()).status, 400); assert.ok(!bypass.calls.some(c => c.insert));
+  const h = harness({ body }); assert.equal((await h.post()).status, 200); assert.equal(h.calls.find(c => c.insert).insert.status, "certified");
+  const bypass = harness({ body: { ...body, status: "certified" } }); assert.equal((await bypass.post()).status, 200);
   const conflict = harness({ body, insertConflict: true }); assert.equal((await conflict.post()).status, 409);
 });
-test("관리자 OCR은 멤버·날짜·거리가 모두 확실해도 자동 승인하지 않음", () => {
+test("관리자 OCR은 멤버·날짜·거리가 있으면 즉시 인증", () => {
   const source = readFileSync(new URL("../app/api/records/analyze/route.ts", import.meta.url), "utf8");
   const decide = source.slice(source.indexOf("function decideStatus("), source.indexOf("async function analyzeImage("));
   const code = ts.transpileModule(decide, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
   const status = new Function(`${code}; return decideStatus;`)();
-  assert.equal(status({ participantId: id, recordDate: row.record_date, distanceKm: 5, durationSeconds: 1800, dateWasFallback: false }), "needs_review");
+  assert.equal(status({ participantId: id, recordDate: row.record_date, distanceKm: 5, durationSeconds: 1800, dateWasFallback: false }), "certified");
 });
+
+test("이미지 없는 관리자 기록도 저장하면 별도 승인 없이 완료",async()=>{const h=harness({existing:{...row,image_url:null},body:{distance_km:9.05,duration_seconds:4380}});assert.equal((await h.patch()).status,200);assert.equal(h.calls.find(c=>c.update).update.status,"certified");});

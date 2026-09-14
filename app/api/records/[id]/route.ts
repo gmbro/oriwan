@@ -117,30 +117,15 @@ export async function PATCH(
     || (typeof patch.participant_id === "string" && patch.participant_id !== existing.participant_id);
   const storedReview = readCertificationReview(existing.notes);
   const humanNotes = "notes" in patch ? visibleCertificationNotes(patch.notes as string | null) : visibleCertificationNotes(existing.notes);
-  const requiresApproval = patch.status === "certified" && (existing.status !== "certified" || identityChanged);
-  if (requiresApproval) {
-    const approval = body.approval && typeof body.approval === "object" ? body.approval as Record<string, unknown> : {};
-    if (approval.expectedImageUrl !== existing.image_url || approval.expectedNotes !== existing.notes) {
-      return NextResponse.json({ error: "인증샷이나 기록이 변경됐어요. 새로고침 후 다시 확인해주세요." }, { status: 409 });
-    }
-    const participantId = typeof patch.participant_id === "string" ? patch.participant_id : existing.participant_id;
-    const distance = distanceProvided ? distanceKm : existing.distance_km;
-    const duration = durationProvided ? durationSeconds : existing.duration_seconds;
-    if (!participantId || !((distance && distance > 0) || (duration && duration > 0)) || (distance !== null && (distance < 0 || distance > 300)) || (duration !== null && (duration < 0 || duration > 172800))) {
-      return NextResponse.json({ error: "멤버와 거리·시간을 먼저 확인해 저장해주세요." }, { status: 400 });
-    }
-    const result = reviewCertification({
-      recordDate: typeof patch.record_date === "string" ? patch.record_date : existing.record_date,
-      imageUrl: existing.image_url, review: storedReview, approval: body.approval, adminId: user.id,
-    });
-    if (!result.ok) return NextResponse.json({ error: result.error }, { status: 400 });
-    patch.notes = writeCertificationReview(humanNotes, result.review);
-  } else {
-    if (identityChanged && existing.status === "certified" && !patch.status) patch.status = "needs_review";
-    if (storedReview) patch.notes = writeCertificationReview(humanNotes, identityChanged || (patch.status && patch.status !== "certified")
-      ? { version: 1, uploadedAt: storedReview.uploadedAt } : storedReview);
-    else if ("notes" in patch) patch.notes = humanNotes || null;
+  // Saving a complete record is sufficient; no separate review workflow.
+  const participantId = typeof patch.participant_id === "string" ? patch.participant_id : existing.participant_id;
+  const distance = distanceProvided ? distanceKm : existing.distance_km;
+  const duration = durationProvided ? durationSeconds : existing.duration_seconds;
+  if (!patch.status || patch.status === "needs_review" || patch.status === "certified") {
+    if (participantId && ((distance && distance > 0) || (duration && duration > 0))) patch.status = "certified";
   }
+  if (storedReview) patch.notes = writeCertificationReview(humanNotes, storedReview);
+  else if ("notes" in patch) patch.notes = humanNotes || null;
   let update = supabase.from("daily_run_records").update(patch)
     .eq("id", id).eq("user_id", user.id).eq("season_key", FOURTH_SEASON_KEY);
   // A concurrent re-upload/edit must not approve an image the admin never saw.
