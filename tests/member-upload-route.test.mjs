@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import ts from "typescript";
-import { memberEvidenceIssues, hasMemberUploadEvidence, MEMBER_UPLOAD_BUCKET, MEMBER_UPLOAD_DRAFT_PATTERN, ownsFreshDraft, validateMemberSubmission } from "../lib/member-upload-contract.ts";
+import { memberCertificationDateError, memberEvidenceIssues, hasMemberUploadEvidence, MEMBER_UPLOAD_BUCKET, MEMBER_UPLOAD_DRAFT_PATTERN, ownsFreshDraft, validateMemberSubmission } from "../lib/member-upload-contract.ts";
 
 // Execute the actual POST body with injected auth/storage/DB ports. Tests never
 // contact production and deliberately send forged ownership/status fields.
@@ -24,10 +24,10 @@ function harness(overrides = {}) {
   const deps = {
     guardMutationRequest: () => null, ownedMember: async () => owned,
     readMemberJson: async () => ({ body }), MEMBER_UPLOAD_DRAFT_PATTERN, validateMemberSubmission,
-    toKstIsoDate: () => "2026-10-08", privateJson: json,
+    toKstIsoDate: overrides.today || (() => "2026-10-08"), privateJson: json,
     privateUploadStore: async () => { calls.push({ storage: true }); return {}; },
     uploadPrefix: (owner, id) => `4th/${owner}/${id}`, readUploadDraft: async () => draft,
-    memberEvidenceIssues, hasMemberUploadEvidence, writeCertificationReview, ownsFreshDraft, MEMBER_UPLOAD_BUCKET, FOURTH_SEASON_KEY: "4th",
+    memberCertificationDateError, memberEvidenceIssues, hasMemberUploadEvidence, writeCertificationReview, ownsFreshDraft, MEMBER_UPLOAD_BUCKET, FOURTH_SEASON_KEY: "4th",
     calculatePaceSeconds: (distance, duration) => Math.round(duration / distance),
     invalidatePublicDashboardCache: () => calls.push({ invalidated: true }),
     after: () => {}, broadcastDashboardRefreshFromServer: () => {},
@@ -67,4 +67,19 @@ test("OCR 값이 없어도 회원이 입력한 유효한 기록은 즉시 인증
     assert.equal(result.status, 201);
     assert.equal(h.calls.find(c => c.insert).insert.status, "certified");
   }
+});
+
+test("개인 POST: 과거 날짜는 운영자 문의 안내 후 저장하지 않음", async () => {
+  const h = harness({body:{date:"2026-10-07"}});
+  const result=await h.POST({});assert.equal(result.status,422);assert.equal(result.body.error,"이전 운동 기록은 운영자에게 문의해주세요.");assert.ok(!h.calls.some(c=>c.insert));
+});
+test("개인 POST: 요청 날짜를 오늘로 바꿔도 과거 OCR 사진은 거절", async () => {
+  for (const draft of [{activityDate:"2026-10-07"},{date:"2026-10-07"},{date:null,activityDate:null}]) {
+    const h=harness({draft});assert.equal((await h.POST({})).status,422);assert.ok(!h.calls.some(c=>c.insert));
+  }
+});
+test("개인 POST: 미래 운동 날짜 및 자정 경과 후 제출은 거절", async () => {
+  const future=harness({draft:{activityDate:"2026-10-09"}});assert.equal((await future.POST({})).status,422);
+  let calls=0;const midnight=harness({today:()=>++calls===1?"2026-10-08":"2026-10-09"});
+  const response=await midnight.POST({});assert.equal(response.status,422);assert.match(response.body.error,/운영자에게 문의/);assert.ok(!midnight.calls.some(c=>c.insert));
 });

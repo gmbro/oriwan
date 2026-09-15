@@ -1,7 +1,7 @@
 "use client";
 import {useCallback,useEffect,useRef,useState} from "react";
 import {reduceScreenshot} from "./my-activity-upload";
-import type {MemberUploadDraft} from "@/lib/member-upload-contract";
+import {memberCertificationDateError, type MemberUploadDraft} from "@/lib/member-upload-contract";
 import {openMyActivity} from "./my-activity-dialog";
 import {certificationDay,untilNextCertificationDay,hasCertification,certificationFailure} from "@/lib/certification-ui";
 import {DASHBOARD_REFRESH_DOM_EVENT} from "@/lib/dashboard-refresh-contract";
@@ -27,6 +27,8 @@ export function QuickCertification({today,onSaved}:{today:string;onSaved:()=>voi
  const save=async(value:MemberUploadDraft)=>{
   if(value.analysisError)throw new CertificationError(502, `ocr:${value.analysisError}`);
   const date=value.activityDate||value.date;
+  const dateError=memberCertificationDateError(date,certificationDay());
+  if(dateError)throw new CertificationError(422,dateError);
   if(!date||value.distanceKm===null||value.durationSeconds===null)throw new CertificationError(400,"날짜·거리·시간 인식 실패");
   const response=await fetch("/api/me/records",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({draftId:value.id,date,distanceKm:value.distanceKm,durationSeconds:value.durationSeconds})});
   const data=await response.json();if(!response.ok||!data.record?.id)throw new CertificationError(response.status,data.error||"");
@@ -37,7 +39,7 @@ export function QuickCertification({today,onSaved}:{today:string;onSaved:()=>voi
   let value=draft;
   if(file){setDraft(null);const prepared=await reduceScreenshot(file);const form=new FormData();form.set("file",prepared);const response=await fetch("/api/me/records/analyze",{method:"POST",body:form});const data=await response.json();if(!response.ok||!data.draft)throw new CertificationError(response.status,data.error||"");value=data.draft;setDraft(value);}
   if(value)await save(value);
- }catch(e){let done=false;if(e instanceof CertificationError&&e.status===409)done=await refresh().catch(()=>false);if(alive.current&&!done)window.alert(certificationFailure(e instanceof CertificationError?e.status:0,e instanceof Error?e.message:""));}finally{busy.current=false;if(alive.current)setPending(false);if(input.current)input.current.value="";}};
+ }catch(e){if(e instanceof CertificationError&&e.status===422)setDraft(null);let done=false;if(e instanceof CertificationError&&e.status===409)done=await refresh().catch(()=>false);if(alive.current&&!done)window.alert(certificationFailure(e instanceof CertificationError?e.status:0,e instanceof Error?e.message:""));}finally{busy.current=false;if(alive.current)setPending(false);if(input.current)input.current.value="";}};
  const choose=()=>{if(!available){void refresh().catch(e=>window.alert(certificationFailure(e instanceof CertificationError?e.status:0)));return;}input.current?.click();};
  return <div className={styles.quickCertification}>
  <input ref={input} hidden type="file" accept="image/jpeg,image/png,image/webp" onChange={e=>void run(e.target.files?.[0])}/>

@@ -47,3 +47,10 @@ export function memberEvidenceIssues(draft: MemberUploadDraft): string[] {
     issues.push("사진에서 유효한 운동 거리를 읽지 못했어요. 거리와 km·m 단위가 보이는 캡처를 선택해주세요.");
   return issues;
 }
+
+export function memberCertificationDateError(date: string | null | undefined, today: string): string | null {
+  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return "운동 날짜가 보이는 캡처본을 올려주세요.";
+  if (date < today) return "이전 운동 기록은 운영자에게 문의해주세요.";
+  if (date > today) return "미래 날짜의 운동은 인증할 수 없어요.";
+  return null;
+}

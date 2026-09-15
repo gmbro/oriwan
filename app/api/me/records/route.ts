@@ -1,6 +1,6 @@
 import { writeCertificationReview } from "@/lib/certification-review";
 import { after, NextRequest, NextResponse } from "next/server";
-import { memberEvidenceIssues, hasMemberUploadEvidence, MEMBER_UPLOAD_BUCKET, MEMBER_UPLOAD_DRAFT_PATTERN, ownsFreshDraft, validateMemberSubmission } from "@/lib/member-upload-contract";
+import { memberCertificationDateError, MEMBER_UPLOAD_BUCKET, MEMBER_UPLOAD_DRAFT_PATTERN, ownsFreshDraft, validateMemberSubmission } from "@/lib/member-upload-contract";
 import { ownedMember, privateUploadStore, readMemberJson, readUploadDraft, uploadPrefix } from "@/lib/member-upload-server";
 import { loadHello2027ProfileImageUrls } from "@/lib/hello-2027-profile-image-storage";
 import { invalidatePublicDashboardCache } from "@/lib/public-dashboard-data";
@@ -178,7 +178,10 @@ export async function POST(request: NextRequest) {
   if ("response" in parsed) return parsed.response;
   const { body } = parsed;
   if (typeof body.draftId !== "string" || !MEMBER_UPLOAD_DRAFT_PATTERN.test(body.draftId)) return privateJson({ error: "인증샷을 먼저 선택해주세요." }, 400);
-  const values = validateMemberSubmission(body, toKstIsoDate());
+  const today = toKstIsoDate();
+  const submittedDateError = memberCertificationDateError(typeof body.date === "string" ? body.date : null, today);
+  if (submittedDateError) return privateJson({ error: submittedDateError }, 422);
+  const values = validateMemberSubmission(body, today);
   if (!values.ok) return privateJson({ error: values.error }, 400);
   try {
     const { service, authUserId } = owned.context;
@@ -186,6 +189,12 @@ export async function POST(request: NextRequest) {
     const prefix = uploadPrefix(authUserId, body.draftId);
     const draft = await readUploadDraft(store, prefix);
     if (!draft || !ownsFreshDraft(draft, owned.participantId)) return privateJson({ error: "인증샷 확인 시간이 지났어요. 사진을 다시 선택해주세요." }, 410);
+    // Check the server-stored OCR date, never a client-supplied replacement date.
+    // Re-read today's date after storage I/O in case the request crossed midnight.
+    const currentDay = toKstIsoDate();
+    const dateError = memberCertificationDateError(draft.activityDate || draft.date, currentDay)
+      || memberCertificationDateError(values.date, currentDay);
+    if (dateError) return privateJson({ error: dateError }, 422);
     const imagePath = `${MEMBER_UPLOAD_BUCKET}/${prefix}/image.webp`;
     // Resolve ownership on the server and certify submitted records immediately.
     // The unique member/date index prevents duplicate submissions.
