@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { hasAuthenticatedFourthViewer } from "@/lib/fourth-viewer-server";
 import { getServiceClient } from "@/lib/admin-data";
 import { privateUploadStore } from "@/lib/member-upload-server";
 import { certificationDay } from "@/lib/certification-ui";
@@ -17,9 +17,8 @@ async function handle(request: NextRequest, send: boolean) {
     : guardReadRequest(request, { requireSameOrigin: true, rateLimit: { key: "crew-cheer-read", limit: 60, windowMs: 60_000 } });
   if (guard) return guard;
   try {
-    const auth = await createClient();
-    const { data } = await auth.auth.getClaims();
-    if (data?.claims?.sub) return json({ visible: false }, send ? 403 : 200);
+    // Match the public header: a legacy email/admin session is not a Kakao member login.
+    if (await hasAuthenticatedFourthViewer()) return json({ visible: false }, send ? 403 : 200);
     let reaction: string | null = null;
     if (send) {
       const parsed = await readLimitedJson(request, 1024);
