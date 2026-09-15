@@ -1,0 +1,13 @@
+.cheer{position:relative;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin:0 4px 18px;padding:16px 20px;background:#edf5ff;border-radius:18px;color:#4e5968}
+.label{font-size:14px;font-weight:600;word-break:keep-all}
+.actions{display:grid;grid-template-columns:repeat(4,minmax(44px,1fr));gap:8px}
+.cheer button{min-height:44px;padding:8px 12px;border:0;border-radius:12px;background:#fff;color:#2272db;font-size:24px;line-height:1.2;font-weight:700;cursor:pointer}
+.cheer button:disabled{cursor:default;opacity:.5}.cheer button[aria-pressed=true]{opacity:1;background:#dbeafe;box-shadow:inset 0 0 0 2px #80b5ff}
+.cheer button:focus-visible{outline:3px solid #90c2ff;outline-offset:3px}
+.error{width:100%;margin:0;font-size:12px;color:#c43c45}
+.heart{position:absolute;right:55px;top:8px;pointer-events:none;animation:float 850ms ease-out forwards;font-size:24px}
+@keyframes float{from{transform:translateY(0) scale(.8);opacity:1}to{transform:translateY(-38px) scale(1.3);opacity:0}}
+.status:empty{display:none}.status{flex-basis:100%;font-size:12px;color:#2272db}
+@media(max-width:480px){.cheer{align-items:stretch;flex-direction:column;padding:16px;gap:10px}.actions{display:grid;grid-template-columns:repeat(4,minmax(44px,1fr));gap:8px}
+.cheer button{width:100%}.heart{right:calc(50% - 12px);top:45px}}
+@media(prefers-reduced-motion:reduce){.heart{animation:none;display:none}}

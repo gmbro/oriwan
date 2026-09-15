@@ -1,6 +1,7 @@
 "use client";
 
 import { projectDashboardRecords } from "@/lib/dashboard-record-visibility";
+import { VisitorCrewCheer } from "@/components/visitor-crew-cheer";
 import { PersonalGoalBanner } from "@/components/personal-goal-banner";
 import { PublicSiteHeader } from "@/components/public-site-header";
 import { SeasonSchedule } from "@/components/season-schedule";
@@ -242,6 +243,7 @@ export function Hello2027Poc({
                 </div>
               </div>
 
+              {memberFeatures && viewerState?.viewer && !viewerState.loading && !viewerState.error && !viewerState.viewer.authenticated && <VisitorCrewCheer />}
               <ul className={styles.participantGrid}>
                 {([...sortedParticipants].sort((a,b)=>Number(b.id===viewerState?.viewer?.participant_id)-Number(a.id===viewerState?.viewer?.participant_id))).slice(0, visibleMembers).map((participant) => (
                   <li key={participant.id}>
@@ -272,7 +274,7 @@ export function Hello2027Poc({
             </section>
           ) : <FourthSeasonMemberEmptyState />}
 
-          <SeasonSchedule today={seoulToday} />
+          <SeasonSchedule today={seoulToday} authenticated={Boolean(viewerState?.viewer?.authenticated)} />
 
           {viewerState?.viewer?.approved_participant && <Hello2027Guestbook
             initialThreads={snapshot.guestbook}

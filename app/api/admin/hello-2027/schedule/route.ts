@@ -1,3 +1,4 @@
+import { privateUploadStore } from "@/lib/member-upload-server";
 import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminDataAccess } from "@/lib/admin-data-access";
@@ -19,7 +20,7 @@ export async function POST(request: NextRequest) {
   if (!event) return json({ error: "2026년 9월~2027년 1월 1일 날짜와 제목, 시간 형식을 확인해주세요." }, 400);
   const id = body.value.id === undefined ? randomUUID() : body.value.id;
   if (typeof id !== "string" || !EVENT_ID.test(id)) return json({ error: "일정 번호가 올바르지 않아요." }, 400);
-  const { error } = await access.service.storage.from("photos").upload(`${scheduleDirectory(access.user.id)}/${id}.txt`, JSON.stringify(event), { upsert: true, contentType: "text/plain" });
+  const { error } = await (await privateUploadStore(access.service)).upload(`${scheduleDirectory(access.user.id)}/${id}.txt`, JSON.stringify(event), { upsert: true, contentType: "application/json" });
   return error ? json({ error: "저장하지 못했어요. 입력 내용은 유지됩니다." }, 503) : json({ item: { id, ...event } });
 }
 export async function DELETE(request: NextRequest) {
@@ -27,6 +28,6 @@ export async function DELETE(request: NextRequest) {
   const access = await requireAdminDataAccess(); if (!access.ok) return access.response;
   const id = request.nextUrl.searchParams.get("id");
   if (!id || !EVENT_ID.test(id)) return json({ error: "일정 번호가 올바르지 않아요." }, 400);
-  const { error } = await access.service.storage.from("photos").remove([`${scheduleDirectory(access.user.id)}/${id}.txt`]);
+  const { error } = await (await privateUploadStore(access.service)).remove([`${scheduleDirectory(access.user.id)}/${id}.txt`]);
   return error ? json({ error: "삭제하지 못했어요." }, 503) : json({ ok: true });
 }

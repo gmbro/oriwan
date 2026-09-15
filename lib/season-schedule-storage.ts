@@ -1,11 +1,12 @@
 import "server-only";
+import { privateUploadStore } from "./member-upload-server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { parseSeasonEvent, type SeasonEvent } from "./season-schedule-contract";
 export const EVENT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 // Local edits use a separate namespace so preview schedules never appear in production.
 export function scheduleDirectory(owner: string) { return `hello-2027/schedules/${process.env.NODE_ENV === "development" ? "local" : "live"}/${owner}`; }
 export async function readSeasonEvents(service: SupabaseClient, owner: string): Promise<SeasonEvent[]> {
-  const bucket = service.storage.from("photos");
+  const bucket = await privateUploadStore(service);
   const directory = scheduleDirectory(owner);
   const { data, error } = await bucket.list(directory, { limit: 1000 });
   if (error) throw error;

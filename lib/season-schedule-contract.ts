@@ -14,3 +14,7 @@ export function parseSeasonEvent(value: unknown): Omit<SeasonEvent, "id"> | null
   if (endDate === null || (endDate && (!/^\d{4}-\d{2}-\d{2}$/.test(endDate) || endDate < date || endDate > SCHEDULE_END || !Number.isFinite(Date.parse(endDate)) || new Date(endDate).toISOString().slice(0,10) !== endDate))) return null;
   return { date, ...(endDate ? {endDate} : {}), time, title, location, description, ...(endTime ? {endTime} : {}) };
 }
+
+export function publicSeasonEvent(event: SeasonEvent) {
+  return { id: event.id, date: event.date, ...(event.endDate ? { endDate: event.endDate } : {}), title: event.title };
+}
