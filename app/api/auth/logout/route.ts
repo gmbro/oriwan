@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { guardMutationRequest } from "@/lib/request-security";
-import { clearAdminSessionCookie } from "@/lib/admin-server";
 import { logServerFailure } from "@/lib/server-error-log";
 import { createClient } from "@/lib/supabase/server";
 
@@ -20,7 +19,6 @@ export async function POST(request: NextRequest) {
       { error: "로그아웃하지 못했어요. 잠시 후 다시 시도해주세요." },
       { status: 502, headers: { "Cache-Control": "private, no-store, max-age=0", Vary: "Cookie" } },
     );
-    clearAdminSessionCookie(response);
     return response;
   }
 
@@ -28,6 +26,5 @@ export async function POST(request: NextRequest) {
     { ok: true },
     { headers: { "Cache-Control": "private, no-store, max-age=0", Vary: "Cookie" } },
   );
-  clearAdminSessionCookie(response);
   return response;
 }

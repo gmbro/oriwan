@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createAdminAuthClient } from "@/lib/admin-auth-client";
 import { ADMIN_EMAIL, isAdminEmail } from "@/lib/admin";
 import { clearAdminSessionCookie, hasValidAdminSession, setAdminSessionCookie } from "@/lib/admin-server";
 import { guardMutationRequest, readLimitedJson } from "@/lib/request-security";
@@ -8,12 +9,13 @@ import { createClient } from "@/lib/supabase/server";
 const VERIFY_TYPES = ["email", "magiclink", "signup"] as const;
 const PRIVATE_HEADERS = { "Cache-Control": "private, no-store, max-age=0", Vary: "Cookie" };
 
-async function getConfiguredAuthClient() {
+async function getConfiguredAuthClient(allowLegacy = false) {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return null;
   }
   try {
-    return await createClient();
+    if(allowLegacy)return await createAdminAuthClient();
+    return await createClient({ cookieName: "twtt-admin-auth", requireCookieWrites: true });
   } catch (error) {
     logServerFailure("Admin session client", error);
     return null;
@@ -25,7 +27,6 @@ function authUnavailableResponse() {
     { authenticated: false, error: "운영 서버의 Supabase 인증 환경변수를 먼저 설정해주세요." },
     { status: 503, headers: PRIVATE_HEADERS },
   );
-  clearAdminSessionCookie(response);
   return response;
 }
 
@@ -41,20 +42,19 @@ function adminUserResponse(user: { id: string; email?: string | null; user_metad
 }
 
 export async function GET() {
-  const supabase = await getConfiguredAuthClient();
+  const supabase = await getConfiguredAuthClient(true);
   if (!supabase) return authUnavailableResponse();
   const { data, error } = await supabase.auth.getClaims();
   const claims = data?.claims ?? null;
 
-  if (error || !claims || !isAdminEmail(claims.email)) {
+  if (error) return NextResponse.json({authenticated:false,error:"로그인 상태를 확인하지 못했어요. 다시 시도해주세요."},{status:503,headers:PRIVATE_HEADERS});
+  if (!claims || !isAdminEmail(claims.email)) {
     const response = NextResponse.json({ authenticated: false, error: "관리자 이메일 인증이 필요해요." }, { status: claims ? 403 : 401 });
-    clearAdminSessionCookie(response);
     return response;
   }
 
   if (!(await hasValidAdminSession(claims.sub))) {
     const response = NextResponse.json({ authenticated: false, error: "관리자 이메일 인증이 필요해요." }, { status: 401 });
-    clearAdminSessionCookie(response);
     return response;
   }
 
@@ -141,13 +141,11 @@ export async function POST(request: NextRequest) {
     if (error?.status === 429) break;
   }
 
-  await supabase.auth.signOut({ scope: "local" });
   const response = NextResponse.json({
     error: lastErrorMessage.includes("rate limit") || lastErrorMessage.includes("429")
       ? "요청이 잠시 몰렸어요. 1분 정도 뒤 새 인증번호로 다시 시도해주세요."
       : "인증번호가 맞지 않거나 만료됐어요. 새 번호를 받아 다시 들어와주세요.",
   }, { status: 401 });
-  clearAdminSessionCookie(response);
   return response;
 }
 
@@ -155,7 +153,7 @@ export async function DELETE(request: NextRequest) {
   const guardResponse = guardMutationRequest(request, { maxBodyBytes: 1024 });
   if (guardResponse) return guardResponse;
 
-  const supabase = await getConfiguredAuthClient();
+  const supabase = await getConfiguredAuthClient(true);
   if (!supabase) return authUnavailableResponse();
   await supabase.auth.signOut({ scope: "local" });
 

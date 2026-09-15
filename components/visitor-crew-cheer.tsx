@@ -45,7 +45,7 @@ export function VisitorCrewCheer() {
   if (!visible) return null;
   return <div className={styles.cheer} aria-label="크루 응원">
     <span className={styles.label}>함께 달리는 크루에게</span>
-    <div className={styles.actions} role="group" aria-label="응원 이모지 선택">{CREW_CHEERS.map(cheer=><button key={cheer.type} type="button" aria-label={`${cheer.label} 응원 보내기`} title={cheer.label} aria-pressed={sent&&reaction===cheer.type} onClick={()=>void send(cheer.type)} disabled={sent || pending || (!ready&&!error)}><span aria-hidden="true">{cheer.emoji}</span></button>)}</div>
+    <div className={styles.actions} role="group" aria-label="응원 이모지 선택">{CREW_CHEERS.filter(cheer=>cheer.type==="heart").map(cheer=><button key={cheer.type} type="button" aria-label={`${cheer.label} 응원 보내기`} title={cheer.label} aria-pressed={sent} onClick={()=>void send(cheer.type)} disabled={sent || pending || (!ready&&!error)}><span aria-hidden="true">{cheer.emoji}</span></button>)}</div>
     <span className={styles.status} role="status">{sent?"응원을 보냈어요 ✓":pending?"보내는 중…":""}</span>
     {celebrate&&<span aria-hidden="true" className={styles.heart} onAnimationEnd={()=>setCelebrate(false)}>{CREW_CHEERS.find(cheer=>cheer.type===reaction)?.emoji}</span>}
     {error&&<p role="alert" className={styles.error}>{error}</p>}

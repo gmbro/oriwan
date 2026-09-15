@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 
 type CreateClientOptions = {
   requireCookieWrites?: boolean;
+  cookieName?: string;
 };
 
 /**
@@ -16,7 +17,7 @@ export async function createClient(options: CreateClientOptions = {}) {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
-      cookieOptions: { maxAge: 60 * 60 * 24 * 365, path: "/", sameSite: "lax", secure: process.env.NODE_ENV === "production" },
+      cookieOptions: { ...(options.cookieName ? {name:options.cookieName} : {}), maxAge: 60 * 60 * 24 * 365, path: "/", sameSite: "lax", secure: process.env.NODE_ENV === "production" },
       cookies: {
         getAll() {
           return cookieStore.getAll();

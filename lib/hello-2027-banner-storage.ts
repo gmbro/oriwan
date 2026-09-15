@@ -11,9 +11,8 @@ import { FOURTH_SEASON_KEY } from "@/lib/fourth-season-contract";
 
 export const HELLO_2027_BANNER_STORAGE_BUCKET = "photos";
 export const HELLO_2027_BANNER_IMAGE_ROUTE = "/api/hello-2027/banner-image";
-// Vercel Functions accept at most 4.5 MB per request. Keep the file itself at
-// 4 MiB so the multipart envelope stays below the platform limit.
-export const MAX_HELLO_2027_BANNER_IMAGE_BYTES = 4 * 1024 * 1024;
+// The browser accepts 20 MB originals and optimizes transfer below 3 MB.
+export const MAX_HELLO_2027_BANNER_IMAGE_BYTES = 20 * 1024 * 1024;
 export const HELLO_2027_BANNER_IMAGE_MIME_TYPES = [
   "image/jpeg",
   "image/png",
@@ -93,7 +92,7 @@ export async function validateHello2027BannerImage(file: File): Promise<BannerIm
     return { ok: false, error: "내용이 없는 이미지는 올릴 수 없어요.", status: 400 };
   }
   if (file.size > MAX_HELLO_2027_BANNER_IMAGE_BYTES) {
-    return { ok: false, error: "배너 이미지는 4MB 이하로 올려주세요.", status: 413 };
+    return { ok: false, error: "배너 이미지는 20MB 이하로 올려주세요.", status: 413 };
   }
   if (!(HELLO_2027_BANNER_IMAGE_MIME_TYPES as readonly string[]).includes(file.type)) {
     return { ok: false, error: "JPG, PNG, WebP 이미지만 올릴 수 있어요.", status: 415 };
@@ -109,7 +108,7 @@ export async function validateHello2027BannerImage(file: File): Promise<BannerIm
     return {
       ok: false,
       error: bytes.byteLength > MAX_HELLO_2027_BANNER_IMAGE_BYTES
-        ? "배너 이미지는 4MB 이하로 올려주세요."
+        ? "배너 이미지는 20MB 이하로 올려주세요."
         : "내용이 없는 이미지는 올릴 수 없어요.",
       status: bytes.byteLength > MAX_HELLO_2027_BANNER_IMAGE_BYTES ? 413 : 400,
     };
@@ -151,7 +150,7 @@ export async function validateHello2027BannerImage(file: File): Promise<BannerIm
         : await normalized.webp({ quality: 90 }).toBuffer();
 
     if (output.byteLength <= 0 || output.byteLength > MAX_HELLO_2027_BANNER_IMAGE_BYTES) {
-      return { ok: false, error: "변환된 배너 이미지가 4MB를 넘어요. 더 작은 이미지를 사용해주세요.", status: 413 };
+      return { ok: false, error: "변환된 배너 이미지가 20MB를 넘어요. 더 작은 이미지를 사용해주세요.", status: 413 };
     }
 
     // Sharp re-encoding verifies decodability and strips EXIF/GPS metadata.

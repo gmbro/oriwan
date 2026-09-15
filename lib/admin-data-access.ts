@@ -5,6 +5,7 @@ import { NextResponse } from "next/server";
 import { getServiceClient } from "@/lib/admin-data";
 import { requireAdminUser, type AdminSessionUser } from "@/lib/admin-server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminAuthClient } from "@/lib/admin-auth-client";
 
 type AdminDataAccess =
   | {
@@ -24,7 +25,7 @@ type AdminDataAccess =
 export async function requireAdminDataAccess(): Promise<AdminDataAccess> {
   let authClient: Awaited<ReturnType<typeof createClient>>;
   try {
-    authClient = await createClient();
+    authClient = await createAdminAuthClient();
   } catch {
     console.error("Admin data access is unavailable because Supabase auth is not configured.");
     return {

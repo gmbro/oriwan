@@ -1,5 +1,5 @@
 export const CREW_CHEERS = [
-  {type:"heart",emoji:"💙",label:"하트"},
+  {type:"heart",emoji:"❤️",label:"하트"},
   {type:"clap",emoji:"👏",label:"박수"},
   {type:"smile",emoji:"😊",label:"웃음"},
   {type:"run",emoji:"🏃",label:"달리기"},

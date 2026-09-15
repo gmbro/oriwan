@@ -19,6 +19,8 @@ export const config = {
     // Public content and image routes do not use the viewer's session. Avoid
     // refreshing auth before every avatar/banner request on the dashboard.
     "/api/hello-2027/viewer",
+    "/api/hello-2027/schedule",
+    "/api/crew-cheers",
     "/api/hello-2027/comments/:path*",
     "/api/admin/:path*",
   ],

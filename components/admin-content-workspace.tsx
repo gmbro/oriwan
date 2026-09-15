@@ -1,4 +1,5 @@
 "use client";
+import { prepareBannerImage, MAX_BANNER_SOURCE_BYTES } from "@/lib/banner-image-upload";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -94,7 +95,7 @@ const EMPTY_BANNER: BannerDraft = {
 };
 
 const BANNER_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
-const MAX_BANNER_IMAGE_BYTES = 4 * 1024 * 1024;
+const MAX_BANNER_IMAGE_BYTES = MAX_BANNER_SOURCE_BYTES;
 
 const ADMIN_DATE_TIME_FORMATTER = new Intl.DateTimeFormat("ko-KR", {
   dateStyle: "medium",
@@ -597,6 +598,7 @@ function BannerForm({
   onSubmit: (draft: BannerDraft) => Promise<void>;
 }) {
   const [draft, setDraft] = useState(initial);
+  const [previewMode,setPreviewMode] = useState<"desktop"|"mobile">("desktop");
   const [uploadingImage, setUploadingImage] = useState(false);
   const [uploadNotice, setUploadNotice] = useState<Notice | null>(null);
   const [localPreviewUrl, setLocalPreviewUrl] = useState("");
@@ -638,7 +640,7 @@ function BannerForm({
       return;
     }
     if (file.size <= 0 || file.size > MAX_BANNER_IMAGE_BYTES) {
-      setUploadNotice({ tone: "error", message: "이미지는 한 장당 최대 4MB까지 올릴 수 있어요." });
+      setUploadNotice({ tone: "error", message: "이미지는 한 장당 최대 20MB까지 올릴 수 있어요." });
       return;
     }
 
@@ -648,9 +650,9 @@ function BannerForm({
     setUploadNotice({ tone: "info", message: "이미지를 안전하게 업로드하고 있어요." });
     setUploadingImage(true);
 
-    const formData = new FormData();
-    formData.append("file", file);
     try {
+      const formData = new FormData();
+      formData.append("file", await prepareBannerImage(file));
       const json = await apiRequest<{ imageUrl?: string }>("/api/admin/hello-2027/banner-image", {
         method: "POST",
         body: formData,
@@ -724,7 +726,7 @@ function BannerForm({
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-xs font-black text-oriwan-text">내 컴퓨터에서 이미지 업로드</p>
-            <p className="mt-1 text-[11px] font-semibold leading-5 text-oriwan-text-muted">JPG, PNG, WebP · 최대 4MB · 권장 가로형 비율 1915:821</p>
+            <p className="mt-1 text-[11px] font-semibold leading-5 text-oriwan-text-muted">JPG, PNG, WebP · 최대 20MB · 권장 가로형 비율 1915:821</p>
             {selectedImage ? (
               <p className="mt-1 max-w-xl truncate text-[11px] font-black text-blue-700">{selectedImage.name} · {formatBannerImageSize(selectedImage.size)}</p>
             ) : null}
@@ -765,9 +767,12 @@ function BannerForm({
         </label>
       </div>
       {previewSource && imagePreviewAllowed ? (
-        <div className="mt-4 overflow-hidden rounded-2xl bg-slate-900 ring-1 ring-slate-950/10">
-          <div role="img" aria-label={draft.alt_text || "배너 이미지 미리보기"} className="h-32 bg-cover bg-center sm:h-40" style={{ backgroundImage: `url(${JSON.stringify(previewSource)})`, backgroundPosition: draft.mobile_focus }} />
-          <p className="bg-slate-950/90 px-3 py-2 text-[11px] font-bold text-white/80">모바일 초점 미리보기 · {draft.mobile_focus === "left" ? "왼쪽" : draft.mobile_focus === "right" ? "오른쪽" : "가운데"}</p>
+        <div className="mt-4">
+          <div className="mb-2 flex items-center gap-2"><span className="mr-auto text-xs font-bold text-slate-600">배너 미리보기</span>{(["desktop","mobile"] as const).map(mode=><button key={mode} type="button" aria-pressed={previewMode===mode} onClick={()=>setPreviewMode(mode)} className={`min-h-9 rounded-lg px-3 text-xs ${previewMode===mode?"bg-blue-600 text-white":"bg-white text-slate-600"}`}>{mode==="desktop"?"PC":"모바일"}</button>)}</div>
+          <div className={`relative overflow-hidden rounded-2xl bg-slate-900 ${previewMode==="mobile"?"mx-auto max-w-[360px] aspect-[4/3]":"aspect-[1915/821]"}`}>
+            <div role="img" aria-label={draft.alt_text || "배너 이미지 미리보기"} className="absolute inset-0 bg-cover" style={{backgroundImage:`url(${JSON.stringify(previewSource)})`,backgroundPosition:previewMode==="mobile"?draft.mobile_focus:"center"}} />
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/30 p-5 text-center text-white"><p className="text-xs">{draft.owner_name}님의 광고</p><h3 className="mt-3 whitespace-pre-wrap break-words text-xl font-bold">{draft.title}</h3><p className="mt-3 whitespace-pre-wrap break-words text-sm">{draft.description}</p></div>
+          </div>
         </div>
       ) : draft.image_url ? (
         <p className="mt-4 rounded-2xl bg-amber-50 px-3 py-2.5 text-[11px] font-bold leading-5 text-amber-900 ring-1 ring-amber-200" role="status">
