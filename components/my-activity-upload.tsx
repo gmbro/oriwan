@@ -5,7 +5,7 @@ import { MEMBER_UPLOAD_MAX_BYTES, type MemberUploadDraft } from "@/lib/member-up
 import { KoreanExerciseDate, formatKoreanExerciseDate } from "./korean-exercise-date";
 import styles from "./my-activity.module.css";
 
-async function reduceScreenshot(file: File) {
+export async function reduceScreenshot(file: File) {
   if (!["image/jpeg", "image/png", "image/webp"].includes(file.type) || file.size > 20 * 1024 * 1024) throw new Error("20MB 이하의 JPG, PNG, WebP 사진을 선택해주세요.");
   if (file.size <= 700 * 1024) return file;
   const bitmap = await createImageBitmap(file);
@@ -24,7 +24,7 @@ async function reduceScreenshot(file: File) {
   } finally { bitmap.close(); }
 }
 
-export default function MyActivityUpload({ today, onSubmitted, onViewRecords, preview = false }: { today: string; onSubmitted: () => void; onViewRecords?: () => void; preview?: boolean }) {
+export default function MyActivityUpload({ today, onSubmitted, onViewRecords, preview = false }: { today: string; onSubmitted: (date?: string) => void; onViewRecords?: () => void; preview?: boolean }) {
   const [stage, setStage] = useState<"choose" | "uploading" | "analyzing" | "confirm" | "submitting" | "done">("choose");
   const [draft, setDraft] = useState<MemberUploadDraft | null>(null);
   const [progress, setProgress] = useState(0);
@@ -78,7 +78,7 @@ export default function MyActivityUpload({ today, onSubmitted, onViewRecords, pr
         const response = await fetch("/api/me/records", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ draftId: draft.id, date, distanceKm: Number(distance), durationSeconds: Number(minutes) * 60 + Number(seconds) }) });
         const payload = await response.json(); if (!response.ok || !payload.record?.id) throw new Error(payload.error || "서버의 저장 완료를 확인하지 못했어요. 같은 내용으로 다시 제출하면 중복 저장 없이 확인할 수 있어요.");
       }
-      if (alive.current) { setStage("done"); onSubmitted(); }
+      if (alive.current) { setStage("done"); onSubmitted(date); }
     } catch (e) { if (alive.current) { setStage("confirm"); setError(e instanceof Error ? e.message : "제출하지 못했어요."); } }
   };
   return <>
@@ -90,6 +90,7 @@ export default function MyActivityUpload({ today, onSubmitted, onViewRecords, pr
       {image && <p className={styles.muted} role="status">{draft ? "사진 저장 완료 · " + (stage === "confirm" || stage === "submitting" ? "인식값 확인 후 인증 제출을 눌러주세요." : "인증 조건 또는 인식값 확인 필요 · 기록 미제출") : "선택한 사진 미리보기 · 아직 기록 제출 전이에요."}</p>}
       {image && <Image unoptimized width={800} height={800} src={image} alt="내가 선택한 인증샷 미리보기" className={styles.preview} />}
       <input ref={input} type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={e => { void upload(e.target.files?.[0]); e.target.value = ""; }} />
+      {preview && stage === "choose" && <button type="button" className={styles.secondary} onClick={() => acceptDraft({ id: "preview", participantId: "preview", date, activityDate: date, activityTime: "07:35", distanceKm: 5.2, durationSeconds: 1930, confidence: .95, createdAt: "", rawText: "", model: "preview", warning: "체험용 기록 · 실제 저장 없음" })}>예시 기록으로 체험</button>}
       {stage === "choose" && <button className={styles.upload} type="button" aria-label="인증샷 업로드: 캡쳐 사진 선택" onClick={() => input.current?.click()}><span className={styles.uploadPlus} aria-hidden="true">＋</span></button>}
       {(stage === "uploading" || stage === "analyzing") && <div role="status"><strong>{stage === "uploading" ? `사진을 보내고 있어요 ${progress}%` : "날짜·거리·시간을 읽고 있어요"}</strong><progress className={styles.progress} max={100} value={stage === "uploading" ? progress : undefined} /><p className={styles.muted}>사진 전송과 인식이 끝나면 결과가 표시돼요. 페이지를 새로고침하거나 나가면 진행 상태가 사라질 수 있어요.</p><button className={styles.secondary} onClick={() => xhr.current?.abort()}>업로드 취소</button></div>}
       {(stage === "confirm" || stage === "submitting") && <form className={styles.form} onSubmit={submit}>

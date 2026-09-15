@@ -1,6 +1,6 @@
 // Opt-in production build gate. Uses credentials only inside the deployment
 // environment, never downloads/prints them. No member records are modified.
-if (process.env.TWTT_VERIFY_MEMBER_UPLOAD !== "1") process.exit(0);
+if (process.env.TWTT_VERIFY_MEMBER_UPLOAD !== "1" && process.env.VERCEL_ENV !== "production") process.exit(0);
 const { createClient } = await import("@supabase/supabase-js");
 const { default: sharp } = await import("sharp");
 const { readFileSync } = await import("node:fs");

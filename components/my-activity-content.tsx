@@ -8,6 +8,8 @@ import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { PersonalRecordsPayload } from "@/lib/personal-records";
 import type { MyActivityFeatureSeed } from "@/lib/my-activity-feature-seed";
+import { QuickCertification } from "./quick-certification";
+import { ActivityIcon } from "./activity-icon";
 import Records from "./my-activity-records";
 import { DEFAULT_HELLO_2027_PROFILE_IMAGE_URL } from "@/lib/hello-2027-profile-image";
 import { useOptionalFourthViewer } from "./fourth-viewer-provider";
@@ -32,8 +34,8 @@ type ReadyViews = {
 export type MyActivitySection = "locker" | "home" | "profile" | "upload" | "records" | "support" | "fortune" | "gift" | "corrective" | "time-machine";
 export type MyActivityData = PersonalRecordsPayload & { goal?: import("./time-machine-goal-box").TimeMachineStatus; profile: { display_name: string; profile_image_url: string | null; connection_status: string; matched_participant: { id: string; name: string } } };
 
-export default function MyActivityContent({ section, onSection, onFeature, name, imageUrl, onChanged, preview, active, featureSeed }: {
-  section: MyActivitySection; onSection: (section: MyActivitySection) => void; name: string; imageUrl?: string | null;
+export default function MyActivityContent({ section, onSection, onFeature, name, imageUrl, onChanged, preview, active, featureSeed, standalone = false }: {
+  standalone?: boolean; section: MyActivitySection; onSection: (section: MyActivitySection) => void; name: string; imageUrl?: string | null;
   onChanged?: (patch: { displayName?: string; profileImageUrl?: string | null }) => void; preview?: MyActivityData; active: boolean;
   featureSeed?: MyActivityFeatureSeed;
   onFeature: (section: "fortune" | "gift" | "corrective" | "time-machine", seed?: MyActivityFeatureSeed) => void;
@@ -128,31 +130,20 @@ export default function MyActivityContent({ section, onSection, onFeature, name,
     {preview && <span className={styles.status}>예시 화면 · 실제 회원 정보 변경 없음</span>}
     {error && section === "records" && <div className={`${styles.feedback} ${styles.error}`} role="alert">{error} <button className={styles.secondary} onClick={() => void load(true)}>다시 확인</button></div>}
     {section === "home" && <div className={styles.identity}><Image unoptimized width={56} height={56} className={styles.avatar} src={avatar} alt="내 프로필" /><strong>{displayName}</strong></div>}
-    {section === "home" && <h3 className={styles.groupTitle}>나의 활동</h3>}
-    {primarySection && <>
-      <div className={styles.menuList} role="group" aria-label="내 정보 메뉴" data-compact={section !== "home"}>
-        {([{ key: "profile", title: "프로필", icon: <><circle cx="12" cy="8" r="4" /><path d="M4 22v-2a8 8 0 0 1 16 0v2" /></> }, { key: "support", title: "후원", icon: <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z" /> }, { key: "upload", title: "인증하기", icon: <><rect x="3" y="3" width="18" height="18" rx="4" /><path d="M12 17V7m-4 4 4-4 4 4" /></> }, { key: "records", title: "내 기록", icon: <><path d="M4 20h17M6 16v-4m6 4V7m6 9V3" /></> } ] as const).map(item => <button type="button" className={styles.menu} key={item.key} aria-pressed={section === item.key} disabled={!connected || (item.key === "support" && (supportStatus.locked || supportStatus.loading))} title={item.key === "support" && supportStatus.locked ? `다음 후원: ${new Date(supportStatus.nextAt!).toLocaleDateString("ko-KR",{timeZone:"Asia/Seoul"})}` : undefined} onClick={() => onSection(item.key)}><span className={styles.menuIcon}><svg viewBox="0 0 24 24" aria-hidden="true">{item.icon}</svg></span><strong>{item.title}</strong></button>)}
-      </div>
-      {supportStatus.locked&&<p className={styles.muted}>다음 후원은 {new Date(supportStatus.nextAt!).toLocaleDateString("ko-KR",{timeZone:"Asia/Seoul"})}부터 가능해요.</p>}
-    </>}
+    {section === "home" && <><nav className={styles.accountGrid} aria-label="내 정보 메뉴">{([{key:"profile",title:"프로필",icon:"profile"},{key:"locker",title:"보관함",icon:"gift"},{key:"support",title:"후원",icon:"heart"}] as const).map(item=><button key={item.key} disabled={!connected} onClick={()=>onSection(item.key)}><span><ActivityIcon kind={item.icon}/></span>{item.title}</button>)}</nav><section className={styles.toolSection}><h3 className={styles.groupTitle}>도구</h3><nav className={styles.toolGrid} aria-label="도구"><button disabled={!connected} onClick={()=>onFeature("corrective")}><span><ActivityIcon kind="corrective"/></span>교정운동 신청</button><button disabled={!connected} onClick={()=>onFeature("fortune")}><span><ActivityIcon kind="fortune"/></span>오늘의 운세보기</button></nav></section></>}
     {profileVisited && <div hidden={section !== "profile"} className={styles.form}><ProfileEditor name={displayName} avatar={avatar} onChanged={changed} preview={Boolean(preview)} /></div>}
     {/* Keep an in-flight upload/draft alive when navigating or closing the sheet.
         The entire tree is destroyed on logout/account change by its owner key. */}
     {uploadVisited && <div hidden={section !== "upload"} className={styles.form}><UploadView onViewRecords={() => onSection("records")} today={data?.season.today ?? todayFallback} onSubmitted={() => { void load(true); if (!preview) void import("@/lib/dashboard-refresh").then(m => m.broadcastDashboardRefresh()).catch(() => undefined); }} preview={Boolean(preview)} /></div>}
     {section === "locker" && !preview && <MemberLocker cache={lockerCache} active={active}/>}
     {section === "support" && <OperatorSupport status={supportStatus} />}
+    {section === "records" && <QuickCertification today={data?.season.today ?? todayFallback} onSaved={()=>{void load(true);void import("@/lib/dashboard-refresh").then(m=>m.broadcastDashboardRefresh());}}/>}
     {section === "records" && (data ? <Records data={data} /> : <p role="status">누적 기록을 불러오는 중이에요.</p>)}
     {section === "fortune" && !preview && <FortuneView defaultName={displayName} />}
     {section === "gift" && !preview && <GiftView initialStatus={featureSeed?.giftStatus} onStatusChange={featureSeed?.onGiftChange} />}
     {section === "corrective" && !preview && <CorrectiveView initialRequest={featureSeed?.correctiveRequest} initialStatus={featureSeed?.correctiveStatus} />}
     {section === "time-machine" && <TimeMachineView preview={Boolean(preview)} active={active} initialRequest={featureSeed?.timeMachineRequest} initialStatus={preview?.goal ?? featureSeed?.timeMachineStatus} onStatusChange={preview ? (goal) => window.dispatchEvent(new CustomEvent("twtt:preview-goal", { detail: goal })) : featureSeed?.onTimeMachineChange} />}
     {preview && !primarySection && section !== "time-machine" && <p className={styles.feedback}>미리보기예요. 개인 기능의 실제 조회·신청은 실행하지 않아요.</p>}
-    {/* Keep read-only warm data alive while navigating inside the same sheet. */}
-    <div hidden={section !== "home"} className={styles.featureSection}>
-      <h3 className={styles.groupTitle}>도구</h3>
-      <FourthDashboardMemberArea embedded preview={Boolean(preview)} onOpenActivity={onFeature} />
-    </div>
-    {section === "home" && <section className={styles.lockerSection}><h3 className={styles.groupTitle}>보관함</h3><LockerEntry cache={lockerCache} disabled={!connected} active={active && section === "home"} preview={Boolean(preview)} onOpen={()=>onSection("locker")}/></section>}
   </div>;
 }
 

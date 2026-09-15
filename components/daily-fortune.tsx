@@ -17,9 +17,10 @@ type FortuneResponse = {
 
 type DailyFortuneProps = {
   defaultName?: string;
+  preview?: boolean;
 };
 
-export function DailyFortune({ defaultName = "" }: DailyFortuneProps) {
+export function DailyFortune({ defaultName = "", preview = false }: DailyFortuneProps) {
   const [name, setName] = useState(defaultName);
   const [birthDate, setBirthDate] = useState("");
   const [birthTime, setBirthTime] = useState("");
@@ -30,6 +31,10 @@ export function DailyFortune({ defaultName = "" }: DailyFortuneProps) {
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (preview) {
+      setData({ date: "2026-09-15", provider: "preview", disclaimer: "로컬 예시 운세", fortune: { title: "작은 시작이 좋은 흐름을 만들어요", message: "오늘은 나의 속도를 믿어보세요.", relationship: "가벼운 인사가 반가운 대화로 이어져요.", work: "미뤄둔 일 하나부터 시작해보세요.", keyword: "꾸준함", action: "산책하며 기분 좋은 순간을 찾아보세요." } });
+      return;
+    }
     setLoading(true);
     setError("");
     try {

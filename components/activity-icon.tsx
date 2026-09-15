@@ -1,4 +1,4 @@
-export function ActivityIcon({kind,size=24}:{kind:"time-machine"|"gift"|"fortune"|"corrective"|"heart"|"coffee"|"infrastructure"|"lock";size?:number}){
+export function ActivityIcon({kind,size=24}:{kind:"profile"|"time-machine"|"gift"|"fortune"|"corrective"|"heart"|"coffee"|"infrastructure"|"lock";size?:number}){
  const paths={
   lock:<><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V6a4 4 0 0 1 8 0v4M12 14v3"/></>,
   'time-machine':<><path d="M7 3h10M7 21h10M8 3v4l4 5-4 5v4m8-18v4l-4 5 4 5v4"/><path d="M10 18h4"/></>,
@@ -6,6 +6,7 @@ export function ActivityIcon({kind,size=24}:{kind:"time-machine"|"gift"|"fortune
   fortune:<><path d="m12 3 2.4 6.6L21 12l-6.6 2.4L12 21l-2.4-6.6L3 12l6.6-2.4L12 3Z"/><path d="M20 3v4m-2-2h4"/></>,
   corrective:<><circle cx="13" cy="4" r="2"/><path d="m6 11 5-3 5 3h5M11 8l-2 7-5 5m5-5 6 1 2 5"/></>,
   heart:<path d="M20 5a5 5 0 0 0-7 0l-1 1-1-1a5 5 0 0 0-7 7l8 8 8-8a5 5 0 0 0 0-7Z"/>,
+  profile:<><circle cx="12" cy="7" r="4"/><path d="M4 22v-3a8 8 0 0 1 16 0v3"/></>,
   coffee:<><path d="M5 8h12v7a5 5 0 0 1-5 5h-2a5 5 0 0 1-5-5V8Zm12 1h2a3 3 0 0 1 0 6h-2M8 3v2m5-2v2M3 22h17"/></>,
   infrastructure:<><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01M12 7.5h5M12 16.5h5"/></>,
  };

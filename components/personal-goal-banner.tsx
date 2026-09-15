@@ -1,10 +1,11 @@
 "use client";
 import { useEffect, useState } from "react";
-import { openMyActivity } from "./my-activity-dialog";
+
 import { PERSONAL_GOAL_CHANGED, type TimeMachineStatus } from "./time-machine-goal-box";
 import styles from "./personal-goal.module.css";
 export function PersonalGoalBanner({ preview, onEdit }: { preview?: TimeMachineStatus; onEdit?: () => void }) {
   const [status, setStatus] = useState<TimeMachineStatus | null>(preview ?? null);
+  const [editing,setEditing]=useState(false);const [draft,setDraft]=useState("");const [saving,setSaving]=useState(false);
   const [error, setError] = useState(false);
   useEffect(() => {
     if (preview) { setStatus(preview); return; }
@@ -21,10 +22,6 @@ export function PersonalGoalBanner({ preview, onEdit }: { preview?: TimeMachineS
     void read(); window.addEventListener(PERSONAL_GOAL_CHANGED, read); window.addEventListener("focus", focus);
     return () => { controller.abort(); window.removeEventListener(PERSONAL_GOAL_CHANGED, read); window.removeEventListener("focus", focus); };
   }, [preview]);
-  return <section className={styles.banner} aria-label="나만의 100일 목표">
-    <div className={styles.bannerBody}><div className={styles.meta}><span className={styles.eyebrow}>나의 100일 다짐</span><span className={styles.private}>나만 보기</span></div>
-      <h2>{status?.goal?.title || (error ? "나의 다짐을 다시 확인해주세요" : status ? "100일을 함께할 나만의 다짐" : "나의 다짐을 불러오고 있어요")}</h2>
-      {status?.goal?.commitment ? <p>{status.goal.commitment}</p> : !status?.goal && <p>{error ? "목표 설정을 열어 다시 불러올 수 있어요." : "어떤 마음으로 달리고 싶은가요? 나와의 약속을 남겨보세요."}</p>}
-    </div><button onClick={onEdit ?? (() => openMyActivity("time-machine"))}>{status?.goal ? "수정" : "목표 설정"}<span aria-hidden="true"> ↗</span></button>
-  </section>;
+  const save=async(event:React.FormEvent)=>{event.preventDefault();if(saving)return;setSaving(true);setError(false);try{const response=await fetch("/api/me/time-machine",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({goal_title:draft.trim(),goal_detail:status?.goal?.detail??"",commitment:status?.goal?.commitment??""})});const data=await response.json();if(!response.ok)throw new Error();setStatus(data);setEditing(false);window.dispatchEvent(new Event(PERSONAL_GOAL_CHANGED));}catch{setError(true);}finally{setSaving(false);}};
+  return <section className={styles.simpleBanner} aria-label="나만의 100일 목표">{editing?<form onSubmit={save}><input aria-label="100일 동안 다짐" placeholder="100일 동안 다짐을 적어주세요" required minLength={2} maxLength={80} value={draft} onChange={e=>setDraft(e.target.value)} autoFocus/><button disabled={saving}>{saving?"저장 중…":"저장"}</button><button type="button" onClick={()=>setEditing(false)}>취소</button></form>:<button className={styles.simpleGoal} onClick={()=>{if(onEdit){onEdit();return;}setDraft(status?.goal?.title??"");setEditing(true);}}><span>{status?.goal?.title||"100일 동안 다짐을 적어주세요"}</span><span aria-hidden="true">✎</span></button>}{error&&<p role="alert">목표를 불러오거나 저장하지 못했어요. 다시 시도해주세요.</p>}</section>;
 }

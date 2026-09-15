@@ -27,3 +27,6 @@
 @keyframes firework { 0% { opacity:0; transform:rotate(var(--angle)) translateY(0) scale(.3); } 15% { opacity:1; } 70% { opacity:1; } 100% { opacity:0; transform:rotate(var(--angle)) translateY(-100px) rotate(130deg) scale(.6); } }
 .prizeHelp { display:block; margin-top:12px; color:#6b7684; font-size:12px; font-weight:500; line-height:1.6; }
 @media (prefers-reduced-motion:reduce) { .opened .sparkles i { animation:none; } }
+
+.sentence { display: block; text-wrap: pretty; }
+.sentence + .sentence { margin-top: 6px; }

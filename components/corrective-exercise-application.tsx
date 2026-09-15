@@ -40,7 +40,9 @@ function getErrorMessage(payload: Record<string, unknown>, fallback: string) {
 export function CorrectiveExerciseApplication({
   initialRequest,
   initialStatus,
+  preview = false,
 }: {
+  preview?: boolean;
   initialRequest?: Promise<CorrectiveExerciseResponse>;
   initialStatus?: CorrectiveExerciseResponse;
 } = {}) {
@@ -59,6 +61,7 @@ export function CorrectiveExerciseApplication({
   const [confirmationMessage, setConfirmationMessage] = useState("");
 
   useEffect(() => {
+    if (preview) { setLoading(false); return; }
     const controller = new AbortController();
     const request = retryKey === 0 && initialRequest ? initialRequest : fetch("/api/me/corrective-exercise", {
       cache: "no-store",
@@ -88,7 +91,7 @@ export function CorrectiveExerciseApplication({
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [initialRequest, retryKey]);
+  }, [initialRequest, retryKey, preview]);
 
   useEffect(() => {
     if (confirmOpen) cancelConfirmRef.current?.focus();
@@ -123,6 +126,7 @@ export function CorrectiveExerciseApplication({
   };
 
   const submitApplication = async () => {
+    if (preview) { setConfirmOpen(false); setSuccessMessage("문의 체험을 완료했어요. 운영자에게 전송되지 않았습니다."); return; }
     if (submitting) return;
     setSubmitting(true);
     setError("");

@@ -242,12 +242,12 @@ export function Hello2027Poc({
               </div>
 
               <ul className={styles.participantGrid}>
-                {sortedParticipants.map((participant) => (
+                {([...sortedParticipants].sort((a,b)=>Number(b.id===viewerState?.viewer?.participant_id)-Number(a.id===viewerState?.viewer?.participant_id))).map((participant) => (
                   <li key={participant.id}>
                     <button
-                      className={`${styles.participantCard} ${participant.completed ? styles.completedCard : styles.waitingCard}`}
+                      className={`${styles.participantCard} ${participant.completed ? styles.completedCard : styles.waitingCard} ${participant.id===viewerState?.viewer?.participant_id ? styles.myCard : ""}`}
                       type="button"
-                      onClick={(event) => openParticipant(participant.id, event.currentTarget)}
+                      onClick={(event) => participant.id===viewerState?.viewer?.participant_id ? openMyActivity("records") : openParticipant(participant.id, event.currentTarget)}
                       aria-label={`${participant.fullName}님, 인증 ${participant.certifiedDays}일. ${canViewRecords ? "상세" : "공개"} 기록 보기`}
                     >
                       {canViewRecords && participant.completed ? (
@@ -256,7 +256,7 @@ export function Hello2027Poc({
                       <span className={styles.participantIdentity}>
                         <span style={{position:"relative",display:"inline-flex"}}><span className={styles.characterWrap} aria-hidden="true"><ParticipantAvatar imageUrl={participant.profileImageUrl} /></span></span>
                         <span className={styles.participantNameRow}>
-                          <strong>{participant.fullName}<small>님</small></strong>
+                          <strong>{participant.fullName}<small>{participant.id===viewerState?.viewer?.participant_id ? " · 나" : "님"}</small></strong>
                         </span>
                       </span>
                       <span className={styles.participantRate}>

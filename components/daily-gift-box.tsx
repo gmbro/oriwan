@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 
+import { openMyActivity } from "./my-activity-dialog";
 import { DEFAULT_GIFT_REWARDS, selectGiftReward } from "@/lib/gift-rewards";
 import styles from "./daily-gift-box.module.css";
 
@@ -24,6 +25,10 @@ type DailyGiftBoxProps = {
   initialStatus?: GiftStatus | null;
   onStatusChange?: (status: GiftStatus) => void;
 };
+
+function SentenceLines({ text }: { text: string }) {
+  return <>{text.trim().split(/(?<=[.!?。！？])\s+|\n+/u).filter(Boolean).map((sentence, index) => <span className={styles.sentence} key={index}>{sentence}</span>)}</>;
+}
 
 async function readJson(response: Response) {
   return response.json().catch(() => ({})) as Promise<Partial<GiftStatus> & { error?: string; claim?: GiftClaim }>;
@@ -120,9 +125,9 @@ export function DailyGiftBox({ initialStatus = null, onStatusChange, preview = f
       <div>
         <h3 id="daily-gift-title" className="mt-1 text-xl font-black tracking-[-0.03em] text-slate-950">오늘의 응원 상자</h3>
         <p className={`${styles.copy} mt-2 text-sm font-semibold text-slate-600`}>
-          {status?.claim
+          <SentenceLines text={status?.claim
             ? "오늘의 상자를 열었어요. 내일 인증을 마치면 새 상자가 도착해요."
-            : "오늘 인증을 완료한 기록을 확인했어요. 상자를 열어 응원을 받아보세요."}
+            : "오늘 인증을 완료한 기록을 확인했어요. 상자를 열어 응원을 받아보세요."}/>
         </p>
       </div>
 
@@ -136,11 +141,12 @@ export function DailyGiftBox({ initialStatus = null, onStatusChange, preview = f
               <div className={styles.body} />
               <div className={styles.lid} />
             </div>
-            {status?.claim ? <p className={styles.message}><span className={styles.messageLabel}>오늘의 인증 보상</span>{status.claim.message}{status.claim.message.startsWith("🎁 ") && <span className={styles.prizeHelp}>보관함에 담았어요. 내 정보의 보관함에서 받은 항목을 확인하고 사용을 요청해주세요.</span>}</p> : null}
+            {status?.claim ? <p className={styles.message}><span className={styles.messageLabel}>오늘의 인증 보상</span><SentenceLines text={status.claim.message}/>{status.claim.message.startsWith("🎁 ") && <span className={styles.prizeHelp}><SentenceLines text="보관함에 담았어요. 내 정보의 보관함에서 받은 항목을 확인하고 사용을 요청해주세요."/></span>}</p> : null}
           </div>
         )}
       </div>
 
+      {status?.claim?.message.startsWith("🎁 ") && !preview && <button type="button" className="min-h-12 w-full rounded-2xl bg-blue-50 p-3 font-bold text-blue-600" onClick={()=>openMyActivity("locker")}>내 정보 → 보관함에서 확인하기</button>}
       {message ? <p className="rounded-2xl bg-rose-50 px-4 py-3 text-sm font-bold leading-6 text-rose-700" role="status">{message}</p> : null}
 
       {!loading && status?.eligible && !status.claim ? (
