@@ -8,13 +8,6 @@ export function PublicSiteFooter() {
         <Link href="/about">소개<span aria-hidden="true">→</span></Link>
         <Link href="/magazine">매거진<span aria-hidden="true">→</span></Link>
       </nav>
-      <div className={styles.top}>
-        <div className={styles.contact}>
-          <a href="mailto:gmbro7942@gmail.com" className={styles.contactLink}>아키랩<svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><path d="M5 15 15 5M5 5h10v10" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg></a>
-          <span className={styles.email}>gmbro7942@gmail.com</span>
-          <p>이용 중 궁금한 점이나<br/>함께 나누고 싶은 의견을 보내주세요.</p>
-        </div>
-      </div>
       <div className={styles.bottom}>
         <nav aria-label="이용 정책" className={styles.policies}>
           <Link href="/privacy" className={styles.privacy}>개인정보처리방침</Link>

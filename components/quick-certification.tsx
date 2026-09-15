@@ -1,5 +1,5 @@
 "use client";
-import {useEffect,useRef,useState} from "react";
+import {useRef,useState} from "react";
 import {reduceScreenshot} from "./my-activity-upload";
 import type {MemberUploadDraft} from "@/lib/member-upload-contract";
 import {openMyActivity} from "./my-activity-dialog";
@@ -7,7 +7,6 @@ import styles from "./my-activity.module.css";
 export function QuickCertification({today,onSaved}:{today:string;onSaved:()=>void}){
  const input=useRef<HTMLInputElement>(null);const busy=useRef(false);
  const [pending,setPending]=useState(false);const [error,setError]=useState("");const [saved,setSaved]=useState("");const [draft,setDraft]=useState<MemberUploadDraft|null>(null);
- useEffect(()=>{const controller=new AbortController();void fetch("/api/me/gift-box",{cache:"no-store",signal:controller.signal}).then(async response=>{if(!response.ok)return;const data=await response.json();if(data.eligible&&data.record_date===today&&!controller.signal.aborted)setSaved(today);}).catch(()=>{});return()=>controller.abort();},[today]);
  const save=async(value:MemberUploadDraft)=>{
   const date=value.activityDate||value.date;
   if(!date||value.distanceKm===null||value.durationSeconds===null)throw new Error("날짜·거리·시간이 잘 보이는 캡처본을 다시 올려주세요.");

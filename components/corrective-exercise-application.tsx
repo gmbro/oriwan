@@ -220,67 +220,50 @@ export function CorrectiveExerciseApplication({
     <>
       <form className="space-y-4" onSubmit={requestConfirmation} noValidate>
         <div className="rounded-[24px] bg-blue-50/80 p-5 ring-1 ring-blue-100">
-          <p className="text-[11px] font-black text-blue-600">교정운동 문의</p>
           <h3 className="mt-1 text-xl font-black tracking-[-0.03em] text-slate-950">
-            불편했던 순간을 간단히 적어주세요.
+            러닝할 때나 평상 시 불편하다면?
           </h3>
-          <p className="mt-2 text-sm font-medium leading-6 text-slate-600">
-            네 가지 짧은 답변이면 충분해요. 확인 후 개인 카톡으로 연락드리겠습니다.
-          </p>
         </div>
 
         <div className="space-y-3 rounded-[24px] bg-white p-1 sm:p-2">
           <label className="block rounded-[20px] bg-slate-50 px-4 py-3.5 ring-1 ring-slate-200 transition focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-500">
             <span className="block text-sm font-black text-slate-950">통증 부위</span>
-            <span className="mt-1 block text-xs font-medium text-slate-500">예: 오른쪽 무릎 앞쪽</span>
             <input
               ref={firstFieldRef}
               value={draft.pain_area}
               onChange={(event) => updateDraft("pain_area", event.target.value.slice(0, MAX_CORRECTIVE_INQUIRY_PAIN_AREA_LENGTH))}
               maxLength={MAX_CORRECTIVE_INQUIRY_PAIN_AREA_LENGTH}
               required
-              placeholder="불편한 부위를 적어주세요"
+              placeholder="예: 오른쪽 무릎 앞쪽"
               className="mt-3 w-full bg-transparent text-sm font-semibold text-slate-900 outline-none placeholder:text-slate-400"
             />
           </label>
 
           <label className="block rounded-[20px] bg-slate-50 px-4 py-3.5 ring-1 ring-slate-200 transition focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-500">
             <span className="block text-sm font-black text-slate-950">언제부터 불편했나요?</span>
-            <span className="mt-1 block text-xs font-medium text-slate-500">예: 지난주 5km 러닝 뒤부터</span>
             <input
               value={draft.pain_onset}
               onChange={(event) => updateDraft("pain_onset", event.target.value.slice(0, MAX_CORRECTIVE_INQUIRY_ONSET_LENGTH))}
               maxLength={MAX_CORRECTIVE_INQUIRY_ONSET_LENGTH}
               required
-              placeholder="시작된 시점을 적어주세요"
+              placeholder="예: 지난주 5km 러닝 뒤부터"
               className="mt-3 w-full bg-transparent text-sm font-semibold text-slate-900 outline-none placeholder:text-slate-400"
             />
           </label>
 
           <label className="block rounded-[20px] bg-slate-50 px-4 py-3.5 ring-1 ring-slate-200 transition focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-500">
             <span className="block text-sm font-black text-slate-950">어떨 때 더 불편한가요?</span>
-            <span className="mt-1 block text-xs font-medium text-slate-500">예: 계단을 내려갈 때, 오래 앉아 있을 때</span>
             <input
               value={draft.aggravating_situation}
               onChange={(event) => updateDraft("aggravating_situation", event.target.value.slice(0, MAX_CORRECTIVE_INQUIRY_TRIGGER_LENGTH))}
               maxLength={MAX_CORRECTIVE_INQUIRY_TRIGGER_LENGTH}
               required
-              placeholder="움직임이나 상황을 적어주세요"
+              placeholder="예: 계단을 내려갈 때"
               className="mt-3 w-full bg-transparent text-sm font-semibold text-slate-900 outline-none placeholder:text-slate-400"
             />
           </label>
 
-          <label className="block rounded-[20px] bg-slate-50 px-4 py-3.5 ring-1 ring-slate-200 transition focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-500">
-            <span className="block text-sm font-black text-slate-950">그 밖에 문의 <em className="not-italic font-medium text-slate-400">선택</em></span>
-            <textarea
-              value={draft.additional_question}
-              onChange={(event) => updateDraft("additional_question", event.target.value.slice(0, MAX_CORRECTIVE_INQUIRY_ADDITIONAL_LENGTH))}
-              maxLength={MAX_CORRECTIVE_INQUIRY_ADDITIONAL_LENGTH}
-              rows={3}
-              placeholder="궁금한 점이나 참고할 내용을 적어주세요"
-              className="mt-3 w-full resize-y bg-transparent text-sm font-semibold leading-6 text-slate-900 outline-none placeholder:text-slate-400"
-            />
-          </label>
+
         </div>
 
         {successMessage ? <p className="rounded-2xl bg-emerald-50 px-4 py-3 text-sm font-semibold leading-6 text-emerald-700" role="status">{successMessage}</p> : null}

@@ -1605,6 +1605,9 @@
 .headerAccountLink,.headerLogoutButton { min-height:32px; padding:0 5px; border-radius:0; background:transparent; font-size:12px; }
 .headerAccountLink:hover,.headerLogoutButton:hover { text-decoration:underline; text-underline-offset:4px; }
 
-.main{max-width:1040px;margin-inline:auto;padding-inline:24px;box-sizing:border-box}.headerInner{max-width:1040px}.participantCard.myCard{border:2px solid #8bbcff;background:#f0f6ff;transform:scale(1.025)}@media(max-width:600px){.main{padding-inline:20px}}
+.main{max-width:1040px;margin-inline:auto;padding-inline:24px;box-sizing:border-box}.headerInner{max-width:1040px}.participantCard.myCard{border:2px solid #8bbcff;background:#f0f6ff;transform:none}@media(max-width:600px){.main{padding-inline:20px}}
 
 .main{--content-width:100%;--banner-width:100%}
+
+/* Keep emphasis inside the grid's paint containment on narrow screens. */
+.participantGrid{padding:4px;align-items:center}.participantCard.myCard{min-height:124px}.participantCard.myCard:hover{transform:none}@media(max-width:600px){.participantCard.myCard{min-height:104px}.participantGrid{gap:10px}}
