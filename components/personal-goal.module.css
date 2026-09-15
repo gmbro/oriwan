@@ -5,3 +5,5 @@
 @media(max-width:600px){.banner{align-items:flex-start;gap:12px;padding:20px;margin-bottom:18px;border-radius:20px}.banner h2{font-size:17px}.banner p{font-size:13px}.banner button{padding:8px 10px;font-size:12px}.editor h3{font-size:22px}}
 
 .simpleBanner{margin:0 0 20px;min-width:0}.simpleGoal{display:flex;align-items:center;justify-content:space-between;gap:16px;width:100%;padding:20px 22px;background:#eaf3ff;color:#2272db;border-radius:18px;text-align:left;font-size:17px;font-weight:650;overflow-wrap:anywhere}.simpleBanner form{display:flex;gap:8px;flex-wrap:wrap;padding:12px;border-radius:18px;background:#eaf3ff}.simpleBanner input{min-width:0;flex:1;padding:12px;border-radius:12px;font-size:16px;background:white}.simpleBanner form button{min-height:44px;padding:8px;color:#2272db}@media(max-width:480px){.simpleGoal{font-size:15px;padding:16px}.simpleBanner input{flex-basis:100%}}
+
+.lockNote{flex-basis:100%;font-size:12px;line-height:1.6;color:#6b7684;margin:8px 4px}.simpleGoal:disabled{cursor:default;opacity:1}

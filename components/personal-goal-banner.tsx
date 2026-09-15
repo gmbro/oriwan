@@ -1,10 +1,13 @@
 "use client";
+import { personalGoalEditWindow } from "@/lib/personal-goal-lock";
 import { useEffect, useState } from "react";
 
 import { PERSONAL_GOAL_CHANGED, type TimeMachineStatus } from "./time-machine-goal-box";
 import styles from "./personal-goal.module.css";
 export function PersonalGoalBanner({ preview, onEdit }: { preview?: TimeMachineStatus; onEdit?: () => void }) {
   const [status, setStatus] = useState<TimeMachineStatus | null>(preview ?? null);
+  const [now,setNow]=useState(()=>Date.now());
+  useEffect(()=>{const timer=setInterval(()=>setNow(Date.now()),60000);return()=>clearInterval(timer);},[]);
   const [editing,setEditing]=useState(false);const [draft,setDraft]=useState("");const [saving,setSaving]=useState(false);
   const [error, setError] = useState(false);
   useEffect(() => {
@@ -22,6 +25,7 @@ export function PersonalGoalBanner({ preview, onEdit }: { preview?: TimeMachineS
     void read(); window.addEventListener(PERSONAL_GOAL_CHANGED, read); window.addEventListener("focus", focus);
     return () => { controller.abort(); window.removeEventListener(PERSONAL_GOAL_CHANGED, read); window.removeEventListener("focus", focus); };
   }, [preview]);
-  const save=async(event:React.FormEvent)=>{event.preventDefault();if(saving)return;setSaving(true);setError(false);try{const response=await fetch("/api/me/time-machine",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({goal_title:draft.trim(),goal_detail:status?.goal?.detail??"",commitment:status?.goal?.commitment??""})});const data=await response.json();if(!response.ok)throw new Error();setStatus(data);setEditing(false);window.dispatchEvent(new Event(PERSONAL_GOAL_CHANGED));}catch{setError(true);}finally{setSaving(false);}};
-  return <section className={styles.simpleBanner} aria-label="나만의 100일 목표">{editing?<form onSubmit={save}><input aria-label="100일 동안 다짐" placeholder="100일 동안 다짐을 적어주세요" required minLength={2} maxLength={80} value={draft} onChange={e=>setDraft(e.target.value)} autoFocus/><button disabled={saving}>{saving?"저장 중…":"저장"}</button><button type="button" onClick={()=>setEditing(false)}>취소</button></form>:<button className={styles.simpleGoal} onClick={()=>{if(onEdit){onEdit();return;}setDraft(status?.goal?.title??"");setEditing(true);}}><span>{status?.goal?.title||"100일 동안 다짐을 적어주세요"}</span><span aria-hidden="true">✎</span></button>}{error&&<p role="alert">목표를 불러오거나 저장하지 못했어요. 다시 시도해주세요.</p>}</section>;
+  const editWindow=personalGoalEditWindow(status?.goal?.created_at??null,now);
+  const save=async(event:React.FormEvent)=>{event.preventDefault();if(saving)return;setSaving(true);setError(false);try{const response=await fetch("/api/me/time-machine",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({goal_title:draft.trim(),goal_detail:status?.goal?.detail??"",commitment:status?.goal?.commitment??""})});const data=await response.json();if(!response.ok){if(data.editable_at){setStatus(current=>current?{...current,can_edit:false,editable_at:data.editable_at}:current);}throw new Error();}setStatus(data);setEditing(false);window.dispatchEvent(new Event(PERSONAL_GOAL_CHANGED));}catch{setError(true);}finally{setSaving(false);}};
+  return <section className={styles.simpleBanner} aria-label="나만의 100일 목표">{editing?<form onSubmit={save}><p className={styles.lockNote}>한번 설정하면 30일 동안 변경이 어려워요.</p><input aria-label="100일 동안 다짐" placeholder="100일 동안 다짐을 적어주세요" required minLength={2} maxLength={80} value={draft} onChange={e=>setDraft(e.target.value)} autoFocus/><button disabled={saving}>{saving?"저장 중…":"저장"}</button><button type="button" onClick={()=>setEditing(false)}>취소</button></form>:<button className={styles.simpleGoal} disabled={Boolean(status?.goal)&&!editWindow.can_edit} onClick={()=>{if(onEdit){onEdit();return;}setDraft(status?.goal?.title??"");setEditing(true);}}><span>{status?.goal?.title||"100일 동안 다짐을 적어주세요"}</span>{editWindow.can_edit&&<span aria-hidden="true">✎</span>}</button>}{status?.goal&&!editWindow.can_edit&&<p className={styles.lockNote}>한번 설정하면 30일 동안 변경이 어려워요.{editWindow.editable_at&&<> {new Date(editWindow.editable_at).toLocaleString("ko-KR",{timeZone:"Asia/Seoul",year:"numeric",month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})}부터 변경할 수 있어요.</>}</p>}{error&&<p role="alert">목표를 불러오거나 저장하지 못했어요. 다시 시도해주세요.</p>}</section>;
 }

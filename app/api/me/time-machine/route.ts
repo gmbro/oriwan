@@ -1,3 +1,4 @@
+import { personalGoalEditWindow, PERSONAL_GOAL_CHANGE_INTERVAL_MS } from "@/lib/personal-goal-lock";
 import { after } from "next/server";
 import { invalidatePublicDashboardCache } from "@/lib/public-dashboard-data";
 import { broadcastDashboardRefreshFromServer } from "@/lib/dashboard-refresh-server";
@@ -89,10 +90,11 @@ function missingTableResponse() {
 
 function serializeGoal(row: TimeMachineGoalRow | null) {
   const timing = getTimeMachineTiming();
-  if (!row) return { state: "empty", ...timing };
+  if (!row) return { state: "empty", ...timing, ...personalGoalEditWindow(null) };
 
   return {
     state: "opened",
+    ...personalGoalEditWindow(row.created_at),
     ...timing,
     goal: {
       title: row.goal_title,
@@ -151,24 +153,32 @@ export async function POST(request: NextRequest) {
     const parsed = parseTimeMachineGoalInput(bodyResult.body);
     if (!parsed.ok) return json({ error: parsed.error }, 400);
 
-    const { data, error } = await context.service
-      .from("time_machine_goals")
-      .upsert({
-        season_key: TIME_MACHINE_SEASON_KEY,
-        user_id: context.adminUserId,
-        participant_id: context.participantId,
-        auth_user_id: context.authUserId,
-        goal_title: parsed.value.goal_title,
-        goal_detail: parsed.value.goal_detail,
-        commitment: parsed.value.commitment,
-      }, { onConflict: "season_key,auth_user_id" })
-      .select("id, goal_title, goal_detail, commitment, created_at")
-      .single();
+    const existing = await readGoal(context);
+    if (existing.error) { if(isMissingTableError(existing.error)) return missingTableResponse(); throw existing.error; }
+    const previous = existing.data as TimeMachineGoalRow | null;
+    const now = Date.now();
+    const window = personalGoalEditWindow(previous?.created_at ?? null, now);
+    if (!window.can_edit) return json({ error: "목표는 설정 후 30일이 지나면 변경할 수 있어요.", ...window }, 409);
+    const values = {
+      season_key: TIME_MACHINE_SEASON_KEY, user_id: context.adminUserId,
+      participant_id: context.participantId, auth_user_id: context.authUserId,
+      goal_title: parsed.value.goal_title, goal_detail: parsed.value.goal_detail,
+      commitment: parsed.value.commitment,
+      // Each replacement is a new 30-day commitment; retain the original date until replacement.
+      created_at: new Date(now).toISOString(),
+    };
+    const query = previous
+      ? context.service.from("time_machine_goals").update(values)
+          .eq("id", previous.id).eq("auth_user_id", context.authUserId).eq("user_id", context.adminUserId)
+          .eq("created_at", previous.created_at).lte("created_at", new Date(now - PERSONAL_GOAL_CHANGE_INTERVAL_MS).toISOString())
+      : context.service.from("time_machine_goals").insert(values);
+    const { data, error } = await query.select("id, goal_title, goal_detail, commitment, created_at").maybeSingle();
     if (error) {
       if (isMissingTableError(error)) return missingTableResponse();
-      if (error.code === "23505") return json({ error: "이미 목표을 발동했어요." }, 409);
+      if (error.code === "23505") return json({ error: "이미 목표를 설정했어요. 30일 후 변경할 수 있어요." }, 409);
       throw error;
     }
+    if (!data) return json({ error: "목표가 이미 변경됐어요. 새로고침 후 확인해주세요." }, 409);
   invalidatePublicDashboardCache();
   after(() => broadcastDashboardRefreshFromServer(context.service));
     return json(serializeGoal(data as TimeMachineGoalRow), 201);
