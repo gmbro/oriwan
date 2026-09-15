@@ -50,7 +50,7 @@ export function TimeMachineGoalBox({ initialRequest, initialStatus, onStatusChan
       <label>나의 목표<input required minLength={2} maxLength={80} value={form.goal_title} placeholder="조금 느려도, 나만의 속도로 꾸준히 달리기" onChange={e => { dirty.current = true; setSaved(false); setForm({ ...form, goal_title: e.target.value }); }} /><small>{form.goal_title.length}/80</small></label>
       <label>나의 다짐 <span className={styles.optional}>선택</span><textarea maxLength={300} rows={4} value={form.commitment} placeholder="힘든 날에는 10분이라도 움직이고, 어제의 나를 응원할 거예요." onChange={e => { dirty.current = true; setSaved(false); setForm({ ...form, commitment: e.target.value }); }} /><small>{form.commitment.length}/300</small></label>
       {form.goal_detail && <p className={styles.note}>이전에 적은 세부 목표: {form.goal_detail}</p>}
-      <p className={styles.note}>나에게만 보여요. 저장한 다짐은 홈 상단에서 매일 확인할 수 있어요. 한번 설정하면 30일 동안 변경이 어려워요.</p>
+      <p className={styles.note}>다른 멤버에게는 보이지 않아요. 저장한 다짐은 홈 상단에서 매일 확인할 수 있어요. 한번 설정하면 30일 동안 변경이 어려워요.</p>
       {error && <p role="alert" className={styles.error}>{error}</p>}
       {saved && <p role="status" className={styles.success}>저장했어요. 오늘도 나의 다짐과 함께 달려요.</p>}
       <button className={styles.save} disabled={saving || form.goal_title.trim().length < 2}>{saving ? "저장 중…" : "목표 저장하기"}</button>

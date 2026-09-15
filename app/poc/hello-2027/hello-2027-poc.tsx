@@ -113,6 +113,7 @@ export function Hello2027Poc({
 }: Hello2027PocProps) {
   const [liveSnapshot, setLiveSnapshot] = useState(snapshot);
   const [selectedParticipantId, setSelectedParticipantId] = useState<string | null>(null);
+  const [visibleMembers, setVisibleMembers] = useState(6);
   const [crewSort, setCrewSort] = useState<CrewSort>("completed");
   const clockSnapshot = useSyncExternalStore(
     subscribeToClock,
@@ -242,7 +243,7 @@ export function Hello2027Poc({
               </div>
 
               <ul className={styles.participantGrid}>
-                {([...sortedParticipants].sort((a,b)=>Number(b.id===viewerState?.viewer?.participant_id)-Number(a.id===viewerState?.viewer?.participant_id))).map((participant) => (
+                {([...sortedParticipants].sort((a,b)=>Number(b.id===viewerState?.viewer?.participant_id)-Number(a.id===viewerState?.viewer?.participant_id))).slice(0, visibleMembers).map((participant) => (
                   <li key={participant.id}>
                     <button
                       className={`${styles.participantCard} ${participant.completed ? styles.completedCard : styles.waitingCard} ${participant.id===viewerState?.viewer?.participant_id ? styles.myCard : ""}`}
@@ -267,6 +268,7 @@ export function Hello2027Poc({
                   </li>
                 ))}
               </ul>
+              {sortedParticipants.length>6&&<div className="mt-3 flex justify-center gap-3">{visibleMembers<sortedParticipants.length&&<button type="button" className="min-h-11 rounded-xl bg-white px-5 text-sm font-semibold text-slate-600" onClick={()=>setVisibleMembers(n=>n+6)}>멤버 더 보기 ({sortedParticipants.length-Math.min(visibleMembers,sortedParticipants.length)}명)</button>}{visibleMembers>6&&<button type="button" className="min-h-11 rounded-xl bg-white px-5 text-sm text-slate-500" onClick={()=>setVisibleMembers(6)}>접기</button>}</div>}
             </section>
           ) : <FourthSeasonMemberEmptyState />}
 

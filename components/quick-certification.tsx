@@ -25,6 +25,7 @@ export function QuickCertification({today,onSaved}:{today:string;onSaved:()=>voi
   return()=>{alive.current=false;generation.current++;clearTimeout(timer);window.removeEventListener("focus",check);document.removeEventListener("visibilitychange",check);window.removeEventListener(DASHBOARD_REFRESH_DOM_EVENT,check);};
  },[refresh]);
  const save=async(value:MemberUploadDraft)=>{
+  if(value.analysisError)throw new CertificationError(502, `ocr:${value.analysisError}`);
   const date=value.activityDate||value.date;
   if(!date||value.distanceKm===null||value.durationSeconds===null)throw new CertificationError(400,"날짜·거리·시간 인식 실패");
   const response=await fetch("/api/me/records",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({draftId:value.id,date,distanceKm:value.distanceKm,durationSeconds:value.durationSeconds})});

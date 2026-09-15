@@ -1,4 +1,5 @@
 "use client";
+import { AdminPersonalGoal } from "./admin-personal-goal";
 
 import Image from "next/image";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -183,8 +184,8 @@ export function AdminProfileIntroductions({
     });
   };
 
-  const save = async (item: ProfileIntroduction) => {
-    const draft = drafts[item.participant_id] || toDraft(item);
+  const save = async (item: ProfileIntroduction, clear = false) => {
+    const draft = clear ? { ...toDraft(item), body: "", active: false } : drafts[item.participant_id] || toDraft(item);
     const body = normalizeProfileIntroduction(draft.body) ?? "";
 
     if (body.length > MAX_PROFILE_INTRO_LENGTH || (draft.active && !body)) {
@@ -576,6 +577,8 @@ export function AdminProfileIntroductions({
                 </button>
 
 
+                <button type="button" disabled={Boolean(savingId)||!item.body} onClick={()=>{if(window.confirm("자기소개를 삭제할까요?"))void save(item,true);}} className="mt-2 min-h-11 rounded-xl bg-rose-50 px-4 text-sm font-bold text-rose-700 disabled:opacity-40">자기소개 삭제</button>
+                <AdminPersonalGoal participantId={item.participant_id} />
               </form>
             );
           })}

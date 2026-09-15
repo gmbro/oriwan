@@ -4,7 +4,7 @@ import { GoogleGenAI } from "@google/genai";
 import sharp from "sharp";
 import { buildMemberRunImagePrompt, GEMINI_OCR_MODEL, getMemberGeminiOcrConfig, logGeminiOcrUsage } from "@/lib/gemini";
 import { MEMBER_UPLOAD_MAX_BYTES, type MemberUploadDraft } from "@/lib/member-upload-contract";
-import { memberJson, ownedMember, privateUploadStore, readUploadDraft, reserveOcrQuota, uploadPrefix } from "@/lib/member-upload-server";
+import { memberJson, ownedMember, privateUploadStore, readUploadDraft, uploadPrefix } from "@/lib/member-upload-server";
 import { parseDistanceKm, parseDurationText, parseJsonObject, type ExtractedRunBase } from "@/lib/run-image-extraction";
 import { toKstIsoDate } from "@/lib/run-records";
 import { guardMutationRequest, readLimitedFormData } from "@/lib/request-security";
@@ -46,7 +46,6 @@ export async function POST(request: NextRequest) {
     const prefix = uploadPrefix(authUserId, id);
     const cached = await readUploadDraft(store, prefix);
     if (cached && cached.participantId === owned.participantId && !cached.analysisError) return memberJson({ draft: cached });
-    if (!await reserveOcrQuota(store, authUserId, today)) return memberJson({ error: "하루 최대 8장의 인증샷을 인식할 수 있어요. 이미 인식한 사진은 다시 선택할 수 있어요." }, 429);
     const imageResult = await store.upload(`${prefix}/image.webp`, bytes, { contentType: "image/webp", upsert: false });
     if (imageResult.error) {
       if (/duplicate|already exists/i.test(imageResult.error.message) && !cached?.analysisError) return memberJson({ error: "같은 사진을 처리 중이에요. 잠시 후 다시 선택해주세요." }, 409);
