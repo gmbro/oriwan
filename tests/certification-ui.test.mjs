@@ -15,7 +15,3 @@ test('alerts explain conflicts and never display raw provider details',()=>{
  assert.equal(certificationFailure(503,'stack trace with private provider payload'), '인증 서버에 연결하지 못했어요. 잠시 후 다시 시도해주세요.');
  assert.doesNotMatch(certificationFailure(400,'raw\ntrace'),/\n|trace/);
 });
-
-test('과거 운동 날짜의 운영자 문의 알림을 그대로 유지',()=>{
- assert.equal(certificationFailure(422,'이전 운동 기록은 운영자에게 문의해주세요.'),'이전 운동 기록은 운영자에게 문의해주세요.');
-});

@@ -1,6 +1,6 @@
 import { writeCertificationReview } from "@/lib/certification-review";
 import { after, NextRequest, NextResponse } from "next/server";
-import { memberCertificationDateError, MEMBER_UPLOAD_BUCKET, MEMBER_UPLOAD_DRAFT_PATTERN, ownsFreshDraft, validateMemberSubmission } from "@/lib/member-upload-contract";
+import { memberUploadRecordValues, MEMBER_UPLOAD_BUCKET, MEMBER_UPLOAD_DRAFT_PATTERN, ownsFreshDraft } from "@/lib/member-upload-contract";
 import { ownedMember, privateUploadStore, readMemberJson, readUploadDraft, uploadPrefix } from "@/lib/member-upload-server";
 import { loadHello2027ProfileImageUrls } from "@/lib/hello-2027-profile-image-storage";
 import { invalidatePublicDashboardCache } from "@/lib/public-dashboard-data";
@@ -178,23 +178,13 @@ export async function POST(request: NextRequest) {
   if ("response" in parsed) return parsed.response;
   const { body } = parsed;
   if (typeof body.draftId !== "string" || !MEMBER_UPLOAD_DRAFT_PATTERN.test(body.draftId)) return privateJson({ error: "인증샷을 먼저 선택해주세요." }, 400);
-  const today = toKstIsoDate();
-  const submittedDateError = memberCertificationDateError(typeof body.date === "string" ? body.date : null, today);
-  if (submittedDateError) return privateJson({ error: submittedDateError }, 422);
-  const values = validateMemberSubmission(body, today);
-  if (!values.ok) return privateJson({ error: values.error }, 400);
   try {
     const { service, authUserId } = owned.context;
     const store = await privateUploadStore(service);
     const prefix = uploadPrefix(authUserId, body.draftId);
     const draft = await readUploadDraft(store, prefix);
     if (!draft || !ownsFreshDraft(draft, owned.participantId)) return privateJson({ error: "인증샷 확인 시간이 지났어요. 사진을 다시 선택해주세요." }, 410);
-    // Check the server-stored OCR date, never a client-supplied replacement date.
-    // Re-read today's date after storage I/O in case the request crossed midnight.
-    const currentDay = toKstIsoDate();
-    const dateError = memberCertificationDateError(draft.activityDate || draft.date, currentDay)
-      || memberCertificationDateError(values.date, currentDay);
-    if (dateError) return privateJson({ error: dateError }, 422);
+    const values = memberUploadRecordValues(draft);
     const imagePath = `${MEMBER_UPLOAD_BUCKET}/${prefix}/image.webp`;
     // Resolve ownership on the server and certify submitted records immediately.
     // The unique member/date index prevents duplicate submissions.
@@ -204,17 +194,17 @@ export async function POST(request: NextRequest) {
       pace_seconds_per_km: calculatePaceSeconds(values.distanceKm, values.durationSeconds),
       source_app: "member-upload", status: "certified", confidence_score: draft.confidence,
       image_url: imagePath, raw_extracted_text: draft.rawText,
-      notes: writeCertificationReview(`개인 직접 제출 · 자동 인증 완료\nOCR 원본: ${JSON.stringify({ date: draft.date, distanceKm: draft.distanceKm, durationSeconds: draft.durationSeconds, model: draft.model })}\n사용자 확인값: ${JSON.stringify(values)}`, { version: 1, uploadedAt: draft.createdAt, ocrDate: draft.activityDate ?? null, ocrTime: draft.activityTime ?? null }),
-    }).select("id, status").single();
+      notes: writeCertificationReview(`개인 사진 업로드 · 업로드 날짜 기준 인증 완료\nOCR 원본: ${JSON.stringify({ date: draft.date, distanceKm: draft.distanceKm, durationSeconds: draft.durationSeconds, model: draft.model, analysisError: draft.analysisError ?? null, warning: draft.warning })}\n업로드 기준 기록: ${JSON.stringify(values)}`, { version: 1, uploadedAt: draft.createdAt, ocrDate: draft.activityDate ?? null, ocrTime: draft.activityTime ?? null }),
+    }).select("id, status, record_date").single();
     if (error?.code === "23505") {
       const { data: existing } = await service.from("daily_run_records").select("id, status, image_url")
         .eq("user_id", owned.adminUserId).eq("season_key", FOURTH_SEASON_KEY).eq("participant_id", owned.participantId).eq("record_date", values.date).maybeSingle();
-      if (existing?.image_url === imagePath) return privateJson({ record: { id: existing.id, status: existing.status }, duplicate: true });
+      if (existing?.image_url === imagePath) return privateJson({ record: { id: existing.id, status: existing.status, date: values.date }, duplicate: true });
       return privateJson({ error: "이미 해당 날짜의 기록이 있어요. 누적 활동에서 확인하고 수정이 필요하면 운영자에게 알려주세요." }, 409);
     }
     if (error) throw error;
     invalidatePublicDashboardCache();
     after(() => broadcastDashboardRefreshFromServer(service));
-    return privateJson({ record: data }, 201);
+    return privateJson({ record: { ...data, date: values.date } }, 201);
   } catch { return privateJson({ error: "기록을 제출하지 못했어요. 입력값은 유지되며 다시 제출할 수 있어요." }, 503); }
 }

@@ -1,7 +1,7 @@
 "use client";
 import {useCallback,useEffect,useRef,useState} from "react";
 import {reduceScreenshot} from "./my-activity-upload";
-import {memberCertificationDateError, type MemberUploadDraft} from "@/lib/member-upload-contract";
+import type {MemberUploadDraft} from "@/lib/member-upload-contract";
 import {openMyActivity} from "./my-activity-dialog";
 import {certificationDay,untilNextCertificationDay,hasCertification,certificationFailure} from "@/lib/certification-ui";
 import {DASHBOARD_REFRESH_DOM_EVENT} from "@/lib/dashboard-refresh-contract";
@@ -25,13 +25,9 @@ export function QuickCertification({today,onSaved}:{today:string;onSaved:()=>voi
   return()=>{alive.current=false;generation.current++;clearTimeout(timer);window.removeEventListener("focus",check);document.removeEventListener("visibilitychange",check);window.removeEventListener(DASHBOARD_REFRESH_DOM_EVENT,check);};
  },[refresh]);
  const save=async(value:MemberUploadDraft)=>{
-  if(value.analysisError)throw new CertificationError(502, `ocr:${value.analysisError}`);
-  const date=value.activityDate||value.date;
-  const dateError=memberCertificationDateError(date,certificationDay());
-  if(dateError)throw new CertificationError(422,dateError);
-  if(!date||value.distanceKm===null||value.durationSeconds===null)throw new CertificationError(400,"날짜·거리·시간 인식 실패");
-  const response=await fetch("/api/me/records",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({draftId:value.id,date,distanceKm:value.distanceKm,durationSeconds:value.durationSeconds})});
+  const response=await fetch("/api/me/records",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({draftId:value.id})});
   const data=await response.json();if(!response.ok||!data.record?.id)throw new CertificationError(response.status,data.error||"");
+  const date=data.record.date;
   if(alive.current){setDraft(null);if(date===certificationDay()){setCompleted(true);setArrival(date);}onSaved();void refresh().catch(()=>{});}
  };
  const run=async(file?:File)=>{if(busy.current)return;busy.current=true;setPending(true);try{

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import ts from "typescript";
-import { memberCertificationDateError, memberEvidenceIssues, hasMemberUploadEvidence, MEMBER_UPLOAD_BUCKET, MEMBER_UPLOAD_DRAFT_PATTERN, ownsFreshDraft, validateMemberSubmission } from "../lib/member-upload-contract.ts";
+import { memberUploadRecordValues, memberEvidenceIssues, hasMemberUploadEvidence, MEMBER_UPLOAD_BUCKET, MEMBER_UPLOAD_DRAFT_PATTERN, ownsFreshDraft, validateMemberSubmission } from "../lib/member-upload-contract.ts";
 
 // Execute the actual POST body with injected auth/storage/DB ports. Tests never
 // contact production and deliberately send forged ownership/status fields.
@@ -27,7 +27,7 @@ function harness(overrides = {}) {
     toKstIsoDate: overrides.today || (() => "2026-10-08"), privateJson: json,
     privateUploadStore: async () => { calls.push({ storage: true }); return {}; },
     uploadPrefix: (owner, id) => `4th/${owner}/${id}`, readUploadDraft: async () => draft,
-    memberCertificationDateError, memberEvidenceIssues, hasMemberUploadEvidence, writeCertificationReview, ownsFreshDraft, MEMBER_UPLOAD_BUCKET, FOURTH_SEASON_KEY: "4th",
+    memberUploadRecordValues, memberEvidenceIssues, hasMemberUploadEvidence, writeCertificationReview, ownsFreshDraft, MEMBER_UPLOAD_BUCKET, FOURTH_SEASON_KEY: "4th",
     calculatePaceSeconds: (distance, duration) => Math.round(duration / distance),
     invalidatePublicDashboardCache: () => calls.push({ invalidated: true }),
     after: () => {}, broadcastDashboardRefreshFromServer: () => {},
@@ -43,7 +43,7 @@ test("개인 POST: 요청의 타인 ID·certified 상태를 무시하고 서버 
   const row = h.calls.find(c => c.insert).insert;
   assert.equal(row.user_id, "operator"); assert.equal(row.participant_id, "owner"); assert.equal(row.status, "certified");
   assert.equal(readCertificationReview(row.notes).uploadedAt !== null, true);
-  assert.equal(row.raw_extracted_text, "original OCR"); assert.match(row.notes, /OCR 원본.*사용자 확인값/s);
+  assert.equal(row.raw_extracted_text, "original OCR"); assert.match(row.notes, /OCR 원본.*업로드 기준 기록/s);
   assert.match(row.image_url, /^member-run-uploads\/4th\/auth-owner\//);
 });
 test("개인 POST: 타인의 초안과 만료된 초안은 INSERT 없이 거절", async () => {
@@ -69,17 +69,19 @@ test("OCR 값이 없어도 회원이 입력한 유효한 기록은 즉시 인증
   }
 });
 
-test("개인 POST: 과거 날짜는 운영자 문의 안내 후 저장하지 않음", async () => {
-  const h = harness({body:{date:"2026-10-07"}});
-  const result=await h.POST({});assert.equal(result.status,422);assert.equal(result.body.error,"이전 운동 기록은 운영자에게 문의해주세요.");assert.ok(!h.calls.some(c=>c.insert));
+
+test("사진 날짜가 없거나 과거·미래여도 업로드 날짜에 인증",async()=>{
+ for(const date of [null,"2025-01-01","2027-01-01"]){
+  const h=harness({body:{date:"2020-01-01"},draft:{date,activityDate:date}});const response=await h.POST({});assert.equal(response.status,201);
+  const row=h.calls.find(c=>c.insert).insert;assert.equal(row.record_date,new Date(Date.now()+9*3600000).toISOString().slice(0,10));assert.equal(response.body.record.date,row.record_date);
+ }
 });
-test("개인 POST: 요청 날짜를 오늘로 바꿔도 과거 OCR 사진은 거절", async () => {
-  for (const draft of [{activityDate:"2026-10-07"},{date:"2026-10-07"},{date:null,activityDate:null}]) {
-    const h=harness({draft});assert.equal((await h.POST({})).status,422);assert.ok(!h.calls.some(c=>c.insert));
-  }
+test("배경 사진이나 OCR 장애로 수치를 못 읽어도 인증하고 수치는 null 보관",async()=>{
+ for(const draft of [{distanceKm:null,durationSeconds:null},{analysisError:"timeout",distanceKm:5,durationSeconds:30}]){
+ const h=harness({draft});assert.equal((await h.POST({})).status,201);const row=h.calls.find(c=>c.insert).insert;assert.equal(row.status,"certified");assert.equal(row.distance_km,null);assert.equal(row.duration_seconds,null);assert.match(row.image_url,/member-run-uploads/);
+ }
 });
-test("개인 POST: 미래 운동 날짜 및 자정 경과 후 제출은 거절", async () => {
-  const future=harness({draft:{activityDate:"2026-10-09"}});assert.equal((await future.POST({})).status,422);
-  let calls=0;const midnight=harness({today:()=>++calls===1?"2026-10-08":"2026-10-09"});
-  const response=await midnight.POST({});assert.equal(response.status,422);assert.match(response.body.error,/운영자에게 문의/);assert.ok(!midnight.calls.some(c=>c.insert));
+test("업로드 일자는 한국시간 자정 기준이고 사진 날짜·요청 날짜에 영향받지 않음",()=>{
+ const base={createdAt:"2026-09-15T14:59:59.999Z",date:"2000-01-01",distanceKm:null,durationSeconds:null};
+ assert.equal(memberUploadRecordValues(base).date,"2026-09-15");assert.equal(memberUploadRecordValues({...base,createdAt:"2026-09-15T15:00:00.000Z"}).date,"2026-09-16");
 });

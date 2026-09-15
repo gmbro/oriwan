@@ -48,9 +48,10 @@ export function memberEvidenceIssues(draft: MemberUploadDraft): string[] {
   return issues;
 }
 
-export function memberCertificationDateError(date: string | null | undefined, today: string): string | null {
-  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return "운동 날짜가 보이는 캡처본을 올려주세요.";
-  if (date < today) return "이전 운동 기록은 운영자에게 문의해주세요.";
-  if (date > today) return "미래 날짜의 운동은 인증할 수 없어요.";
-  return null;
+// Certification belongs to the upload day; OCR is optional record enrichment.
+export function memberUploadRecordValues(draft: MemberUploadDraft) {
+  const date = new Date(Date.parse(draft.createdAt) + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const distanceKm = !draft.analysisError && typeof draft.distanceKm === "number" && Number.isFinite(draft.distanceKm) && draft.distanceKm > 0 && draft.distanceKm <= 300 ? Math.round(draft.distanceKm * 1000) / 1000 : null;
+  const durationSeconds = !draft.analysisError && typeof draft.durationSeconds === "number" && Number.isInteger(draft.durationSeconds) && draft.durationSeconds > 0 && draft.durationSeconds <= 172800 ? draft.durationSeconds : null;
+  return { date, distanceKm, durationSeconds };
 }
