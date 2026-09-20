@@ -6,12 +6,12 @@ const GOOGLE_TAG_ID = "AW-18451924880";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://xn--220bw61afob.kro.kr"),
-  title: "TWTT 러닝보드",
-  description: "함께 달리고, 인증하고, 응원하는 TWTT 크루 대시보드",
-  keywords: ["TWTT", "러닝", "기록인증", "대시보드", "OCR", "챌린지"],
+  title: "스내사 | 스스로 내던지는 사람들",
+  description: "창업가와 예비 창업자가 함께 달리고, 읽고, 실천하는 스내사 커뮤니티",
   openGraph: {
-    title: "TWTT 러닝보드",
-    description: "함께 달리고, 인증하고, 응원하는 TWTT 크루 대시보드",
+    title: "스내사 | 스스로 내던지는 사람들",
+    description: "함께 달리고, 읽고, 실천하는 창업가 커뮤니티",
+    siteName: "스내사",
     type: "website",
     locale: "ko_KR",
   },

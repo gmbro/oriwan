@@ -8,6 +8,7 @@ import { SeasonSchedule } from "@/components/season-schedule";
 import { PublicSiteFooter } from "@/components/public-site-footer";
 import { usePageScrollLock } from "@/lib/use-page-scroll-lock";
 import Image from "next/image";
+import Link from "next/link";
 import { MyActivityDialog, openMyActivity } from "@/components/my-activity-dialog";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
@@ -194,7 +195,16 @@ export function Hello2027Poc({
       <main id="top" className={styles.main}>
         {memberFeatures && viewerState?.viewer?.authenticated && viewerState.viewer.approved_participant && <PersonalGoalBanner key={viewerState.viewer.participant_id} />}
         {viewerState?.viewer?.authenticated && !viewerState.viewer.approved_participant && <p role="status" className="mb-5 rounded-2xl bg-blue-50 p-4 text-sm font-bold text-blue-600">운영자 승인을 기다리고 있어요. 승인 후 멤버로 참여할 수 있어요.</p>}
-        <h1 className={styles.visuallyHidden}>{liveSnapshot.seasonName} {liveSnapshot.versionName}</h1>
+        {memberFeatures && viewerState?.viewer && !viewerState.viewer.authenticated ? (
+          <section className="mb-6 px-1 [word-break:keep-all]" aria-label="스내사 소개">
+            <h1 className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">스내사, 함께 달리고 읽고 실천해요</h1>
+            <p className="mt-2 text-sm leading-6 text-slate-500">스스로 내던지는 사람들. 창업가와 예비 창업자를 위한 러닝 커뮤니티에서 100일 습관 챌린지를 이어갑니다.</p>
+            <div className="mt-2 flex flex-wrap gap-x-5 text-sm font-semibold text-blue-600">
+              <Link href="/about" className="inline-flex min-h-11 items-center">모임 소개 →</Link>
+              <Link href="/habit-challenge" className="inline-flex min-h-11 items-center">100일 도전 알아보기 →</Link>
+            </div>
+          </section>
+        ) : <h1 className={styles.visuallyHidden}>{liveSnapshot.seasonName} {liveSnapshot.versionName}</h1>}
 
         <>
           <Hello2027BannerCarousel

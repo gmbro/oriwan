@@ -6,6 +6,8 @@ export function PublicSiteFooter() {
     <div className={styles.inner}>
       <nav aria-label="스내사 둘러보기" className={styles.navigation}>
         <Link href="/about">소개<span aria-hidden="true">→</span></Link>
+        <Link href="/running-community">러닝 커뮤니티<span aria-hidden="true">→</span></Link>
+        <Link href="/habit-challenge">100일 챌린지<span aria-hidden="true">→</span></Link>
         <Link href="/magazine">매거진<span aria-hidden="true">→</span></Link>
       </nav>
       <div className={styles.bottom}>

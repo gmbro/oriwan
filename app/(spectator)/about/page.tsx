@@ -1,12 +1,15 @@
 import Image from "next/image";
-export const metadata={title:"스내사 소개 | TWTT"};
+import Link from "next/link";
+import { publicPageMetadata } from "@/lib/public-site-metadata";
+export const metadata=publicPageMetadata("창업가·예비 창업자 모임 스내사 | 러닝과 독서, 실천", "창업가와 예비 창업자가 함께 달리고, 책을 읽고, 실행을 나누는 스내사를 소개합니다. 클럽장 우상규의 이야기와 러닝·독서·월간 실천 모임을 알아보세요.", "/about");
 const activities=[
  ["01","하루를 주도적으로 만드는 러닝","매일 아침, 3km 이상의 야외 러닝으로 하루를 시작합니다. 빠른 속도보다 꾸준한 실천을 중요하게 생각해요.","공식 인증 기간은 2026년 9월 23일~12월 31일입니다. 2027년 1월 1일에는 20.27km를 함께 달리며 일출을 보는 것을 목표로 합니다."],
  ["02","자연에서 만나는 새로운 에너지","러닝과 등산 번개, 산과 바다로 떠나는 트립. 도시에서 잠시 벗어나 몸을 움직이고 나를 돌아봅니다.","정기모임과 번개 일정은 대시보드 달력에서 확인하세요."],
  ["03","책과 함께하는 4개월","선정 도서 네 권을 읽고, 창업가의 고민을 나누고, 일상에서 실천합니다.","페이스메이커 도서는 『아주 작은 습관의 힘』입니다. 매월 다섯 챕터씩 각자 읽으며 루틴을 돌아봅니다."],
  ["04","생각을 실행으로 옮기는 미션","예비 창업자는 0에서 1로, 기존 창업자는 1에서 N으로. 각자의 단계에 맞는 작은 미션을 실행합니다.","한 달간의 과정과 결과를 모임에서 3분 안에 나누고 서로 피드백합니다."]
 ];
-export default function Page(){return <><p className="text-sm font-bold text-blue-600">스스로를 내던지는 사람들</p><h1 className="mt-4 text-4xl font-bold leading-tight tracking-tight">주도적으로 개척합니다.</h1><p className="mt-6 text-lg leading-8 text-slate-500">창업가를 위한 심신단련 커뮤니티, 스내사.<br/>함께 달리고, 읽고, 실천하며 다시 나아갈 힘을 만듭니다.</p>
+export default function Page(){return <><p className="text-sm font-bold text-blue-600">스내사 · 스스로 내던지는 사람들</p><h1 className="mt-4 text-3xl font-bold leading-tight tracking-tight [word-break:keep-all] sm:text-4xl">함께 달리고 읽는<br/>창업가들의 모임</h1><p className="mt-6 text-lg leading-8 text-slate-500">창업가와 예비 창업자를 위한 심신단련 커뮤니티, 스내사.<br/>러닝으로 일상의 리듬을 만들고, 독서와 실천을 통해 다시 나아갈 힘을 기릅니다.</p>
+<nav aria-label="활동 자세히 보기" className="mt-5 flex flex-wrap gap-x-6 text-sm font-semibold text-blue-600"><Link className="inline-flex min-h-11 items-center" href="/running-community">러닝 커뮤니티 알아보기 →</Link><Link className="inline-flex min-h-11 items-center" href="/habit-challenge">100일 습관 챌린지 →</Link></nav>
 <section className="mt-10 rounded-3xl bg-white p-6 sm:p-8"><h2 className="text-2xl font-bold">왜 이 클럽인가요?</h2><p className="mt-4 leading-8 text-slate-600">고객, 투자, 팀, 매출. 창업가의 하루에는 늘 새로운 문제가 찾아옵니다. 우리는 나를 돌보는 일도 중요한 투자라고 믿습니다. 더 건강한 몸, 더 단단한 마음, 그리고 다시 시도할 용기를 함께 기릅니다.</p><p className="mt-4 font-semibold leading-7 text-blue-600">강연을 듣는 곳을 넘어,<br/>서로의 실천을 이어주는 커뮤니티입니다.</p></section>
 <section className="mt-10"><p className="text-sm font-bold text-blue-600">클럽장 이야기</p><h2 className="mt-2 text-2xl font-bold">안녕하세요, 우상규입니다.</h2><p className="mt-4 leading-8 text-slate-600">샵&카페 브랜드 mtl과 보난자커피 한국지사를 창업했습니다. 2014년 브랜드 사업을 시작한 뒤, 회사를 키우는 기쁨과 매일 새로운 문제를 마주하는 어려움을 함께 겪었습니다.</p><blockquote className="my-6 border-l-4 border-blue-500 pl-5 text-xl font-semibold leading-9">“아침이 나를 깨우는 게 아니라,<br/>내가 아침을 깨우는 순간.”</blockquote><p className="leading-8 text-slate-600">아침 달리기는 하루를 주도적으로 시작하는 작은 계기가 됐습니다. 자연 속에서 달리고, 책을 읽고, 스스로에게 질문하는 시간이 다시 한 걸음 나아갈 용기를 주었습니다. 그 작은 실천을 여러분과 나누고 싶습니다.</p></section>
 <figure className="mt-10 overflow-hidden rounded-3xl bg-white"><Image src="/snaesa-season-trips.webp" alt="스내사 시즌 1~3 트립과 번개 모임: 바다를 바라보는 멤버들, 함께한 단체 사진, 숲길 등산" width={910} height={1218} sizes="(max-width: 768px) calc(100vw - 40px), 768px" className="block h-auto w-full" /></figure>
