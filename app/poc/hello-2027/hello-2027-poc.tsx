@@ -188,7 +188,7 @@ export function Hello2027Poc({
         {viewerState?.viewer?.authenticated && !viewerState.viewer.approved_participant && <p role="status" className="mb-5 rounded-2xl bg-blue-50 p-4 text-sm font-bold text-blue-600">운영자 승인을 기다리고 있어요. 승인 후 멤버로 참여할 수 있어요.</p>}
         {memberFeatures && viewerState?.viewer && !viewerState.viewer.authenticated ? (
           <section className="mb-6 px-1 [word-break:keep-all]" aria-label="스내사 소개">
-            <h1 className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">스내사, 함께 달리고 읽고 실천해요</h1>
+            <h1 className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">스스로 내던지는 사람들, 함께 달리고 읽고 실천해요</h1>
             <p className="mt-2 text-sm leading-6 text-slate-500">트레바리 모임 ‘스스로 내던지는 사람들’. 창업가와 예비 창업자가 함께 달리고 읽으며 100일 습관 챌린지를 이어갑니다.</p>
             <div className="mt-2 flex flex-wrap gap-x-5 text-sm font-semibold text-blue-600">
               <Link href="/about" className="inline-flex min-h-11 items-center">트레바리 스내사 모임 소개 →</Link>
