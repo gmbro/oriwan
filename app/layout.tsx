@@ -6,10 +6,10 @@ const GOOGLE_TAG_ID = "AW-18451924880";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://xn--220bw61afob.kro.kr"),
-  title: "스내사 · 스스로 내던지는 사람들 · TWTT 아침러닝 챌린지 | 창업가를 위한 심신단련 커뮤니티",
+  title: "창업가를 위한 심신단련 커뮤니티",
   description: "스내사, 스스로 내던지는 사람들. TWTT 아침러닝 챌린지는 창업가를 위한 심신단련 커뮤니티입니다.",
   openGraph: {
-    title: "스내사 · 스스로 내던지는 사람들 · TWTT 아침러닝 챌린지 | 창업가를 위한 심신단련 커뮤니티",
+    title: "창업가를 위한 심신단련 커뮤니티",
     description: "스내사, 스스로 내던지는 사람들. TWTT 아침러닝 챌린지는 창업가를 위한 심신단련 커뮤니티입니다.",
     siteName: "스스로 내던지는 사람들",
     type: "website",
