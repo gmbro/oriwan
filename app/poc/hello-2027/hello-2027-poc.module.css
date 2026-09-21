@@ -727,12 +727,7 @@
   font-weight: 650;
 }
 
-.crewSort { position: relative; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); flex: none; width: min(204px, 100%); padding: 0 3px; }
-/* A compact 32px visual control with a full 44px touch target. */
-.crewSort::before { content: ""; position: absolute; inset: 6px 0; border-radius: 10px; background: #e9ecef; }
-.crewSort button { position: relative; z-index: 0; min-width: 44px; min-height: 44px; padding: 0 6px; color: var(--text-tertiary); border: 0; border-radius: 8px; background: transparent; font: inherit; font-size: 0.68rem; font-weight: 700; white-space: nowrap; cursor: pointer; }
-.crewSort button[aria-pressed="true"] { color: var(--text); }
-.crewSort button[aria-pressed="true"]::before { content: ""; position: absolute; z-index: -1; inset: 9px 0; border-radius: 7px; background: var(--surface); box-shadow: 0 1px 4px rgba(25, 31, 40, 0.08); }
+.crewSortLabel { flex: none; color: var(--text-tertiary); font-size: var(--type-caption); font-weight: 500; }
 
 .participantGrid {
   display: grid;
@@ -771,7 +766,6 @@
 .profileImageRemove:focus-visible,
 .carouselArrow:focus-visible,
 .carouselToggle:focus-visible,
-.crewSort button:focus-visible,
 .authorModeButtons button:focus-visible,
 .threadActions button:focus-visible,
 .guestbookComposer button:focus-visible,
@@ -1303,8 +1297,7 @@
   aspect-ratio: auto;
 }
 
-.carouselToggle,
-.crewSort button {
+.carouselToggle {
   min-width: 44px;
   min-height: 44px;
 }
@@ -1537,7 +1530,6 @@
 .summaryCard { align-items: center; text-align: center; }
 .summaryCard > span { font-size: var(--type-caption); font-weight: 500; line-height: 1.5; }
 .summaryCard > strong, .summaryCard > .summaryTotal { margin-top: 8px; font-size: var(--type-metric); font-weight: 700; line-height: 1.2; }
-.crewSort button { color: var(--text-secondary); font-size: 11px; font-weight: 600; }
 .participantNameRow > strong { font-size: var(--type-label); font-weight: 600; line-height: 1.4; }
 .participantNameRow > strong small, .participantRate small { color: var(--text-tertiary); font-size: 11px; font-weight: 500; line-height: 1.4; }
 .participantRate > strong { font-size: clamp(22px, 2.3vw, 28px); font-weight: 700; line-height: 1.2; }

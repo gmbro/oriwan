@@ -36,7 +36,6 @@ type Hello2027PocProps = {
 };
 
 type DayPhase = "night" | "dawn" | "morning" | "day" | "sunset" | "evening";
-type CrewSort = "completed" | "distance" | "duration";
 const ENCOURAGEMENT_ROTATION_MS = 30_000;
 
 function subscribeToClock(onStoreChange: () => void) {
@@ -116,7 +115,6 @@ export function Hello2027Poc({
   const [liveSnapshot, setLiveSnapshot] = useState(snapshot);
   const [selectedParticipantId, setSelectedParticipantId] = useState<string | null>(null);
   const [visibleMembers, setVisibleMembers] = useState(6);
-  const [crewSort, setCrewSort] = useState<CrewSort>("completed");
   const clockSnapshot = useSyncExternalStore(
     subscribeToClock,
     getClockSnapshot,
@@ -141,18 +139,11 @@ export function Hello2027Poc({
   );
   const sortedParticipants = useMemo(() => {
     const participants = [...(canViewRecords ? projectDashboardRecords(liveSnapshot, false).participants : liveSnapshot.participants)];
-    if (crewSort === "completed") {
-      return participants.sort((left, right) => (
-        right.certifiedDays - left.certifiedDays
-        || left.fullName.localeCompare(right.fullName, "ko")
-      ));
-    }
-    if (crewSort === "distance" || crewSort === "duration") {
-      const metric = crewSort === "distance" ? "totalDistanceKm" : "totalDurationMinutes";
-      return participants.sort((a, b) => b[metric] - a[metric] || a.fullName.localeCompare(b.fullName, "ko"));
-    }
-    return participants.sort((left, right) => left.fullName.localeCompare(right.fullName, "ko"));
-  }, [crewSort, liveSnapshot, canViewRecords]);
+    return participants.sort((left, right) => (
+      right.certifiedDays - left.certifiedDays
+      || left.fullName.localeCompare(right.fullName, "ko")
+    ));
+  }, [liveSnapshot, canViewRecords]);
 
   useEffect(() => {
     const applySnapshot = (event: Event) => {
@@ -198,9 +189,9 @@ export function Hello2027Poc({
         {memberFeatures && viewerState?.viewer && !viewerState.viewer.authenticated ? (
           <section className="mb-6 px-1 [word-break:keep-all]" aria-label="스내사 소개">
             <h1 className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">스내사, 함께 달리고 읽고 실천해요</h1>
-            <p className="mt-2 text-sm leading-6 text-slate-500">스스로 내던지는 사람들. 창업가와 예비 창업자를 위한 러닝 커뮤니티에서 100일 습관 챌린지를 이어갑니다.</p>
+            <p className="mt-2 text-sm leading-6 text-slate-500">트레바리 모임 ‘스스로 내던지는 사람들’. 창업가와 예비 창업자가 함께 달리고 읽으며 100일 습관 챌린지를 이어갑니다.</p>
             <div className="mt-2 flex flex-wrap gap-x-5 text-sm font-semibold text-blue-600">
-              <Link href="/about" className="inline-flex min-h-11 items-center">모임 소개 →</Link>
+              <Link href="/about" className="inline-flex min-h-11 items-center">트레바리 스내사 모임 소개 →</Link>
               <Link href="/habit-challenge" className="inline-flex min-h-11 items-center">100일 도전 알아보기 →</Link>
             </div>
           </section>
@@ -240,17 +231,7 @@ export function Hello2027Poc({
                   <h2 id="crew-title">멤버</h2>
                   <span className={styles.crewCount}>{liveSnapshot.participantCount}명</span>
                 </div>
-                <div className={styles.crewSort} role="group" aria-label="멤버 정렬 방식">
-                  <button
-                    type="button"
-                    aria-pressed={crewSort === "completed"}
-                    onClick={() => setCrewSort("completed")}
-                  >
-                    인증일
-                  </button>
-                  <button type="button" aria-pressed={crewSort === "distance"} onClick={() => setCrewSort("distance")}>거리순</button>
-                  <button type="button" aria-pressed={crewSort === "duration"} onClick={() => setCrewSort("duration")}>시간순</button>
-                </div>
+                <span className={styles.crewSortLabel}>인증일순</span>
               </div>
 
               {memberFeatures && viewerState?.viewer && !viewerState.loading && !viewerState.error && !viewerState.viewer.authenticated && <VisitorCrewCheer />}
@@ -273,8 +254,8 @@ export function Hello2027Poc({
                         </span>
                       </span>
                       <span className={styles.participantRate}>
-                        <small>{crewSort === "completed" ? "총 인증일" : crewSort === "distance" ? "누적 거리" : "누적 시간"}</small>
-                        <strong className={styles.cardMetric}>{crewSort === "completed" ? <>{participant.certifiedDays}일</> : crewSort === "distance" ? formatDistanceKm(participant.totalDistanceKm) : formatTotalDuration(participant.totalDurationMinutes)}</strong>
+                        <small>총 인증일</small>
+                        <strong className={styles.cardMetric}>{participant.certifiedDays}일</strong>
                       </span>
                     </button>
                   </li>

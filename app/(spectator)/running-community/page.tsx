@@ -11,7 +11,7 @@ export default function RunningCommunityPage() {
   return <article className="[word-break:keep-all]">
     <p className="text-sm font-bold text-blue-600">스내사 러닝 커뮤니티</p>
     <h1 className="mt-4 text-3xl font-bold leading-tight tracking-tight sm:text-4xl">각자의 자리에서 달리고,<br/>꾸준함은 함께 만들어요</h1>
-    <p className="mt-6 text-lg leading-8 text-slate-600">스내사는 창업가와 예비 창업자가 달리기, 독서, 작은 실행을 함께 이어가는 모임입니다. TWTT 러닝보드는 멤버들이 각자의 운동을 기록하고 서로의 실천을 확인하는 공간이에요.</p>
+    <p className="mt-6 text-lg leading-8 text-slate-600">스내사는 창업가와 예비 창업자가 달리기, 독서, 작은 실행을 함께 이어가는 트레바리 모임입니다. TWTT 러닝보드는 멤버들이 각자의 운동을 기록하고 서로의 실천을 확인하는 공간이에요.</p>
     <div className="mt-10 space-y-6">
       <section className="rounded-3xl bg-white p-6 sm:p-8">
         <h2 className="text-xl font-bold">이런 러닝 동료를 찾는다면</h2>

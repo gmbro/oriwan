@@ -31,7 +31,7 @@ export const publicSiteStructuredData = {
       "@type": "Organization", "@id": `${PUBLIC_SITE_URL}/#community`,
       name: PUBLIC_SITE_NAME, alternateName: "스스로 내던지는 사람들",
       url: `${PUBLIC_SITE_URL}/`, logo: `${PUBLIC_SITE_URL}/brand/twtt-logo.png`,
-      description: "창업가와 예비 창업자가 함께 달리고, 책을 읽고, 실천하는 커뮤니티입니다.",
+      description: "트레바리 모임 스내사는 창업가와 예비 창업자가 함께 달리고, 책을 읽고, 실천하는 커뮤니티입니다.",
     },
   ],
 };
