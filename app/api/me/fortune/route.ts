@@ -135,7 +135,8 @@ async function createFortune(request: NextRequest) {
     maxBodyBytes: 4 * 1024,
     rateLimit: {
       key: "daily-fortune",
-      limit: 3,
+      // Reopening a saved result does not generate a new fortune.
+      limit: 60,
       windowMs: 60_000,
       message: "운세 요청이 잠시 몰렸어요. 잠시 후 다시 시도해주세요.",
     },
