@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import ts from "typescript";
-import { memberUploadRecordValues, memberEvidenceIssues, hasMemberUploadEvidence, MEMBER_UPLOAD_BUCKET, MEMBER_UPLOAD_DRAFT_PATTERN, ownsFreshDraft, validateMemberSubmission } from "../lib/member-upload-contract.ts";
+import { memberUploadRecordValues, memberEvidenceIssues, hasMemberUploadEvidence, MEMBER_UPLOAD_BUCKET, MEMBER_UPLOAD_DRAFT_PATTERN, ownsFreshDraft, validateMemberSubmission, validateCertificationDate } from "../lib/member-upload-contract.ts";
 
 // Execute the actual POST body with injected auth/storage/DB ports. Tests never
 // contact production and deliberately send forged ownership/status fields.
@@ -23,7 +23,7 @@ function harness(overrides = {}) {
   const owned = overrides.unauthenticated ? { response: json({ error: "login" }, 401) } : { context: { service, authUserId: "auth-owner" }, participantId: "owner", adminUserId: "operator" };
   const deps = {
     guardMutationRequest: () => null, ownedMember: async () => owned,
-    readMemberJson: async () => ({ body }), MEMBER_UPLOAD_DRAFT_PATTERN, validateMemberSubmission,
+    readMemberJson: async () => ({ body }), MEMBER_UPLOAD_DRAFT_PATTERN, validateMemberSubmission, validateCertificationDate,
     toKstIsoDate: overrides.today || (() => "2026-10-08"), privateJson: json,
     privateUploadStore: async () => { calls.push({ storage: true }); return {}; },
     uploadPrefix: (owner, id) => `4th/${owner}/${id}`, readUploadDraft: async () => draft,
@@ -43,7 +43,7 @@ test("개인 POST: 요청의 타인 ID·certified 상태를 무시하고 서버 
   const row = h.calls.find(c => c.insert).insert;
   assert.equal(row.user_id, "operator"); assert.equal(row.participant_id, "owner"); assert.equal(row.status, "certified");
   assert.equal(readCertificationReview(row.notes).uploadedAt !== null, true);
-  assert.equal(row.raw_extracted_text, "original OCR"); assert.match(row.notes, /OCR 원본.*업로드 기준 기록/s);
+  assert.equal(row.raw_extracted_text, "original OCR"); assert.match(row.notes, /OCR 원본.*확정 기록/s);
   assert.match(row.image_url, /^member-run-uploads\/4th\/auth-owner\//);
 });
 test("개인 POST: 타인의 초안과 만료된 초안은 INSERT 없이 거절", async () => {
@@ -70,10 +70,15 @@ test("OCR 값이 없어도 회원이 입력한 유효한 기록은 즉시 인증
 });
 
 
-test("사진 날짜가 없거나 과거·미래여도 업로드 날짜에 인증",async()=>{
+test("사진 날짜가 없거나 과거·미래여도 본인이 선택한 유효한 날짜에 인증",async()=>{
  for(const date of [null,"2025-01-01","2027-01-01"]){
-  const h=harness({body:{date:"2020-01-01"},draft:{date,activityDate:date}});const response=await h.POST({});assert.equal(response.status,201);
-  const row=h.calls.find(c=>c.insert).insert;assert.equal(row.record_date,new Date(Date.now()+9*3600000).toISOString().slice(0,10));assert.equal(response.body.record.date,row.record_date);
+  const h=harness({body:{date:"2026-09-20"},draft:{date,activityDate:date}});const response=await h.POST({});assert.equal(response.status,201);
+  const row=h.calls.find(c=>c.insert).insert;assert.equal(row.record_date,"2026-09-20");assert.equal(response.body.record.date,row.record_date);
+ }
+});
+test("선택 날짜가 잘못되거나 미래·시즌 밖이면 저장하지 않음",async()=>{
+ for(const date of ["2026-09-31","2026-10-09","2026-08-12","2027-01-01","",42]){
+  const h=harness({body:{date}});assert.equal((await h.POST({})).status,400);assert.ok(!h.calls.some(c=>c.insert));
  }
 });
 test("배경 사진이나 OCR 장애로 수치를 못 읽어도 인증하고 수치는 null 보관",async()=>{

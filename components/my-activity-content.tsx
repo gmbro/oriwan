@@ -130,7 +130,7 @@ export default function MyActivityContent({ section, onSection, onFeature, name,
     {preview && <span className={styles.status}>예시 화면 · 실제 회원 정보 변경 없음</span>}
     {error && section === "records" && <div className={`${styles.feedback} ${styles.error}`} role="alert">{error} <button className={styles.secondary} onClick={() => void load(true)}>다시 확인</button></div>}
     {section === "home" && <div className={styles.identity}><Image unoptimized width={56} height={56} className={styles.avatar} src={avatar} alt="내 프로필" /><strong>{displayName}</strong></div>}
-    {section === "home" && <><h3 className={styles.groupTitle}>내 정보</h3><nav className={styles.accountGrid} aria-label="내 정보 메뉴">{([{key:"profile",title:"프로필",icon:"profile"},{key:"locker",title:"보관함",icon:"gift"},{key:"support",title:"후원",icon:"heart"}] as const).map(item=><button key={item.key} disabled={!connected} onClick={()=>onSection(item.key)}><span><ActivityIcon kind={item.icon}/></span>{item.title}</button>)}</nav><section className={styles.toolSection}><h3 className={styles.groupTitle}>도구</h3><nav className={styles.toolGrid} aria-label="도구"><button disabled={!connected} onClick={()=>onFeature("corrective")}><span><ActivityIcon kind="corrective"/></span>교정운동 신청</button><button disabled={!connected} onClick={()=>onFeature("fortune")}><span><ActivityIcon kind="fortune"/></span>오늘의 운세보기</button></nav></section></>}
+    {section === "home" && <><h3 className={styles.groupTitle}>내 정보</h3><nav className={styles.accountGrid} aria-label="내 정보 메뉴">{([{key:"profile",title:"프로필",icon:"profile"},{key:"support",title:"후원",icon:"heart"}] as const).map(item=><button key={item.key} disabled={!connected} onClick={()=>onSection(item.key)}><span><ActivityIcon kind={item.icon}/></span>{item.title}</button>)}</nav></>}
     {profileVisited && <div hidden={section !== "profile"} className={styles.form}><ProfileEditor name={displayName} avatar={avatar} onChanged={changed} preview={Boolean(preview)} /></div>}
     {/* Keep an in-flight upload/draft alive when navigating or closing the sheet.
         The entire tree is destroyed on logout/account change by its owner key. */}
@@ -139,7 +139,7 @@ export default function MyActivityContent({ section, onSection, onFeature, name,
     {section === "support" && <OperatorSupport status={supportStatus} />}
     {section === "records" && <QuickCertification today={data?.season.today ?? todayFallback} onSaved={()=>{void load(true);void import("@/lib/dashboard-refresh").then(m=>m.broadcastDashboardRefresh());}}/>}
     {section === "records" && (data ? <Records data={data} /> : <p role="status">누적 기록을 불러오는 중이에요.</p>)}
-    {section === "fortune" && !preview && <FortuneView defaultName={displayName} />}
+    {section === "fortune" && !preview && <FortuneView defaultName={displayName} active={active} />}
     {section === "gift" && !preview && <GiftView initialStatus={featureSeed?.giftStatus} onStatusChange={featureSeed?.onGiftChange} />}
     {section === "corrective" && !preview && <CorrectiveView initialRequest={featureSeed?.correctiveRequest} initialStatus={featureSeed?.correctiveStatus} />}
     {section === "time-machine" && <TimeMachineView preview={Boolean(preview)} active={active} initialRequest={featureSeed?.timeMachineRequest} initialStatus={preview?.goal ?? featureSeed?.timeMachineStatus} onStatusChange={preview ? (goal) => window.dispatchEvent(new CustomEvent("twtt:preview-goal", { detail: goal })) : featureSeed?.onTimeMachineChange} />}

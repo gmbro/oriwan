@@ -15,6 +15,7 @@ import { resolvePersonalKakaoIdentity } from "@/lib/personal-member-context";
 import { guardMutationRequest, readLimitedJson } from "@/lib/request-security";
 import { toKstIsoDate } from "@/lib/run-records";
 import { logServerFailure } from "@/lib/server-error-log";
+import { fortuneStorage } from "@/lib/fortune-storage";
 
 export const dynamic = "force-dynamic";
 
@@ -112,7 +113,24 @@ function attachFortuneCache(response: NextResponse, value: FortuneCache) {
   return response;
 }
 
+export async function GET() {
+  const identity = await resolvePersonalKakaoIdentity();
+  if (!identity.ok) return json({ error: "로그인 후 확인해주세요." }, 401);
+  const service = getServiceClient();
+  if (!service) return json({ error: "운세 설정을 불러오지 못했어요." }, 503);
+  try {
+    const store = await fortuneStorage(service, identity.authUserId);
+    const parsed = parseDailyFortuneInput(await store.read("profile"), toKstIsoDate());
+    return json({ profile: parsed.ok ? parsed.value : null });
+  } catch { return json({ error: "운세 설정을 불러오지 못했어요. 다시 시도해주세요." }, 503); }
+}
+
 export async function POST(request: NextRequest) {
+  try { return await createFortune(request); }
+  catch { return json({ error: "운세를 저장하거나 불러오지 못했어요. 다시 시도해주세요." }, 503); }
+}
+
+async function createFortune(request: NextRequest) {
   const guardResponse = guardMutationRequest(request, {
     maxBodyBytes: 4 * 1024,
     rateLimit: {
@@ -132,6 +150,9 @@ export async function POST(request: NextRequest) {
     return json({ error: "오늘의 운세는 카카오 로그인 후 확인할 수 있어요." }, 401);
   }
   const authUserId = identity.authUserId;
+  const service = getServiceClient();
+  if (!service) return json({ error: "운세 저장소를 준비하고 있어요. 잠시 후 다시 확인해주세요." }, 503);
+  const store = await fortuneStorage(service, authUserId);
 
   const parsedBody = await readLimitedJson(request, 4 * 1024);
   if (!parsedBody.ok) return parsedBody.response;
@@ -140,9 +161,7 @@ export async function POST(request: NextRequest) {
   const date = toKstIsoDate(new Date());
   const parsed = parseDailyFortuneInput(body, date);
   if (!parsed.ok) return json({ error: parsed.error }, 400);
-  if (!FORTUNE_API_KEY) {
-    return json({ error: "외부 운세 연결을 준비하고 있어요. 잠시 후 다시 확인해주세요." }, 503);
-  }
+  await store.write("profile", parsed.value);
 
   const anonymousProfile = deriveAnonymousFortuneProfile(parsed.value);
   const cacheIdentity = {
@@ -150,8 +169,11 @@ export async function POST(request: NextRequest) {
     user_key: digest(authUserId),
     profile_key: digest(JSON.stringify(anonymousProfile)),
   };
-  const cachedFortune = readFortuneCache(request, cacheIdentity, anonymousProfile);
+  const resultKey = `results/${date}/${cacheIdentity.profile_key}`;
+  const storedFortune = parseDailyFortuneResult(await store.read(resultKey), anonymousProfile);
+  const cachedFortune = storedFortune ?? readFortuneCache(request, cacheIdentity, anonymousProfile);
   if (cachedFortune) {
+    if (!storedFortune) await store.write(resultKey, cachedFortune);
     return json({
       date,
       fortune: cachedFortune,
@@ -160,10 +182,7 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  const service = getServiceClient();
-  if (!service) {
-    return json({ error: "운영 운세 사용량 확인을 준비하고 있어요. 잠시 후 다시 확인해주세요." }, 503);
-  }
+  if (!FORTUNE_API_KEY) return json({ error: "외부 운세 연결을 준비하고 있어요. 잠시 후 다시 확인해주세요." }, 503);
   const { data: usageAllowed, error: usageError } = await service.rpc("claim_daily_fortune_usage", {
     p_auth_user_id: authUserId,
     p_fortune_date: date,
@@ -209,6 +228,7 @@ export async function POST(request: NextRequest) {
       }
     }
     result ??= SAFE_DAILY_FORTUNE_FALLBACK;
+    await store.write(resultKey, result);
 
     const resultResponse = json({
       date,

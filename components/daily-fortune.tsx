@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 
 import {
   DAILY_FORTUNE_REGIONS,
@@ -18,9 +18,10 @@ type FortuneResponse = {
 type DailyFortuneProps = {
   defaultName?: string;
   preview?: boolean;
+  active?: boolean;
 };
 
-export function DailyFortune({ defaultName = "", preview = false }: DailyFortuneProps) {
+export function DailyFortune({ defaultName = "", preview = false, active = true }: DailyFortuneProps) {
   const [name, setName] = useState(defaultName);
   const [birthDate, setBirthDate] = useState("");
   const [birthTime, setBirthTime] = useState("");
@@ -28,6 +29,33 @@ export function DailyFortune({ defaultName = "", preview = false }: DailyFortune
   const [data, setData] = useState<FortuneResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [restoring, setRestoring] = useState(!preview);
+  const [restoreFailed, setRestoreFailed] = useState(false);
+  const [restoreAttempt, setRestoreAttempt] = useState(0);
+  useEffect(() => {
+    if (preview || !active) return;
+    const controller = new AbortController();
+    const restore = async () => {
+      setRestoring(true); setRestoreFailed(false); setError("");
+      try {
+        const response = await fetch("/api/me/fortune", { cache: "no-store", signal: controller.signal });
+        const saved = await response.json();
+        if (!response.ok) throw new Error(saved.error || "운세 설정을 불러오지 못했어요.");
+        if (saved.profile) {
+          const profile = saved.profile;
+          setName(profile.name); setBirthDate(profile.birth_date); setBirthTime(profile.birth_time); setResidence(profile.residence);
+          const result = await fetch("/api/me/fortune", { method: "POST", cache: "no-store", signal: controller.signal, headers: { "Content-Type": "application/json" }, body: JSON.stringify(profile) });
+          const payload = await result.json();
+          if (!result.ok || !payload.fortune) throw new Error(payload.error || "오늘의 운세를 불러오지 못했어요.");
+          if (!controller.signal.aborted) setData(payload);
+        }
+      } catch (e) {
+        if (!controller.signal.aborted) { setError(e instanceof Error ? e.message : "운세를 불러오지 못했어요."); setRestoreFailed(true); }
+      } finally { if (!controller.signal.aborted) setRestoring(false); }
+    };
+    void restore();
+    return () => controller.abort();
+  }, [preview, active, restoreAttempt]);
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -62,6 +90,8 @@ export function DailyFortune({ defaultName = "", preview = false }: DailyFortune
     }
   };
 
+  if (restoring) return <p role="status" className="py-6 text-sm text-slate-500">오늘의 운세를 불러오고 있어요.</p>;
+  if (restoreFailed) return <div role="status"><p className="text-sm text-slate-600">{error}</p><button className="mt-3 min-h-11 text-sm font-bold text-blue-600" onClick={() => setRestoreAttempt(value => value + 1)}>다시 불러오기</button></div>;
   if (data) {
     return (
       <section className="rounded-[24px] bg-slate-50 p-4 sm:p-5" aria-labelledby="daily-fortune-result-title">
@@ -96,7 +126,7 @@ export function DailyFortune({ defaultName = "", preview = false }: DailyFortune
           onClick={() => setData(null)}
           className="mt-4 min-h-12 w-full rounded-2xl bg-white px-4 text-sm font-black text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-100"
         >
-          처음으로 돌아가기
+          운세 설정 수정
         </button>
       </section>
     );
@@ -104,6 +134,7 @@ export function DailyFortune({ defaultName = "", preview = false }: DailyFortune
 
   return (
     <form className="space-y-4" onSubmit={submit} aria-describedby="daily-fortune-error">
+      <p className="text-sm text-slate-500">한 번 설정하면 다음부터 바로 오늘의 운세를 볼 수 있어요.</p>
       <div>
         <label htmlFor="daily-fortune-name" className="mb-2 block text-sm font-bold text-slate-700">이름</label>
         <input

@@ -83,7 +83,7 @@ test("최신 UI 주석: 회전 간격·헤더·개인 기능 위치·간소화�
   assert.doesNotMatch(page.slice(page.indexOf("<header"), page.indexOf("</header>")), /styles\.seasonDday/);
   assert.match(page, /<PublicSiteHeader/); assert.match(read("components/public-site-header.tsx"), /Asia\/Seoul/); assert.doesNotMatch(page, /FourthDashboardMemberArea/);
   const content = read("components/my-activity-content.tsx");
-  assert.match(content, /className=\{styles.toolSection\}/);
+  assert.match(page, /className=\{styles.memberShortcuts\}/);
   assert.doesNotMatch(content, /<h3>프로필<\/h3>/); assert.match(content, /className=\{styles.profileCard\}/);
   assert.doesNotMatch(content, /나를 보여주는 프로필|카카오 계정 연동 완료|사진과 표시 이름은 멤버 목록에 공개/);
   const upload = read("components/my-activity-upload.tsx");

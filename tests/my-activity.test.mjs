@@ -57,10 +57,10 @@ test("내 활동은 헤더 밖에 배치되어 모바일 날짜 숨김·nowrap �
   assert.doesNotMatch(headerCss, /\.headerAccountLink\s*\{\s*display:\s*none/);
 });
 
-test("내 정보는 프로필·보관함·후원과 두 가지 도구를 제공한다", () => {
+test("내 정보는 프로필·후원만 남기고 개인 도구는 메인으로 이동한다", () => {
   const source = readFileSync(new URL("../components/my-activity-content.tsx", import.meta.url), "utf8");
-  for (const title of ["프로필", "보관함", "후원"]) assert.ok(source.includes(`title:"${title}"`));
-  assert.match(source, /교정운동 신청/); assert.match(source, /오늘의 운세보기/);
+  for (const title of ["프로필", "후원"]) assert.ok(source.includes(`title:"${title}"`));
+  assert.doesNotMatch(source, /title:"보관함"|className=\{styles.toolSection\}/);
   assert.match(source, /<QuickCertification/);
 });
 test("공개 댓글은 본인 수정·삭제가 가능하며 빈 안내 영역과 중복 관리 버튼은 없다", () => {

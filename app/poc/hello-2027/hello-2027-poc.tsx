@@ -3,6 +3,7 @@
 import { projectDashboardRecords } from "@/lib/dashboard-record-visibility";
 import { VisitorCrewCheer } from "@/components/visitor-crew-cheer";
 import { PersonalGoalBanner } from "@/components/personal-goal-banner";
+import { ActivityIcon } from "@/components/activity-icon";
 import { PublicSiteHeader } from "@/components/public-site-header";
 import { SeasonSchedule } from "@/components/season-schedule";
 import { PublicSiteFooter } from "@/components/public-site-footer";
@@ -213,6 +214,10 @@ export function Hello2027Poc({
               </article>
             </div>
           </section>
+
+          {memberFeatures && viewerState?.viewer?.approved_participant && <nav className={styles.memberShortcuts} aria-label="멤버 바로가기">
+            {([{ section: "fortune", label: "오늘의 운세", icon: "fortune" }, { section: "corrective", label: "교정운동 신청", icon: "corrective" }, { section: "locker", label: "보관함", icon: "gift" }] as const).map(item => <button key={item.section} type="button" onClick={() => openMyActivity(item.section)}><span><ActivityIcon kind={item.icon} size={24}/></span>{item.label}</button>)}
+          </nav>}
 
           {sortedParticipants.length > 0 ? (
             <section id="crew" className={styles.crewSection} aria-labelledby="crew-title">

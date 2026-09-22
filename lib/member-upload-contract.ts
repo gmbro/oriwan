@@ -29,6 +29,17 @@ export function ownsFreshDraft(draft: MemberUploadDraft, participantId: string, 
   return draft.participantId === participantId && Number.isFinite(age) && age >= 0 && age < MEMBER_UPLOAD_DRAFT_TTL;
 }
 
+export function validateCertificationDate(date: unknown, today: string) {
+  if (typeof date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(date)
+    || !Number.isFinite(Date.parse(`${date}T00:00:00Z`))
+    || new Date(`${date}T00:00:00Z`).toISOString().slice(0, 10) !== date) {
+    return { ok: false as const, error: "인증 날짜를 확인해주세요." };
+  }
+  if (date > today) return { ok: false as const, error: "미래 날짜는 인증할 수 없어요." };
+  if (date < "2026-08-13" || date > "2026-12-31") return { ok: false as const, error: "2026년 8월 13일부터 12월 31일까지의 기록만 제출할 수 있어요." };
+  return { ok: true as const, date };
+}
+
 export const MEMBER_EVIDENCE_ERROR = "운동 시작 시간과 거리를 확인할 수 없어요, 운영자에게 문의주세요";
 export function hasMemberUploadEvidence(draft: MemberUploadDraft) {
   return /^0[0-7]:[0-5]\d$/.test(draft.activityTime ?? "")
