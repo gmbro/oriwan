@@ -113,7 +113,7 @@ export function Hello2027Poc({
 }: Hello2027PocProps) {
   const [liveSnapshot, setLiveSnapshot] = useState(snapshot);
   const [selectedParticipantId, setSelectedParticipantId] = useState<string | null>(null);
-  const [visibleMembers, setVisibleMembers] = useState(6);
+  const [crewSort, setCrewSort] = useState<"completed" | "distance">("completed");
   const clockSnapshot = useSyncExternalStore(
     subscribeToClock,
     getClockSnapshot,
@@ -139,10 +139,10 @@ export function Hello2027Poc({
   const sortedParticipants = useMemo(() => {
     const participants = [...(canViewRecords ? projectDashboardRecords(liveSnapshot, false).participants : liveSnapshot.participants)];
     return participants.sort((left, right) => (
-      right.certifiedDays - left.certifiedDays
+      (crewSort === "completed" ? right.certifiedDays - left.certifiedDays : right.totalDistanceKm - left.totalDistanceKm)
       || left.fullName.localeCompare(right.fullName, "ko")
     ));
-  }, [liveSnapshot, canViewRecords]);
+  }, [liveSnapshot, canViewRecords, crewSort]);
 
   useEffect(() => {
     const applySnapshot = (event: Event) => {
@@ -221,12 +221,15 @@ export function Hello2027Poc({
                   <h2 id="crew-title">멤버</h2>
                   <span className={styles.crewCount}>{liveSnapshot.participantCount}명</span>
                 </div>
-                <span className={styles.crewSortLabel}>인증일순</span>
+                <div className={styles.crewSort} role="group" aria-label="멤버 정렬 방식">
+                  <button type="button" aria-pressed={crewSort === "completed"} onClick={() => setCrewSort("completed")}>인증일</button>
+                  <button type="button" aria-pressed={crewSort === "distance"} onClick={() => setCrewSort("distance")}>거리순</button>
+                </div>
               </div>
 
               {memberFeatures && viewerState?.viewer && !viewerState.loading && !viewerState.error && !viewerState.viewer.authenticated && <VisitorCrewCheer />}
               <ul className={styles.participantGrid}>
-                {([...sortedParticipants].sort((a,b)=>Number(b.id===viewerState?.viewer?.participant_id)-Number(a.id===viewerState?.viewer?.participant_id))).slice(0, visibleMembers).map((participant) => (
+                {([...sortedParticipants].sort((a,b)=>Number(b.id===viewerState?.viewer?.participant_id)-Number(a.id===viewerState?.viewer?.participant_id))).map((participant) => (
                   <li key={participant.id}>
                     <button
                       className={`${styles.participantCard} ${participant.completed ? styles.completedCard : styles.waitingCard} ${participant.id===viewerState?.viewer?.participant_id ? styles.myCard : ""}`}
@@ -244,14 +247,13 @@ export function Hello2027Poc({
                         </span>
                       </span>
                       <span className={styles.participantRate}>
-                        <small>총 인증일</small>
-                        <strong className={styles.cardMetric}>{participant.certifiedDays}일</strong>
+                        <small>{crewSort === "completed" ? "총 인증일" : "누적 거리"}</small>
+                        <strong className={styles.cardMetric}>{crewSort === "completed" ? `${participant.certifiedDays}일` : formatDistanceKm(participant.totalDistanceKm)}</strong>
                       </span>
                     </button>
                   </li>
                 ))}
               </ul>
-              {sortedParticipants.length>6&&<div className="mt-3 flex justify-center gap-3">{visibleMembers<sortedParticipants.length&&<button type="button" className="min-h-11 rounded-xl bg-white px-5 text-sm font-semibold text-slate-600" onClick={()=>setVisibleMembers(n=>n+6)}>멤버 더 보기 ({sortedParticipants.length-Math.min(visibleMembers,sortedParticipants.length)}명)</button>}{visibleMembers>6&&<button type="button" className="min-h-11 rounded-xl bg-white px-5 text-sm text-slate-500" onClick={()=>setVisibleMembers(6)}>접기</button>}</div>}
             </section>
           ) : <FourthSeasonMemberEmptyState />}
 
