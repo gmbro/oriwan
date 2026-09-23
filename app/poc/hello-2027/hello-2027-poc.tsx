@@ -206,11 +206,11 @@ export function Hello2027Poc({
                 <strong>{liveSnapshot.dayNumber}일</strong>
               </article>
               <article className={styles.summaryCard}>
-                <span>총 누적거리</span>
-                <strong className={styles.summaryTotal}>{(liveSnapshot.officialTotals?.distanceKm ?? 0).toLocaleString("ko-KR", { maximumFractionDigits: 2 })}km</strong>
+                <span>누적거리(km)</span>
+                <strong className={styles.summaryTotal}>{(liveSnapshot.officialTotals?.distanceKm ?? 0).toLocaleString("ko-KR", { maximumFractionDigits: 2 })}</strong>
               </article>
               <article className={styles.summaryCard}>
-                <span>총 누적 시간</span>
+                <span>누적시간(h:mm)</span>
                 <strong className={styles.summaryTotal}>{formatCompactDuration(liveSnapshot.officialTotals?.durationMinutes ?? 0)}</strong>
               </article>
             </div>
@@ -400,7 +400,7 @@ function ParticipantAvatar({
 
 function formatCompactDuration(minutes: number) {
   const total = Math.max(0, Math.round(minutes));
-  return total >= 60 ? `${Math.floor(total / 60)}h ${total % 60}m` : `${total}m`;
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
 }
 
 function formatTotalDuration(minutes: number) {
