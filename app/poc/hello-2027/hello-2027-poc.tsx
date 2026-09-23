@@ -293,7 +293,6 @@ export function Hello2027Poc({
         showDetailedRecords={canViewRecords}
         dialogRef={dialogRef}
         titleRef={dialogTitleRef}
-        introduction={selectedParticipant ? localContent.profileIntroductions[selectedParticipant.id] : undefined}
         participant={selectedParticipant}
         today={referenceDateIso}
         onClose={closeParticipant}
@@ -365,7 +364,6 @@ function MotivationBanner({ encouragements, initialIndex }: MotivationBannerProp
 
 type ParticipantDialogProps = {
   showDetailedRecords?: boolean;
-  introduction?: {title:string;body:string};
   dialogRef: React.RefObject<HTMLDialogElement | null>;
   titleRef: React.RefObject<HTMLHeadingElement | null>;
   participant: Hello2027Participant | null;
@@ -418,7 +416,6 @@ function formatDistanceKm(value: number | null) {
 
 export function ParticipantDialog({
   showDetailedRecords = true,
-  introduction,
   dialogRef,
   titleRef,
   participant,
@@ -478,7 +475,6 @@ export function ParticipantDialog({
             showLegend={false}
             compact
           /></div>}
-          <section className="mt-5 rounded-2xl bg-blue-50 p-5"><h3 className="text-base font-bold text-blue-600">{introduction?.title || "자기소개"}</h3><p className="mt-3 whitespace-pre-wrap break-words text-sm leading-7 text-slate-600">{introduction?.body || "자기소개를 준비하고 있어요."}</p></section>
         </div>
       ) : null}
     </dialog>
