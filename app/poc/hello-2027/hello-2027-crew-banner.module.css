@@ -136,3 +136,13 @@
   .progress { margin-top: 6px; }
   .description { margin-top: 5px; }
 }
+
+@media (max-width: 760px) {
+  .title { font-size: 20px; font-weight: 600; line-height: 1.4; }
+  .metric strong { font-size: 56px; font-weight: 700; line-height: 1.15; letter-spacing: -.04em; }
+  .metric > span { font-size: 26px; line-height: 1.2; }
+  .description { font-size: var(--mobile-label); line-height: 1.5; }
+  .seasonCountdown strong, .goalTitle, .goalHint { font-size: var(--mobile-caption); line-height: 1.5; }
+  .goalTitle { letter-spacing: .02em; }
+  .goalValue { font-size: var(--mobile-subheading); line-height: 1.4; }
+}

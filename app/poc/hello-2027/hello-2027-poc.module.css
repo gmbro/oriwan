@@ -1610,3 +1610,16 @@
 
 /* Keep emphasis inside the grid's paint containment on narrow screens. */
 .participantGrid{padding:4px;align-items:center}.participantCard.myCard{min-height:124px}.participantCard.myCard:hover{transform:none}@media(max-width:600px){.participantCard.myCard{min-height:104px}.participantGrid{gap:10px}}
+
+/* Mobile hierarchy is role-based, not individually scaled by each card. */
+@media (max-width: 760px) {
+  .page { --type-heading: var(--mobile-heading); --type-subheading: var(--mobile-subheading); --type-body: var(--mobile-body); --type-label: var(--mobile-label); --type-caption: var(--mobile-caption); --type-metric: var(--mobile-metric); }
+  .summaryCard > strong, .summaryCard > .summaryTotal { font-size: var(--mobile-metric); font-weight: 700; line-height: 1.4; letter-spacing: -.03em; font-variant-numeric: tabular-nums; white-space: normal; overflow-wrap: anywhere; }
+  .summaryCard > span { font-size: var(--mobile-caption); line-height: 1.5; white-space: nowrap; }
+  .participantNameRow > strong { font-size: var(--mobile-label); }
+  .participantRate > strong, .participantRate strong.cardMetric { font-size: 18px; line-height: 1.4; }
+  .participantNameRow > strong small, .participantRate > small { font-size: var(--mobile-caption); }
+  .crewSort button { font-size: var(--mobile-label); }
+  .memberShortcuts button { font-size: var(--mobile-caption); line-height: 1.5; }
+  .headerMeta .headerDateTime, .headerLogoutButton { font-size: var(--mobile-caption); }
+}

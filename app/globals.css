@@ -756,3 +756,16 @@ img { -webkit-user-drag: none; user-select: none; }
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--color-oriwan-border); border-radius: 2px; }
+
+/* Shared mobile text roles for member screens. */
+:root {
+  --mobile-heading: 22px;
+  --mobile-subheading: 18px;
+  --mobile-body: 16px;
+  --mobile-label: 14px;
+  --mobile-caption: 12px;
+  --mobile-metric: 20px;
+}
+@media (max-width: 360px) {
+  :root { --mobile-metric: 18px; }
+}
