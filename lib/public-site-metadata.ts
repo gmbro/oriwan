@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-export const PUBLIC_SITE_URL = "https://xn--220bw61afob.kro.kr";
+export const PUBLIC_SITE_URL = "https://archi-landing.cloud";
 export const PUBLIC_SITE_NAME = "스스로 내던지는 사람들";
 
 export function publicPageMetadata(title: string, description: string, pathname: string): Metadata {
