@@ -121,7 +121,12 @@ export async function GET() {
   try {
     const store = await fortuneStorage(service, identity.authUserId);
     const parsed = parseDailyFortuneInput(await store.read("profile"), toKstIsoDate());
-    return json({ profile: parsed.ok ? parsed.value : null });
+    if (!parsed.ok) return json({ profile: null });
+    const date = toKstIsoDate();
+    const anonymousProfile = deriveAnonymousFortuneProfile(parsed.value);
+    const key = digest(JSON.stringify(anonymousProfile));
+    const fortune = parseDailyFortuneResult(await store.read(`results/${date}/${key}`), anonymousProfile);
+    return json({ profile: parsed.value, result: fortune ? { date, fortune, provider: "Google Gemini", disclaimer: "재미로 가볍게 즐기는 오늘의 메시지예요. 중요한 결정의 근거로 사용하지 마세요." } : null });
   } catch { return json({ error: "운세 설정을 불러오지 못했어요. 다시 시도해주세요." }, 503); }
 }
 

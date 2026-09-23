@@ -8,6 +8,8 @@ import {
   type DailyFortuneResult,
 } from "@/lib/daily-fortune-contract";
 
+const seoulDay = () => new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10);
+
 type FortuneResponse = {
   date: string;
   fortune: DailyFortuneResult;
@@ -22,6 +24,13 @@ type DailyFortuneProps = {
 };
 
 export function DailyFortune({ defaultName = "", preview = false, active = true }: DailyFortuneProps) {
+  const [today, setToday] = useState(seoulDay);
+  useEffect(() => {
+    const update = () => setToday(seoulDay());
+    update(); const timer = window.setInterval(update, 1000);
+    window.addEventListener("focus", update);
+    return () => { clearInterval(timer); window.removeEventListener("focus", update); };
+  }, []);
   const [name, setName] = useState(defaultName);
   const [birthDate, setBirthDate] = useState("");
   const [birthTime, setBirthTime] = useState("");
@@ -33,10 +42,10 @@ export function DailyFortune({ defaultName = "", preview = false, active = true 
   const [restoreFailed, setRestoreFailed] = useState(false);
   const [restoreAttempt, setRestoreAttempt] = useState(0);
   useEffect(() => {
-    if (preview || !active) return;
+    if (preview || !active || data?.date === today) return;
     const controller = new AbortController();
     const restore = async () => {
-      setRestoring(true); setRestoreFailed(false); setError("");
+      setData(null); setRestoring(true); setRestoreFailed(false); setError("");
       try {
         const response = await fetch("/api/me/fortune", { cache: "no-store", signal: controller.signal });
         const saved = await response.json();
@@ -44,6 +53,10 @@ export function DailyFortune({ defaultName = "", preview = false, active = true 
         if (saved.profile) {
           const profile = saved.profile;
           setName(profile.name); setBirthDate(profile.birth_date); setBirthTime(profile.birth_time); setResidence(profile.residence);
+          if (saved.result?.date === today && saved.result.fortune) {
+            if (!controller.signal.aborted) setData(saved.result);
+            return;
+          }
           const result = await fetch("/api/me/fortune", { method: "POST", cache: "no-store", signal: controller.signal, headers: { "Content-Type": "application/json" }, body: JSON.stringify(profile) });
           const payload = await result.json();
           if (!result.ok || !payload.fortune) throw new Error(payload.error || "오늘의 운세를 불러오지 못했어요.");
@@ -55,7 +68,7 @@ export function DailyFortune({ defaultName = "", preview = false, active = true 
     };
     void restore();
     return () => controller.abort();
-  }, [preview, active, restoreAttempt]);
+  }, [preview, active, restoreAttempt, today]);
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -90,12 +103,12 @@ export function DailyFortune({ defaultName = "", preview = false, active = true 
     }
   };
 
-  if (restoring) return <p role="status" className="py-6 text-sm text-slate-500">오늘의 운세를 불러오고 있어요.</p>;
+  if (restoring || (data && data.date !== today && !preview)) return <p role="status" className="py-6 text-sm text-slate-500">{today} 운세를 불러오고 있어요.</p>;
   if (restoreFailed) return <div role="status"><p className="text-sm text-slate-600">{error}</p><button className="mt-3 min-h-11 text-sm font-bold text-blue-600" onClick={() => setRestoreAttempt(value => value + 1)}>다시 불러오기</button></div>;
   if (data) {
     return (
       <section className="rounded-[24px] bg-slate-50 p-4 sm:p-5" aria-labelledby="daily-fortune-result-title">
-        <p className="text-sm font-bold text-blue-600">{name}님의 오늘</p>
+        <p className="text-sm font-bold text-blue-600">{name}님의 오늘 · {data.date}</p>
         <h3 id="daily-fortune-result-title" className="mt-2 text-2xl font-black leading-tight tracking-[-0.03em] text-slate-950">
           {data.fortune.title}
         </h3>

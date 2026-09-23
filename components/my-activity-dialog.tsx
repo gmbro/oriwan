@@ -30,6 +30,12 @@ export function MyActivityDialog({ name, imageUrl, className, onChanged, preview
   const [seed, setSeed] = useState<MyActivityFeatureSeed>();
   const [section, setSection] = useState<MyActivitySection>("records");
   const [opened, setOpened] = useState(false);
+  const [today, setToday] = useState("");
+  useEffect(() => {
+    const update = () => setToday(new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10));
+    update(); const timer = window.setInterval(update, 1000);
+    return () => clearInterval(timer);
+  }, []);
   useLayoutEffect(() => {
     const open = (event?: Event) => {
       const detail = event instanceof CustomEvent ? event.detail : "home";
@@ -66,7 +72,7 @@ export function MyActivityDialog({ name, imageUrl, className, onChanged, preview
       <div ref={shell} className={styles.shell}>
         <header className={styles.heading}>
           {["profile","upload","gift"].includes(section) && <button className={styles.iconButton} type="button" aria-label="나의 기록으로 돌아가기" onClick={() => setSection("records")}>‹</button>}
-          <h2 id="my-activity-title" ref={heading} tabIndex={-1}>{titles[section]}</h2>
+          <h2 id="my-activity-title" ref={heading} tabIndex={-1}>{titles[section]}{section === "fortune" && today && <small style={{display:"block",marginTop:4,fontSize:13,fontWeight:500,color:"#6b7684"}}>{today}</small>}</h2>
           <button type="button" className={styles.iconButton} aria-label="닫기" onClick={close}>×</button>
         </header>
         {/* The lightweight home/menu is already mounted before a tap. Heavy sections stay split. */}

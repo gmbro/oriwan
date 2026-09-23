@@ -26,11 +26,15 @@ test("운세 설정과 당일 결과는 계정에 저장되며 재방문은 생�
   const request = { body: profile, cookies: { get() {} } };
   assert.equal((await exports.GET()).body.profile, null);
   assert.equal((await exports.POST(request)).status, 200);
-  assert.deepEqual((await exports.GET()).body.profile, profile);
+  const restored = (await exports.GET()).body;
+  assert.deepEqual(restored.profile, profile);
+  assert.equal(restored.result.date, date);
+  assert.deepEqual(restored.result.fortune, contract.SAFE_DAILY_FORTUNE_FALLBACK);
   assert.equal((await exports.POST(request)).status, 200);
   assert.equal(generated, 1); assert.equal(claimed, 1);
   user = "member-b"; assert.equal((await exports.GET()).body.profile, null);
   user = "member-a"; date = "2026-09-23";
+  assert.equal((await exports.GET()).body.result, null);
   assert.equal((await exports.POST(request)).body.date, date);
   assert.equal(generated, 2); assert.equal(claimed, 2);
   user = null; assert.equal((await exports.GET()).status, 401); assert.equal((await exports.POST(request)).status, 401);

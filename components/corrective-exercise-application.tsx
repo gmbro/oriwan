@@ -41,8 +41,10 @@ export function CorrectiveExerciseApplication({
   initialRequest,
   initialStatus,
   preview = false,
+  active = true,
 }: {
   preview?: boolean;
+  active?: boolean;
   initialRequest?: Promise<CorrectiveExerciseResponse>;
   initialStatus?: CorrectiveExerciseResponse;
 } = {}) {
@@ -62,8 +64,9 @@ export function CorrectiveExerciseApplication({
 
   useEffect(() => {
     if (preview) { setLoading(false); return; }
+    if (!active) return;
     const controller = new AbortController();
-    const request = retryKey === 0 && initialRequest ? initialRequest : fetch("/api/me/corrective-exercise", {
+    const request = retryKey === 0 && initialRequest && !data ? initialRequest : fetch("/api/me/corrective-exercise", {
       cache: "no-store",
       credentials: "same-origin",
       signal: controller.signal,
@@ -91,7 +94,15 @@ export function CorrectiveExerciseApplication({
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [initialRequest, retryKey, preview]);
+  }, [initialRequest, retryKey, preview, active]);
+
+  useEffect(() => {
+    if (!active || preview) return;
+    const refresh = () => { if (document.visibilityState === "visible") setRetryKey(value => value + 1); };
+    const timer = window.setInterval(refresh, 30000);
+    window.addEventListener("focus", refresh);
+    return () => { clearInterval(timer); window.removeEventListener("focus", refresh); };
+  }, [active, preview]);
 
   useEffect(() => {
     if (confirmOpen) cancelConfirmRef.current?.focus();

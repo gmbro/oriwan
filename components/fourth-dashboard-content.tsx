@@ -23,7 +23,7 @@ export default async function FourthDashboardContent() {
 
   return (
     <FourthViewerProvider initialViewer={initialViewer}>
-      <SeasonReportAutoRefresh intervalMs={60_000} />
+      <SeasonReportAutoRefresh intervalMs={15_000} />
       <Hello2027Poc
         snapshot={projectDashboardRecords(snapshot, initialViewer.approved_participant)}
         currentDateIso={currentDateIso}

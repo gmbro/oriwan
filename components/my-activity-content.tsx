@@ -67,6 +67,8 @@ export default function MyActivityContent({ section, onSection, onFeature, name,
   const GiftView = readyViews.Gift ?? Gift;
   const CorrectiveView = readyViews.Corrective ?? Corrective;
   const TimeMachineView = readyViews.TimeMachine ?? TimeMachine;
+  const [fortuneVisited, setFortuneVisited] = useState(false);
+  const [correctiveVisited, setCorrectiveVisited] = useState(false);
   const [uploadVisited, setUploadVisited] = useState(false);
   const [profileVisited, setProfileVisited] = useState(false);
   const [todayFallback] = useState(() => new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10));
@@ -109,6 +111,8 @@ export default function MyActivityContent({ section, onSection, onFeature, name,
     window.addEventListener(DASHBOARD_REFRESH_DOM_EVENT, refresh);
     return () => window.removeEventListener(DASHBOARD_REFRESH_DOM_EVENT, refresh);
   }, [active, section, load]);
+  if (section === "fortune" && !fortuneVisited) setFortuneVisited(true);
+  if (section === "corrective" && !correctiveVisited) setCorrectiveVisited(true);
   if (section === "upload" && !uploadVisited) setUploadVisited(true);
   if (section === "profile" && !profileVisited) setProfileVisited(true);
   const changed = (patch: { displayName?: string; profileImageUrl?: string | null }) => {
@@ -139,9 +143,9 @@ export default function MyActivityContent({ section, onSection, onFeature, name,
     {section === "support" && <OperatorSupport status={supportStatus} />}
     {section === "records" && <QuickCertification today={data?.season.today ?? todayFallback} onSaved={()=>{void load(true);void import("@/lib/dashboard-refresh").then(m=>m.broadcastDashboardRefresh());}}/>}
     {section === "records" && (data ? <Records data={data} /> : <p role="status">누적 기록을 불러오는 중이에요.</p>)}
-    {section === "fortune" && !preview && <FortuneView defaultName={displayName} active={active} />}
+    {fortuneVisited && !preview && <div hidden={section !== "fortune"}><FortuneView defaultName={displayName} active={active && section === "fortune"} /></div>}
     {section === "gift" && !preview && <GiftView initialStatus={featureSeed?.giftStatus} onStatusChange={featureSeed?.onGiftChange} />}
-    {section === "corrective" && !preview && <CorrectiveView initialRequest={featureSeed?.correctiveRequest} initialStatus={featureSeed?.correctiveStatus} />}
+    {correctiveVisited && !preview && <div hidden={section !== "corrective"}><CorrectiveView active={active && section === "corrective"} initialRequest={featureSeed?.correctiveRequest} initialStatus={featureSeed?.correctiveStatus} /></div>}
     {section === "time-machine" && <TimeMachineView preview={Boolean(preview)} active={active} initialRequest={featureSeed?.timeMachineRequest} initialStatus={preview?.goal ?? featureSeed?.timeMachineStatus} onStatusChange={preview ? (goal) => window.dispatchEvent(new CustomEvent("twtt:preview-goal", { detail: goal })) : featureSeed?.onTimeMachineChange} />}
     {preview && !primarySection && section !== "time-machine" && <p className={styles.feedback}>미리보기예요. 개인 기능의 실제 조회·신청은 실행하지 않아요.</p>}
   </div>;

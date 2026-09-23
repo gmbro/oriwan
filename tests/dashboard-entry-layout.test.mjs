@@ -20,14 +20,14 @@ function dialogHarness(hash = "", navigationType = "navigate") {
   const history = { state: { __NA: true }, replaceState(state, title, url) { replacements.push({ state, title, url }); location.hash = ""; } };
   let refIndex = 0;
   const Dialog = compile("components/my-activity-dialog.tsx", "MyActivityDialog", {
-    window: { location, history, performance: { getEntriesByType: () => [{ type: navigationType }] }, addEventListener: (name, fn) => listeners.set(name, fn), removeEventListener: name => listeners.delete(name) },
+    window: { setInterval: () => 0, location, history, performance: { getEntriesByType: () => [{ type: navigationType }] }, addEventListener: (name, fn) => listeners.set(name, fn), removeEventListener: name => listeners.delete(name) },
     document: { activeElement: null }, HTMLElement: class {},
     requestAnimationFrame: fn => fn(),
     useEffect: fn => effects.push(fn), useLayoutEffect: fn => effects.push(fn), useState: value => [value, () => {}],
     useRef: () => ({ current: refIndex++ === 0 ? { open: false, showModal() { opened++; this.open = true; } } : null }),
     styles: {}, Content: () => null, usePageScrollLock: () => {},
   });
-  Dialog({ name: "테스트" }); const cleanup = effects[0]();
+  Dialog({ name: "테스트" }); const cleanups = effects.map(effect => effect()); const cleanup = () => cleanups.forEach(fn => fn?.());
   return { listeners, replacements, location, history, cleanup, opened: () => opened };
 }
 
