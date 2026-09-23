@@ -20,7 +20,7 @@ export default function HabitChallengePage() {
       </section>
       <section className="rounded-3xl bg-white p-6 sm:p-8">
         <h2 className="text-xl font-bold">2. 운동한 날 사진 한 장을 올려요</h2>
-        <p className="mt-4 leading-8 text-slate-600">로그인한 뒤 멤버 목록에서 내 카드를 누르고, 인증 날짜를 확인한 후 사진을 올립니다. 날짜는 오늘로 기본 설정되며 지난 날짜도 직접 선택할 수 있어요. 사진에 날짜가 없거나 배경이 있어도 괜찮고, 선택한 날짜마다 한 장만 인증할 수 있습니다.</p>
+        <p className="mt-4 leading-8 text-slate-600">로그인한 뒤 멤버 목록에서 내 카드를 누르고, 인증 날짜를 확인한 후 사진을 올립니다. 날짜는 오늘로 기본 설정되며 지난 날짜도 직접 선택할 수 있어요. 운동 거리 3km 이상과 오전 8시 이전 운동 시작 시각이 사진에 보여야 하며, 선택한 날짜마다 한 장만 인증할 수 있습니다. 인식이 어렵거나 예외 등록이 필요하면 운영자에게 문의해주세요.</p>
         <p className="mt-3 leading-8 text-slate-600">오늘 인증을 마치면 버튼이 ‘오늘 인증완료!’로 바뀌고 다음 날 0시에 다시 열려요. 기존 기록을 수정해야 한다면 운영자에게 직접 요청해주세요.</p>
       </section>
       <section className="rounded-3xl bg-white p-6 sm:p-8">

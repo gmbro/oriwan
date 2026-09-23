@@ -25,7 +25,7 @@ import { useLocalHello2027Content } from "./use-local-hello-2027-content";
 import { TimeMachineBadge } from "@/components/time-machine-badge";
 import { KakaoLoginButton } from "@/components/kakao-login-button";
 import { useOptionalFourthViewer } from "@/components/fourth-viewer-provider";
-import { formatFourthSeasonDday } from "@/lib/fourth-season-contract";
+import { formatFourthSeasonDday, fourthOfficialMemberTotals } from "@/lib/fourth-season-contract";
 import { DASHBOARD_SNAPSHOT_DOM_EVENT } from "@/lib/dashboard-refresh-contract";
 
 type Hello2027PocProps = {
@@ -138,12 +138,13 @@ export function Hello2027Poc({
     [liveSnapshot.participants, selectedParticipantId, canViewRecords],
   );
   const sortedParticipants = useMemo(() => {
-    const participants = [...(canViewRecords ? projectDashboardRecords(liveSnapshot, false).participants : liveSnapshot.participants)];
+    const participants = (canViewRecords ? projectDashboardRecords(liveSnapshot, false).participants : liveSnapshot.participants)
+      .map(participant => ({...participant,...fourthOfficialMemberTotals(participant.recordHistory, seoulToday)}));
     return participants.sort((left, right) => (
       (crewSort === "completed" ? right.certifiedDays - left.certifiedDays : right.totalDistanceKm - left.totalDistanceKm)
       || left.fullName.localeCompare(right.fullName, "ko")
     ));
-  }, [liveSnapshot, canViewRecords, crewSort]);
+  }, [liveSnapshot, canViewRecords, crewSort, seoulToday]);
 
   useEffect(() => {
     const applySnapshot = (event: Event) => {
@@ -210,13 +211,13 @@ export function Hello2027Poc({
               </article>
               <article className={styles.summaryCard}>
                 <span>총 누적 시간</span>
-                <strong className={styles.summaryTotal}>{formatTotalDuration(liveSnapshot.officialTotals?.durationMinutes ?? 0)}</strong>
+                <strong className={styles.summaryTotal}>{formatCompactDuration(liveSnapshot.officialTotals?.durationMinutes ?? 0)}</strong>
               </article>
             </div>
           </section>
 
           {memberFeatures && viewerState?.viewer?.approved_participant && <nav className={styles.memberShortcuts} aria-label="멤버 바로가기">
-            {([{ section: "fortune", label: "오늘의 운세", icon: "fortune" }, { section: "corrective", label: "교정운동 신청", icon: "corrective" }, { section: "locker", label: "보관함", icon: "gift" }] as const).map(item => <button key={item.section} type="button" onClick={() => openMyActivity(item.section)}><span><ActivityIcon kind={item.icon} size={24}/></span>{item.label}</button>)}
+            {([{ section: "fortune", label: "오늘의 운세", icon: "fortune" }, { section: "corrective", label: "교정운동 신청", icon: "corrective" }, { section: "locker", label: "보관함", icon: "gift" }, { section: "support", label: "후원", icon: "heart" }] as const).map(item => <button key={item.section} type="button" onClick={() => openMyActivity(item.section)}><span><ActivityIcon kind={item.icon} size={20}/></span>{item.label}</button>)}
           </nav>}
 
           {sortedParticipants.length > 0 ? (
@@ -395,6 +396,11 @@ function ParticipantAvatar({
       onError={() => setFailedImageUrl(resolvedImageUrl)}
     />
   );
+}
+
+function formatCompactDuration(minutes: number) {
+  const total = Math.max(0, Math.round(minutes));
+  return total >= 60 ? `${Math.floor(total / 60)}h ${total % 60}m` : `${total}m`;
 }
 
 function formatTotalDuration(minutes: number) {

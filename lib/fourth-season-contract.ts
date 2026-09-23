@@ -27,10 +27,18 @@ export function formatFourthSeasonDday(kstDateIso: string | null | undefined) {
   if (!isIsoCalendarDate(kstDateIso)) return null;
 
   const daysUntilEnd = isoCalendarDateToUtcDay(FOURTH_SEASON_END_DATE)
-    - isoCalendarDateToUtcDay(kstDateIso);
-  if (daysUntilEnd > 0) return `D-${daysUntilEnd}`;
+    - isoCalendarDateToUtcDay(kstDateIso) + 1;
+  if (daysUntilEnd > 0) return `D-${Math.min(FOURTH_SEASON_DAYS, daysUntilEnd)}`;
   if (daysUntilEnd === 0) return "D-DAY";
   return `D+${Math.abs(daysUntilEnd)}`;
+}
+
+export function fourthOfficialMemberTotals(records: readonly {recordDateIso:string;status:string;distanceKm:number|null;durationMinutes:number|null}[], today: string) {
+  const official = records.filter(record => record.status === "certified" && isWithinFourthSeasonWindow(record.recordDateIso) && record.recordDateIso <= today);
+  return {
+    totalDistanceKm: official.reduce((sum, record) => sum + Math.max(0, record.distanceKm ?? 0), 0),
+    totalDurationMinutes: official.reduce((sum, record) => sum + Math.max(0, record.durationMinutes ?? 0), 0),
+  };
 }
 
 export function isWithinFourthSeasonWindow(value: string | null | undefined) {

@@ -16,8 +16,8 @@ export const metadata: Metadata = {
     locale: "ko_KR",
   },
   icons: {
-    icon: "/brand/twtt-icon-20260902.png",
-    apple: "/brand/twtt-icon-20260902.png",
+    icon: "/brand/ttt-icon-20260923.png",
+    apple: "/brand/ttt-icon-20260923.png",
   },
 };
 

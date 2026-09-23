@@ -12,9 +12,9 @@ export function publicPageMetadata(title: string, description: string, pathname:
     robots: { index: true, follow: true },
     openGraph: {
       title, description, url, siteName: PUBLIC_SITE_NAME, locale: "ko_KR", type: "website",
-      images: [{ url: `${PUBLIC_SITE_URL}/brand/twtt-logo.png`, width: 640, height: 310, alt: "스내사 · TWTT" }],
+      images: [{ url: `${PUBLIC_SITE_URL}/brand/ttt-logo.png`, width: 640, height: 310, alt: "스내사 · TWTT" }],
     },
-    twitter: { card: "summary", title, description, images: [`${PUBLIC_SITE_URL}/brand/twtt-logo.png`] },
+    twitter: { card: "summary", title, description, images: [`${PUBLIC_SITE_URL}/brand/ttt-logo.png`] },
   };
 }
 
@@ -30,7 +30,7 @@ export const publicSiteStructuredData = {
     {
       "@type": "Organization", "@id": `${PUBLIC_SITE_URL}/#community`,
       name: PUBLIC_SITE_NAME, alternateName: ["스내사", "TWTT"],
-      url: `${PUBLIC_SITE_URL}/`, logo: `${PUBLIC_SITE_URL}/brand/twtt-logo.png`,
+      url: `${PUBLIC_SITE_URL}/`, logo: `${PUBLIC_SITE_URL}/brand/ttt-logo.png`,
       description: "트레바리 모임 스내사는 창업가와 예비 창업자가 함께 달리고, 책을 읽고, 실천하는 커뮤니티입니다.",
     },
   ],

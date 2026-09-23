@@ -6,8 +6,8 @@ import type { MyActivityData, MyActivitySection } from "@/components/my-activity
 import type { MyActivityFeatureSeed } from "@/lib/my-activity-feature-seed";
 import styles from "./my-activity.module.css";
 
-const titles: Record<MyActivitySection, string> = { locker: "보관함", support: "후원", home: "내 정보", profile: "내 정보", upload: "내 정보", records: "나의 기록", fortune: "오늘 운세", gift: "인증박스", corrective: "교정운동 문의", "time-machine": "목표 설정" };
-export function openMyActivity(section: MyActivitySection = "home", seed?: MyActivityFeatureSeed) { window.dispatchEvent(new CustomEvent("twtt:my-activity", { detail: { section, seed } })); }
+const titles: Record<MyActivitySection, string> = { locker: "보관함", support: "후원", home: "내 정보", profile: "프로필", upload: "내 정보", records: "나의 기록", fortune: "오늘 운세", gift: "인증박스", corrective: "교정운동 문의", "time-machine": "목표 설정" };
+export function openMyActivity(section: MyActivitySection = "records", seed?: MyActivityFeatureSeed) { window.dispatchEvent(new CustomEvent("twtt:my-activity", { detail: { section, seed } })); }
 
 function consumeActivityHash() {
   if (!["#my-activity", "#member-features"].includes(window.location.hash)) return false;
@@ -28,13 +28,13 @@ export function MyActivityDialog({ name, imageUrl, className, onChanged, preview
   const shell = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLElement | null>(null);
   const [seed, setSeed] = useState<MyActivityFeatureSeed>();
-  const [section, setSection] = useState<MyActivitySection>("home");
+  const [section, setSection] = useState<MyActivitySection>("records");
   const [opened, setOpened] = useState(false);
   useLayoutEffect(() => {
     const open = (event?: Event) => {
       const detail = event instanceof CustomEvent ? event.detail : "home";
       const target = typeof detail === "string" ? detail : detail?.section;
-      setSection(Object.hasOwn(titles, target) ? target : "home");
+      setSection(target !== "home" && Object.hasOwn(titles, target) ? target : "records");
       setSeed(typeof detail === "object" ? detail?.seed : undefined);
       trigger.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
       setOpened(true);
@@ -61,13 +61,13 @@ export function MyActivityDialog({ name, imageUrl, className, onChanged, preview
     requestAnimationFrame(() => trigger.current?.focus({ preventScroll: true }));
   };
   return <>
-    {showTrigger && <button className={className} type="button" aria-haspopup="dialog" onPointerEnter={() => void import("./my-activity-content")} onFocus={() => void import("./my-activity-content")} onClick={() => openMyActivity()}>내 정보</button>}
+    {showTrigger && <button className={className} type="button" aria-haspopup="dialog" onPointerEnter={() => void import("./my-activity-content")} onFocus={() => void import("./my-activity-content")} onClick={() => openMyActivity()}>나의 기록</button>}
     <dialog ref={dialog} className={styles.dialog} data-view={section} aria-labelledby="my-activity-title" onCancel={e => { e.preventDefault(); close(); }} onClick={e => { if (e.target === e.currentTarget) close(); }} onClose={() => setOpened(false)}>
       <div ref={shell} className={styles.shell}>
         <header className={styles.heading}>
-          {section !== "home" && <button className={styles.iconButton} type="button" aria-label="내 정보 처음으로" onClick={() => setSection("home")}>‹</button>}
+          {["profile","upload","gift"].includes(section) && <button className={styles.iconButton} type="button" aria-label="나의 기록으로 돌아가기" onClick={() => setSection("records")}>‹</button>}
           <h2 id="my-activity-title" ref={heading} tabIndex={-1}>{titles[section]}</h2>
-          <button type="button" className={styles.iconButton} aria-label="내 정보 닫기" onClick={close}>×</button>
+          <button type="button" className={styles.iconButton} aria-label="닫기" onClick={close}>×</button>
         </header>
         {/* The lightweight home/menu is already mounted before a tap. Heavy sections stay split. */}
         <Content section={section} onSection={setSection} onFeature={(target, nextSeed) => { setSeed(nextSeed); setSection(target); }} name={name} imageUrl={imageUrl} onChanged={onChanged} preview={preview} active={opened} featureSeed={seed} />

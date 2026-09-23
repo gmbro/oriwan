@@ -108,6 +108,9 @@
 
 .groupTitle { margin:0 0 12px; font-size:16px; font-weight:750; color:#191f28; }
 .lockerSection { margin-top:24px; padding-top:24px; border-top:1px solid #e5e8eb; }
+.recordProfile{display:flex;align-items:center;gap:10px;margin-bottom:18px;padding:8px 0;background:transparent;text-align:left;color:#333d4b}
+.recordProfile .avatar{width:40px;height:40px}.recordProfile span{display:grid;gap:3px}.recordProfile small{font-size:12px;color:#6b7684}
+.certificationGuide{width:min(380px,calc(100vw - 32px));margin:auto;padding:24px;border:0;border-radius:24px;color:#191f28;background:#fff;box-sizing:border-box}.certificationGuide::backdrop{background:rgb(0 0 0/.4)}.certificationGuide h3{margin:0 0 16px;font-size:19px}.certificationGuide p{margin-bottom:16px;font-size:14px;line-height:1.7}
 .certificationDate{display:grid;gap:8px;margin-bottom:12px;font-size:14px;color:#4e5968}
 .certificationDate select{min-width:0;min-height:44px;padding:8px;border:1px solid #e5e8eb;border-radius:12px;background:#f9fafb;color:#191f28;font:inherit}
 

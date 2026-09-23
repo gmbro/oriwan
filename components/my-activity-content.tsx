@@ -130,7 +130,7 @@ export default function MyActivityContent({ section, onSection, onFeature, name,
     {preview && <span className={styles.status}>예시 화면 · 실제 회원 정보 변경 없음</span>}
     {error && section === "records" && <div className={`${styles.feedback} ${styles.error}`} role="alert">{error} <button className={styles.secondary} onClick={() => void load(true)}>다시 확인</button></div>}
     {section === "home" && <div className={styles.identity}><Image unoptimized width={56} height={56} className={styles.avatar} src={avatar} alt="내 프로필" /><strong>{displayName}</strong></div>}
-    {section === "home" && <><h3 className={styles.groupTitle}>내 정보</h3><nav className={styles.accountGrid} aria-label="내 정보 메뉴">{([{key:"profile",title:"프로필",icon:"profile"},{key:"support",title:"후원",icon:"heart"}] as const).map(item=><button key={item.key} disabled={!connected} onClick={()=>onSection(item.key)}><span><ActivityIcon kind={item.icon}/></span>{item.title}</button>)}</nav></>}
+    {section === "records" && <button type="button" className={styles.recordProfile} onClick={()=>onSection("profile")}><Image unoptimized width={40} height={40} className={styles.avatar} src={avatar} alt=""/><span><strong>{displayName}</strong><small>프로필 사진 변경 ›</small></span></button>}
     {profileVisited && <div hidden={section !== "profile"} className={styles.form}><ProfileEditor name={displayName} avatar={avatar} onChanged={changed} preview={Boolean(preview)} /></div>}
     {/* Keep an in-flight upload/draft alive when navigating or closing the sheet.
         The entire tree is destroyed on logout/account change by its owner key. */}

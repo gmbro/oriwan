@@ -10,6 +10,7 @@ export function hasCertification(records: {date: string; status: string}[], day:
   return records.some(record => record.date === day && record.status === "certified");
 }
 export function certificationFailure(status: number, detail = "") {
+  if(status===422 && detail) return detail;
   if(detail==="ocr:configuration") return "사진 인식 설정에 문제가 있어요. 운영자에게 문의해주세요.";
   if(detail==="ocr:timeout") return "사진 인식 시간이 초과됐어요. 다시 시도해주세요.";
   if(detail==="ocr:response") return "사진 인식 결과를 읽지 못했어요. 다른 캡처본을 올려주세요.";

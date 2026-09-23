@@ -1,6 +1,6 @@
 import { writeCertificationReview } from "@/lib/certification-review";
 import { after, NextRequest, NextResponse } from "next/server";
-import { memberUploadRecordValues, MEMBER_UPLOAD_BUCKET, MEMBER_UPLOAD_DRAFT_PATTERN, ownsFreshDraft, validateCertificationDate } from "@/lib/member-upload-contract";
+import { memberUploadRecordValues, MEMBER_UPLOAD_BUCKET, MEMBER_UPLOAD_DRAFT_PATTERN, ownsFreshDraft, validateCertificationDate, memberEvidenceIssues } from "@/lib/member-upload-contract";
 import { ownedMember, privateUploadStore, readMemberJson, readUploadDraft, uploadPrefix } from "@/lib/member-upload-server";
 import { loadHello2027ProfileImageUrls } from "@/lib/hello-2027-profile-image-storage";
 import { invalidatePublicDashboardCache } from "@/lib/public-dashboard-data";
@@ -184,6 +184,8 @@ export async function POST(request: NextRequest) {
     const prefix = uploadPrefix(authUserId, body.draftId);
     const draft = await readUploadDraft(store, prefix);
     if (!draft || !ownsFreshDraft(draft, owned.participantId)) return privateJson({ error: "인증샷 확인 시간이 지났어요. 사진을 다시 선택해주세요." }, 410);
+    const issues = memberEvidenceIssues(draft);
+    if (issues.length) return privateJson({ error: issues.join("\n"), issues }, 422);
     const values = memberUploadRecordValues(draft);
     const selected = validateCertificationDate(body.date ?? values.date, toKstIsoDate());
     if (!selected.ok) return privateJson({ error: selected.error }, 400);

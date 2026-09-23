@@ -57,9 +57,9 @@ test("내 활동은 헤더 밖에 배치되어 모바일 날짜 숨김·nowrap �
   assert.doesNotMatch(headerCss, /\.headerAccountLink\s*\{\s*display:\s*none/);
 });
 
-test("내 정보는 프로필·후원만 남기고 개인 도구는 메인으로 이동한다", () => {
+test("프로필 변경은 본인 기록에서 접근하고 내 정보 메뉴는 제거한다", () => {
   const source = readFileSync(new URL("../components/my-activity-content.tsx", import.meta.url), "utf8");
-  for (const title of ["프로필", "후원"]) assert.ok(source.includes(`title:"${title}"`));
+  assert.match(source,/프로필 사진 변경/);assert.doesNotMatch(source,/aria-label="내 정보 메뉴"/);
   assert.doesNotMatch(source, /title:"보관함"|className=\{styles.toolSection\}/);
   assert.match(source, /<QuickCertification/);
 });

@@ -60,12 +60,12 @@ test("개인 POST: 같은 사진·날짜 더블클릭은 기존 기록을 반환
   assert.equal((await conflicting.POST({})).status, 409);
 });
 
-test("OCR 값이 없어도 회원이 입력한 유효한 기록은 즉시 인증", async () => {
+test("OCR 값이 없으면 요청 본문에 유효한 수치를 보내도 인증할 수 없음", async () => {
   for (const draft of [{ activityTime: null }, { activityTime: "24:00" }, { distanceKm: null }, { distanceKm: 0 }]) {
     const h = harness({ draft });
     const result = await h.POST({});
-    assert.equal(result.status, 201);
-    assert.equal(h.calls.find(c => c.insert).insert.status, "certified");
+    assert.equal(result.status, 422);
+    assert.ok(!h.calls.some(c=>c.insert));assert.ok(result.body.issues.length);
   }
 });
 
@@ -81,10 +81,14 @@ test("선택 날짜가 잘못되거나 미래·시즌 밖이면 저장하지 않
   const h=harness({body:{date}});assert.equal((await h.POST({})).status,400);assert.ok(!h.calls.some(c=>c.insert));
  }
 });
-test("배경 사진이나 OCR 장애로 수치를 못 읽어도 인증하고 수치는 null 보관",async()=>{
+test("배경 사진이나 OCR 장애로 수치를 못 읽으면 사유를 반환하고 인증하지 않음",async()=>{
  for(const draft of [{distanceKm:null,durationSeconds:null},{analysisError:"timeout",distanceKm:5,durationSeconds:30}]){
- const h=harness({draft});assert.equal((await h.POST({})).status,201);const row=h.calls.find(c=>c.insert).insert;assert.equal(row.status,"certified");assert.equal(row.distance_km,null);assert.equal(row.duration_seconds,null);assert.match(row.image_url,/member-run-uploads/);
+ const h=harness({draft});assert.equal((await h.POST({})).status,422);assert.ok(!h.calls.some(c=>c.insert));
  }
+});
+test("3km와 07:59 경계 통과, 2.999km와 08:00은 서버에서 거절",async()=>{
+ const accepted=harness({draft:{distanceKm:3,activityTime:"07:59"}});assert.equal((await accepted.POST({})).status,201);
+ for(const draft of [{distanceKm:2.999,activityTime:"07:59"},{distanceKm:3,activityTime:"08:00"}]){const h=harness({draft});const res=await h.POST({});assert.equal(res.status,422);assert.match(res.body.error,/3km|8시/);assert.ok(!h.calls.some(c=>c.insert));}
 });
 test("업로드 일자는 한국시간 자정 기준이고 사진 날짜·요청 날짜에 영향받지 않음",()=>{
  const base={createdAt:"2026-09-15T14:59:59.999Z",date:"2000-01-01",distanceKm:null,durationSeconds:null};

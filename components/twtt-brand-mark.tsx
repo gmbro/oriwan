@@ -26,7 +26,7 @@ export function TwttBrandMark({
       aria-label={label}
     >
       <Image
-        src="/brand/twtt-logo.png"
+        src="/brand/ttt-logo.png"
         alt=""
         fill
         sizes={sizes}
