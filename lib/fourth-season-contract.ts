@@ -27,8 +27,8 @@ export function formatFourthSeasonDday(kstDateIso: string | null | undefined) {
   if (!isIsoCalendarDate(kstDateIso)) return null;
 
   const daysUntilEnd = isoCalendarDateToUtcDay(FOURTH_SEASON_END_DATE)
-    - isoCalendarDateToUtcDay(kstDateIso) + 1;
-  if (daysUntilEnd > 0) return `D-${Math.min(FOURTH_SEASON_DAYS, daysUntilEnd)}`;
+    - isoCalendarDateToUtcDay(kstDateIso);
+  if (daysUntilEnd > 0) return `D-${daysUntilEnd}`;
   if (daysUntilEnd === 0) return "D-DAY";
   return `D+${Math.abs(daysUntilEnd)}`;
 }

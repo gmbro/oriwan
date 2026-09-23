@@ -15,13 +15,13 @@ import {
   isWithinFourthSeasonWindow,
 } from "../lib/fourth-season-contract.ts";
 
-test("4기 시작일은 D-100이고 당일을 포함해 매일 감소한다", () => {
-  assert.equal(formatFourthSeasonDday("2026-09-07"), "D-100");
-  assert.equal(formatFourthSeasonDday("2026-09-23"), "D-100");
-  assert.equal(formatFourthSeasonDday("2026-09-24"), "D-99");
-  assert.equal(formatFourthSeasonDday("2026-12-30"), "D-2");
-  assert.equal(formatFourthSeasonDday("2026-12-31"), "D-1");
-  assert.equal(formatFourthSeasonDday("2027-01-01"), "D-DAY");
+test("12월 31일이 100일째이며 종료일까지 남은 날짜를 표시한다", () => {
+  assert.equal(formatFourthSeasonDday("2026-09-07"), "D-115");
+  assert.equal(formatFourthSeasonDday("2026-09-23"), "D-99");
+  assert.equal(formatFourthSeasonDday("2026-09-24"), "D-98");
+  assert.equal(formatFourthSeasonDday("2026-12-30"), "D-1");
+  assert.equal(formatFourthSeasonDday("2026-12-31"), "D-DAY");
+  assert.equal(formatFourthSeasonDday("2027-01-01"), "D+1");
 });
 test("공식 멤버 거리·시간은 시작일 이후 승인된 기록만 합산하고 원본 내역은 유지한다",()=>{
  const records=[{recordDateIso:"2026-09-22",status:"certified",distanceKm:100,durationMinutes:600},{recordDateIso:"2026-09-23",status:"certified",distanceKm:3,durationMinutes:20},{recordDateIso:"2026-09-23",status:"needs_review",distanceKm:50,durationMinutes:400},{recordDateIso:"2026-09-24",status:"certified",distanceKm:10,durationMinutes:60}];
