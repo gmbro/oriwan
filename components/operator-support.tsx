@@ -16,7 +16,7 @@ export function OperatorSupport({status:initialStatus}:{status?:ReturnType<typeo
  <div><span className={styles.price}>비용 10,000원</span><h3>홈 광고 배너에 브랜드를 소개합니다</h3></div>
  <p>운영자에게 갠톡으로 문의부탁드립니다.</p>
  <dl className={styles.guide}>
- <div><dt>기간</dt><dd>1개월</dd></div>
+ <div><dt>기간</dt><dd>~12월 31일까지</dd></div>
  <div><dt>이미지</dt><dd>1915X821 PNG</dd></div>
  <div><dt>문구</dt><dd>브랜드명 20자 설명 50자 이내</dd></div>
  <div><dt>링크</dt><dd>연결URL</dd></div>
