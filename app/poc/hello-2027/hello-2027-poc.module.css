@@ -1623,3 +1623,6 @@
   .memberShortcuts button { font-size: var(--mobile-caption); line-height: 1.5; }
   .headerMeta .headerDateTime, .headerLogoutButton { font-size: var(--mobile-caption); }
 }
+@media (max-width: 360px) {
+  .summaryCard { padding-inline: 3px; }
+}
