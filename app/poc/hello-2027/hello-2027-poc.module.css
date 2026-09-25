@@ -1629,3 +1629,7 @@
 
 .summaryCard small { color: var(--text-secondary); font-size: 12px; font-weight: 400; line-height: 1.4; }
 .distanceBreakdown { margin: 16px 0; color: var(--text-secondary); font-size: 14px; line-height: 1.8; text-align: center; }
+
+.totalsGuide { margin: 12px 8px 0; color: #6b7684; font-size: 13px; line-height: 1.6; }
+.totalsGuide summary { cursor: pointer; font-weight: 600; }
+.totalsGuide p { margin: 8px 0 0; }

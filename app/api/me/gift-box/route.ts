@@ -65,6 +65,7 @@ async function readCertification(context: GiftContext) {
     .eq("participant_id", context.participantId)
     .eq("record_date", context.recordDate)
     .eq("status", "certified")
+    .limit(1)
     .maybeSingle();
 }
 

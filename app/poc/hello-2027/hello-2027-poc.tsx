@@ -217,6 +217,13 @@ export function Hello2027Poc({
                 <small>시간:분</small>
               </article>
             </div>
+            <p className={styles.totalsGuide}>인증 거리 + 개인 거리 · 9월 1일부터 합산</p>
+            <details className={styles.totalsGuide}>
+              <summary>누적 거리·업로드 기준 안내</summary>
+              <p>누적 거리 = 인증 거리 + 개인 거리. 9월 1일부터 등록한 운동의 거리·시간을 모두 합산해요.</p>
+              <p>사진 속 운동 시작 시각이 오전 8시 전(00:00~07:59)이고 3km 이상이면 공식 인증이에요. 08:00부터 시작한 운동과 3km 미만 운동은 개인 기록이에요. 공식 인증일은 9월 23일부터 계산해요.</p>
+              <p>업로드한 시각은 관계없어요. 운동 날짜를 확인하고 각 운동을 따로 올려주세요. 하루 여러 번 등록해도 모두 합산하고, 같은 사진은 중복 합산하지 않아요. 인증일과 보상은 하루 한 번이에요.</p>
+            </details>
           </section>
 
           {memberFeatures && viewerState?.viewer?.approved_participant && <nav className={styles.memberShortcuts} aria-label="멤버 바로가기">

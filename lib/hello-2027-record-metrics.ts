@@ -5,6 +5,7 @@ export type Hello2027MetricRecord = {
   duration_seconds: number | null;
   status: "certified" | "needs_review";
   created_at: string | null;
+  submission_key?: string | null;
   source_app?: string | null;
 };
 
@@ -23,7 +24,7 @@ export type Hello2027ParticipantRecordGroups = {
   visibleHistoryByParticipant: Map<string, Hello2027MetricRecord[]>;
 };
 
-/** Sum the already filtered, one-record-per-member/day official projection. */
+/** Sum the already filtered, one-record-per-submission official projection. */
 export function sumHello2027OfficialMetrics(
   recordsByParticipant: ReadonlyMap<string, readonly Hello2027MetricRecord[]>,
 ) {
@@ -106,7 +107,7 @@ export function groupHello2027ParticipantRecords({
       || recordDate > throughDate
     ) return;
 
-    const participantDateKey = `${participantId}:${recordDate}`;
+    const participantDateKey = `${participantId}:${recordDate}:${record.submission_key || "legacy"}`;
 
     if (record.status === "certified" && recordDate >= officialStartDate) {
       const currentOfficial = officialByParticipantDate.get(participantDateKey);

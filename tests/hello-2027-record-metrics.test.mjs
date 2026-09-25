@@ -149,3 +149,13 @@ test("공통 누적 거리는 공식 승인 행만 중복 없이 합산하고 �
   assert.deepEqual(sumHello2027OfficialMetrics(result.officialCertifiedByParticipant), { distanceKm: 3.3, durationMinutes: 1 });
   assert.deepEqual(sumHello2027OfficialMetrics(new Map()), { distanceKm: 0, durationMinutes: 0 });
 });
+
+test("separate submissions on one day all contribute while retries collapse",()=>{
+ const a=makeRecord({record_date:'2026-09-25',status:'certified',submission_key:'a',distance_km:3});
+ const b=makeRecord({record_date:'2026-09-25',status:'certified',submission_key:'b',distance_km:4});
+ const c=makeRecord({record_date:'2026-09-25',status:'needs_review',source_app:'member-personal',submission_key:'c',distance_km:2});
+ const result=group([a,b,c,a],'2026-09-25');
+ assert.equal(result.visibleHistoryByParticipant.get('member-a').length,3);
+ assert.equal(sumHello2027OfficialMetrics(result.officialCertifiedByParticipant).distanceKm,7);
+ assert.equal(new Set(result.officialCertifiedByParticipant.get('member-a').map(r=>r.record_date)).size,1);
+});

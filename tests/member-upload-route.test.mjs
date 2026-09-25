@@ -18,7 +18,7 @@ function harness(overrides = {}) {
   const service = { from(table) {
     assert.equal(table, "daily_run_records");
     return { insert(row) { calls.push({ insert: row }); return { select() { return { async single() { return overrides.databaseError ? { error: overrides.databaseError } : { data: { id: "saved", status: row.status } }; } }; } }; },
-      select() { const query = { eq(key, value) { calls.push({ filter: [key, value] }); return query; }, async maybeSingle() { return { data: overrides.existing }; } }; return query; } };
+      select() { let lookup = false; const query = { like() { lookup = true; return query; }, limit() { return query; }, eq(key, value) { calls.push({ filter: [key, value] }); return query; }, async maybeSingle() { return { data: lookup ? overrides.previous : overrides.existing }; } }; return query; } };
   } };
   const owned = overrides.unauthenticated ? { response: json({ error: "login" }, 401) } : { context: { service, authUserId: "auth-owner" }, participantId: "owner", adminUserId: "operator" };
   const deps = {
@@ -101,4 +101,15 @@ test("늦은 운동과 3km 미만은 명시적 동의 후 개인 기록으로만
   const accepted=harness({draft,body:{saveAsPersonal:true,status:"certified"}});assert.equal((await accepted.POST({})).status,201);const row=accepted.calls.find(c=>c.insert).insert;assert.equal(row.status,"needs_review");assert.equal(row.source_app,"member-personal");
  }
  const invalid=harness({draft:{distanceKm:null},body:{saveAsPersonal:true}});assert.equal((await invalid.POST({})).status,422);
+});
+
+test("same date allows distinct image submission keys and classifies each workout",async()=>{
+ const early=harness({draft:{activityTime:"07:59"}}), late=harness({body:{draftId:'2026-10-08/'+ 'b'.repeat(64),saveAsPersonal:true},draft:{activityTime:"08:00"}});
+ assert.equal((await early.POST({})).status,201);assert.equal((await late.POST({})).status,201);
+ const a=early.calls.find(c=>c.insert).insert,b=late.calls.find(c=>c.insert).insert;
+ assert.equal(a.record_date,b.record_date);assert.notEqual(a.submission_key,b.submission_key);assert.equal(a.status,'certified');assert.equal(b.source_app,'member-personal');
+});
+test("same image on another upload date returns original without inserting",async()=>{
+ const h=harness({previous:{id:'original',status:'certified',record_date:'2026-10-07'}});
+ const result=await h.POST({});assert.equal(result.status,200);assert.equal(result.body.record.date,'2026-10-07');assert.equal(result.body.duplicate,true);assert.ok(!h.calls.some(c=>c.insert));
 });

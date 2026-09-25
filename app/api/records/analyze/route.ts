@@ -220,7 +220,7 @@ async function findExistingRecord(
     .eq("season_key", FOURTH_SEASON_KEY)
     .eq("participant_id", participantId)
     .eq("record_date", recordDate)
-    .maybeSingle();
+    .limit(1).maybeSingle();
 
   if (error) throw error;
   return data as ExistingRunRecord | null;

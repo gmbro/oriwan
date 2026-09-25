@@ -35,7 +35,19 @@ export function ParticipantRecordCalendar({
   privateImageRecordIds?: Readonly<Record<string, string>>;
 }) {
   const titleId = useId();
-  const recordsByDate = useMemo(() => new Map(records.map((record) => [record.recordDateIso, record])), [records]);
+  const recordsByDate = useMemo(() => {
+    const map = new Map<string, Hello2027ParticipantRecordEntry>();
+    for (const record of records) {
+      const previous = map.get(record.recordDateIso);
+      map.set(record.recordDateIso, previous ? {...record,
+        distanceKm: previous.distanceKm === null && record.distanceKm === null ? null : (previous.distanceKm ?? 0) + (record.distanceKm ?? 0),
+        durationMinutes: previous.durationMinutes === null && record.durationMinutes === null ? null : (previous.durationMinutes ?? 0) + (record.durationMinutes ?? 0),
+        status: previous.status === "certified" || record.status === "certified" ? "certified" : "needs_review",
+        isPersonal: previous.status !== "certified" && record.status !== "certified" && Boolean(previous.isPersonal || record.isPersonal),
+      } : {...record});
+    }
+    return map;
+  }, [records]);
   const dates = [...recordsByDate.keys()].sort();
   const latestDate = dates.at(-1) ?? today;
   const [chosenMonth, setChosenMonth] = useState<string | null>(null);
@@ -114,6 +126,7 @@ export function ParticipantRecordCalendar({
               <div><dt>시간</dt><dd>{formatMinutes(selectedRecord.durationMinutes)}</dd></div>
             </dl>
           ) : <p className={styles.empty}>{records.length === 0 ? "첫 기록을 기다리고 있어요." : "이날은 등록된 기록이 없어요."}</p>}
+          {records.filter(record => record.recordDateIso === selectedDate).length > 1 && <p className={styles.empty}>운동 {records.filter(record => record.recordDateIso === selectedDate).length}건 합산 · 인증일은 하루 1일로 계산해요.</p>}
           {privateImageRecordIds?.[selectedDate] ? (
             <a className={styles.imageLink} href={`/api/me/records/image/${encodeURIComponent(privateImageRecordIds[selectedDate])}`} target="_blank" rel="noopener noreferrer">인증샷 보기 ↗</a>
           ) : null}

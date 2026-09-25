@@ -93,7 +93,7 @@ export default function MyActivityUpload({ today, onSubmitted, onViewRecords, pr
     {guide&&<CertificationGuide message={guide} onClose={()=>setGuide("")}/>}
     {stage !== "done" && <p className={styles.uploadGuidance}>3km 이상 · 오전 8시 이전 시작은 공식 인증, 그 외 운동은 확인 후 개인 기록으로 저장할 수 있어요.</p>}
     {["choose", "uploading", "analyzing"].includes(stage) && <div className={styles.field}>운동한 날짜 (사진 선택 전 확인)<KoreanExerciseDate min="2026-08-13" max={today < "2026-12-31" ? today : "2026-12-31"} value={date} disabled={stage !== "choose"} onChange={setDate} /></div>}
-    {stage !== "done" && <p className={styles.muted}>운동한 날짜마다 1건만 제출할 수 있어요. 등록 실패 시 문의주시면 운영자가 업로드해드려요</p>}
+    {stage !== "done" && <p className={styles.muted}>업로드 시간 제한은 없어요. 사진 속 운동 시작 시각 기준으로 구분해요. 하루 여러 운동을 등록할 수 있으며 같은 사진은 중복 합산하지 않아요. 인증일·보상은 하루 한 번이에요.</p>}
     {error && <p className={`${styles.feedback} ${styles.error}`} role="alert">{error}</p>}
     {stage === "done" ? <><div className={styles.feedback} role="status">{preview ? "미리보기 제출 완료 · 실제 저장 없음" : <><strong>{savedPersonal ? "개인 기록을 저장했어요" : "인증이 완료되었습니다"}</strong><p>{savedPersonal ? "누적 거리에 반영되며 인증일·보상에는 포함되지 않아요." : "내 기록에 저장했어요. 오늘 기록이면 인증박스를 바로 열 수 있어요."}</p><p>{formatKoreanExerciseDate(date)} · {distance}km · {minutes}분 {seconds}초</p></>}</div>{onViewRecords && <button className={styles.primary} onClick={onViewRecords}>내 기록에서 확인하기</button>}<button className={styles.primary} onClick={() => { setDraft(null); setStage("choose"); setImage(""); }}>다른 인증샷 올리기</button></> : <>
       {image && <p className={styles.muted} role="status">{draft ? "사진 저장 완료 · " + (stage === "confirm" || stage === "submitting" ? "인식값 확인 후 인증 제출을 눌러주세요." : "인증 조건 또는 인식값 확인 필요 · 기록 미제출") : "선택한 사진 미리보기 · 아직 기록 제출 전이에요."}</p>}

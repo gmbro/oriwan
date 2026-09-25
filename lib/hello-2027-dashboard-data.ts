@@ -158,7 +158,7 @@ async function fetchFourthRecords({
   while (true) {
     const { data, error } = await service
       .from("daily_run_records")
-      .select("participant_id, record_date, distance_km, duration_seconds, status, created_at, notes, source_app, raw_extracted_text")
+      .select("participant_id, record_date, distance_km, duration_seconds, status, created_at, notes, source_app, raw_extracted_text, submission_key")
       .eq("user_id", adminUserId)
       .eq("season_key", FOURTH_SEASON_KEY)
       .in("status", ["certified", "needs_review"])
@@ -209,6 +209,7 @@ function buildLiveSnapshot({
   const dayNumber = getDayNumber(today);
   const realParticipants: Hello2027Participant[] = participants.map((participant) => {
     const participantRecords = recordsByParticipant.get(participant.id) || [];
+    const certifiedDayCount = new Set(participantRecords.map(record => record.record_date)).size;
     const visibleMetricRecords = visibleMetricsByParticipant.get(participant.id) || [];
     const visibleHistoryRecords = visibleHistoryByParticipant.get(participant.id) || [];
     const recordHistory = visibleHistoryRecords
@@ -238,11 +239,11 @@ function buildLiveSnapshot({
       profileImageUrl: profileImageUrls[participant.id] || null,
       completed: Boolean(todayOfficialRecord),
       seasonCompletionRate: dayNumber > 0
-        ? Math.round((participantRecords.length / dayNumber) * 100)
+        ? Math.round((certifiedDayCount / dayNumber) * 100)
         : 0,
       distanceKm: cleanFiniteNumber(todayMetricRecord?.distance_km),
       durationMinutes: roundHello2027DurationMinutes(todayMetricRecord?.duration_seconds),
-      certifiedDays: participantRecords.length,
+      certifiedDays: certifiedDayCount,
       recordHistory,
       // Personal-dialog distance and time are useful immediately after OCR,
       // including pre-season and review-pending rows. Certification counts and
