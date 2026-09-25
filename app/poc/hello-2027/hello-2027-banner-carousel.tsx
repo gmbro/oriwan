@@ -175,7 +175,7 @@ export function Hello2027BannerCarousel({ ads, dayPhase, completedToday, partici
               </div>
               <div className={styles.adImageScrim} aria-hidden="true" />
               <div className={styles.adCopyFloating}>
-                <span>{ad.ownerName}님의 광고</span>
+                <span>광고주 {ad.ownerName}</span>
                 <strong>{ad.title}</strong>
                 <p>{ad.description}</p>
               </div>
