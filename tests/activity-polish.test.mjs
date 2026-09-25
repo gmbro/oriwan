@@ -58,7 +58,7 @@ test("수정 댓글은 수정 시각만, 원본 댓글은 작성 시각 하나�
 });
 test("활동 기록은 요약과 대기 거리·시간 캘린더 및 그래프를 제공한다", () => {
   let calendarProps;
-  const Records = compileComponent(read("components/my-activity-records.tsx"), { fourthMemberTotals, styles: {}, MyActivityRecordChart: () => React.createElement("section", null, "기록 그래프"), ParticipantRecordCalendar: props => { calendarProps = props; return React.createElement("section", null, "calendar"); } }, "MyActivityRecords");
+  const Records = compileComponent(read("components/my-activity-records.tsx"), { useId: React.useId, useState: React.useState, fourthMemberTotals, styles: {}, MyActivityRecordChart: () => React.createElement("section", null, "기록 그래프"), ParticipantRecordCalendar: props => { calendarProps = props; return React.createElement("section", null, "calendar"); } }, "MyActivityRecords");
   const html = renderToStaticMarkup(React.createElement(Records, { data: {
     season: { today: "2026-10-08" }, summary: { official: { certifiedDays: 1, totalDistanceKm: 5, totalDurationSeconds: 1800 } },
     records: [{ date: "2026-10-08", distanceKm: 5.2, durationSeconds: 1930, status: "needs_review" }],

@@ -124,3 +124,20 @@
  .stats dt{font-size:var(--mobile-caption)}
  .stats dd{font-size:var(--mobile-metric);line-height:1.4;font-variant-numeric:tabular-nums}
 }
+
+.distanceStat { position: relative; }
+.distanceStat button { border: 0; padding: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+.distanceStat button::after { content: ""; position: absolute; inset: 0; border-radius: 16px; }
+.distanceStat button:focus-visible::after { outline: 2px solid #3182f6; outline-offset: 3px; }
+.distanceDetails { padding: 16px; border-radius: 16px; background: #f2f6fc; }
+.distanceDetails[hidden] { display: none; }
+.distanceDetails p { margin: 0 0 12px; font-size: 13px; color: #4e5968; }
+.distanceDetails dl { display: grid; gap: 12px; margin: 0 0 12px; }
+.distanceDetails dl > div { display: flex; justify-content: space-between; gap: 16px; font-size: 14px; }
+.distanceDetails dd { margin: 0; font-weight: 700; font-variant-numeric: tabular-nums; }
+.distanceDetails small { font-size: 12px; color: #6b7684; }
+.chartPeriod { min-height: 44px; justify-content: space-between; }
+.chartPeriod > span:only-child { margin: auto; }
+.chartPeriod button { min-width: 44px; min-height: 44px; }
+.chartScroll { max-width: 100%; }
+.stats dd { font-variant-numeric: tabular-nums; }

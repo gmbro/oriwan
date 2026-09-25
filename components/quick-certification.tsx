@@ -45,7 +45,7 @@ export function QuickCertification({today,onSaved}:{today:string;onSaved:()=>voi
  const choose=()=>{if(!available){void refresh().catch(e=>setGuide(certificationFailure(e instanceof CertificationError?e.status:0)));return;}const valid=validateCertificationDate(selectedDate,certificationDay());if(!valid.ok){setGuide(valid.error);return;}if(!window.confirm(`${selectedDate}${selectedDate===certificationDay()?" (오늘)":""}의 운동으로 인증할까요?`))return;submittedDate.current=selectedDate;input.current?.click();};
  return <div className={styles.quickCertification}>
  <div className={styles.certificationDate}><span>인증 날짜</span><KoreanExerciseDate min="2026-08-13" max={day<"2026-12-31"?day:"2026-12-31"} value={selectedDate} disabled={pending||Boolean(draft)} onChange={setSelectedDate}/></div>
- <p className={styles.muted}>업로드 시간은 제한 없어요. 사진 속 시작 시각이 08:00 전이고 3km 이상이면 공식 인증, 그 외는 개인 기록이에요. 여러 운동은 각각 등록할 수 있고 인증일·보상은 하루 한 번이에요.</p>
+ <p className={styles.muted}>누적 거리 = 인증 기록 + 개인 기록<br/>사진 속 시작 시각이 오전 8시 전이고 3km 이상이면 인증 기록, 그 외는 개인 기록이에요.<br/>업로드는 언제든, 여러 번 가능해요. 인증일·보상은 하루 한 번이에요.</p>
  <input ref={input} hidden type="file" accept="image/jpeg,image/png,image/webp" onChange={e=>void run(e.target.files?.[0])}/>
  <button className={styles.primary} disabled={pending||checking||Boolean(draft)} onClick={choose}>{pending?"기록하는 중…":checking?"기록 확인 중…":!available?"인증 상태 다시 확인":records.some(r=>r.date===selectedDate)?"운동 기록 추가하기":"운동 인증하기"}</button>
  {personalConfirm&&draft&&<CertificationGuide message={[...memberEvidenceIssues(draft),"개인 거리는 9월 1일부터 합산하며 인증일·보상에는 포함되지 않아요."].join("\n")} onClose={()=>{setPersonalConfirm(false);setDraft(null);}} onConfirm={()=>{setPersonalConfirm(false);void run(undefined,true);}}/>}
