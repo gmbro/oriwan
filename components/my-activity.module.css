@@ -141,3 +141,7 @@
 .chartPeriod button { min-width: 44px; min-height: 44px; }
 .chartScroll { max-width: 100%; }
 .stats dd { font-variant-numeric: tabular-nums; }
+
+.certificationGuide { display: grid; gap: 10px; margin: 12px 0 16px; font-size: 13px; line-height: 1.6; color: #6b7684; }
+.certificationGuide p { margin: 0; display: grid; gap: 2px; }
+.certificationGuide strong { font-size: inherit; font-weight: 600; color: #4e5968; }

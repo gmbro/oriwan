@@ -771,7 +771,7 @@ function BannerForm({
           <div className="mb-2 flex items-center gap-2"><span className="mr-auto text-xs font-bold text-slate-600">배너 미리보기</span>{(["desktop","mobile"] as const).map(mode=><button key={mode} type="button" aria-pressed={previewMode===mode} onClick={()=>setPreviewMode(mode)} className={`min-h-9 rounded-lg px-3 text-xs ${previewMode===mode?"bg-blue-600 text-white":"bg-white text-slate-600"}`}>{mode==="desktop"?"PC":"모바일"}</button>)}</div>
           <div className={`relative overflow-hidden rounded-2xl bg-slate-900 ${previewMode==="mobile"?"mx-auto max-w-[360px] aspect-[4/3]":"aspect-[1915/821]"}`}>
             <div role="img" aria-label={draft.alt_text || "배너 이미지 미리보기"} className="absolute inset-0 bg-cover" style={{backgroundImage:`url(${JSON.stringify(previewSource)})`,backgroundPosition:previewMode==="mobile"?draft.mobile_focus:"center"}} />
-            <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/30 p-5 text-center text-white"><p className="text-xs">광고주 {draft.owner_name}</p><h3 className="mt-3 whitespace-pre-wrap break-words text-xl font-bold">{draft.title}</h3><p className="mt-3 whitespace-pre-wrap break-words text-sm">{draft.description}</p></div>
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/30 p-5 text-center text-white"><p className="text-xs">{draft.owner_name}</p><h3 className="mt-3 whitespace-pre-wrap break-words text-xl font-bold">{draft.title}</h3><p className="mt-3 whitespace-pre-wrap break-words text-sm">{draft.description}</p></div>
           </div>
         </div>
       ) : draft.image_url ? (
