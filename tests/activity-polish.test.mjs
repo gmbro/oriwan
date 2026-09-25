@@ -113,6 +113,6 @@ test("멤버창은 인증일·거리·시간을 위에서 한 번만 보여주�
   }
   assert.doesNotMatch(read("app/poc/hello-2027/participant-record-calendar.tsx"), /4기 공식 인증 기준/);
   assert.doesNotMatch(read("app/poc/hello-2027/hello-2027-crew-banner.tsx"), />2026\.12\.31</);
-  assert.match(source, /누적 거리[\s\S]*cumulativeTotals.distanceKm[\s\S]*누적 시간[\s\S]*cumulativeTotals.durationMinutes/);
+  assert.match(source, /총 인증 거리[\s\S]*cumulativeTotals.distanceKm[\s\S]*총 인증 시간[\s\S]*cumulativeTotals.durationMinutes/);
   assert.match(source, /id="crew-title">멤버<\/h2>\s*<span className=\{styles.crewCount\}/);
 });

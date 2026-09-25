@@ -30,7 +30,7 @@ export default function MyActivityRecords({ data }: { data: PersonalRecordsPaylo
       <div className={styles.distanceStat}><dt><button type="button" aria-expanded={expanded} aria-controls={detailId} onClick={() => setExpanded(!expanded)}>누적 거리(km) <span aria-hidden="true">{expanded ? "⌃" : "⌄"}</span></button></dt><dd>{totals.totalDistanceKm.toLocaleString("ko-KR", { maximumFractionDigits: 2 })}</dd></div>
       <div><dt>누적 시간(h:mm)</dt><dd>{formatDuration(totals.totalDurationMinutes)}</dd></div>
     </dl>
-    <section id={detailId} hidden={!expanded} className={styles.distanceDetails} aria-label="누적 거리 내역"><p>누적 거리 = 인증 기록 + 개인 기록</p><dl><div><dt>인증 기록</dt><dd>{totals.certifiedDistanceKm.toFixed(2)} km</dd></div><div><dt>개인 기록</dt><dd>{totals.personalDistanceKm.toFixed(2)} km</dd></div></dl><small>개인 기록은 9월 1일부터 합산해요.</small></section>
+    <section id={detailId} hidden={!expanded} className={styles.distanceDetails} aria-label="누적 거리 내역"><p>누적 거리는 9월 1일부터의 인증 거리와 개인 거리를 합산해요.</p><dl><div><dt>인증 기록</dt><dd>{totals.certifiedDistanceKm.toFixed(2)} km</dd></div><div><dt>개인 기록</dt><dd>{totals.personalDistanceKm.toFixed(2)} km</dd></div></dl></section>
     <ParticipantRecordCalendar records={history} certifiedDays={official.certifiedDays} today={data.season.today} showLegend={false} showTotal={false} compact>
       <MyActivityRecordChart records={data.records} today={data.season.today} />
     </ParticipantRecordCalendar>

@@ -25,7 +25,7 @@ import { useLocalHello2027Content } from "./use-local-hello-2027-content";
 import { TimeMachineBadge } from "@/components/time-machine-badge";
 import { KakaoLoginButton } from "@/components/kakao-login-button";
 import { useOptionalFourthViewer } from "@/components/fourth-viewer-provider";
-import { formatFourthSeasonDday, fourthMemberTotals } from "@/lib/fourth-season-contract";
+import { formatFourthSeasonDday, fourthMemberTotals, fourthOfficialMemberTotals } from "@/lib/fourth-season-contract";
 import { DASHBOARD_SNAPSHOT_DOM_EVENT } from "@/lib/dashboard-refresh-contract";
 
 type Hello2027PocProps = {
@@ -137,7 +137,7 @@ export function Hello2027Poc({
     () => liveSnapshot.participants.find((participant) => participant.id === selectedParticipantId) ?? null,
     [liveSnapshot.participants, selectedParticipantId, canViewRecords],
   );
-  const cumulativeTotals = liveSnapshot.participants.reduce((sum, p) => { const t = fourthMemberTotals(p.recordHistory, seoulToday); return { distanceKm: sum.distanceKm+t.totalDistanceKm, durationMinutes:sum.durationMinutes+t.totalDurationMinutes }; }, {distanceKm:0,durationMinutes:0});
+  const cumulativeTotals = liveSnapshot.participants.reduce((sum, p) => { const t = fourthOfficialMemberTotals(p.recordHistory, seoulToday); return { distanceKm: sum.distanceKm+t.totalDistanceKm, durationMinutes:sum.durationMinutes+t.totalDurationMinutes }; }, {distanceKm:0,durationMinutes:0});
   const sortedParticipants = useMemo(() => {
     const participants = (canViewRecords ? projectDashboardRecords(liveSnapshot, false).participants : liveSnapshot.participants)
       .map(participant => ({...participant,...fourthMemberTotals(participant.recordHistory, seoulToday)}));
@@ -207,17 +207,16 @@ export function Hello2027Poc({
                 <strong>{liveSnapshot.dayNumber} / {liveSnapshot.totalDays}</strong><small>일</small>
               </article>
               <article className={styles.summaryCard}>
-                <span>누적 거리</span>
+                <span>총 인증 거리</span>
                 <strong className={styles.summaryTotal}>{cumulativeTotals.distanceKm.toLocaleString("ko-KR", { maximumFractionDigits: 2 })}</strong>
                 <small>km</small>
               </article>
               <article className={styles.summaryCard}>
-                <span>누적 시간</span>
+                <span>총 인증 시간</span>
                 <strong className={styles.summaryTotal}>{formatCompactDuration(cumulativeTotals.durationMinutes)}</strong>
                 <small>시간:분</small>
               </article>
             </div>
-            <p className={styles.totalsGuide}>누적 거리는 9월 1일부터의 인증 거리와 개인 거리를 합산해요.</p>
           </section>
 
           {memberFeatures && viewerState?.viewer?.approved_participant && <nav className={styles.memberShortcuts} aria-label="멤버 바로가기">
@@ -469,7 +468,7 @@ export function ParticipantDialog({
               <dd>{formatTotalDuration(totals?.totalDurationMinutes ?? participant.totalDurationMinutes)}</dd>
             </div>
           </dl>
-          {totals && <p className={styles.distanceBreakdown}>인증 거리 {totals.certifiedDistanceKm.toFixed(2)} km · 개인 거리 {totals.personalDistanceKm.toFixed(2)} km<br/><small>개인 기록은 9월 1일부터 합산해요.</small></p>}
+          {totals && <p className={styles.distanceBreakdown}>인증 거리 {totals.certifiedDistanceKm.toFixed(2)} km · 개인 거리 {totals.personalDistanceKm.toFixed(2)} km<br/><small>누적 거리는 9월 1일부터의 인증 거리와 개인 거리를 합산해요.</small></p>}
 
 
           {<div className={styles.memberCalendar}><ParticipantRecordCalendar
