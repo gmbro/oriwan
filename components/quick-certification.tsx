@@ -3,7 +3,7 @@ import {useCallback,useEffect,useRef,useState} from "react";
 import {reduceScreenshot} from "./my-activity-upload";
 import {CertificationGuide} from "./certification-guide";
 import {KoreanExerciseDate} from "./korean-exercise-date";
-import {validateCertificationDate, type MemberUploadDraft} from "@/lib/member-upload-contract";
+import {canSavePersonalRun, memberRunClassification, memberEvidenceIssues, validateCertificationDate, type MemberUploadDraft} from "@/lib/member-upload-contract";
 import {openMyActivity} from "./my-activity-dialog";
 import {certificationDay,untilNextCertificationDay,hasCertification,certificationFailure} from "@/lib/certification-ui";
 import {DASHBOARD_REFRESH_DOM_EVENT} from "@/lib/dashboard-refresh-contract";
@@ -12,7 +12,8 @@ class CertificationError extends Error { constructor(readonly status:number, mes
 export function QuickCertification({today,onSaved}:{today:string;onSaved:()=>void}){
  const input=useRef<HTMLInputElement>(null);const busy=useRef(false);const generation=useRef(0);const alive=useRef(true);
  const [day,setDay]=useState(today);const [selectedDate,setSelectedDate]=useState(today);const submittedDate=useRef(today);
- const [records,setRecords]=useState<{date:string;status:string}[]>([]);const completed=hasCertification(records,selectedDate);
+ const [records,setRecords]=useState<{date:string;status:string;isPersonal?:boolean}[]>([]);const completed=hasCertification(records,selectedDate);
+ const [personalConfirm,setPersonalConfirm]=useState(false);
  const [checking,setChecking]=useState(true);const [available,setAvailable]=useState(false);
  const [pending,setPending]=useState(false);const [guide,setGuide]=useState("");const [draft,setDraft]=useState<MemberUploadDraft|null>(null);
  const draftRef=useRef<MemberUploadDraft|null>(null);useEffect(()=>{draftRef.current=draft;},[draft]);
@@ -29,24 +30,25 @@ export function QuickCertification({today,onSaved}:{today:string;onSaved:()=>voi
   void refresh().catch(()=>{});schedule();window.addEventListener("focus",check);document.addEventListener("visibilitychange",check);window.addEventListener(DASHBOARD_REFRESH_DOM_EVENT,check);
   return()=>{alive.current=false;generation.current++;clearTimeout(timer);window.removeEventListener("focus",check);document.removeEventListener("visibilitychange",check);window.removeEventListener(DASHBOARD_REFRESH_DOM_EVENT,check);};
  },[refresh]);
- const save=async(value:MemberUploadDraft)=>{
-  const response=await fetch("/api/me/records",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({draftId:value.id,date:submittedDate.current})});
+ const save=async(value:MemberUploadDraft,saveAsPersonal=false)=>{
+  const response=await fetch("/api/me/records",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({draftId:value.id,date:submittedDate.current,saveAsPersonal})});
   const data=await response.json();if(!response.ok||!data.record?.id)throw new CertificationError(response.status,data.error||"");
   const date=data.record.date;
-  if(alive.current){setDraft(null);setRecords(current=>[...current,{date,status:"certified"}]);onSaved();if(date===certificationDay())openMyActivity("gift");else void refresh().catch(()=>{});}
+  if(alive.current){setDraft(null);setRecords(current=>[...current,{date,status:data.record.status,isPersonal:data.record.status === "needs_review"}]);onSaved();if(data.record.status === "certified" && date===certificationDay())openMyActivity("gift");else {setGuide(data.record.status === "certified" ? "선택한 날짜의 인증을 저장했어요." : "개인 기록을 저장했어요. 누적 거리에 반영되며 인증일과 보상에는 포함되지 않아요.");void refresh().catch(()=>{});}}
  };
- const run=async(file?:File)=>{if(busy.current)return;busy.current=true;setPending(true);try{
+ const run=async(file?:File,saveAsPersonal=false)=>{if(busy.current)return;busy.current=true;setPending(true);try{
   if(await refresh(submittedDate.current)){setDraft(null);return;}
   let value=draft;
   if(file){setDraft(null);const prepared=await reduceScreenshot(file);const form=new FormData();form.set("file",prepared);const response=await fetch("/api/me/records/analyze",{method:"POST",body:form});const data=await response.json();if(!response.ok||!data.draft)throw new CertificationError(response.status,data.error||"");value=data.draft;setDraft(value);}
-  if(value)await save(value);
+  if(value){if(!saveAsPersonal && canSavePersonalRun(value) && memberRunClassification(value,submittedDate.current)==="personal"){setPersonalConfirm(true);return;}await save(value,saveAsPersonal);}
  }catch(e){if(e instanceof CertificationError&&e.status===422)setDraft(null);if(e instanceof CertificationError&&e.status===409)await refresh(submittedDate.current).catch(()=>false);if(alive.current)setGuide(certificationFailure(e instanceof CertificationError?e.status:0,e instanceof Error?e.message:""));}finally{busy.current=false;if(alive.current)setPending(false);if(input.current)input.current.value="";}};
  const choose=()=>{if(!available){void refresh().catch(e=>setGuide(certificationFailure(e instanceof CertificationError?e.status:0)));return;}const valid=validateCertificationDate(selectedDate,certificationDay());if(!valid.ok){setGuide(valid.error);return;}if(!window.confirm(`${selectedDate}${selectedDate===certificationDay()?" (오늘)":""}의 운동으로 인증할까요?`))return;submittedDate.current=selectedDate;input.current?.click();};
  return <div className={styles.quickCertification}>
  <div className={styles.certificationDate}><span>인증 날짜</span><KoreanExerciseDate min="2026-08-13" max={day<"2026-12-31"?day:"2026-12-31"} value={selectedDate} disabled={pending||Boolean(draft)} onChange={setSelectedDate}/></div>
  <input ref={input} hidden type="file" accept="image/jpeg,image/png,image/webp" onChange={e=>void run(e.target.files?.[0])}/>
- <button className={styles.primary} disabled={completed||pending||checking||Boolean(draft)} onClick={choose}>{completed?(selectedDate===day?"오늘 인증완료!":"선택한 날짜 인증완료!"):pending?"기록하는 중…":checking?"인증 확인 중…":!available?"인증 상태 다시 확인":"운동 인증하기"}</button>
- {guide&&<CertificationGuide message={guide} onClose={()=>setGuide("")}/>}
+ <button className={styles.primary} disabled={completed||records.some(r=>r.date===selectedDate && r.status==="needs_review")||pending||checking||Boolean(draft)} onClick={choose}>{completed?(selectedDate===day?"오늘 인증완료!":"선택한 날짜 인증완료!"):records.some(r=>r.date===selectedDate && r.status==="needs_review")?(records.find(r=>r.date===selectedDate)?.isPersonal ? "개인 기록 저장완료" : "기록 확인 중"):pending?"기록하는 중…":checking?"인증 확인 중…":!available?"인증 상태 다시 확인":"운동 인증하기"}</button>
+ {personalConfirm&&draft&&<CertificationGuide message={[...memberEvidenceIssues(draft),"개인 거리는 9월 1일부터 합산하며 인증일·보상에는 포함되지 않아요."].join("\n")} onClose={()=>{setPersonalConfirm(false);setDraft(null);}} onConfirm={()=>{setPersonalConfirm(false);void run(undefined,true);}}/>}
+ {guide&&<CertificationGuide information={guide.includes("저장했어요")} message={guide} onClose={()=>setGuide("")}/>}
  {draft&&!completed&&!pending&&<button className={styles.secondary} onClick={()=>void run()}>저장 다시 시도</button>}
  {draft&&!pending&&<button className={styles.secondary} onClick={()=>setDraft(null)}>다른 사진 선택</button>}
  </div>;

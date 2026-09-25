@@ -9,7 +9,7 @@ export function projectDashboardRecords(snapshot: Hello2027Snapshot, authenticat
   monday.setUTCDate(monday.getUTCDate() - (monday.getUTCDay() + 6) % 7);
   const weekStart = monday.toISOString().slice(0, 10);
   return { ...snapshot, guestbook: [], participants: snapshot.participants.map(p => {
-    const approved = p.recordHistory.filter(r => r.status === "certified" && r.recordDateIso <= today);
+    const approved = p.recordHistory.filter(r => (r.status === "certified" || r.isPersonal) && r.recordDateIso <= today);
     const weekly = approved.filter(r => r.recordDateIso >= weekStart);
     const sum = (rows: typeof approved, key: "distanceKm" | "durationMinutes") =>
       rows.reduce((total, r) => total + (Number.isFinite(r[key]) ? Math.max(0, r[key] ?? 0) : 0), 0);
@@ -18,7 +18,7 @@ export function projectDashboardRecords(snapshot: Hello2027Snapshot, authenticat
       profileImageUrl: p.profileImageUrl, timeMachineActive: p.timeMachineActive,
       completed: p.completed, seasonCompletionRate: p.seasonCompletionRate,
       distanceKm: null, durationMinutes: null,
-      certifiedDays: p.certifiedDays, recordHistory: approved.map(r => ({recordDateIso:r.recordDateIso,monthDay:r.monthDay,weekday:r.weekday,distanceKm:r.distanceKm,durationMinutes:r.durationMinutes,status:"certified" as const})),
+      certifiedDays: p.certifiedDays, recordHistory: approved.map(r => ({recordDateIso:r.recordDateIso,monthDay:r.monthDay,weekday:r.weekday,distanceKm:r.distanceKm,durationMinutes:r.durationMinutes,status:r.status,isPersonal:r.isPersonal})),
       totalDistanceKm: sum(approved, "distanceKm"), totalDurationMinutes: Math.round(sum(approved, "durationMinutes")),
       weeklyDistanceKm: sum(weekly, "distanceKm"), weeklyDurationMinutes: Math.round(sum(weekly, "durationMinutes")),
       product: { name: "자기소개", description: "" },

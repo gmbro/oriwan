@@ -1162,7 +1162,7 @@ export default function AdminPage() {
 
     records.forEach((record) => {
       const isCertificationTargetRecord = !record.participant_id || certificationParticipantIds.has(record.participant_id);
-      if (record.status === "needs_review" && isCertificationTargetRecord) reviewCount += 1;
+      if (record.status === "needs_review" && record.source_app !== "member-personal" && isCertificationTargetRecord) reviewCount += 1;
       if (!isCertificationCountedStatus(record.status)) return;
       if (!record.participant_id || !certificationParticipantIds.has(record.participant_id)) return;
       if (isOfficialCertificationToday && record.record_date === effectiveToday) {
@@ -1208,7 +1208,7 @@ export default function AdminPage() {
   const reviewRecords = useMemo(() => {
     return records
       .filter((record) => (
-        record.status === "needs_review" &&
+        record.status === "needs_review" && record.source_app !== "member-personal" &&
         (Boolean(record.participant_id) && certificationParticipantIds.has(record.participant_id!))
       ))
       .map((record) => ({
@@ -2961,7 +2961,7 @@ export default function AdminPage() {
                             </span>
                           ) : null}
                           <span className={`rounded-full border px-2 py-1 text-[10px] font-black ${statusClass(record.status)}`}>
-                            {statusLabel(record.status)}
+                            {record.source_app === "member-personal" && record.status === "needs_review" ? "개인 기록 · 공식 제외" : statusLabel(record.status)}
                           </span>
                         </span>
                       </div>

@@ -1,3 +1,4 @@
+import { fourthMemberTotals } from "../lib/fourth-season-contract.ts";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
@@ -57,7 +58,7 @@ test("수정 댓글은 수정 시각만, 원본 댓글은 작성 시각 하나�
 });
 test("활동 기록은 요약과 대기 거리·시간 캘린더 및 그래프를 제공한다", () => {
   let calendarProps;
-  const Records = compileComponent(read("components/my-activity-records.tsx"), { styles: {}, MyActivityRecordChart: () => React.createElement("section", null, "기록 그래프"), ParticipantRecordCalendar: props => { calendarProps = props; return React.createElement("section", null, "calendar"); } }, "MyActivityRecords");
+  const Records = compileComponent(read("components/my-activity-records.tsx"), { fourthMemberTotals, styles: {}, MyActivityRecordChart: () => React.createElement("section", null, "기록 그래프"), ParticipantRecordCalendar: props => { calendarProps = props; return React.createElement("section", null, "calendar"); } }, "MyActivityRecords");
   const html = renderToStaticMarkup(React.createElement(Records, { data: {
     season: { today: "2026-10-08" }, summary: { official: { certifiedDays: 1, totalDistanceKm: 5, totalDurationSeconds: 1800 } },
     records: [{ date: "2026-10-08", distanceKm: 5.2, durationSeconds: 1930, status: "needs_review" }],
@@ -96,7 +97,7 @@ test("멤버창은 인증일·거리·시간을 위에서 한 번만 보여주�
   const source = read("app/poc/hello-2027/hello-2027-poc.tsx");
   let calendarProps;
   const Dialog = compileComponent(source.slice(source.indexOf("function formatTotalDuration")), {
-    styles: {}, ParticipantAvatar: () => null,
+    fourthMemberTotals, styles: {}, ParticipantAvatar: () => null,
     ParticipantRecordCalendar: props => { calendarProps = props; return React.createElement("section", null, "calendar"); },
   }, "ParticipantDialog");
   for (const certifiedDays of [0, 8]) {
@@ -112,6 +113,6 @@ test("멤버창은 인증일·거리·시간을 위에서 한 번만 보여주�
   }
   assert.doesNotMatch(read("app/poc/hello-2027/participant-record-calendar.tsx"), /4기 공식 인증 기준/);
   assert.doesNotMatch(read("app/poc/hello-2027/hello-2027-crew-banner.tsx"), />2026\.12\.31</);
-  assert.match(source, /총 누적거리[\s\S]*officialTotals\?\.distanceKm[\s\S]*총 누적 시간[\s\S]*officialTotals\?\.durationMinutes/);
+  assert.match(source, /누적 거리[\s\S]*cumulativeTotals.distanceKm[\s\S]*누적 시간[\s\S]*cumulativeTotals.durationMinutes/);
   assert.match(source, /id="crew-title">멤버<\/h2>\s*<span className=\{styles.crewCount\}/);
 });

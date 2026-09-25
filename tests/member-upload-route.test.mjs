@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import ts from "typescript";
-import { memberUploadRecordValues, memberEvidenceIssues, hasMemberUploadEvidence, MEMBER_UPLOAD_BUCKET, MEMBER_UPLOAD_DRAFT_PATTERN, ownsFreshDraft, validateMemberSubmission, validateCertificationDate } from "../lib/member-upload-contract.ts";
+import { canSavePersonalRun, memberRunClassification, memberUploadRecordValues, memberEvidenceIssues, hasMemberUploadEvidence, MEMBER_UPLOAD_BUCKET, MEMBER_UPLOAD_DRAFT_PATTERN, ownsFreshDraft, validateMemberSubmission, validateCertificationDate } from "../lib/member-upload-contract.ts";
 
 // Execute the actual POST body with injected auth/storage/DB ports. Tests never
 // contact production and deliberately send forged ownership/status fields.
@@ -27,7 +27,7 @@ function harness(overrides = {}) {
     toKstIsoDate: overrides.today || (() => "2026-10-08"), privateJson: json,
     privateUploadStore: async () => { calls.push({ storage: true }); return {}; },
     uploadPrefix: (owner, id) => `4th/${owner}/${id}`, readUploadDraft: async () => draft,
-    memberUploadRecordValues, memberEvidenceIssues, hasMemberUploadEvidence, writeCertificationReview, ownsFreshDraft, MEMBER_UPLOAD_BUCKET, FOURTH_SEASON_KEY: "4th",
+    canSavePersonalRun, memberRunClassification, memberUploadRecordValues, memberEvidenceIssues, hasMemberUploadEvidence, writeCertificationReview, ownsFreshDraft, MEMBER_UPLOAD_BUCKET, FOURTH_SEASON_KEY: "4th",
     calculatePaceSeconds: (distance, duration) => Math.round(duration / distance),
     invalidatePublicDashboardCache: () => calls.push({ invalidated: true }),
     after: () => {}, broadcastDashboardRefreshFromServer: () => {},
@@ -72,7 +72,7 @@ test("OCR 값이 없으면 요청 본문에 유효한 수치를 보내도 인증
 
 test("사진 날짜가 없거나 과거·미래여도 본인이 선택한 유효한 날짜에 인증",async()=>{
  for(const date of [null,"2025-01-01","2027-01-01"]){
-  const h=harness({body:{date:"2026-09-20"},draft:{date,activityDate:date}});const response=await h.POST({});assert.equal(response.status,201);
+  const h=harness({body:{date:"2026-09-20",saveAsPersonal:true},draft:{date,activityDate:date}});const response=await h.POST({});assert.equal(response.status,201);
   const row=h.calls.find(c=>c.insert).insert;assert.equal(row.record_date,"2026-09-20");assert.equal(response.body.record.date,row.record_date);
  }
 });
@@ -93,4 +93,12 @@ test("3km와 07:59 경계 통과, 2.999km와 08:00은 서버에서 거절",async
 test("업로드 일자는 한국시간 자정 기준이고 사진 날짜·요청 날짜에 영향받지 않음",()=>{
  const base={createdAt:"2026-09-15T14:59:59.999Z",date:"2000-01-01",distanceKm:null,durationSeconds:null};
  assert.equal(memberUploadRecordValues(base).date,"2026-09-15");assert.equal(memberUploadRecordValues({...base,createdAt:"2026-09-15T15:00:00.000Z"}).date,"2026-09-16");
+});
+
+test("늦은 운동과 3km 미만은 명시적 동의 후 개인 기록으로만 저장된다", async()=>{
+ for(const draft of [{activityTime:"08:00"},{distanceKm:2.99},{activityTime:null}]) {
+  const blocked=harness({draft,body:{saveAsPersonal:false,status:"certified"}});const res=await blocked.POST({});assert.equal(res.status,422);assert.equal(res.body.personalConfirmationRequired,true);assert.ok(!blocked.calls.some(c=>c.insert));
+  const accepted=harness({draft,body:{saveAsPersonal:true,status:"certified"}});assert.equal((await accepted.POST({})).status,201);const row=accepted.calls.find(c=>c.insert).insert;assert.equal(row.status,"needs_review");assert.equal(row.source_app,"member-personal");
+ }
+ const invalid=harness({draft:{distanceKm:null},body:{saveAsPersonal:true}});assert.equal((await invalid.POST({})).status,422);
 });

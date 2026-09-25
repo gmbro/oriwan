@@ -86,7 +86,7 @@ export function ParticipantRecordCalendar({
             if (!date) return <span key={`empty-${index}`} aria-hidden="true" />;
             const record = recordsByDate.get(date);
             const isSelected = date === selectedDate;
-            const status = record?.status === "certified" ? "인증 완료" : record ? "운동 기록" : "기록 없음";
+            const status = record?.isPersonal ? "개인 기록" : record?.status === "certified" ? "인증 완료" : record ? "운동 기록" : "기록 없음";
             return (
               <button
                 key={date}
@@ -106,7 +106,7 @@ export function ParticipantRecordCalendar({
         <div className={styles.detail} aria-live="polite" aria-atomic="true">
           <div className={styles.detailHeading}>
             <time dateTime={selectedDate}>{selectedDateLabel}의 기록</time>
-            {selectedRecord?.status === "certified" ? <span className={styles.certifiedBadge}>인증 완료</span> : null}
+            {selectedRecord?.isPersonal ? <span className={styles.certifiedBadge}>개인 기록</span> : selectedRecord?.status === "certified" ? <span className={styles.certifiedBadge}>인증 완료</span> : null}
           </div>
           {selectedRecord ? (
             <dl className={styles.metrics}>

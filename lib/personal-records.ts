@@ -20,6 +20,7 @@ export type PersonalRunRecord = {
   durationSeconds: number | null;
   paceSecondsPerKm: number | null;
   isRecovery: boolean;
+  isPersonal?: boolean;
   /** Only the owner-facing payload may expose the authenticated image route. */
   hasPrivateImage?: boolean;
 };

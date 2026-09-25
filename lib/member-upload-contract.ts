@@ -67,3 +67,10 @@ export function memberUploadRecordValues(draft: MemberUploadDraft) {
   const durationSeconds = !draft.analysisError && typeof draft.durationSeconds === "number" && Number.isInteger(draft.durationSeconds) && draft.durationSeconds > 0 && draft.durationSeconds <= 172800 ? draft.durationSeconds : null;
   return { date, distanceKm, durationSeconds };
 }
+
+export function canSavePersonalRun(draft: MemberUploadDraft) {
+ return !draft.analysisError && typeof draft.distanceKm === "number" && Number.isFinite(draft.distanceKm) && draft.distanceKm > 0 && draft.distanceKm <= 300;
+}
+export function memberRunClassification(draft: MemberUploadDraft, date:string) {
+ return hasMemberUploadEvidence(draft) && date >= "2026-09-23" && date <= "2026-12-31" ? "certified" : "personal";
+}

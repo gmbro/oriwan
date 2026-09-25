@@ -72,3 +72,13 @@ export function clampToFourthPersonalRecordWindow(value: string) {
 export function isFourthOfficialCertificationDate(value: string | null | undefined) {
   return isWithinFourthSeasonWindow(value);
 }
+
+// Display totals include confirmed personal runs from September, not pending OCR.
+export function fourthMemberTotals(records: readonly {recordDateIso:string;status:string;distanceKm:number|null;durationMinutes:number|null;isPersonal?:boolean}[], today:string) {
+ const visible=records.filter(r=>r.recordDateIso >= "2026-09-01" && r.recordDateIso <= today && r.recordDateIso <= FOURTH_SEASON_END_DATE && (r.status === "certified" || (r.status === "needs_review" && r.isPersonal)));
+ const official=visible.filter(r=>r.status === "certified" && isWithinFourthSeasonWindow(r.recordDateIso));
+ const sum=(rows:typeof visible,key:"distanceKm"|"durationMinutes")=>rows.reduce((n,r)=>n+(Number.isFinite(r[key])?Math.max(0,r[key]??0):0),0);
+ const certifiedDistanceKm=sum(official,"distanceKm");
+ const totalDistanceKm=sum(visible,"distanceKm");
+ return {totalDistanceKm,totalDurationMinutes:sum(visible,"durationMinutes"),certifiedDistanceKm,personalDistanceKm:Math.max(0,totalDistanceKm-certifiedDistanceKm)};
+}

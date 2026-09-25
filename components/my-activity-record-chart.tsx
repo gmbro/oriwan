@@ -26,14 +26,14 @@ export default function MyActivityRecordChart({ records, today }: { records: Per
     </div>
     <div className={styles.chartPeriod}>
       <button type="button" disabled={!canPrevious} aria-label="이전 기록 기간" onClick={() => {setOffset(offset-1);setSelected(null);}}>‹</button>
-      <span>{beforeStart ? '2026년 9월 23일 시작' : `${start.slice(5).replace('-', '.')} – ${end.slice(5).replace('-', '.')}`}</span>
+      <span>{beforeStart ? '2026년 9월 1일 시작' : `${start.slice(5).replace('-', '.')} – ${end.slice(5).replace('-', '.')}`}</span>
       <button type="button" disabled={!canNext} aria-label="다음 기록 기간" onClick={() => {setOffset(offset+1);setSelected(null);}}>›</button>
     </div>
     <div className={styles.chartSummary}>
-      <div><span>{period === 'week' ? '선택한 주' : period === 'month' ? '선택한 월' : '시즌 전체'} {metric === 'distance' ? '달린 거리' : '운동 시간'}</span><strong aria-live="polite">{format(total)}<small>{unit}</small></strong></div>
+      <div><span>{period === 'week' ? '선택한 주' : period === 'month' ? '선택한 월' : '9월부터 전체'} {metric === 'distance' ? '달린 거리' : '운동 시간'}</span><strong aria-live="polite">{format(total)}<small>{unit}</small></strong></div>
       <div className={styles.chartTabs} role="group" aria-label="그래프 지표"><button type="button" aria-pressed={metric === 'distance'} onClick={() => setMetric('distance')}>거리</button><button type="button" aria-pressed={metric === 'minutes'} onClick={() => setMetric('minutes')}>시간</button></div>
     </div>
-    {beforeStart ? <div className={styles.chartEmpty}><strong>첫 기록을 기다립니다</strong><p>9월 23일 시작</p></div> : <>
+    {beforeStart ? <div className={styles.chartEmpty}><strong>첫 기록을 기다립니다</strong><p>9월 1일 시작</p></div> : <>
       <svg viewBox={`0 0 ${chartWidth} 190`} className={styles.recordPlot} role="group" aria-labelledby={titleId}>
         <title id={titleId}>{period === 'total' ? '월별' : '일별'} {metric === 'distance' ? '거리' : '시간'} 그래프, 단위 {unit}. 막대를 선택하면 수치를 확인할 수 있어요.</title>
         {[0,0.5,1].map(ratio => <g key={ratio}><line x1={left} x2="310" y1={base-ratio*plotHeight} y2={base-ratio*plotHeight} stroke="#e5e8eb" strokeDasharray={ratio ? '3 4' : undefined}/><text x="27" y={base-ratio*plotHeight+3} textAnchor="end" fontSize="9" fill="#8b95a1">{format(ceiling*ratio)}</text></g>)}

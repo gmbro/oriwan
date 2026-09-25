@@ -5,6 +5,7 @@ export type Hello2027MetricRecord = {
   duration_seconds: number | null;
   status: "certified" | "needs_review";
   created_at: string | null;
+  source_app?: string | null;
 };
 
 type GroupHello2027MetricRecordsInput = {

@@ -219,6 +219,7 @@ function buildLiveSnapshot({
         distanceKm: cleanFiniteNumber(record.distance_km),
         durationMinutes: roundHello2027DurationMinutes(record.duration_seconds),
         status: record.status,
+        isPersonal: record.source_app === "member-personal" && record.status === "needs_review",
       }))
       .filter((record) => record.recordDateIso && record.monthDay)
       .sort((left, right) => right.recordDateIso.localeCompare(left.recordDateIso));

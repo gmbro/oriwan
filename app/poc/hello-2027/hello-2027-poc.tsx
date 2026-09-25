@@ -25,7 +25,7 @@ import { useLocalHello2027Content } from "./use-local-hello-2027-content";
 import { TimeMachineBadge } from "@/components/time-machine-badge";
 import { KakaoLoginButton } from "@/components/kakao-login-button";
 import { useOptionalFourthViewer } from "@/components/fourth-viewer-provider";
-import { formatFourthSeasonDday, fourthOfficialMemberTotals } from "@/lib/fourth-season-contract";
+import { formatFourthSeasonDday, fourthMemberTotals } from "@/lib/fourth-season-contract";
 import { DASHBOARD_SNAPSHOT_DOM_EVENT } from "@/lib/dashboard-refresh-contract";
 
 type Hello2027PocProps = {
@@ -137,9 +137,10 @@ export function Hello2027Poc({
     () => liveSnapshot.participants.find((participant) => participant.id === selectedParticipantId) ?? null,
     [liveSnapshot.participants, selectedParticipantId, canViewRecords],
   );
+  const cumulativeTotals = liveSnapshot.participants.reduce((sum, p) => { const t = fourthMemberTotals(p.recordHistory, seoulToday); return { distanceKm: sum.distanceKm+t.totalDistanceKm, durationMinutes:sum.durationMinutes+t.totalDurationMinutes }; }, {distanceKm:0,durationMinutes:0});
   const sortedParticipants = useMemo(() => {
     const participants = (canViewRecords ? projectDashboardRecords(liveSnapshot, false).participants : liveSnapshot.participants)
-      .map(participant => ({...participant,...fourthOfficialMemberTotals(participant.recordHistory, seoulToday)}));
+      .map(participant => ({...participant,...fourthMemberTotals(participant.recordHistory, seoulToday)}));
     return participants.sort((left, right) => (
       (crewSort === "completed" ? right.certifiedDays - left.certifiedDays : right.totalDistanceKm - left.totalDistanceKm)
       || left.fullName.localeCompare(right.fullName, "ko")
@@ -202,16 +203,18 @@ export function Hello2027Poc({
           <section className={styles.summarySection} aria-label="시즌 인증 요약">
             <div className={styles.summaryGrid}>
               <article className={styles.summaryCard}>
-                <span>{liveSnapshot.totalDays}일 중</span>
-                <strong>{liveSnapshot.dayNumber}일</strong>
+                <span>진행일</span>
+                <strong>{liveSnapshot.dayNumber} / {liveSnapshot.totalDays}</strong><small>일</small>
               </article>
               <article className={styles.summaryCard}>
-                <span>누적거리(km)</span>
-                <strong className={styles.summaryTotal}>{(liveSnapshot.officialTotals?.distanceKm ?? 0).toLocaleString("ko-KR", { maximumFractionDigits: 2 })}</strong>
+                <span>누적 거리</span>
+                <strong className={styles.summaryTotal}>{cumulativeTotals.distanceKm.toLocaleString("ko-KR", { maximumFractionDigits: 2 })}</strong>
+                <small>km</small>
               </article>
               <article className={styles.summaryCard}>
-                <span>누적시간(h:mm)</span>
-                <strong className={styles.summaryTotal}>{formatCompactDuration(liveSnapshot.officialTotals?.durationMinutes ?? 0)}</strong>
+                <span>누적 시간</span>
+                <strong className={styles.summaryTotal}>{formatCompactDuration(cumulativeTotals.durationMinutes)}</strong>
+                <small>시간:분</small>
               </article>
             </div>
           </section>
@@ -423,6 +426,7 @@ export function ParticipantDialog({
   onClose,
 }: ParticipantDialogProps) {
 
+  const totals = participant ? fourthMemberTotals(participant.recordHistory, today) : null;
   return (
     <dialog
       ref={dialogRef}
@@ -461,9 +465,10 @@ export function ParticipantDialog({
             </div>
             <div>
               <dt>누적 시간</dt>
-              <dd>{formatTotalDuration(participant.totalDurationMinutes)}</dd>
+              <dd>{formatTotalDuration(totals?.totalDurationMinutes ?? participant.totalDurationMinutes)}</dd>
             </div>
           </dl>
+          {totals && <p className={styles.distanceBreakdown}>인증 거리 {totals.certifiedDistanceKm.toFixed(2)} km · 개인 거리 {totals.personalDistanceKm.toFixed(2)} km<br/><small>개인 기록은 9월 1일부터 합산해요.</small></p>}
 
 
           {<div className={styles.memberCalendar}><ParticipantRecordCalendar

@@ -56,6 +56,7 @@ export type Hello2027ParticipantRecordEntry = {
   distanceKm: number | null;
   durationMinutes: number | null;
   status: "certified" | "needs_review";
+  isPersonal?: boolean;
 };
 
 export type Hello2027Participant = {

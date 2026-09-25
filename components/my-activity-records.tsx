@@ -3,6 +3,7 @@ import type { PersonalRecordsPayload } from "@/lib/personal-records";
 import { ParticipantRecordCalendar } from "@/app/poc/hello-2027/participant-record-calendar";
 import type { Hello2027ParticipantRecordEntry } from "@/lib/hello-2027-types";
 import MyActivityRecordChart from "./my-activity-record-chart";
+import { fourthMemberTotals } from "@/lib/fourth-season-contract";
 import styles from "./my-activity.module.css";
 
 export default function MyActivityRecords({ data }: { data: PersonalRecordsPayload }) {
@@ -16,14 +17,17 @@ export default function MyActivityRecords({ data }: { data: PersonalRecordsPaylo
       weekday: "",
       distanceKm: r.distanceKm,
       durationMinutes: r.durationSeconds === null ? null : r.durationSeconds / 60,
+      isPersonal: r.isPersonal,
       status: r.status as "certified" | "needs_review",
     }));
+  const totals = fourthMemberTotals(history, data.season.today);
   return <>
     <dl className={styles.stats}>
       <div><dt>총 인증일</dt><dd>{official.certifiedDays}일</dd></div>
-      <div><dt>누적 거리</dt><dd>{history.reduce((sum, r) => sum + (r.distanceKm ?? 0), 0).toLocaleString("ko-KR", { maximumFractionDigits: 2 })}km</dd></div>
-      <div><dt>누적 시간</dt><dd>{formatDuration(history.reduce((sum, r) => sum + (r.durationMinutes ?? 0), 0))}</dd></div>
+      <div><dt>누적 거리</dt><dd>{totals.totalDistanceKm.toLocaleString("ko-KR", { maximumFractionDigits: 2 })}km</dd></div>
+      <div><dt>누적 시간</dt><dd>{formatDuration(totals.totalDurationMinutes)}</dd></div>
     </dl>
+    <p className={styles.muted}>인증 거리 {totals.certifiedDistanceKm.toFixed(2)} km · 개인 거리 {totals.personalDistanceKm.toFixed(2)} km<br/>개인 기록은 9월 1일부터 합산해요.</p>
     <ParticipantRecordCalendar records={history} certifiedDays={official.certifiedDays} today={data.season.today} showLegend={false} showTotal={false} compact>
       <MyActivityRecordChart records={data.records} today={data.season.today} />
     </ParticipantRecordCalendar>

@@ -1,6 +1,6 @@
 import { writeCertificationReview } from "@/lib/certification-review";
 import { after, NextRequest, NextResponse } from "next/server";
-import { memberUploadRecordValues, MEMBER_UPLOAD_BUCKET, MEMBER_UPLOAD_DRAFT_PATTERN, ownsFreshDraft, validateCertificationDate, memberEvidenceIssues } from "@/lib/member-upload-contract";
+import { memberUploadRecordValues, MEMBER_UPLOAD_BUCKET, MEMBER_UPLOAD_DRAFT_PATTERN, ownsFreshDraft, validateCertificationDate, memberEvidenceIssues, canSavePersonalRun, memberRunClassification } from "@/lib/member-upload-contract";
 import { ownedMember, privateUploadStore, readMemberJson, readUploadDraft, uploadPrefix } from "@/lib/member-upload-server";
 import { loadHello2027ProfileImageUrls } from "@/lib/hello-2027-profile-image-storage";
 import { invalidatePublicDashboardCache } from "@/lib/public-dashboard-data";
@@ -78,6 +78,7 @@ function toPersonalRecord(row: PersonalRecordRow): PersonalRunRecordInput | null
     id: row.id,
     date,
     status,
+    isPersonal: row.source_app === "member-personal" && row.status === "needs_review",
     distanceKm,
     durationSeconds: durationSeconds === null ? null : Math.round(durationSeconds),
     paceSecondsPerKm: isRecovery
@@ -185,11 +186,13 @@ export async function POST(request: NextRequest) {
     const draft = await readUploadDraft(store, prefix);
     if (!draft || !ownsFreshDraft(draft, owned.participantId)) return privateJson({ error: "인증샷 확인 시간이 지났어요. 사진을 다시 선택해주세요." }, 410);
     const issues = memberEvidenceIssues(draft);
-    if (issues.length) return privateJson({ error: issues.join("\n"), issues }, 422);
+    if (!canSavePersonalRun(draft)) return privateJson({ error: issues.join("\n"), issues }, 422);
     const values = memberUploadRecordValues(draft);
     const selected = validateCertificationDate(body.date ?? values.date, toKstIsoDate());
     if (!selected.ok) return privateJson({ error: selected.error }, 400);
     values.date = selected.date;
+    const personal = memberRunClassification(draft, values.date) === "personal";
+    if (personal && body.saveAsPersonal !== true) return privateJson({ error: [...issues, "개인 기록으로 저장할까요? 인증일과 보상에는 포함되지 않아요."].join("\n"), issues, personalConfirmationRequired: true }, 422);
     const imagePath = `${MEMBER_UPLOAD_BUCKET}/${prefix}/image.webp`;
     // Resolve ownership on the server and certify submitted records immediately.
     // The unique member/date index prevents duplicate submissions.
@@ -197,9 +200,9 @@ export async function POST(request: NextRequest) {
       user_id: owned.adminUserId, season_key: FOURTH_SEASON_KEY, participant_id: owned.participantId,
       record_date: values.date, distance_km: values.distanceKm, duration_seconds: values.durationSeconds,
       pace_seconds_per_km: calculatePaceSeconds(values.distanceKm, values.durationSeconds),
-      source_app: "member-upload", status: "certified", confidence_score: draft.confidence,
+      source_app: personal ? "member-personal" : "member-upload", status: personal ? "needs_review" : "certified", confidence_score: draft.confidence,
       image_url: imagePath, raw_extracted_text: draft.rawText,
-      notes: writeCertificationReview(`개인 사진 업로드 · ${body.date ? "본인 선택 날짜" : "업로드 날짜"} 기준 인증 완료\nOCR 원본: ${JSON.stringify({ date: draft.date, distanceKm: draft.distanceKm, durationSeconds: draft.durationSeconds, model: draft.model, analysisError: draft.analysisError ?? null, warning: draft.warning })}\n확정 기록: ${JSON.stringify(values)}`, { version: 1, uploadedAt: draft.createdAt, ocrDate: draft.activityDate ?? null, ocrTime: draft.activityTime ?? null }),
+      notes: writeCertificationReview(`개인 사진 업로드 · ${body.date ? "본인 선택 날짜" : "업로드 날짜"} 기준 ${personal ? "개인 기록 저장 (공식 인증 제외)" : "인증 완료"}\nOCR 원본: ${JSON.stringify({ date: draft.date, distanceKm: draft.distanceKm, durationSeconds: draft.durationSeconds, model: draft.model, analysisError: draft.analysisError ?? null, warning: draft.warning })}\n확정 기록: ${JSON.stringify(values)}`, { version: 1, uploadedAt: draft.createdAt, ocrDate: draft.activityDate ?? null, ocrTime: draft.activityTime ?? null }),
     }).select("id, status, record_date").single();
     if (error?.code === "23505") {
       const { data: existing } = await service.from("daily_run_records").select("id, status, image_url")

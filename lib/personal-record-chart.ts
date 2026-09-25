@@ -1,5 +1,6 @@
 import type { PersonalRunRecord } from './personal-records';
-import { FOURTH_SEASON_START_DATE as START, FOURTH_SEASON_END_DATE as END } from './fourth-season-contract';
+import { FOURTH_SEASON_END_DATE as END } from './fourth-season-contract';
+const START = '2026-09-01';
 export type RecordPeriod = 'week' | 'month' | 'total';
 const ms = (date: string) => Date.parse(`${date}T00:00:00Z`);
 const addDays = (date: string, days: number) => new Date(ms(date) + days * 86400000).toISOString().slice(0, 10);
@@ -17,7 +18,7 @@ export function personalRecordChart(records: PersonalRunRecord[], today: string,
     if (buckets.at(-1)?.date !== key) buckets.push({ date: key, label: period === 'total' ? `${Number(date.slice(5, 7))}월` : `${Number(date.slice(5, 7))}/${Number(date.slice(8))}`, distance: 0, minutes: 0 });
   }
   for (const record of records) {
-    if (record.date < start || record.date > end || record.date > today || !['certified','needs_review'].includes(record.status)) continue;
+    if (record.date < start || record.date > end || record.date > today || !(record.status === 'certified' || (record.status === 'needs_review' && record.isPersonal))) continue;
     const bucket = buckets.find(b => b.date === (period === 'total' ? record.date.slice(0, 7) : record.date));
     if (bucket) { bucket.distance += record.distanceKm ?? 0; bucket.minutes += (record.durationSeconds ?? 0) / 60; }
   }

@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import {CertificationGuide} from "./certification-guide";
 import {openMyActivity} from "./my-activity-dialog";
-import { MEMBER_UPLOAD_MAX_BYTES, type MemberUploadDraft } from "@/lib/member-upload-contract";
+import { canSavePersonalRun, memberRunClassification, memberEvidenceIssues, MEMBER_UPLOAD_MAX_BYTES, type MemberUploadDraft } from "@/lib/member-upload-contract";
 import { KoreanExerciseDate, formatKoreanExerciseDate } from "./korean-exercise-date";
 import styles from "./my-activity.module.css";
 
@@ -28,6 +28,8 @@ export async function reduceScreenshot(file: File) {
 
 export default function MyActivityUpload({ today, onSubmitted, onViewRecords, preview = false }: { today: string; onSubmitted: (date?: string) => void; onViewRecords?: () => void; preview?: boolean }) {
   const [stage, setStage] = useState<"choose" | "uploading" | "analyzing" | "confirm" | "submitting" | "done">("choose");
+  const [personalConfirm,setPersonalConfirm] = useState(false);
+  const [savedPersonal,setSavedPersonal] = useState(false);
   const [draft, setDraft] = useState<MemberUploadDraft | null>(null);
   const [progress, setProgress] = useState(0);
   const [image, setImage] = useState("");
@@ -73,24 +75,27 @@ export default function MyActivityUpload({ today, onSubmitted, onViewRecords, pr
     } catch (e) { if (alive.current) { setGuide(e instanceof Error ? e.message : "업로드하지 못했어요."); setStage("choose"); } }
     finally { xhr.current = null; }
   };
-  const submit = async (event: React.FormEvent) => {
-    event.preventDefault(); if (!draft || stage === "submitting") return;
+  const submit = async (event?: React.FormEvent, saveAsPersonal = false) => {
+    event?.preventDefault(); if (!draft || stage === "submitting") return;
+    const personal = memberRunClassification(draft,date) === "personal";
+    if(personal && canSavePersonalRun(draft) && !saveAsPersonal){setPersonalConfirm(true);return;}
     setStage("submitting"); setError("");
     try {
       if (!preview) {
-        const response = await fetch("/api/me/records", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ draftId: draft.id, date, distanceKm: Number(distance), durationSeconds: Number(minutes) * 60 + Number(seconds) }) });
+        const response = await fetch("/api/me/records", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ draftId: draft.id, date, saveAsPersonal, distanceKm: Number(distance), durationSeconds: Number(minutes) * 60 + Number(seconds) }) });
         const payload = await response.json(); if (!response.ok || !payload.record?.id) throw new Error(payload.error || "서버의 저장 완료를 확인하지 못했어요. 같은 내용으로 다시 제출하면 중복 저장 없이 확인할 수 있어요.");
       }
-      if (alive.current) { setStage("done"); onSubmitted(date); if(!preview&&date===today)openMyActivity("gift"); }
+      if (alive.current) { setSavedPersonal(personal); setStage("done"); onSubmitted(date); if(!preview&&!personal&&date===today)openMyActivity("gift"); }
     } catch (e) { if (alive.current) { setStage("confirm"); setGuide(e instanceof Error ? e.message : "제출하지 못했어요."); } }
   };
   return <>
+    {personalConfirm&&draft&&<CertificationGuide message={[...memberEvidenceIssues(draft),"개인 거리는 9월 1일부터 합산하며 인증일·보상에는 포함되지 않아요."].join("\n")} onClose={()=>setPersonalConfirm(false)} onConfirm={()=>{setPersonalConfirm(false);void submit(undefined,true);}}/>}
     {guide&&<CertificationGuide message={guide} onClose={()=>setGuide("")}/>}
-    {stage !== "done" && <p className={styles.uploadGuidance}>사진에 거리 3km 이상과 오전 8시 이전 운동 시작 시각이 보여야 인증할 수 있어요.</p>}
+    {stage !== "done" && <p className={styles.uploadGuidance}>3km 이상 · 오전 8시 이전 시작은 공식 인증, 그 외 운동은 확인 후 개인 기록으로 저장할 수 있어요.</p>}
     {["choose", "uploading", "analyzing"].includes(stage) && <div className={styles.field}>운동한 날짜 (사진 선택 전 확인)<KoreanExerciseDate min="2026-08-13" max={today < "2026-12-31" ? today : "2026-12-31"} value={date} disabled={stage !== "choose"} onChange={setDate} /></div>}
     {stage !== "done" && <p className={styles.muted}>운동한 날짜마다 1건만 제출할 수 있어요. 등록 실패 시 문의주시면 운영자가 업로드해드려요</p>}
     {error && <p className={`${styles.feedback} ${styles.error}`} role="alert">{error}</p>}
-    {stage === "done" ? <><div className={styles.feedback} role="status">{preview ? "미리보기 제출 완료 · 실제 저장 없음" : <><strong>인증이 완료되었습니다</strong><p>내 기록에 저장했어요. 오늘 기록이면 인증박스를 바로 열 수 있어요.</p><p>{formatKoreanExerciseDate(date)} · {distance}km · {minutes}분 {seconds}초</p></>}</div>{onViewRecords && <button className={styles.primary} onClick={onViewRecords}>내 기록에서 확인하기</button>}<button className={styles.primary} onClick={() => { setDraft(null); setStage("choose"); setImage(""); }}>다른 인증샷 올리기</button></> : <>
+    {stage === "done" ? <><div className={styles.feedback} role="status">{preview ? "미리보기 제출 완료 · 실제 저장 없음" : <><strong>{savedPersonal ? "개인 기록을 저장했어요" : "인증이 완료되었습니다"}</strong><p>{savedPersonal ? "누적 거리에 반영되며 인증일·보상에는 포함되지 않아요." : "내 기록에 저장했어요. 오늘 기록이면 인증박스를 바로 열 수 있어요."}</p><p>{formatKoreanExerciseDate(date)} · {distance}km · {minutes}분 {seconds}초</p></>}</div>{onViewRecords && <button className={styles.primary} onClick={onViewRecords}>내 기록에서 확인하기</button>}<button className={styles.primary} onClick={() => { setDraft(null); setStage("choose"); setImage(""); }}>다른 인증샷 올리기</button></> : <>
       {image && <p className={styles.muted} role="status">{draft ? "사진 저장 완료 · " + (stage === "confirm" || stage === "submitting" ? "인식값 확인 후 인증 제출을 눌러주세요." : "인증 조건 또는 인식값 확인 필요 · 기록 미제출") : "선택한 사진 미리보기 · 아직 기록 제출 전이에요."}</p>}
       {image && <Image unoptimized width={800} height={800} src={image} alt="내가 선택한 인증샷 미리보기" className={styles.preview} />}
       <input ref={input} type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={e => { void upload(e.target.files?.[0]); e.target.value = ""; }} />
